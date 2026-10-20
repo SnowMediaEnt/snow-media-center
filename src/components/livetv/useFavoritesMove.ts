@@ -10,8 +10,10 @@
 //   OK or Back puts it down there and saves the order;
 //   every other key does nothing until then (no channel change, no side
 //   menu, no favourite toggled by accident).
-// The list draws the lifted row (MovingFavoriteFrame) and keeps it in view;
-// Live TV losing the remote, or leaving it, puts it down where it got to.
+// The list draws the lifted row (MovingFavoriteMark) and keeps it in view.
+// Whatever takes the list away from the remote puts it down where it got to,
+// saved: full screen (a voice "put on …"), search (the assistant's report),
+// the categories, the Player's side menu or a prompt over it, or leaving.
 // A touch screen has no ▲▼ to carry it: its menu offers Move up / Move
 // down instead (stepOnce), one place a tap.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -35,7 +37,9 @@ export interface FavoritesMoveOptions {
   lines: XtreamCreds[];
   /** Each line's favourites (LiveSection's favsByLine), in the order they were added. */
   favsByLine: ReadonlyMap<string, ReadonlyMap<number, FavChannel>>;
-  /** Live TV has the remote. A move still under way when it loses it is put down where it is. */
+  /** The Favorites list has the remote (Live TV's, not full screen, not
+   *  search, the channels pane). A move under way when that ends is put
+   *  down where it is, and saved. */
   active: boolean;
 }
 
@@ -92,9 +96,14 @@ export function useFavoritesMove({ lines, favsByLine, active }: FavoritesMoveOpt
   }, []);
 
   const start = useCallback((key: string) => {
-    movingRef.current = { key, keys: mineRefs(presentRef.current, savedRef.current.keys) };
+    // One already lifted (it should not be: the list ignores the remote's
+    // other ways in meanwhile) is put down first, so its place is not lost.
+    const prev = movingRef.current;
+    const from = prev ? mineRefs(presentRef.current, prev.keys) : mineRefs(presentRef.current, savedRef.current.keys);
+    if (prev) persist(prev.keys, 'mine');
+    movingRef.current = { key, keys: from };
     setMoving(movingRef.current);
-  }, []);
+  }, [persist]);
 
   const drop = useCallback(() => {
     const m = movingRef.current;
@@ -154,8 +163,7 @@ export function useFavoritesMove({ lines, favsByLine, active }: FavoritesMoveOpt
     saveFavOrder({ mode, keys: savedRef.current.keys });
   }, []);
 
-  // Live TV lost the remote mid-move (a dialog over the Player, the voice
-  // overlay, another section): put down where it got to.
+  // The list lost the remote mid-move (see `active`): put down where it got to.
   useEffect(() => { if (!active) drop(); }, [active, drop]);
   // Leaving Live TV mid-move keeps where it got to, too.
   useEffect(() => () => {

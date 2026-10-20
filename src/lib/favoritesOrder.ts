@@ -63,8 +63,15 @@ const refKey = (r: FavRef): string => favRefKey(r.line, r.id);
 const nameKey = (line: string, name: string): string => `${line}|${name.trim().toLowerCase()}`;
 const same = (r: FavRef): FavRef => r;
 
+// An order whose save failed (storage full or blocked), per profile: it is
+// still the one shown for the rest of the visit, so a move does not snap
+// back the moment it is put down. Cleared by the next save that works.
+const unsaved = new Map<string, FavOrder>();
+
 /** The profile's order (the box's copy; nothing here throws). */
 export function loadFavOrder(profile: string = viewerProfileId()): FavOrder {
+  const held = unsaved.get(profile);
+  if (held) return held;
   try {
     const raw = localStorage.getItem(STORE_PREFIX + profile);
     if (!raw) return EMPTY_FAV_ORDER;
@@ -83,18 +90,29 @@ export function loadFavOrder(profile: string = viewerProfileId()): FavOrder {
   }
 }
 
-/** Save the profile's order and tell every list on screen. */
-export function saveFavOrder(order: FavOrder, profile: string = viewerProfileId()): void {
+/** Save the profile's order and tell every list on screen. False when the
+ *  box would not keep it (it is still shown until the app is closed). */
+export function saveFavOrder(order: FavOrder, profile: string = viewerProfileId()): boolean {
   const seen = new Set<string>();
   const keys: Array<[string, number, string]> = [];
+  const refs: FavRef[] = [];
   for (const r of order.keys) {
     const k = refKey(r);
     if (seen.has(k)) continue;
     seen.add(k);
     keys.push([r.line, r.id, r.name]);
+    refs.push(r);
   }
-  try { localStorage.setItem(STORE_PREFIX + profile, JSON.stringify({ mode: order.mode, keys })); } catch { /* full or blocked: the order on screen still holds */ }
+  let kept = true;
+  try {
+    localStorage.setItem(STORE_PREFIX + profile, JSON.stringify({ mode: order.mode, keys }));
+    unsaved.delete(profile);
+  } catch {
+    kept = false;
+    unsaved.set(profile, { mode: order.mode, keys: refs });
+  }
   try { window.dispatchEvent(new CustomEvent(FAV_ORDER_EVENT)); } catch { /* ignore */ }
+  return kept;
 }
 
 /**

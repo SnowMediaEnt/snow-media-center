@@ -4,7 +4,7 @@
  * natural and case-blind, switching to A–Z and back keeps the own order,
  * moving goes along the list on screen, and each profile has its own.
  */
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   arrangeFavorites,
   azOrder,
@@ -165,6 +165,21 @@ describe('kept per profile, on the box', () => {
     expect(loadFavOrder()).toEqual({ mode: 'az', keys: [ref(A, 1, 'One')] });
     setViewerProfile('kid1');
     expect(names(loadFavOrder().keys)).toEqual(['Two']);
+  });
+
+  it('a save the box will not keep (storage full) is still the order shown, until one that works', () => {
+    saveFavOrder({ mode: 'mine', keys: [ref(A, 1, 'One'), ref(A, 2, 'Two')] });
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('QuotaExceededError'); });
+    try {
+      expect(saveFavOrder({ mode: 'mine', keys: [ref(A, 2, 'Two'), ref(A, 1, 'One')] })).toBe(false);
+      // Not snapped back to the stored copy.
+      expect(names(loadFavOrder().keys)).toEqual(['Two', 'One']);
+    } finally {
+      setItem.mockRestore();
+    }
+    expect(saveFavOrder({ mode: 'az', keys: [ref(A, 1, 'One')] })).toBe(true);
+    expect(loadFavOrder()).toEqual({ mode: 'az', keys: [ref(A, 1, 'One')] });
+    expect(JSON.parse(localStorage.getItem('snow-livetv-fav-order-v1:main') ?? '{}').mode).toBe('az');
   });
 
   it('a save tells every list on screen; a broken copy reads as no order at all', () => {

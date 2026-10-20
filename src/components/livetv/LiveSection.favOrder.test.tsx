@@ -11,6 +11,9 @@ import { act, configure, fireEvent, render, waitFor } from '@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 configure({ asyncUtilTimeout: 4000 });
+// A fresh LiveSection import and two held OKs (700 ms each) run past the 5 s
+// default on a busy machine; a timed-out test would then press keys in the next.
+vi.setConfig({ testTimeout: 20_000 });
 
 const line = { host: 'http://h.test', username: 'someuser', password: 'secretpw', output: 'm3u8' as const, serverLabel: 'DreamStreams' };
 const MAIN = 'h.test|someuser';
@@ -18,6 +21,7 @@ const VIBEZ = 'v.test|vuser';
 const fav = (stream_id: number, name: string) => ({ stream_id, name, category_id: '1' });
 
 const cfg = vi.hoisted(() => ({
+  layout: 'classic' as string,
   saved: [] as unknown[],
   favs: {} as Record<string, Array<{ stream_id: number; name: string; category_id: string }>>,
 }));
@@ -56,7 +60,7 @@ vi.mock('@/integrations/supabase/client', () => ({
 }));
 vi.mock('@/lib/liveLayout', async (orig) => ({
   ...(await orig<typeof import('@/lib/liveLayout')>()),
-  useLiveLayout: () => 'classic',
+  useLiveLayout: () => cfg.layout,
   hasLiveLayoutChoice: () => true,
 }));
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn(), startTimer: vi.fn(), stopTimer: vi.fn(), getDeviceId: () => 'd' }));
@@ -103,12 +107,17 @@ const press = (k: string) => { down(k); up(k); };
 const sleep = (ms: number) => act(async () => { await new Promise((r) => setTimeout(r, ms)); });
 const text = () => document.body.textContent ?? '';
 const menuRows = () => Array.from(document.querySelectorAll('[role="dialog"] button')).map((b) => b.textContent);
-const NAMES = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'News One', 'News Two', 'Vibez Sports'];
+const NAMES = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'News One', 'News Two', 'Vibez Sports', 'Other'];
+const IDS: Record<string, string> = { 1: 'Alpha', 2: 'Bravo', 3: 'Charlie', 4: 'Delta', 101: 'News One', 102: 'News Two', 555: 'Vibez Sports' };
 const nameIn = (el: Element | null | undefined) => NAMES.find((n) => (el?.textContent ?? '').includes(n));
-/** The channel list, top to bottom. */
+/** The channel list, top to bottom (rows, or the logo wall's tiles). */
 const listed = () => Array.from(document.querySelectorAll('[data-howto="live.channels"] [data-focused]')).map(nameIn);
 const highlighted = () => nameIn(document.querySelector('[data-howto="live.channels"] [data-focused="true"]'));
-const lifted = () => nameIn(document.querySelector('[data-fav-moving]'));
+/** The favourite drawn lifted (the mark over its row says which). */
+const lifted = () => {
+  const id = document.querySelector('[data-fav-moving]')?.getAttribute('data-fav-moving');
+  return id ? IDS[id] : undefined;
+};
 const savedOrder = (profile = 'main') => {
   const raw = localStorage.getItem(`snow-livetv-fav-order-v1:${profile}`);
   if (!raw) return null;
@@ -125,7 +134,7 @@ async function freshLive() {
 }
 /** Live TV open on a Favorites list (the `steps`-th entry above the first category), the remote in the channels. */
 async function openFavorites(Live: Awaited<ReturnType<typeof freshLive>>, steps: number, expectFirst: string) {
-  render(<Live creds={line} isActive onExitLeft={() => {}} onBack={() => {}} />);
+  const view = render(<Live creds={line} isActive onExitLeft={() => {}} onBack={() => {}} />);
   // The pane lands on the first real category once the categories are in.
   await waitFor(() => expect(text()).toContain('News'));
   await sleep(30);
@@ -133,6 +142,14 @@ async function openFavorites(Live: Awaited<ReturnType<typeof freshLive>>, steps:
   press('ArrowRight');
   await waitFor(() => expect(listed()[0]).toBe(expectFirst));
   await sleep(30);
+  return view;
+}
+/** Hold OK on the highlighted favourite and pick Move: it is lifted. */
+async function liftHighlighted() {
+  const name = highlighted();
+  await holdOk();
+  pick('Move');
+  await waitFor(() => expect(lifted()).toBe(name));
 }
 /** Hold OK past the hold time (600 ms), then let go; the menu is armed. */
 async function holdOk() {
@@ -154,6 +171,7 @@ function pick(label: string) {
 beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
+  cfg.layout = 'classic';
   cfg.saved = [];
   // Added in this order: Delta, Alpha, Charlie, Bravo.
   cfg.favs = { 'http://h.test': [fav(4, 'Delta'), fav(1, 'Alpha'), fav(3, 'Charlie'), fav(2, 'Bravo')] };
@@ -165,19 +183,22 @@ afterEach(async () => {
 });
 
 describe('Favorites: Move', () => {
-  it('the menu of a favourite offers Move and Sort A–Z; a channel of a category does not', async () => {
+  it('the menu of a favourite offers Move and Sort A–Z', async () => {
     const Live = await freshLive();
     await openFavorites(Live, 2, 'Delta');
     expect(listed()).toEqual(['Delta', 'Alpha', 'Charlie', 'Bravo']);
     press('ArrowDown');
     await holdOk();
     expect(menuRows()).toEqual(['Report Channel', 'Remove from Favorites', 'Move', 'Sort A–Z', 'Record…', 'Refresh channel link', 'Cancel']);
-    press('Escape');
-    // A category's channel: the menu as ever.
-    press('Escape');
-    press('ArrowDown'); press('ArrowDown');
+  });
+
+  it('a channel of a category gets the menu as ever', async () => {
+    const Live = await freshLive();
+    render(<Live creds={line} isActive onExitLeft={() => {}} onBack={() => {}} />);
+    await waitFor(() => expect(text()).toContain('News'));
+    await sleep(30);
     press('ArrowRight');
-    await waitFor(() => expect(text()).toContain('Other'));
+    await waitFor(() => expect(listed()).toEqual(['Other']));
     await sleep(30);
     await holdOk();
     expect(menuRows()).toEqual(['Report Channel', 'Add to Favorites', 'Record…', 'Cancel']);
@@ -273,6 +294,96 @@ describe('Favorites: Move', () => {
     const Live = await freshLive();
     await openFavorites(Live, 2, 'Bravo');
     expect(listed()).toEqual(['Bravo', 'Alpha', 'Delta', 'Charlie']);
+  });
+});
+
+describe('Favorites: a move cut short is put down where it got to, and saved', () => {
+  it('a voice "put on …" playing full screen', async () => {
+    const Live = await freshLive();
+    await openFavorites(Live, 2, 'Delta');
+    await liftHighlighted();
+    press('ArrowDown');
+    expect(listed()).toEqual(['Alpha', 'Delta', 'Charlie', 'Bravo']);
+    act(() => { window.dispatchEvent(new CustomEvent('smc:live-play', { detail: 'Other' })); });
+    await waitFor(() => expect(document.querySelector('h2.text-lg')?.textContent ?? '').toContain('Other'));
+    expect(lifted()).toBeUndefined();
+    expect(savedOrder()).toEqual({ mode: 'mine', names: ['Alpha', 'Delta', 'Charlie', 'Bravo'] });
+    // CH ▼ full screen is a channel change, not a move.
+    press('ArrowDown');
+    expect(savedOrder()).toEqual({ mode: 'mine', names: ['Alpha', 'Delta', 'Charlie', 'Bravo'] });
+  });
+
+  it('the assistant opening search', async () => {
+    const Live = await freshLive();
+    await openFavorites(Live, 2, 'Delta');
+    await liftHighlighted();
+    press('ArrowDown'); press('ArrowDown');
+    act(() => { window.dispatchEvent(new CustomEvent('smc:live-report', { detail: { search: 'Other', issue: 'down' } })); });
+    await waitFor(() => expect(savedOrder()).toEqual({ mode: 'mine', names: ['Alpha', 'Charlie', 'Delta', 'Bravo'] }));
+    expect(lifted()).toBeUndefined();
+  });
+
+  it('Live TV losing the remote (the side menu, a prompt over the Player)', async () => {
+    const Live = await freshLive();
+    const { rerender } = await openFavorites(Live, 2, 'Delta');
+    press('ArrowDown');
+    await liftHighlighted();
+    press('ArrowUp');
+    rerender(<Live creds={line} isActive={false} onExitLeft={() => {}} onBack={() => {}} />);
+    await waitFor(() => expect(lifted()).toBeUndefined());
+    expect(savedOrder()).toEqual({ mode: 'mine', names: ['Alpha', 'Delta', 'Charlie', 'Bravo'] });
+    // Back with the remote: the list as left, nothing lifted, ▼ just moves the highlight.
+    rerender(<Live creds={line} isActive onExitLeft={() => {}} onBack={() => {}} />);
+    await sleep(20);
+    press('ArrowDown');
+    expect(lifted()).toBeUndefined();
+    expect(listed()).toEqual(['Alpha', 'Delta', 'Charlie', 'Bravo']);
+  });
+
+  it('an air mouse’s long press or right click on another row is ignored mid-move', async () => {
+    const Live = await freshLive();
+    await openFavorites(Live, 2, 'Delta');
+    await liftHighlighted();
+    press('ArrowDown');
+    const charlie = Array.from(document.querySelectorAll('[data-howto="live.channels"] [data-focused]')).find((el) => nameIn(el) === 'Charlie') as HTMLElement;
+    act(() => { fireEvent.contextMenu(charlie); });
+    act(() => { fireEvent.click(charlie); });
+    await sleep(50);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(lifted()).toBe('Delta');
+    expect(highlighted()).toBe('Delta');
+    press('ArrowDown');
+    press('Enter');
+    expect(savedOrder()).toEqual({ mode: 'mine', names: ['Alpha', 'Charlie', 'Delta', 'Bravo'] });
+  });
+});
+
+describe('Favorites: Move on the logo wall', () => {
+  it('◀▶ one place, ▲▼ a row (held at the ends), OK puts it down', async () => {
+    cfg.layout = 'grid';
+    localStorage.setItem('snow-view-size', 'large');
+    const Live = await freshLive();
+    await openFavorites(Live, 2, 'Delta');
+    await liftHighlighted();
+    expect(document.querySelector('[data-fav-moving]')?.textContent).toContain('◀ ▲▼ ▶');
+    press('ArrowRight');
+    expect(listed()).toEqual(['Alpha', 'Delta', 'Charlie', 'Bravo']);
+    press('ArrowRight');
+    expect(listed()).toEqual(['Alpha', 'Charlie', 'Delta', 'Bravo']);
+    press('ArrowLeft');
+    expect(listed()).toEqual(['Alpha', 'Delta', 'Charlie', 'Bravo']);
+    // A row down: past the last tile, so it stops there.
+    press('ArrowDown');
+    expect(listed()).toEqual(['Alpha', 'Charlie', 'Bravo', 'Delta']);
+    press('ArrowUp');
+    expect(listed()).toEqual(['Delta', 'Alpha', 'Charlie', 'Bravo']);
+    // ◀ at the first tile stays (no categories mid-move).
+    press('ArrowLeft');
+    expect(highlighted()).toBe('Delta');
+    press('ArrowRight'); press('ArrowRight');
+    press('Enter');
+    expect(lifted()).toBeUndefined();
+    expect(savedOrder()).toEqual({ mode: 'mine', names: ['Alpha', 'Charlie', 'Delta', 'Bravo'] });
   });
 });
 
