@@ -94,6 +94,7 @@ import ChannelWarningDialog from './ChannelWarningDialog';
 import FullscreenChannelOverlay, { OVERLAY_CHANNEL_ROWS, type OverlayCategory } from './FullscreenChannelOverlay';
 import RecentChannelsPanel from './RecentChannelsPanel';
 import { useRecentPanel } from './useRecentPanel';
+import { IDLE_FAILOVER, useChannelFailover, type ChannelFailover } from './useChannelFailover';
 import { recentChannelId, type RecentChannel } from '@/lib/recentChannels';
 // Not lazy: it must be up before the held OK that opens it is let go (that
 // release arms it), or the viewer's next OK would be swallowed.
@@ -1776,7 +1777,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // already playing, nor one this viewer chose to watch anyway a moment ago.
   const playingKeyRef = useRef('');
   playingKeyRef.current = playingChannelId ? `${lineKey(playingLine)}|${playingChannelId}` : '';
-  const activateChannel = useCallback((stream: XtreamLiveStream, catName?: string) => {
+  // A channel that won't start, played from the viewer's other service
+  // (useChannelFailover, set up once the native player is).
+  const failoverRef = useRef<ChannelFailover>(IDLE_FAILOVER);
+  const activateChannel = useCallback((picked: XtreamLiveStream, catName?: string) => {
+    // OK on the channel whose copy the preview box shows (it failed here):
+    // the copy goes full screen, as the box's picture always does.
+    const stream = failoverRef.current.redirect(picked) ?? picked;
     const line = lineFor(stream);
     const report = channelReport(downSetRef.current, line.host, stream.stream_id, stream.category_id);
     if (report && playingKeyRef.current !== `${lineKey(line)}|${stream.stream_id}` && !warnedRecently(line.host, stream.stream_id)) {
@@ -2018,14 +2025,45 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     return () => { document.documentElement.classList.remove('snowplayer-preview'); };
   }, [nativePreviewActive]);
 
+  // A channel that won't start, full screen or in the box, played from the
+  // viewer's other service when that has it (useChannelFailover owns the
+  // rules; it only asks for things to be played here).
+  const failover = useChannelFailover({
+    lines,
+    off: DEMO,
+    watching: nativeActive && playingChannelId && playingStream
+      ? { stream: playingStream, line: playingLine, where: 'full' }
+      : nativePreviewActive && previewChannel
+        ? { stream: previewChannel, line: lineFor(previewChannel), where: 'box' }
+        : null,
+    error: native.error,
+    fetchAll: fetchLiveStreams,
+    known: (line) => allByLine.get(lineKey(line)),
+    // Never a channel search leaves out (adult, a hidden category's).
+    skip: (st, line) => leftOutOfSearch(st, { hidden: hidden.get(lineKey(line)), adultCats: adultCatsByLine.get(lineKey(line)) }),
+    lineOf: lineFor,
+    play: (to, where) => {
+      tagLine([to.stream], to.line);
+      if (where === 'full') { playChannel(to.stream); return; }
+      setPreviewChannel(to.stream);
+      // Upright on a phone the box is the player: what plays there is watched.
+      if (uprightRef.current) playChannel(to.stream, undefined, true);
+    },
+  });
+  failoverRef.current = failover;
+
   // CH+ / CH-: the next / previous channel of the list on screen. A channel
   // that list does not hold (Game Day started it and its own category is not
   // listed) counts as sitting just above the focused row: CH+ plays that
   // row, CH- the one before it — never one row past it.
+  // After a failover the copy (the other service's) is in no list here: it
+  // stands in the place of the viewer's own channel, so CH+ / CH- go on
+  // through the list they were in. Neither jumping into the other service's
+  // list nor landing back on the channel that just failed.
   const changeChannelInFullscreen = useCallback((delta: 1 | -1) => {
     const n = visibleChannels.length;
     if (!n) return;
-    const i = playingInList ? visibleChannels.indexOf(playingInList) : -1;
+    const i = playingInList ? visibleChannels.indexOf(playingInList) : failoverRef.current.standInIndex(visibleChannels);
     const at = Math.min(channelIdx, n - 1);
     const next = i >= 0
       ? (i + delta + n) % n
@@ -2266,7 +2304,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
    *  services can share a stream id); -1 when the list does not hold it. */
   const playingIndexIn = useCallback((list: XtreamLiveStream[]): number => {
     const k = lineKey(playingLineRef.current);
-    return list.findIndex((st) => st.stream_id === playingIdRef.current && lineKey(lineFor(st)) === k);
+    const at = list.findIndex((st) => st.stream_id === playingIdRef.current && lineKey(lineFor(st)) === k);
+    // A failed channel's copy stands in its place (see changeChannelInFullscreen).
+    return at >= 0 ? at : failoverRef.current.standInIndex(list);
   }, [lineFor]);
   // The list behind goes to a channel's own category on its line (a search
   // open closes) and lands on the channel once its channels are in
@@ -2706,6 +2746,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           return;
         }
 
+        // --- Native fatal-error overlay: ◀ ▶ between Retry and "Try on…"
+        // (when the other service has the channel), OK on that one switches ---
+        if (nativeErrorRef.current && failoverRef.current.onKey(e)) {
+          e.preventDefault(); e.stopPropagation();
+          return;
+        }
         // --- Native fatal-error overlay: Enter triggers retry ---
         if (nativeErrorRef.current && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault(); e.stopPropagation();
@@ -3396,15 +3442,31 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 text-white p-6 text-center">
             <AlertTriangle className="w-12 h-12 text-brand-gold mb-3" />
             <p className="text-xl font-quicksand font-semibold mb-1">{t('live.player.playbackError')}</p>
+            {/* The channel's copy on the other service failed too (useChannelFailover). */}
+            {failover.triedBoth && <p data-failover-both className="text-base text-white font-nunito max-w-md mb-1">{failover.triedBoth}</p>}
             <p className="text-sm text-brand-ice/80 font-nunito max-w-md mb-4">{native.error.message}</p>
-            <button
-              onClick={() => native.retry()}
-              autoFocus
-              data-focused="true"
-              className="tv-ring tv-ring-contrast flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold scale-105 z-10"
-            >
-              <RotateCw className="w-4 h-4" /> {t('common.retry')}
-            </button>
+            {failover.looking && <p data-failover-looking className="text-sm text-brand-gold font-nunito max-w-md -mt-2 mb-4">{t('live.failover.looking')}</p>}
+            {/* Margins, not flex gap, between the two buttons (Chrome 66). */}
+            <div className="flex items-center justify-center">
+              <button
+                onClick={() => native.retry()}
+                autoFocus
+                data-focused={failover.focus === 'retry' ? 'true' : 'false'}
+                className={`tv-ring tv-ring-contrast flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold ${failover.focus === 'retry' ? 'scale-105 z-10' : ''}`}
+              >
+                <RotateCw className="w-4 h-4" /> {t('common.retry')}
+              </button>
+              {failover.offer && (
+                <button
+                  data-failover-offer
+                  onClick={(e) => { e.stopPropagation(); failover.tryOffer(); }}
+                  data-focused={failover.focus === 'offer' ? 'true' : 'false'}
+                  className={`tv-ring ml-4 px-5 py-3 rounded-xl bg-white/10 border border-white/25 text-white font-quicksand font-bold ${failover.focus === 'offer' ? 'scale-105 z-10' : ''}`}
+                >
+                  {t('live.failover.tryOn', { other: failover.offer })}
+                </button>
+              )}
+            </div>
           </div>
         )}
         {NATIVE_PLAYBACK && statsShown && !chOverlayOpen && !recent.open && <PlayerStatsPanel />}
