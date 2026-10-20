@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -67,21 +67,45 @@ describe('authoritative game audio cues', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.useRealTimers();
     localStorage.removeItem('snow-games-reduced-fx-v1');
   });
 
-  it('sounds a Daily Spin landing and jackpot once, after the wheel settles', async () => {
+  it.each([
+    { reducedFx: true, duration: 1600 },
+    { reducedFx: false, duration: 4000 },
+  ])('sounds a Daily Spin landing and jackpot once, after the wheel settles (reduced FX: $reducedFx)', async ({ reducedFx, duration }) => {
+    // jsdom rAF otherwise has a different time origin from performance.now.
+    // Fake both, so advancing time drives the unchanged settle animation.
+    vi.useFakeTimers({ toFake: [
+      'Date', 'performance', 'setTimeout', 'clearTimeout', 'setInterval',
+      'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame',
+    ] });
+    localStorage.setItem('snow-games-reduced-fx-v1', String(reducedFx));
     mocks.claimDailySpin.mockResolvedValue({ ok: true, index: 4, prize: 2000 });
-    render(<DailySpin onBack={() => {}} />);
+    const onBack = () => {};
+    const view = render(<DailySpin onBack={onBack} />);
+    // Flush the cooldown read and the claim ACK without advancing animation.
+    await act(async () => {});
+    const spin = screen.getByRole('button', { name: 'games.dailySpin.spin' });
+    expect(spin.getAttribute('aria-disabled')).toBeNull();
+    await act(async () => { fireEvent.click(spin); });
+    expect(outcomeCues()).toEqual([]);
 
-    const spin = await waitFor(() => {
-      const button = screen.getByRole('button', { name: 'games.dailySpin.spin' });
-      expect(button.getAttribute('aria-disabled')).toBeNull();
-      return button;
-    });
-    fireEvent.click(spin);
+    await act(async () => { await vi.advanceTimersByTimeAsync(duration - 16); });
+    expect(outcomeCues()).toEqual([]);
+    expect(document.querySelector<HTMLElement>('.snow-daily-wheel-disc')?.style.willChange).toBe('transform');
 
-    await waitFor(() => expect(outcomeCues()).toEqual(['reelStop', 'bonus']), { timeout: 5000 });
+    await act(async () => { vi.advanceTimersToNextFrame(); });
+    expect(outcomeCues()).toEqual(['reelStop', 'bonus']);
+    expect(document.querySelector<HTMLElement>('.snow-daily-wheel-disc')?.style.willChange).toBe('auto');
+    expect(mocks.claimDailySpin).toHaveBeenCalledTimes(1);
+    expect(mocks.refreshBalance).toHaveBeenCalledTimes(1);
+
+    view.rerender(<DailySpin onBack={onBack} />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(duration); });
+    expect(outcomeCues()).toEqual(['reelStop', 'bonus']);
+    expect(mocks.refreshBalance).toHaveBeenCalledTimes(1);
   });
 
   it('sounds each successful video-poker deal/draw and its outcome once', async () => {

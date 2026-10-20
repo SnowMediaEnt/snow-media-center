@@ -1,19 +1,40 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import Plinko, { buildPlinkoMotion, PLINKO_PEGS, PLINKO_RISK_MODES } from './Plinko';
 import { plinkoSlotFromPath, reflectPlinkoPath, widePlinkoMultipliers, widePlinkoProbabilities } from './plinkoBoards';
-import { createPlinkoPuck, stepPlinkoPuck, simulatePlinko, physicsMultipliers, physicsProbabilities } from './plinkoPhysics.js';
+import { createPlinkoPuck, stepPlinkoPuck, simulatePlinko, physicsMultipliers, physicsProbabilities, PHYSICS_MAX_STEPS } from './plinkoPhysics.js';
 
 const press = (key: string, keyCode?: number) => {
   fireEvent.keyDown(window, { key, keyCode, bubbles: true, cancelable: true });
   fireEvent.keyUp(window, { key, keyCode, bubbles: true, cancelable: true });
 };
 
+// Run the real collision loop, including its final React update. At least one
+// physics step fits in each 16 ms frame; the physics cap bounds this wait even
+// for a slow seed. Do not replace the landing callback or wait on wall time.
+const advanceUntilLanded = async () => {
+  for (let frame = 0; frame <= PHYSICS_MAX_STEPS + 1; frame += 1) {
+    if (!document.querySelector('.snow-plinko.is-dropping')) return;
+    await act(async () => { vi.advanceTimersToNextFrame(); });
+  }
+  throw new Error('Plinko did not land within its physics step budget');
+};
+
 describe('Snow Plinko TV game', () => {
   beforeEach(() => {
+    // rAF timestamps and performance.now must share one clock in jsdom.
+    vi.useFakeTimers({ toFake: [
+      'Date', 'performance', 'setTimeout', 'clearTimeout', 'setInterval',
+      'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame',
+    ] });
     localStorage.clear();
     localStorage.setItem('snow-games-reduced-fx-v1', 'true');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it('builds a seeded contact-and-recoil track that lands in the server slot', () => {
@@ -123,7 +144,8 @@ describe('Snow Plinko TV game', () => {
     expect(screen.getByText(/PRESS OK TO RELEASE/)).toBeTruthy();
     const gate = document.querySelector<HTMLElement>('.snow-plinko-gate')!;
     const first = gate.style.transform;
-    await waitFor(() => expect(gate.style.transform).not.toBe(first), { timeout: 1200 });
+    await act(async () => { vi.advanceTimersToNextFrame(); });
+    expect(gate.style.transform).not.toBe(first);
     expect(gate.style.transform).toContain('translate3d');
     fireEvent.click(screen.getByRole('button', { name: 'Tower' }));
     expect(screen.queryByText(/PRESS OK TO RELEASE/)).toBeNull();
@@ -145,7 +167,8 @@ describe('Snow Plinko TV game', () => {
   it('uses D-pad and OK to select a mode and drop exactly once per press', async () => {
     render(<Plinko onBack={() => {}} />);
     const drop = screen.getByRole('button', { name: 'Drop puck' });
-    await waitFor(() => expect(document.activeElement).toBe(drop));
+    await act(async () => {});
+    expect(document.activeElement).toBe(drop);
 
     press('ArrowUp');
     expect(document.activeElement).toBe(screen.getByRole('button', { name: /Wild/ }));
@@ -166,21 +189,33 @@ describe('Snow Plinko TV game', () => {
     fireEvent.keyDown(window, { key: 'Unidentified', keyCode: 23, repeat: true, bubbles: true, cancelable: true });
     expect(drop.getAttribute('data-busy')).toBe('true');
 
+    await advanceUntilLanded();
     const dropsStat = screen.getByText('Drops').parentElement!;
-    await waitFor(() => expect(dropsStat.querySelector('strong')?.textContent).toBe('1'), { timeout: 3500 });
+    expect(dropsStat.querySelector('strong')?.textContent).toBe('1');
     expect(screen.getByText(/^\+\d[\d,]* points$/)).toBeTruthy();
   });
 
-  it('blocks Back during a drop, then leaves after the puck lands', async () => {
+  it.each([true, false])('blocks Back during a drop, then leaves after the puck lands (reduced FX: %s)', async (reducedFx) => {
+    localStorage.setItem('snow-games-reduced-fx-v1', String(reducedFx));
+    // This real peg path takes longer than the old 3.5 s wall-clock wait.
+    vi.spyOn(crypto, 'getRandomValues').mockImplementation((array) => {
+      if (array instanceof Uint32Array) array.fill(1461);
+      return array;
+    });
     const onBack = vi.fn();
     render(<Plinko onBack={onBack} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Drop puck' }));
+    const drop = screen.getByRole('button', { name: 'Drop puck' });
+    fireEvent.click(drop);
+    expect(drop.getAttribute('data-busy')).toBe('true');
 
     press('Escape');
     expect(onBack).not.toHaveBeenCalled();
     expect(screen.getByText('Let the puck land first')).toBeTruthy();
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Drop puck' }).getAttribute('data-busy')).toBeNull(), { timeout: 3500 });
+    await advanceUntilLanded();
+    expect(screen.getByRole('button', { name: 'Drop puck' }).getAttribute('data-busy')).toBeNull();
+    expect(screen.getByText('Drops').parentElement?.querySelector('strong')?.textContent).toBe('1');
+    expect(document.querySelector('.snow-plinko-bucket.is-winner')?.getAttribute('data-slot')).toBe('4');
     press('Escape');
     expect(onBack).toHaveBeenCalledTimes(1);
   });
@@ -188,7 +223,8 @@ describe('Snow Plinko TV game', () => {
   it('yields arrows to a global modal instead of moving focus behind it', async () => {
     render(<Plinko onBack={() => {}} />);
     const drop = screen.getByRole('button', { name: 'Drop puck' });
-    await waitFor(() => expect(document.activeElement).toBe(drop));
+    await act(async () => {});
+    expect(document.activeElement).toBe(drop);
     const modal = document.createElement('div');
     modal.setAttribute('aria-modal', 'true');
     document.body.appendChild(modal);
