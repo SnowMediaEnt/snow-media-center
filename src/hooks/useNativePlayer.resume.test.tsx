@@ -173,7 +173,8 @@ describe('useNativePlayer — where a film starts and resumes', () => {
     expect(h.result.current.error).toBeNull();
     // The fresh start fails the same way: now the viewer is told.
     fire('playerError', { code: 'RECONNECT_EXHAUSTED', message: 'The server stopped responding. Try again.' });
-    await waitFor(() => expect(h.result.current.error).toEqual({ code: 'RECONNECT_EXHAUSTED', message: 'The server stopped responding. Try again.' }));
+    // Stamped with the stream it came from (forUrl), for a caller that has moved on since.
+    await waitFor(() => expect(h.result.current.error).toEqual({ code: 'RECONNECT_EXHAUSTED', message: 'The server stopped responding. Try again.', forUrl: FILM }));
     await act(async () => { await new Promise((r) => setTimeout(r, 1200)); });
     expect(loads()).toHaveLength(2);
   });
@@ -187,7 +188,7 @@ describe('useNativePlayer — where a film starts and resumes', () => {
     await waitFor(() => expect(loads()).toHaveLength(2), { timeout: 3000 });
     expect(h.result.current.error).toBeNull();
     fire('playerError', refused);
-    await waitFor(() => expect(h.result.current.error).toEqual(refused));
+    await waitFor(() => expect(h.result.current.error).toEqual({ ...refused, forUrl: FILM }));
   });
 
   it('a conversion the Plex server turned down (PLEX_TRANSCODE_HTTP): the error at once, with its status, never the same session again', async () => {
@@ -195,7 +196,7 @@ describe('useNativePlayer — where a film starts and resumes', () => {
     await waitFor(() => expect(loads()).toHaveLength(1));
     await waitFor(() => expect(listeners.get('playerError')?.length).toBe(1));
     fire('playerError', { code: 'PLEX_TRANSCODE_HTTP', message: 'The Plex server refused this file (HTTP 503).', httpStatus: 503 });
-    await waitFor(() => expect(h.result.current.error).toEqual({ code: 'PLEX_TRANSCODE_HTTP', message: 'The Plex server refused this file (HTTP 503).', httpStatus: 503 }));
+    await waitFor(() => expect(h.result.current.error).toEqual({ code: 'PLEX_TRANSCODE_HTTP', message: 'The Plex server refused this file (HTTP 503).', httpStatus: 503, forUrl: FILM }));
     await new Promise((r) => { setTimeout(r, 1500); });
     expect(loads()).toHaveLength(1);
   });

@@ -20,7 +20,8 @@ const CH = [
   { stream_id: 103, name: 'News Three', num: 3, category_id: '1' },
 ];
 const status = vi.hoisted(() => ({ set: new Set<string>() }));
-const player = vi.hoisted(() => ({ args: [] as Array<{ active: boolean; url: string | null; rect?: unknown }>, error: null as null | { message: string } }));
+const player = vi.hoisted(() => ({ args: [] as Array<{ active: boolean; url: string | null; rect?: unknown }>, error: null as null | { message: string; code?: string; forUrl?: string } }));
+const analytics = vi.hoisted(() => ({ trackEvent: (() => {}) as (...a: unknown[]) => void, events: [] as string[] }));
 const layout = vi.hoisted(() => ({ id: 'classic' as 'classic' | 'compact' | 'grid' }));
 
 vi.mock('@/lib/xtream', async (orig) => ({
@@ -59,7 +60,7 @@ vi.mock('@/lib/liveLayout', async (orig) => ({
   useLiveLayout: () => layout.id,
   hasLiveLayoutChoice: () => true,
 }));
-vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn(), startTimer: vi.fn(), stopTimer: vi.fn(), getDeviceId: () => 'd' }));
+vi.mock('@/lib/analytics', () => ({ trackEvent: (name: string) => { analytics.events.push(name); }, startTimer: vi.fn(), stopTimer: vi.fn(), getDeviceId: () => 'd' }));
 vi.mock('@/lib/watchHistory', () => ({ recordChannelWatch: vi.fn() }));
 vi.mock('@/utils/idle', () => ({ runAfter: () => () => undefined, runWhenIdle: () => () => undefined }));
 vi.mock('@capacitor/app', () => ({ App: { addListener: async () => ({ remove() {} }) } }));
@@ -117,6 +118,9 @@ const inPlayer = (): number | null => {
   const m = a?.active && a.url ? /\/(\d+)\.ts/.exec(a.url) : null;
   return m ? Number(m[1]) : null;
 };
+/** The address the player was given for a channel (what an error is stamped with). */
+const urlOf = (id: number): string => player.args.map((a) => a.url).find((u) => !!u && u.includes(`/${id}.ts`)) ?? '';
+const plays = () => analytics.events.filter((e) => e === 'channel_play').length;
 /** Past the preview's dwell (700 ms). */
 const dwell = () => sleep(900);
 
@@ -148,6 +152,7 @@ beforeEach(() => {
   player.args.length = 0;
   player.error = null;
   layout.id = 'classic';
+  analytics.events.length = 0;
 });
 afterEach(() => { document.documentElement.className = ''; });
 
@@ -177,7 +182,7 @@ describe('the preview box holding the channel being watched', () => {
     // Still News One in the box; the info is News Three's, and the box says what plays.
     expect(inPlayer()).toBe(101);
     expect(playingTag()).toBe('Playing: News One');
-    expect(text()).toContain('OK preview · OK again full screen · Hold OK options');
+    expect(text()).toContain('OK preview · OK again full screen · Hold OK options · F favorite');
     // On the channel in the box: nothing to tell apart.
     press('ArrowUp');
     press('ArrowUp');
@@ -232,18 +237,96 @@ describe('the preview box holding the channel being watched', () => {
     press('ArrowDown');
     await dwell();
     expect(inPlayer()).toBe(101);
-    player.error = { message: 'Source error' };
+    expect(row('News One')?.textContent).toContain('ON AIR');
+    player.error = { message: 'Source error', forUrl: urlOf(101) };
     // Any render brings the player's error in. The box lets go once the
     // error has stayed up a moment with no failover looking (one line here).
     press('ArrowDown');
     await sleep(1700);
     player.error = null;
+    // Not being watched any more: no ON AIR on its row.
+    expect(row('News One')?.textContent).not.toContain('ON AIR');
     press('ArrowUp');
     await dwell();
     expect(inPlayer()).toBe(102);
     expect(playingTag()).toBeNull();
     expect(text()).toContain('OK full screen · Hold OK options');
     r.unmount();
+  }, 20000);
+
+  it("keeps the new channel when the one before reports its error late", async () => {
+    await openNews();
+    await watchNewsOneAndComeBack();
+    press('ArrowDown');
+    press('Enter');
+    await waitFor(() => expect(inPlayer()).toBe(102));
+    // News One's error, landing after News Two went into the box.
+    player.error = { message: 'No picture', code: 'NO_PICTURE', forUrl: urlOf(101) };
+    press('ArrowDown');
+    await dwell();
+    expect(inPlayer()).toBe(102);
+    expect(playingTag()).toBe('Playing: News Two');
+    // News Two's own error lets go, once it has stayed up past failover's turn.
+    player.error = { message: 'No picture', code: 'NO_PICTURE', forUrl: urlOf(102) };
+    press('ArrowUp');
+    await sleep(1700);
+    player.error = null;
+    press('ArrowDown');
+    await dwell();
+    expect(inPlayer()).toBe(103);
+  }, 20000);
+
+  it('OK on the channel in the box goes full screen without playing it again', async () => {
+    await openNews();
+    await watchNewsOneAndComeBack();
+    expect(plays()).toBe(1);
+    // Well past the 10 s in which a replay is not counted again anyway.
+    const realNow = Date.now.bind(Date);
+    const later = vi.spyOn(Date, 'now').mockImplementation(() => realNow() + 60_000);
+    try {
+      press('Enter');
+      await waitFor(() => expect(fullScreen()).not.toBeNull());
+      expect(inPlayer()).toBe(101);
+      expect(plays()).toBe(1);
+    } finally {
+      later.mockRestore();
+    }
+  }, 20000);
+
+  it('a channel zapped to full screen (▼) is the one held on the way back', async () => {
+    await openNews();
+    press('Enter');
+    await waitFor(() => expect(fullScreen()).not.toBeNull());
+    press('ArrowDown');
+    await waitFor(() => expect(inPlayer()).toBe(102));
+    press('Escape');
+    press('Escape');
+    await waitFor(() => expect(fullScreen()).toBeNull());
+    await waitFor(() => expect(text()).toContain('News Three'));
+    press('ArrowDown');
+    await dwell();
+    expect(inPlayer()).toBe(102);
+    expect(playingTag()).toBe('Playing: News Two');
+  }, 20000);
+
+  it('lets go when the layout has no box (Vibez)', async () => {
+    await openNews();
+    await watchNewsOneAndComeBack();
+    expect(text()).toContain('OK preview · OK again full screen · Hold OK options · F favorite');
+    // To Vibez (◀ to the categories draws it), and back (▶ to the channels).
+    layout.id = 'grid';
+    press('ArrowLeft');
+    await sleep(20);
+    expect(document.querySelector('[data-live-classic-preview]')).toBeNull();
+    layout.id = 'classic';
+    press('ArrowRight');
+    await sleep(20);
+    press('ArrowDown');
+    await dwell();
+    // Nothing held: the box follows the highlight, the hint is the usual one.
+    expect(inPlayer()).toBe(102);
+    expect(playingTag()).toBeNull();
+    expect(text()).toContain('OK full screen · Hold OK options · F favorite');
   }, 20000);
 
   it('lets go when Live TV is left: the next visit starts with nothing on', async () => {
@@ -271,6 +354,7 @@ describe('the preview box holding the channel being watched', () => {
     await dwell();
     expect(inPlayer()).toBe(101);
     expect(playingTag()).toBe('Playing: News One');
+    expect(text()).toContain('OK preview · OK again full screen · Hold OK options · ◀ categories');
   }, 20000);
 });
 

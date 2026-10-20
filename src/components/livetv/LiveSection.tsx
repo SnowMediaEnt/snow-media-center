@@ -1728,7 +1728,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     playingStream: playingChannelId ? playingStream ?? null : null,
     lineFor,
     play: (st) => playChannelRef.current(st, undefined, true),
-    fullScreen: (st) => activateChannelRef.current(st),
+    // The channel in the box is the one playing (watched full screen before,
+    // or put there with OK): only the picture moves. Played again it would be
+    // counted twice (channel_play, Recently watched, Game Day's note).
+    fullScreen: (st) => {
+      if (playingKeyRef.current === `${lineKey(lineFor(st))}|${st.stream_id}`) setFullscreen(true);
+      else activateChannelRef.current(st);
+    },
     // As activateChannel asks, for the box: not for the channel already
     // playing, nor one this viewer chose to watch anyway a moment ago.
     askFirst: (st) => {
@@ -1738,6 +1744,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       setWarnFor({ stream: st, report, inBox: true });
       return true;
     },
+    lines,
   });
   const heldPreviewRef = useRef(heldPreview);
   heldPreviewRef.current = heldPreview;
@@ -1806,6 +1813,20 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   const lastPlayRef = useRef<{ id: number; ts: number } | null>(null);
   const watchRecordTimerRef = useRef<number | null>(null);
+  // The channel held in the box did not play (useHeldPreview): let go of it,
+  // and it is not being watched: no LIVE on its row, no Recently watched entry
+  // on the way, the watch timer stopped (with the playing id), and OK on it
+  // asks first again when it is reported down.
+  const releaseFailedBox = useCallback(() => {
+    if (!heldPreviewRef.current.isHeld()) return;
+    heldPreviewRef.current.release();
+    const inBox = previewChannelRef.current;
+    if (!inBox || playingKeyRef.current !== `${lineKey(lineFor(inBox))}|${inBox.stream_id}`) return;
+    if (watchRecordTimerRef.current) { window.clearTimeout(watchRecordTimerRef.current); watchRecordTimerRef.current = null; }
+    setPlayingChannelId(null);
+  }, [lineFor]);
+  const releaseFailedBoxRef = useRef(releaseFailedBox);
+  releaseFailedBoxRef.current = releaseFailedBox;
   useEffect(() => () => { if (watchRecordTimerRef.current) window.clearTimeout(watchRecordTimerRef.current); }, []);
   // What is on screen right now, for the watch timer below.
   const watchingRef = useRef<{ channel: string; category: string } | null>(null);
@@ -2154,12 +2175,15 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // there is held in its place (play, above). Only an error still on screen
   // once it is done (no copy, the copy failed too) lets go. The wait covers
   // the render between the error and failover saying it is looking.
+  // Only an error of the box's own stream: one the stream before raised late
+  // (held A, OK on B, A's error landing) must not let go of B.
   const failoverLooking = failover.looking;
+  const boxErrorFor = native.error && nativePreviewActive ? native.error.forUrl : undefined;
   useEffect(() => {
-    if (!native.error || !nativePreviewActive || failoverLooking) return;
-    const t = window.setTimeout(() => heldPreviewRef.current.release(), HELD_RELEASE_WAIT_MS);
+    if (!boxErrorFor || boxErrorFor !== nativeUrl || failoverLooking) return;
+    const t = window.setTimeout(() => releaseFailedBoxRef.current(), HELD_RELEASE_WAIT_MS);
     return () => window.clearTimeout(t);
-  }, [native.error, nativePreviewActive, failoverLooking]);
+  }, [boxErrorFor, nativeUrl, failoverLooking]);
 
   // CH+ / CH-: the next / previous channel of the list on screen. A channel
   // that list does not hold (Game Day started it and its own category is not
@@ -3711,7 +3735,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   const catCount = currentCat?.count ?? (visibleChannels.length || undefined);
   const nowLeftMins = focusedNowNext?.now ? Math.max(0, Math.round((focusedNowNext.now.end - Date.now()) / 60000)) : null;
-  const paneW = 'w-[38%] min-w-[340px] max-w-[480px]';
+  // Slim rows put the name, what's on and its end on one line: their column
+  // is a little wider. At 960x540 the preview's picture keeps its size (the
+  // box is height-bound there; only the black at its sides narrows).
+  const paneW = slimRows ? 'w-[44%] min-w-[380px] max-w-[520px]' : 'w-[38%] min-w-[340px] max-w-[480px]';
 
   // ── the categories pane: a static column (classic, grid) or a drawer over
   //    the channel list (compact). Same DOM either way, so its virtualizer
@@ -3996,7 +4023,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         // saturates the compositor thread.
         <Suspense fallback={<div className="w-full h-full flex items-center justify-center"><div className="w-full max-w-[200px]"><SnowLoader size="sm" /></div></div>}>
           {/* Upright on a phone the box is the player itself: with sound. */}
-          <VideoPlayer src={previewUrl} volume={upright ? volume : 0} muted={!upright} className="w-full h-full" chrome="minimal" onError={heldPreview.release} />
+          <VideoPlayer src={previewUrl} volume={upright ? volume : 0} muted={!upright} className="w-full h-full" chrome="minimal" onError={releaseFailedBox} />
         </Suspense>
       ) : tapToBox && !previewChannel ? (
         // A touch screen: the box waits for a tapped channel (the highlight
@@ -4166,7 +4193,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           )}
         </div>
 
-          {!touchUI && <p className="flex-shrink-0 pr-24 text-xs font-nunito text-brand-ice/55">{heldPreview.held ? t('live.list.hintHeld') : t('live.list.hintCompact')}</p>}
+          {!touchUI && <p className="flex-shrink-0 pr-24 text-xs font-nunito text-brand-ice/55">{heldPreview.held ? t('live.list.hintHeldCompact') : t('live.list.hintCompact')}</p>}
         </div>
       {reportDialog}
       {recordDialog}
@@ -4271,7 +4298,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                     {t('live.list.nextLine', { title: focusedNowNext.next.title, time: formatTime(focusedNowNext.next.start) })}
                   </p>
                 )}
-                {!touchUI && <p className="text-xs text-brand-ice/60 font-nunito mt-4">{heldPreview.held ? t('live.list.hintHeld') : t('live.list.hintClassic')}</p>}
+                {!touchUI && <p className="text-xs text-brand-ice/60 font-nunito mt-4">{heldPreview.held ? t('live.list.hintHeldClassic') : t('live.list.hintClassic')}</p>}
               </>
             ) : (
               <p className="text-brand-ice/70 font-nunito">

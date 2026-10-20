@@ -217,7 +217,8 @@
       "hintCompact": "OK full screen · Hold OK options · ◀ categories",
       "hintGrid": "OK play · Hold OK options · ◀ categories",
       "hintClassic": "OK full screen · Hold OK options · F favorite",
-      "hintHeld": "OK preview · OK again full screen · Hold OK options",
+      "hintHeldCompact": "OK preview · OK again full screen · Hold OK options · ◀ categories",
+      "hintHeldClassic": "OK preview · OK again full screen · Hold OK options · F favorite",
       "channelFallback": "Channel"
     },
     "overlay": {

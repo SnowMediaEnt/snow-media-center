@@ -19,7 +19,7 @@ const h = vi.hoisted(() => ({
   trackEvent: vi.fn(),
   toast: vi.fn(),
   retry: vi.fn(),
-  setError: null as null | ((e: { code?: string; message: string } | null) => void),
+  setError: null as null | ((e: { code?: string; message: string; forUrl?: string } | null) => void),
   url: null as string | null,
 }));
 
@@ -90,7 +90,7 @@ vi.mock('@/hooks/useNativePlayer', async () => {
   const React = await import('react');
   return {
     useNativePlayer: (o: { active: boolean; url: string | null }) => {
-      const [error, setError] = React.useState<{ code?: string; message: string } | null>(null);
+      const [error, setError] = React.useState<{ code?: string; message: string; forUrl?: string } | null>(null);
       const was = React.useRef(o.url);
       React.useEffect(() => { if (was.current !== o.url) { was.current = o.url; setError(null); } }, [o.url]);
       h.setError = setError;
@@ -122,7 +122,7 @@ const press = (k: string) => { down(k); up(k); };
 const sleep = (ms: number) => act(async () => { await new Promise((r) => setTimeout(r, ms)); });
 const text = () => document.body.textContent ?? '';
 /** The channel won't start: what the native player says after its own retries. */
-const fail = () => act(() => { h.setError?.({ code: 'RECONNECT_EXHAUSTED', message: 'Source error' }); });
+const fail = () => act(() => { h.setError?.({ code: 'RECONNECT_EXHAUSTED', message: 'Source error', forUrl: h.url ?? undefined }); });
 const playingOn = (host: string, id: number) => !!h.url && h.url.startsWith(host) && h.url.includes(`/${id}.`);
 const failoverEvents = () => h.trackEvent.mock.calls.filter((c) => c[0] === 'live_failover');
 const errorCard = () => text().includes('Playback Error');
