@@ -185,7 +185,8 @@ describe('Guide: hold OK opens the channel menu', () => {
     down();
     await wait(120);
     up();
-    expect(onWatch).toHaveBeenCalledTimes(1);
+    // Once the down-channel reports are fresh (a second at most).
+    await waitFor(() => expect(onWatch).toHaveBeenCalledTimes(1));
     expect(onWatch.mock.calls[0][0]).toMatchObject({ channel: 500, cat: '1' });
     expect(menuRows()).toEqual([]);
   });
@@ -203,7 +204,7 @@ describe('Guide: hold OK opens the channel menu', () => {
     act(() => { fireEvent.keyDown(window, { key: 'Escape' }); });
     await waitFor(() => expect(menuRows()).toEqual([]));
     await press('Enter');
-    expect(onWatch).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onWatch).toHaveBeenCalledTimes(1));
   });
 
   it('a finger held on a row, then lifted, opens the menu (not a tap: nothing plays); a right click and the Menu key as well', async () => {

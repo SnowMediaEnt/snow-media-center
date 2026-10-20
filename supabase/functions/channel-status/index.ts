@@ -1,19 +1,29 @@
 // Down channels (see migration 20260926060000_channel_status.sql).
 //
 //   list   {hosts}                             anyone: on those Live TV hosts,
-//                                              the channels down now (`down`)
+//                                              the channels down now (`down`,
+//                                              the ones off the air included)
 //                                              and reported buffering
 //                                              (`buffering`), as
-//                                              "host|stream_id" keys, and the
+//                                              "host|stream_id" keys, the
 //                                              categories down now
-//                                              (`categories`, "host|category_id").
+//                                              (`categories`, "host|category_id"),
+//                                              and which of the down channels
+//                                              are off the air (`offair`, a
+//                                              newer app's "Off the air"; an
+//                                              older one ignores it and shows
+//                                              them as down).
 //                                              Kept for 20 s per instance.
-//   signal {host, stream_id, name, kind, device_id, line_user?, active_cons?, max_cons?}
+//   signal {host, stream_id, name, kind, device_id, http_status?, line_user?, active_cons?, max_cons?}
 //                                              anyone: kind down (a viewer's
 //                                              report: shows for everyone) |
 //                                              buffering (a viewer's report:
 //                                              a warning for everyone) |
 //                                              clear (a viewer says it works) |
+//                                              offair (the box asked for the
+//                                              stream and the provider said
+//                                              it isn't there: http_status
+//                                              400-599, required) |
 //                                              fail | ok (see the migrations).
 //                                              Limits below; counts only from
 //                                              a box we know (knownBox).
@@ -25,16 +35,32 @@
 //                                              fine). Same trust rule, own limits.
 //   admin_list                                 admins: down now, and what was
 //                                              signalled in the last 3 hours;
-//                                              buffering counts; categories
+//                                              buffering counts; categories;
+//                                              each channel off the air now
+//                                              (`offair`: its status code,
+//                                              since when, the latest)
 //   admin_set {host, stream_id | category_id, name, status, hours}
 //                                              admins: status down | ok for a
 //                                              while, or null to clear (a
 //                                              channel, or with category_id a
-//                                              whole category)
+//                                              whole category). For a channel,
+//                                              ok or null also ends an off-the-
+//                                              air mark for good (its offair
+//                                              signals are deleted).
 //
 // Boxes are counted by a hash of their device id, callers by a hash of their
 // IP address (an IPv6 /64 counts once); nothing else about them is kept, and
-// signals older than two days are deleted.
+// signals older than two days are deleted (offair, ok and clear: after
+// OFFAIR_KEEP_MS, as an off-the-air mark lasts up to 7 days).
+//
+// Off the air (migration 20261020120000): ONE offair signal from a box we
+// know marks the channel down for every box on that host at once, until a
+// later ok / clear from a box we know or the admin ends it; never longer than
+// 7 days (the migration's one deviation from "until it streams again"). The
+// box sends it only for its provider's "not here" before any picture. On top
+// of the usual limits, one device marks at most MAX_OFFAIR_CHANNELS_PER_HOUR
+// different channels an hour (one IP MAX_OFFAIR_CHANNELS_PER_IP_HOUR), so one
+// broken box cannot blank a line-up.
 //
 // One report from a real box is still enough to put ⚠️ on a channel for
 // everyone (migration 20260927060000). What stops a script doing that to a
@@ -79,6 +105,16 @@ const MAX_CATEGORY_PER_HOUR = 12;
 const MAX_CATEGORY_DOWN_PER_HOUR = 3;
 const MAX_CATEGORY_PER_IP_HOUR = 60;
 const MAX_CATEGORY_DOWN_PER_IP_HOUR = 6;
+// Off the air: different channels one device / one IP may mark in an hour.
+const MAX_OFFAIR_CHANNELS_PER_HOUR = 20;
+const MAX_OFFAIR_CHANNELS_PER_IP_HOUR = 60;
+// How long offair, ok and clear signals are kept (an off-the-air mark counts
+// for 7 days, channel_offair_list; a day over, so the ok / clear that ended
+// one is never deleted before it).
+const OFFAIR_KEEP_MS = 8 * 24 * 60 * 60 * 1000;
+const SIGNAL_KEEP_MS = 2 * 24 * 60 * 60 * 1000;
+const KEPT_LONGER = '("offair","ok","clear")';
+const SIGNAL_KINDS = ['down', 'fail', 'ok', 'clear', 'buffering', 'offair'];
 // Provider category ids are short tokens ("12", "1043", sometimes letters).
 const CATEGORY_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
@@ -99,9 +135,10 @@ const KNOWN_BOX_AFTER_MS = 30 * 60 * 1000;
 const MAX_DOWN_LIST = 500;
 const MAX_BUFFERING_LIST = 500;
 const MAX_CATEGORY_LIST = 100;
+const MAX_OFFAIR_LIST = 500;
 const LIST_TTL_MS = 20_000;
 
-type Lists = { down: string[]; buffering: string[]; categories: string[] };
+type Lists = { down: string[]; buffering: string[]; categories: string[]; offair: string[] };
 const listCache = new Map<string, { at: number } & Lists>();
 const dropCachedHost = (host: string) => { for (const k of listCache.keys()) if (k.split(',').includes(host)) listCache.delete(k); };
 
@@ -112,13 +149,18 @@ const sha256 = async (s: string) => {
 
 type Admin = ReturnType<typeof createClient>;
 
-/** This hour's signals for one device or IP: all of them, and down/clear. */
+/** This hour's signals for one device or IP: all of them, down/clear, and
+ *  the channels it marked off the air. */
 async function hourCounts(admin: Admin, column: 'device_hash' | 'ip_hash', value: string, cap: number) {
   const { data } = await admin.from('channel_signals')
-    .select('kind').eq(column, value).gte('created_at', new Date(Date.now() - 60 * 60 * 1000).toISOString())
+    .select('kind, stream_id').eq(column, value).gte('created_at', new Date(Date.now() - 60 * 60 * 1000).toISOString())
     .limit(cap + 1);
-  const kinds = ((data ?? []) as Array<{ kind: string }>).map((r) => r.kind);
-  return { all: kinds.length, manual: kinds.filter((k) => MANUAL_KINDS.includes(k)).length };
+  const rows = (data ?? []) as Array<{ kind: string; stream_id?: number }>;
+  return {
+    all: rows.length,
+    manual: rows.filter((r) => MANUAL_KINDS.includes(r.kind)).length,
+    offair: new Set(rows.filter((r) => r.kind === 'offair').map((r) => Number(r.stream_id))),
+  };
 }
 
 /** This hour's category signals for one device or IP: all of them, and 'down'. */
@@ -181,21 +223,26 @@ Deno.serve(async (req) => {
     if (op === 'list') {
       const hosts = (Array.isArray(body.hosts) ? body.hosts : [])
         .map((h) => String(h).trim().toLowerCase()).filter((h) => HOST.test(h)).slice(0, 10).sort();
-      if (!hosts.length) return json({ ok: true, down: [], buffering: [], categories: [] });
+      if (!hosts.length) return json({ ok: true, down: [], buffering: [], categories: [], offair: [] });
       const cacheKey = hosts.join(',');
       const hit = listCache.get(cacheKey);
-      if (hit && Date.now() - hit.at < LIST_TTL_MS) return json({ ok: true, down: hit.down, buffering: hit.buffering, categories: hit.categories });
+      if (hit && Date.now() - hit.at < LIST_TTL_MS) return json({ ok: true, down: hit.down, buffering: hit.buffering, categories: hit.categories, offair: hit.offair });
       const [downRes, bufferingRows, categoryRows] = await Promise.all([
         admin.rpc('channel_down_list', { p_hosts: hosts }),
         optionalList<{ host: string; stream_id: number }>(admin, 'channel_buffering_list', { p_hosts: hosts }),
         optionalList<{ host: string; category_id: string }>(admin, 'category_down_list', { p_hosts: hosts }),
       ]);
       if (downRes.error) { console.error('[channel-status] list:', downRes.error.message); return json({ ok: false, reason: 'db_error' }); }
-      const down = ((downRes.data ?? []) as Array<{ host: string; stream_id: number }>).slice(0, MAX_DOWN_LIST).map((r) => `${r.host}|${r.stream_id}`);
+      const downRows = ((downRes.data ?? []) as Array<{ host: string; stream_id: number; source?: string }>).slice(0, MAX_DOWN_LIST);
+      const down = downRows.map((r) => `${r.host}|${r.stream_id}`);
       const buffering = bufferingRows.slice(0, MAX_BUFFERING_LIST).map((r) => `${r.host}|${r.stream_id}`);
       const categories = categoryRows.slice(0, MAX_CATEGORY_LIST).map((r) => `${r.host}|${r.category_id}`);
-      listCache.set(cacheKey, { at: Date.now(), down, buffering, categories });
-      return json({ ok: true, down, buffering, categories });
+      // Off the air (migration 20261020120000: the down list's own rows with
+      // source 'offair'): the box shows them as down either way; this only
+      // changes the words. None before that migration.
+      const offair = downRows.filter((r) => r.source === 'offair').map((r) => `${r.host}|${r.stream_id}`).slice(0, MAX_OFFAIR_LIST);
+      listCache.set(cacheKey, { at: Date.now(), down, buffering, categories, offair });
+      return json({ ok: true, down, buffering, categories, offair });
     }
 
     if (op === 'signal') {
@@ -203,7 +250,12 @@ Deno.serve(async (req) => {
       const streamId = Number(body.stream_id);
       const kind = String(body.kind ?? '');
       const deviceId = String(body.device_id ?? '').slice(0, 200);
-      if (!HOST.test(host) || !Number.isInteger(streamId) || streamId <= 0 || !['down', 'fail', 'ok', 'clear', 'buffering'].includes(kind) || deviceId.length < 8) {
+      // Off the air: the status the provider answered with, a number only.
+      const httpStatus = Number(body.http_status);
+      if (
+        !HOST.test(host) || !Number.isInteger(streamId) || streamId <= 0 || !SIGNAL_KINDS.includes(kind) || deviceId.length < 8
+        || (kind === 'offair' && !(Number.isInteger(httpStatus) && httpStatus >= 400 && httpStatus <= 599))
+      ) {
         return json({ ok: false, reason: 'bad_request' }, 400);
       }
       const manual = MANUAL_KINDS.includes(kind);
@@ -211,11 +263,14 @@ Deno.serve(async (req) => {
       const ipHash = await hashClientIpKey(req.headers, 'smc-channel-ip:');
       const [byDevice, byIp] = await Promise.all([
         hourCounts(admin, 'device_hash', deviceHash, MAX_SIGNALS_PER_HOUR),
-        ipHash ? hourCounts(admin, 'ip_hash', ipHash, MAX_SIGNALS_PER_IP_HOUR) : Promise.resolve({ all: 0, manual: 0 }),
+        ipHash ? hourCounts(admin, 'ip_hash', ipHash, MAX_SIGNALS_PER_IP_HOUR) : Promise.resolve({ all: 0, manual: 0, offair: new Set<number>() }),
       ]);
+      // A channel it already marked this hour is not another one.
+      const offairOver = (seen: Set<number>, cap: number) => seen.size >= cap && !seen.has(streamId);
       if (
         byDevice.all >= MAX_SIGNALS_PER_HOUR || byIp.all >= MAX_SIGNALS_PER_IP_HOUR
         || (manual && (byDevice.manual >= MAX_MANUAL_PER_HOUR || byIp.manual >= MAX_MANUAL_PER_IP_HOUR))
+        || (kind === 'offair' && (offairOver(byDevice.offair, MAX_OFFAIR_CHANNELS_PER_HOUR) || offairOver(byIp.offair, MAX_OFFAIR_CHANNELS_PER_IP_HOUR)))
       ) {
         return json({ ok: false, reason: 'rate_limited' });
       }
@@ -223,13 +278,18 @@ Deno.serve(async (req) => {
       const name = typeof body.name === 'string' ? body.name.slice(0, 200) : null;
       const { error } = await insertSignal(admin, 'channel_signals', {
         host, stream_id: streamId, channel_name: name, kind, device_hash: deviceHash, ip_hash: ipHash, trusted,
+        ...(kind === 'offair' ? { http_status: httpStatus } : {}),
       }, reportLine(body, kind === 'down' || kind === 'buffering'));
       if (error) { console.error('[channel-status] signal:', error.message); return json({ ok: false, reason: 'db_error' }); }
       // Drop the host's cached list so the change shows at the next ask.
       if (trusted) dropCachedHost(host);
-      // Now and then, forget signals nobody needs any more.
+      // Now and then, forget signals nobody needs any more: after two days,
+      // but offair / ok / clear only after OFFAIR_KEEP_MS (an off-the-air
+      // mark, and the ok or clear that ended it, count for 7 days).
       if (Math.random() < 0.02) {
-        await admin.from('channel_signals').delete().lt('created_at', new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString());
+        await admin.from('channel_signals').delete()
+          .lt('created_at', new Date(Date.now() - SIGNAL_KEEP_MS).toISOString()).not('kind', 'in', KEPT_LONGER);
+        await admin.from('channel_signals').delete().lt('created_at', new Date(Date.now() - OFFAIR_KEEP_MS).toISOString());
       }
       return json({ ok: true });
     }
@@ -301,6 +361,13 @@ Deno.serve(async (req) => {
         const streamId = Number(body.stream_id);
         if (!HOST.test(host) || !Number.isInteger(streamId)) return json({ ok: false, reason: 'bad_request' }, 400);
         const status = body.status === 'down' || body.status === 'ok' ? body.status : null;
+        // Working, or the mark taken off: an off-the-air mark ends for good
+        // (an override alone would bring it back when it runs out). A box
+        // that gets the same answer again marks it again.
+        if (status !== 'down') {
+          const { error } = await admin.from('channel_signals').delete().eq('host', host).eq('stream_id', streamId).eq('kind', 'offair');
+          if (error) console.error('[channel-status] admin_set offair:', error.message);
+        }
         if (!status) {
           await admin.from('channel_overrides').delete().eq('host', host).eq('stream_id', streamId);
         } else {
@@ -331,12 +398,18 @@ Deno.serve(async (req) => {
       type BufferingRow = { host: string; stream_id: number; channel_name: string | null; buffering: number; last_at: string };
       type CategoryRow = { host: string; category_id: string; category_name: string | null; reports: number; working: number; cleared: number; ignored: number; last_at: string };
       type LineRow = { scope: string; host: string; stream_id: number | null; category_id: string | null; kind: string; line_user: string; active_cons: number | null; max_cons: number | null; created_at: string };
-      const [bufferingSummary, categorySummary, categoryOverridesRes, reportLines] = await Promise.all([
+      // Off the air now on every host (migration 20261020120000; empty until
+      // it is applied): it can be days old, older than this summary's 3 hours.
+      type OffairRow = { host: string; stream_id: number; channel_name: string | null; http_status: number | null; since: string; last_at: string };
+      const [bufferingSummary, categorySummary, categoryOverridesRes, reportLines, offairNow] = await Promise.all([
         optionalList<BufferingRow>(admin, 'channel_buffering_summary', { p_since: since }),
         optionalList<CategoryRow>(admin, 'category_signal_summary', { p_since: since }),
         admin.from('category_overrides').select('*'),
         optionalList<LineRow>(admin, 'report_lines', { p_since: since }),
+        optionalList<OffairRow>(admin, 'channel_offair_list', { p_hosts: null }),
       ]);
+      const offairBy = new Map(offairNow.map((o) => [`${o.host}|${o.stream_id}`, { http_status: o.http_status, since: o.since, last: o.last_at }]));
+      for (const o of offairNow) if (!hosts.includes(o.host)) hosts.push(o.host);
       // Who reported each channel / category (newest first, a few each).
       const linesBy = new Map<string, Array<{ kind: string; user: string; active_cons: number | null; max_cons: number | null; at: string }>>();
       for (const r of reportLines) {
@@ -367,6 +440,7 @@ Deno.serve(async (req) => {
           reports: Number(c.reports) || 0, failures: Number(c.failures) || 0, working: Number(c.working) || 0,
           cleared: Number(c.cleared) || 0, ignored: Number(c.ignored) || 0, last: c.last_at, down: downKeys.has(k),
           buffering: bufferingCount.get(k) ?? 0, buffering_now: bufferingKeys.has(k) && !downKeys.has(k),
+          offair: offairBy.get(k) ?? null,
           reporters: linesBy.get(k) ?? [],
         };
       });
@@ -374,12 +448,23 @@ Deno.serve(async (req) => {
         const k = `${o.host}|${o.stream_id}`;
         if (!seen.has(k)) {
           seen.add(k);
-          channels.push({ key: k, host: o.host, stream_id: o.stream_id, name: o.channel_name, reports: 0, failures: 0, working: 0, cleared: 0, ignored: 0, last: o.updated_at, down: downKeys.has(k), buffering: bufferingCount.get(k) ?? 0, buffering_now: false, reporters: linesBy.get(k) ?? [] });
+          channels.push({ key: k, host: o.host, stream_id: o.stream_id, name: o.channel_name, reports: 0, failures: 0, working: 0, cleared: 0, ignored: 0, last: o.updated_at, down: downKeys.has(k), buffering: bufferingCount.get(k) ?? 0, buffering_now: false, offair: offairBy.get(k) ?? null, reporters: linesBy.get(k) ?? [] });
         }
       }
       for (const b of bufferingSummary) {
         const k = `${b.host}|${b.stream_id}`;
-        if (!seen.has(k)) channels.push({ key: k, host: b.host, stream_id: b.stream_id, name: b.channel_name, reports: 0, failures: 0, working: 0, cleared: 0, ignored: 0, last: b.last_at, down: downKeys.has(k), buffering: Number(b.buffering) || 0, buffering_now: bufferingKeys.has(k) && !downKeys.has(k), reporters: linesBy.get(k) ?? [] });
+        if (!seen.has(k)) {
+          seen.add(k);
+          channels.push({ key: k, host: b.host, stream_id: b.stream_id, name: b.channel_name, reports: 0, failures: 0, working: 0, cleared: 0, ignored: 0, last: b.last_at, down: downKeys.has(k), buffering: Number(b.buffering) || 0, buffering_now: bufferingKeys.has(k) && !downKeys.has(k), offair: offairBy.get(k) ?? null, reporters: linesBy.get(k) ?? [] });
+        }
+      }
+      // Off the air with nothing else said about it in the last 3 hours.
+      for (const o of offairNow) {
+        const k = `${o.host}|${o.stream_id}`;
+        if (!seen.has(k)) {
+          seen.add(k);
+          channels.push({ key: k, host: o.host, stream_id: o.stream_id, name: o.channel_name, reports: 0, failures: 0, working: 0, cleared: 0, ignored: 0, last: o.last_at, down: downKeys.has(k), buffering: bufferingCount.get(k) ?? 0, buffering_now: false, offair: offairBy.get(k) ?? null, reporters: linesBy.get(k) ?? [] });
+        }
       }
       // Categories: reported, cleared, played fine, ignored; down now.
       const categoryDownKeys = new Set(categoriesNow.map((r) => `${r.host}|${r.category_id}`));

@@ -14,7 +14,12 @@ const soon = new Date(Date.now() + 60 * 60_000).toISOString();
 const dream = { host: 'http://dstreams.xyz:8080', username: 'ds', password: 'secret-ds', output: 'm3u8' as const, serverLabel: 'Dreamstreams' };
 const vibez = { host: 'https://strmz.xyz', username: 'vb', password: 'secret-vb', output: 'm3u8' as const, serverLabel: 'Vibez' };
 const saved = vi.hoisted(() => ({ list: [] as unknown[] }));
-const spy = vi.hoisted(() => ({ signal: vi.fn(), invoke: vi.fn(async () => ({ data: null, error: null })), toast: vi.fn(), down: new Set<string>() }));
+const spy = vi.hoisted(() => ({
+  signal: vi.fn(), invoke: vi.fn(async () => ({ data: null, error: null })), toast: vi.fn(), down: new Set<string>(),
+  /** What a fresh look at the reports (openWhenFresh) finds; null: the list on screen is fresh. */
+  fresh: null as Set<string> | null,
+  opens: 0,
+}));
 const team = (short: string, location: string) => ({ short, name: `${location} ${short}`, location, abbr: '', logo: null, score: null });
 
 vi.mock('@/lib/gameDay', async (orig) => {
@@ -42,10 +47,11 @@ vi.mock('@/lib/xtream', async (orig) => ({
 vi.mock('@/lib/channelStatus', () => ({
   useDownChannels: () => spy.down,
   isChannelDown: (set: Set<string>, host: string, id: number) => set.has(`${host}|${id}`),
-  channelReport: (set: Set<string>, host: string, id: number) => (set.has(`${host}|${id}`) ? 'down' : set.has(`${host}|buf:${id}`) ? 'buffering' : null),
+  channelReport: (set: Set<string>, host: string, id: number) => (set.has(`${host}|off:${id}`) ? 'offair' : set.has(`${host}|${id}`) ? 'down' : set.has(`${host}|buf:${id}`) ? 'buffering' : null),
   isCategoryDown: () => false,
   signalChannel: spy.signal,
   signalCategory: vi.fn(),
+  openWhenFresh: (_h: string, go: (f: Set<string> | null) => void) => { spy.opens += 1; go(spy.fresh); },
 }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: spy.toast }), toast: spy.toast }));
 vi.mock('@/integrations/supabase/client', () => ({
@@ -80,7 +86,7 @@ async function openList(onWatch = vi.fn(), onNavigate = vi.fn()) {
 
 beforeEach(() => {
   sessionStorage.clear(); localStorage.clear(); Element.prototype.scrollIntoView = vi.fn();
-  spy.signal.mockClear(); spy.invoke.mockClear(); spy.toast.mockClear(); spy.down = new Set();
+  spy.signal.mockClear(); spy.invoke.mockClear(); spy.toast.mockClear(); spy.down = new Set(); spy.fresh = null; spy.opens = 0;
   saved.list = [];
 });
 
@@ -176,5 +182,39 @@ describe('Game Day: a link reported buffering or down asks before it plays', () 
     expect(warning()).toBeNull();
     expect(JSON.parse(sessionStorage.getItem('smc-live-deeplink') || '{}')).toMatchObject({ host: dream.host, streamId: 100 });
     expect(onWatch).toHaveBeenCalledWith('nfl:1');
+  });
+});
+
+describe('Game Day: a link off the air', () => {
+  const warning = () => document.querySelector('[data-channel-warning]');
+  // "Watch anyway" above was remembered for stream 100: not here.
+  beforeEach(async () => { (await import('./channelWarning')).__resetWarnedForTests(); });
+
+  it('is listed after the working copy, says "Off the air", and OK asks first', async () => {
+    spy.down = new Set([`${dream.host}|100`, `${dream.host}|off:100`]);
+    const { onWatch } = await openList();
+    tap('ArrowDown');
+    expect(document.querySelector('[data-gd-pick="1"] [aria-label="Off the air right now"]')).not.toBeNull();
+    expect(document.querySelector('[data-gd-pick="1"] [data-gd-offair-label]')?.textContent).toBe('Off the air right now');
+    tap('Enter');
+    await waitFor(() => expect(warning()?.getAttribute('data-channel-warning')).toBe('offair'));
+    expect(document.body.textContent).toContain("This channel isn't on the air right now — it won't play until it's back.");
+    expect(onWatch).not.toHaveBeenCalled();
+  });
+
+  it('marked after the list was drawn: the fresh reports asked for on OK still ask first', async () => {
+    const { onWatch } = await openList();
+    expect(document.querySelector('[data-gd-pick="0"] [aria-label="Off the air right now"]')).toBeNull();
+    spy.fresh = new Set([`${dream.host}|100`, `${dream.host}|off:100`]);
+    tap('Enter');
+    await waitFor(() => expect(warning()?.getAttribute('data-channel-warning')).toBe('offair'));
+    expect(spy.opens).toBe(1);
+    expect(onWatch).not.toHaveBeenCalled();
+    // Watch anyway: handed to Live TV, not asked again.
+    tap('ArrowLeft');
+    tap('Enter');
+    expect(warning()).toBeNull();
+    expect(onWatch).toHaveBeenCalledWith('nfl:1');
+    expect(spy.opens).toBe(1);
   });
 });

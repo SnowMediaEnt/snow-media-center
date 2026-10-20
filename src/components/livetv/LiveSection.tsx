@@ -74,7 +74,7 @@ import { AlertTriangle, FastForward, Rewind, RotateCw } from 'lucide-react';
 import { hasNativePlayer, SnowPlayer } from '@/capacitor/SnowPlayer';
 import { SnowRecorder, RECORDINGS_CHANGED_EVENT, hasRecorder, notifyRecordingsChanged, type RecordingJob } from '@/capacitor/SnowRecorder';
 import { programmeTimeUtcMs } from '@/lib/recordSchedule';
-import { useNativePlayer } from '@/hooks/useNativePlayer';
+import { isOffAirAnswer, useNativePlayer } from '@/hooks/useNativePlayer';
 import { useLiveRewind, rewindOffMessage, panelOffset, type RewindOffReason } from '@/hooks/useLiveRewind';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { usePlayerEngine } from '@/hooks/usePlayerEngine';
@@ -90,7 +90,7 @@ import { channelForName } from '@/lib/voiceCommands';
 import { leftOutOfSearch, searchLiveChannels } from '@/lib/liveSearch';
 import { adultCategoryIds } from '@/lib/adultSearch';
 import { toast } from '@/hooks/use-toast';
-import { channelReport, isCategoryDown, isChannelFailure, signalCategory, signalChannel, useDownChannels, type ChannelReport } from '@/lib/channelStatus';
+import { channelReport, isCategoryDown, isChannelFailure, openWhenFresh, signalCategory, signalChannel, useDownChannels, type ChannelReport } from '@/lib/channelStatus';
 import ChannelWarningDialog from './ChannelWarningDialog';
 import FullscreenChannelOverlay, { type OverlayCategory } from './FullscreenChannelOverlay';
 import { overlayChannelWindow } from './listWindow';
@@ -1747,12 +1747,20 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     // The channel in the box is the one playing (watched full screen before,
     // or put there with OK): only the picture moves (fullScreenFromBox).
     fullScreen: (st) => fullScreenFromBoxRef.current(st),
-    // As activateChannel asks (askFirstReport), for the box.
+    // As activateChannel asks (askFirstReport, after whenFresh), for the
+    // box. While the reports are on their way it says it asked: the box then
+    // plays (or the warning comes) once they are in.
     askFirst: (st) => {
-      const report = askFirstReport(st, lineFor(st));
-      if (!report) return false;
-      setWarnFor({ stream: st, report, inBox: true });
-      return true;
+      const line = lineFor(st);
+      let sync = true;
+      let asked = false;
+      const ran = whenFreshRef.current(line, (fresh) => {
+        const report = askFirstReport(st, line, fresh);
+        if (report) { asked = true; setWarnFor({ stream: st, report, inBox: true }); }
+        else if (!sync) heldPreviewRef.current.playInBox(st);
+      });
+      sync = false;
+      return !ran || asked;
     },
     lines,
   });
@@ -1911,11 +1919,33 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     playingKeyRef.current === lineChannelKey(line, st.stream_id), [lineFor]);
   /** What to ask before `st` plays: its report, or null when nothing is
    *  asked (not reported, the one playing, or watched anyway a moment ago).
-   *  Full screen (activateChannel) and the held box (useHeldPreview) alike. */
-  const askFirstReport = useCallback((st: XtreamLiveStream, line: XtreamCreds): Exclude<ChannelReport, null> | null => {
-    const report = channelReport(downSetRef.current, line.host, st.stream_id, st.category_id);
+   *  Full screen (activateChannel) and the held box (useHeldPreview) alike.
+   *  `fresh`: the reports just asked for again (whenFresh), newer than this
+   *  render's. */
+  const askFirstReport = useCallback((st: XtreamLiveStream, line: XtreamCreds, fresh?: Set<string> | null): Exclude<ChannelReport, null> | null => {
+    const report = channelReport(fresh ?? downSetRef.current, line.host, st.stream_id, st.category_id);
     return report && !isPlayingNow(st, line) && !warnedRecently(line.host, st.stream_id) ? report : null;
   }, [isPlayingNow]);
+  // Opening a channel (OK in the list, a search, the list over the picture,
+  // Favorites, Recently watched, the box): the reports are asked for again
+  // first when the list is older than a few seconds (lib/channelStatus
+  // openWhenFresh: a second at most), so a channel another box found off the
+  // air a minute ago asks before it plays. Only the newest pick goes on:
+  // another OK while the list is on its way replaces this one. Returns true
+  // when `go` already ran (nothing was asked).
+  const openSeqRef = useRef(0);
+  const whenFresh = useCallback((line: XtreamCreds, go: (fresh: Set<string> | null) => void): boolean => {
+    const seq = ++openSeqRef.current;
+    let ran = false;
+    openWhenFresh(line.host, (fresh) => {
+      if (seq !== openSeqRef.current) return;
+      ran = true;
+      go(fresh);
+    });
+    return ran;
+  }, []);
+  const whenFreshRef = useRef(whenFresh);
+  whenFreshRef.current = whenFresh;
   // A channel that won't start, played from the viewer's other service
   // (useChannelFailover, set up once the native player is).
   const failoverRef = useRef<ChannelFailover>(IDLE_FAILOVER);
@@ -1923,13 +1953,19 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     // OK on the channel whose copy the preview box shows (it failed here):
     // the copy goes full screen, as the box's picture always does.
     const stream = failoverRef.current.redirect(picked) ?? picked;
-    const report = askFirstReport(stream, lineFor(stream));
-    if (report) {
-      setWarnFor({ stream, report });
-      return;
-    }
-    playChannel(stream, catName);
-  }, [playChannel, lineFor, askFirstReport]);
+    const line = lineFor(stream);
+    const go = (fresh: Set<string> | null) => {
+      const report = askFirstReport(stream, line, fresh);
+      if (report) {
+        setWarnFor({ stream, report });
+        return;
+      }
+      playChannel(stream, catName);
+    };
+    // The one already playing is never asked about: no need to wait.
+    if (isPlayingNow(stream, line)) go(null);
+    else whenFresh(line, go);
+  }, [playChannel, lineFor, askFirstReport, isPlayingNow, whenFresh]);
   const activateChannelRef = useRef(activateChannel);
   useEffect(() => { activateChannelRef.current = activateChannel; }, [activateChannel]);
   // The channel in the box goes full screen (OK on it while it is held, the
@@ -2058,11 +2094,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }, [lines]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
-  // Channels other boxes see as down right now (⚠️ on the row), for the
-  // lines on screen, kept fresh while Live TV has the remote. Not while a
-  // channel plays full screen: no row is on screen, and the auto-'ok' below
-  // works from the last list.
-  const downSet = useDownChannels(lines, isActive && !fullscreen);
+  // Channels other boxes see as off the air or down right now (⚠️ on the
+  // row), for the lines on screen, kept fresh while Live TV has the remote
+  // (every minute). Not while a channel plays full screen with no list over
+  // it: no row is on screen, and the auto-'ok' below works from the last
+  // list. The list over the picture opening asks again when the last answer
+  // is a minute old.
+  const downSet = useDownChannels(lines, isActive && (!fullscreen || chOverlayOpen));
   downSetRef.current = downSet;
   const playingName = playingChannelId ? playingStream?.name ?? '' : '';
 
@@ -2385,30 +2423,47 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       id: nativeShowing.stream.stream_id,
       name: nativeShowing.where === 'full' ? playingName : nativeShowing.stream.name,
       catId: nativeShowing.stream.category_id,
+      line: nativeShowing.line,
     }
     : null;
   const nativeStreamRef = useRef(nativeStream); nativeStreamRef.current = nativeStream;
+  // What the native player was asked to play, and whether it is live (not a
+  // catch-up programme): an off-the-air answer is only this stream's own.
+  const nativeUrlRef = useRef(nativeUrl); nativeUrlRef.current = nativeUrl;
+  const nativeLiveRef = useRef(!catchupUrl); nativeLiveRef.current = !catchupUrl;
 
   // Down channels (⚠️): a channel that won't start here tells the other
   // boxes (not when only this box's own player failed, see
-  // isChannelFailure); one shown as down that plays fine for a while clears it.
+  // isChannelFailure). Off the air (isOffAirAnswer: its provider answered
+  // 404 / 410 / 5xx for the live stream itself, before any picture) marks it
+  // for every box on its service at once, and on this one straight away;
+  // only for the error of the stream on now (forUrl), never a late one of
+  // the channel before. Any other failure is a 'fail' (two boxes mark it).
+  // An outside service's channel is never signalled (lib/channelStatus).
+  // One shown as down or off the air that plays fine for a while clears it.
   useEffect(() => {
     const st = nativeStreamRef.current;
-    if (!st || !isChannelFailure(native.error)) return;
+    const err = native.error;
+    if (!st || !err || !isChannelFailure(err)) return;
+    const ownStream = !!err.forUrl && err.forUrl === nativeUrlRef.current;
+    if (ownStream && isOffAirAnswer(err.code, err.httpStatus, nativeLiveRef.current)) {
+      signalChannel(st.host, st.id, st.name, 'offair', st.line, err.httpStatus);
+      return;
+    }
     signalChannel(st.host, st.id, st.name, 'fail');
   }, [native.error]);
   const nativeKey = nativeStream ? `${nativeStream.host}|${nativeStream.id}` : '';
-  // Down by its own report, or by its whole category's: playing fine ends
-  // that one (a category with a channel that plays is not all down).
-  // Buffering is not ended this way (lib/channelStatus).
+  // Off the air or down by its own report, or down by its whole category's:
+  // playing fine ends that one (a category with a channel that plays is not
+  // all down). Buffering is not ended this way (lib/channelStatus).
   const shownReport = nativeStream ? channelReport(downSet, nativeStream.host, nativeStream.id, nativeStream.catId) : null;
-  const shownDown = shownReport === 'down' || shownReport === 'category';
+  const shownDown = shownReport === 'down' || shownReport === 'offair' || shownReport === 'category';
   useEffect(() => {
     if (!shownDown || native.buffering || native.error) return;
     const t = window.setTimeout(() => {
       const st = nativeStreamRef.current;
       if (!st) return;
-      if (shownReport === 'down') signalChannel(st.host, st.id, st.name, 'ok');
+      if (shownReport === 'down' || shownReport === 'offair') signalChannel(st.host, st.id, st.name, 'ok', st.line);
       else if (st.catId != null) signalCategory(st.host, st.catId, '', 'ok');
     }, 12_000);
     return () => window.clearTimeout(t);
@@ -2517,12 +2572,15 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       const want = failoverRef.current.redirect(ch) ?? ch;
       if (!inBox || inBox.stream_id !== want.stream_id || lineFor(inBox) !== lineFor(want)) {
         if (uprightRef.current) {
-          // Upright the box is where it is watched: one reported down asks first.
+          // Upright the box is where it is watched: one reported down asks
+          // first, once the reports are fresh (whenFresh).
           const line = lineFor(ch);
-          const report = channelReport(downSetRef.current, line.host, ch.stream_id, ch.category_id);
-          if (report && !warnedRecently(line.host, ch.stream_id)) { setWarnFor({ stream: ch, report }); return; }
-          setPreviewChannel(ch);
-          playChannelRef.current(ch, undefined, true);
+          whenFreshRef.current(line, (fresh) => {
+            const report = channelReport(fresh ?? downSetRef.current, line.host, ch.stream_id, ch.category_id);
+            if (report && !warnedRecently(line.host, ch.stream_id)) { setWarnFor({ stream: ch, report }); return; }
+            setPreviewChannel(ch);
+            playChannelRef.current(ch, undefined, true);
+          });
           return;
         }
         setPreviewChannel(ch);
@@ -3670,6 +3728,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       playingId={playingChannelId ? recentChannelId(playingLine, playingChannelId) : null}
       over={fullscreen ? 'picture' : 'list'}
       serviceOf={grouped ? (c) => lineLabel(c.line) : undefined}
+      reportOf={(c) => channelReport(downSet, c.line.host, c.stream.stream_id, c.stream.category_id)}
     />
   ) : null;
 

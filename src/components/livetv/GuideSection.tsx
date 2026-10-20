@@ -18,6 +18,12 @@
 // Kids profile, the demo and a build without the recorder get no Record…).
 // Programmes that are scheduled carry a small red dot.
 //
+// Down channels (lib/channelStatus), as in Live TV's list: a channel another
+// box found off the air, or reported down or buffering, carries the ⚠️ and
+// its words on its row, and OK on it asks first (Watch anyway / Pick
+// another) before it is handed to Live TV, after asking for the reports
+// again when they are more than a few seconds old.
+//
 // Two sizes (lib/viewSize, Live TV › Settings › Appearance › Size; ported
 // from Tronix build 43, where the Guide showed 3 channels where 8 fit).
 // Large is the older Guide exactly: the category chips, the Player's header
@@ -54,7 +60,12 @@ import {
 import { commitFavoritesForLine, loadFavoritesForLine, lineKey, toggledFavorites } from '@/lib/favoritesSync';
 import { arrangeLineFavorites, useFavoritesOrder } from '@/lib/favoritesOrder';
 import { handLiveDeeplink } from '@/lib/appActions';
-import { signalChannel } from '@/lib/channelStatus';
+import { channelReport, openWhenFresh, signalChannel, useDownChannels, type ChannelReport } from '@/lib/channelStatus';
+import { channelRowLabels } from './channelRowLabels';
+import ChannelWarningDialog from './ChannelWarningDialog';
+import { noteWatchAnyway, warnedRecently } from './channelWarning';
+import { trackEvent } from '@/lib/analytics';
+import { lineEventProps } from '@/lib/outsideSource';
 import { nameClasses } from '@/lib/channelName';
 import { useViewSize } from '@/lib/viewSize';
 import { usePhoneLayout, useTouchUI } from '@/lib/phoneMode';
@@ -282,6 +293,25 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   useEffect(() => { saveVolume(volume); }, [volume]);
   const [playingChannelId, setPlayingChannelId] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+
+  // Channels the others see as off the air, down or buffering on this
+  // service (⚠️ on the rows), kept fresh while the Guide is on screen (not
+  // behind its own full-screen player).
+  const downSet = useDownChannels(DEMO ? [] : [creds], isActive && !fullscreen);
+  const downSetRef = useRef(downSet);
+  downSetRef.current = downSet;
+  const rowLabels = useMemo(() => channelRowLabels(t), [t]);
+  /** The ⚠️ on a row: its report, and the words for it. */
+  const flagOf = (ch: XtreamLiveStream): { report: Exclude<ChannelReport, null>; label: string } | null => {
+    const report = channelReport(downSet, creds.host, ch.stream_id, ch.category_id);
+    if (!report) return null;
+    const label = report === 'offair' ? rowLabels.offAir : report === 'buffering' ? rowLabels.buffering : report === 'category' ? rowLabels.categoryDown : rowLabels.down;
+    return { report, label };
+  };
+  // Asked before a reported channel is handed to Live TV (askThenHandOver).
+  const [warnFor, setWarnFor] = useState<{ ch: XtreamLiveStream; report: Exclude<ChannelReport, null>; handOver: () => void } | null>(null);
+  const warnForRef = useRef(warnFor);
+  warnForRef.current = warnFor;
 
   // Bump every 30s so the NOW line keeps pace — not behind fullscreen
   // playback, where a full-grid re-render helps nobody.
@@ -688,6 +718,21 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     return () => { document.documentElement.classList.remove('snowplayer-fullscreen'); };
   }, [nativeActive]);
 
+  // Handing a channel to Live TV (handOver, below): one the others found off
+  // the air, or reported down or buffering, asks first. The reports are
+  // asked for again first when they are older than a few seconds
+  // (openWhenFresh, a second at most); only the newest OK goes on.
+  const openSeqRef = useRef(0);
+  const askThenHandOver = useCallback((ch: XtreamLiveStream, handOver: () => void) => {
+    const seq = ++openSeqRef.current;
+    openWhenFresh(creds.host, (fresh) => {
+      if (seq !== openSeqRef.current) return;
+      const report = channelReport(fresh ?? downSetRef.current, creds.host, ch.stream_id, ch.category_id);
+      if (report && !warnedRecently(creds.host, ch.stream_id)) { setWarnFor({ ch, report, handOver }); return; }
+      handOver();
+    });
+  }, [creds.host]);
+
   const playRow = useCallback((idx: number) => {
     const ch = channels[idx];
     if (!ch) return;
@@ -702,6 +747,15 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         toast({ title: t('guide.loadingChannels') });
         return;
       }
+      askThenHandOver(ch, () => handOverRef.current(ch));
+      return;
+    }
+    setPlayingChannelId(ch.stream_id);
+    setFullscreen(true);
+  }, [channels, listLoading, catLoadKey, t, askThenHandOver]);
+  // The hand-over itself, once nothing (more) is to be asked.
+  const handOver = useCallback((ch: XtreamLiveStream) => {
+    if (onWatchRef.current) {
       const place: GuidePlace = {
         line: lineKey(creds),
         cat: onFavorites ? 'fav' : String(currentCategory?.category_id ?? ''),
@@ -715,11 +769,10 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         categoryId: ch.category_id != null ? String(ch.category_id) : undefined, num: ch.num ?? undefined,
       });
       onWatchRef.current(place);
-      return;
     }
-    setPlayingChannelId(ch.stream_id);
-    setFullscreen(true);
-  }, [channels, creds, onFavorites, currentCategory, windowStart, listLoading, catLoadKey, t]);
+  }, [creds, onFavorites, currentCategory, windowStart]);
+  const handOverRef = useRef(handOver);
+  handOverRef.current = handOver;
   // For the key listeners: a new copy of playRow (a list landing, the time
   // moved) must not re-subscribe them, which cancelled a hold under way.
   const playRowRef = useRef(playRow);
@@ -1020,8 +1073,10 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         const target = e.target as HTMLElement;
         const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
         if (typing) return;
-        // The Record dialog owns the remote while it is open (it answers Back itself).
-        if (recordForRef.current || menuForRef.current) return;
+        // The Record dialog owns the remote while it is open (it answers Back
+        // itself); so do the channel menu and the warning before a reported
+        // channel plays.
+        if (recordForRef.current || menuForRef.current || warnForRef.current) return;
         if ((e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) && !freshBack()) {
           e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
           return;
@@ -1195,7 +1250,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
       if (e.key !== 'Enter' && e.key !== ' ') return;
       if (enterTimerRef.current) {
         cancelEnterTimer();
-        if (!fullscreenRef.current && !recordForRef.current && !menuForRef.current && focusZoneRef.current === 'grid') playRowRef.current(rowIdxRef.current);
+        if (!fullscreenRef.current && !recordForRef.current && !menuForRef.current && !warnForRef.current && focusZoneRef.current === 'grid') playRowRef.current(rowIdxRef.current);
       }
       enterFiredRef.current = false;
     };
@@ -1343,6 +1398,25 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
         />
       </Suspense>
     )}
+    {warnFor && (
+      <ChannelWarningDialog
+        channelName={warnFor.ch.name}
+        report={warnFor.report}
+        categoryName={onFavorites ? undefined : (currentCategory?.category_name || undefined)}
+        onWatch={() => {
+          const w = warnFor;
+          setWarnFor(null);
+          noteWatchAnyway(creds.host, w.ch.stream_id);
+          try { trackEvent('report_warning', 'player', lineEventProps(creds, { status: w.report, choice: 'watch', where: 'guide' }, { channel: w.ch.name })); } catch { /* ignore */ }
+          w.handOver();
+        }}
+        onPickAnother={() => {
+          const w = warnFor;
+          setWarnFor(null);
+          try { trackEvent('report_warning', 'player', lineEventProps(creds, { status: w.report, choice: 'pick_another', where: 'guide' }, { channel: w.ch.name })); } catch { /* ignore */ }
+        }}
+      />
+    )}
     {recordFor && (
       <RecordDialog
         channelName={recordFor.ch.name}
@@ -1368,6 +1442,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     const colW = upright ? COMPACT_COL_W_UPRIGHT : COMPACT_COL_W;
     const catName = !catsReady ? t('guide.loadingCategories') : onFavorites ? t('guide.favorites') : (currentCategory?.category_name ?? '');
     const ch = focusedGuideChannel ?? channels[rowIdx] ?? null;
+    const headFlag = ch ? flagOf(ch) : null;
     // undefined: not fetched yet; [] or nothing on now: "No programme information".
     const list = ch ? epgCacheRef.current.get(ch.stream_id) : undefined;
     const n = Date.now();
@@ -1405,6 +1480,13 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                   </div>
                 )}
                 <h3 data-guide-head className={`font-quicksand font-bold text-white ${nameClasses(ch.name, 40, 'text-2xl', 'text-lg')}`}>{ch.name}</h3>
+                {/* Off the air / reported: in words for the highlighted channel. */}
+                {headFlag && (
+                  <p data-guide-head-report={headFlag.report} className={`mt-1 flex items-center min-w-0 text-base font-nunito ${headFlag.report === 'buffering' ? 'text-amber-300' : 'text-red-300'}`}>
+                    <AlertTriangle className={`w-4 h-4 mr-1.5 flex-shrink-0 ${headFlag.report === 'buffering' ? 'text-amber-400' : 'text-red-400'}`} />
+                    <span className="truncate">{headFlag.label}</span>
+                  </p>
+                )}
                 {now ? (
                   <>
                     <p className="mt-1 text-base text-brand-ice/90 font-nunito truncate">{t('guide.now', { title: now.title })}</p>
@@ -1482,6 +1564,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                 const c = channels[v.index];
                 if (!c) return null;
                 const focused = isActive && focusZone === 'grid' && v.index === rowIdx;
+                const flag = flagOf(c);
                 const programs = epgCacheRef.current.get(c.stream_id);
                 const visible = (programs || []).filter(p => p.end > windowStart && p.start < windowEnd);
                 return (
@@ -1510,6 +1593,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                           : <Tv className="w-5 h-5 text-brand-ice/60 flex-shrink-0" />}
                         {/* A long name: a step smaller, on two lines (lib/channelName). */}
                         <div data-guide-name className={`ml-2 min-w-0 flex-1 font-quicksand font-semibold text-white ${nameClasses(c.name, upright ? 10 : 18, 'text-sm', 'text-[11px]')}`}>{c.name}</div>
+                        {flag && <AlertTriangle data-guide-report={flag.report} className={`ml-1 w-3.5 h-3.5 flex-shrink-0 ${flag.report === 'buffering' ? 'text-amber-400' : 'text-red-400'}`} aria-label={flag.label} />}
                         {favs.has(c.stream_id) && <Star data-guide-fav className="ml-1 w-3.5 h-3.5 text-brand-gold fill-brand-gold flex-shrink-0" />}
                       </div>
                       <div className="flex-1 relative overflow-hidden">
@@ -1846,6 +1930,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
               const ch = channels[v.index];
               if (!ch) return null;
               const isFocused = isActive && focusZone === 'grid' && v.index === rowIdx;
+              const flag = flagOf(ch);
               const programs = epgCacheRef.current.get(ch.stream_id);
               const visible = (programs || []).filter(p => p.end > windowStart && p.start < windowEnd);
               return (
@@ -1894,6 +1979,12 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                         {/* Long names (an event and its time): a size smaller, two
                             lines, on every row (lib/channelName). */}
                         <div data-guide-name className={`font-quicksand font-semibold text-white ${nameClasses(ch.name, 18, 'text-sm', 'text-xs')}`}>{ch.name}</div>
+                        {flag && (
+                          <div data-guide-report={flag.report} className={`flex items-center min-w-0 text-xs font-nunito leading-tight ${flag.report === 'buffering' ? 'text-amber-300' : 'text-red-300'}`}>
+                            <AlertTriangle className={`w-3 h-3 mr-1 flex-shrink-0 ${flag.report === 'buffering' ? 'text-amber-400' : 'text-red-400'}`} />
+                            <span className="truncate">{flag.label}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                     {/* Program lane */}

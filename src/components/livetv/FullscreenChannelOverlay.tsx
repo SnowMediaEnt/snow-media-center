@@ -270,7 +270,7 @@ const FullscreenChannelOverlay = memo(({
             const report = reportOf(st);
             const flagged = report !== null;
             const flagText = report === 'buffering' ? 'text-amber-300' : 'text-red-300';
-            const flagLabel = report === 'buffering' ? labels.buffering : report === 'category' ? labels.categoryDown : labels.down;
+            const flagLabel = report === 'buffering' ? labels.buffering : report === 'category' ? labels.categoryDown : report === 'offair' ? labels.offAir : labels.down;
             const now = nowTitle(st);
             const service = serviceTag?.(st);
             return (

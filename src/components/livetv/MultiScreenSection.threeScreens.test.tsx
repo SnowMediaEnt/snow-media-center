@@ -18,7 +18,7 @@ const h = vi.hoisted(() => ({
 vi.mock('@/capacitor/SnowPlayer', () => ({ hasNativePlayer: () => true }));
 vi.mock('@capacitor/app', () => ({ App: { addListener: async () => ({ remove() {} }) } }));
 vi.mock('@/hooks/usePlayerAccount', () => ({ usePlayerAccount: () => ({ account: { maxConnections: 3, activeCons: 0 } }) }));
-vi.mock('@/lib/favoritesSync', () => ({ loadFavoritesForLine: () => new Map(), lineKey: (c: { host: string; username: string }) => `${c.host}|${c.username}` }));
+vi.mock('@/lib/favoritesSync', () => ({ loadFavoritesForLine: () => new Map(), lineKey: (c: { host: string; username: string }) => `${c.host}|${c.username}`, normalizeHost: (h: string) => h }));
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn() }));
 vi.mock('@/hooks/useMultiScreenPlayers', () => ({
   MS_SLOT_IDS: ['ms1', 'ms2', 'ms3', 'ms4'],

@@ -91,9 +91,10 @@ vi.mock('@/capacitor/SnowRecorder', () => ({
 }));
 // The native player: the address it was asked to play, and an error the test
 // raises. A new address clears the error a render later, as the real one does.
-vi.mock('@/hooks/useNativePlayer', async () => {
+vi.mock('@/hooks/useNativePlayer', async (orig) => {
   const React = await import('react');
   return {
+    isOffAirAnswer: (await orig<typeof import('@/hooks/useNativePlayer')>()).isOffAirAnswer,
     useNativePlayer: (o: { active: boolean; url: string | null }) => {
       const [error, setError] = React.useState<{ code?: string; message: string; forUrl?: string } | null>(null);
       const was = React.useRef(o.url);

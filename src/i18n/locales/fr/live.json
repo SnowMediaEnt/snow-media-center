@@ -64,6 +64,8 @@
       "onAirChip": "À L'ANTENNE",
       "downLabel": "Signalée en panne actuellement",
       "downNote": "Signalée en panne actuellement — nous nous en occupons",
+      "offAirLabel": "Hors antenne",
+      "offAirNote": "Hors antenne actuellement — elle ne marchera pas avant son retour",
       "noInfo": "Aucune information",
       "categoryDownLabel": "Catégorie signalée en panne",
       "categoryDownNote": "Toute sa catégorie a été signalée en panne — elle risque de ne pas marcher",
@@ -429,6 +431,8 @@
     "warn": {
       "downTitle": "Signalée en panne",
       "downBody": "Quelqu’un a signalé cette chaîne en panne récemment — elle risque de ne pas marcher.",
+      "offAirTitle": "Hors antenne",
+      "offAirBody": "Cette chaîne n’est pas à l’antenne actuellement — elle ne marchera pas avant son retour.",
       "categoryTitle": "Catégorie signalée en panne",
       "categoryBody": "Toute la catégorie {{category}} a été signalée en panne récemment — cette chaîne risque de ne pas marcher.",
       "categoryBodyNoName": "Toute sa catégorie a été signalée en panne récemment — cette chaîne risque de ne pas marcher.",

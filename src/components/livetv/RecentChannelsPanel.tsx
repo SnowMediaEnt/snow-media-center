@@ -1,6 +1,7 @@
 // Recently watched, as a panel: over the full-screen picture (▶ with the bar
 // hidden) or over Live TV's list (▶ at its right edge). Newest first; the
-// channel on screen marked. Drawing only: useRecentPanel owns the keys and
+// channel on screen marked, and one the others see as off the air, down or
+// buffering (lib/channelStatus) marked as in the list. Drawing only: useRecentPanel owns the keys and
 // the focus, LiveSection the channel change.
 //
 // The highlighted row shows its Remove (▶ moves onto it, OK takes the channel
@@ -14,8 +15,9 @@
 // anyway). Chrome 66: margins, no flex gap beyond gap-1..4, no inset.
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { History, Play, Tv, X } from 'lucide-react';
+import { AlertTriangle, History, Play, Tv, X } from 'lucide-react';
 import { isLongName, TWO_LINES } from '@/lib/channelName';
+import type { ChannelReport } from '@/lib/channelStatus';
 import type { RecentChannel } from '@/lib/recentChannels';
 import { OVER_PICTURE_TEXT_SHADOW } from './FullscreenChannelOverlay';
 import { listWindow } from './listWindow';
@@ -31,6 +33,8 @@ interface Props {
   over: 'picture' | 'list';
   /** With more than one service, each row says which one it is on. */
   serviceOf?: (c: RecentChannel) => string | undefined;
+  /** What the others reported about it (channelReport), as the list shows it. */
+  reportOf?: (c: RecentChannel) => ChannelReport;
 }
 
 /** Rows drawn at once. */
@@ -42,7 +46,7 @@ const LONG_NAME = 26;
 const nameClass = (name: string): string =>
   (isLongName(name, LONG_NAME) ? `text-[13px] ${TWO_LINES}` : 'text-lg truncate leading-tight');
 
-const RecentChannelsPanel = memo(({ items, focus, onRemove, playingId, over, serviceOf }: Props) => {
+const RecentChannelsPanel = memo(({ items, focus, onRemove, playingId, over, serviceOf, reportOf }: Props) => {
   const { t } = useTranslation();
   const win = listWindow(items.length, focus, RECENT_PANEL_ROWS);
   const place = over === 'picture' ? 'absolute z-30 bg-black/60' : 'fixed z-[55] bg-[#0b1220] shadow-2xl';
@@ -80,7 +84,12 @@ const RecentChannelsPanel = memo(({ items, focus, onRemove, playingId, over, ser
           const removeFocused = focused && onRemove;
           const playing = c.id === playingId;
           const service = serviceOf?.(c);
-          const sub = [service, c.category].filter(Boolean).join(' · ');
+          const report = reportOf?.(c) ?? null;
+          // Off the air / down / buffering takes the category's place, as in the list.
+          const flagLabel = report === 'buffering' ? t('live.channelRow.bufferingLabel')
+            : report === 'category' ? t('live.channelRow.categoryDownLabel')
+              : report === 'offair' ? t('live.channelRow.offAirLabel') : t('live.channelRow.downLabel');
+          const sub = [service, report ? flagLabel : c.category].filter(Boolean).join(' · ');
           return (
             <div
               key={c.id}
@@ -99,8 +108,9 @@ const RecentChannelsPanel = memo(({ items, focus, onRemove, playingId, over, ser
                 <p className={`font-nunito ${nameClass(c.name)} ${rowFocused ? 'text-white font-semibold' : playing ? 'text-brand-gold font-semibold' : 'text-brand-ice'}`}>
                   {c.name}
                 </p>
-                <p className={`truncate text-sm leading-tight font-nunito ${faint}`}>{sub || ' '}</p>
+                <p className={`truncate text-sm leading-tight font-nunito ${report === 'buffering' ? 'text-amber-300' : report ? 'text-red-300' : faint}`}>{sub || ' '}</p>
               </div>
+              {report && <AlertTriangle data-recent-report={report} className={`w-4 h-4 ml-2 flex-shrink-0 ${report === 'buffering' ? 'text-amber-400' : 'text-red-400'}`} aria-label={flagLabel} />}
               {playing && <Play className="w-4 h-4 ml-2 text-brand-gold fill-brand-gold flex-shrink-0" aria-label={t('live.overlay.playing')} />}
               {focused && (
                 <span

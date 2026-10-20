@@ -64,6 +64,8 @@
       "onAirChip": "AL AIRE",
       "downLabel": "Reportado como caído ahora",
       "downNote": "Reportado como caído ahora: ya lo estamos revisando",
+      "offAirLabel": "Fuera del aire",
+      "offAirNote": "Fuera del aire ahora: no se verá hasta que vuelva",
       "noInfo": "Sin información",
       "categoryDownLabel": "Categoría reportada como caída",
       "categoryDownNote": "Toda su categoría fue reportada como caída: puede que no se vea",
@@ -429,6 +431,8 @@
     "warn": {
       "downTitle": "Reportado como caído",
       "downBody": "Alguien reportó este canal como caído hace poco: puede que no se vea.",
+      "offAirTitle": "Fuera del aire",
+      "offAirBody": "Este canal no está al aire ahora: no se verá hasta que vuelva.",
       "categoryTitle": "Categoría reportada como caída",
       "categoryBody": "Toda la categoría {{category}} fue reportada como caída hace poco: puede que este canal no se vea.",
       "categoryBodyNoName": "Toda su categoría fue reportada como caída hace poco: puede que este canal no se vea.",

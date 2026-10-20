@@ -5,6 +5,8 @@ export interface ChannelRowLabels {
   onAir: string;
   down: string;
   downNote: string;
+  offAir: string;
+  offAirNote: string;
   categoryDown: string;
   categoryDownNote: string;
   buffering: string;
@@ -18,6 +20,8 @@ export const channelRowLabels = (t: TFunction): ChannelRowLabels => ({
   onAir: t('live.channelRow.onAirChip'),
   down: t('live.channelRow.downLabel'),
   downNote: t('live.channelRow.downNote'),
+  offAir: t('live.channelRow.offAirLabel'),
+  offAirNote: t('live.channelRow.offAirNote'),
   categoryDown: t('live.channelRow.categoryDownLabel'),
   categoryDownNote: t('live.channelRow.categoryDownNote'),
   buffering: t('live.channelRow.bufferingLabel'),

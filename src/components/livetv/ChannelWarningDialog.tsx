@@ -17,14 +17,16 @@ interface Props {
 
 /** Title and body keys per report. */
 const TEXT: Record<Exclude<ChannelReport, null>, { title: string; body: string }> = {
+  offair: { title: 'live.warn.offAirTitle', body: 'live.warn.offAirBody' },
   down: { title: 'live.warn.downTitle', body: 'live.warn.downBody' },
   category: { title: 'live.warn.categoryTitle', body: 'live.warn.categoryBody' },
   buffering: { title: 'live.warn.bufferingTitle', body: 'live.warn.bufferingBody' },
 };
 
 /**
- * Asked before a channel others reported plays: down (its own report or its
- * category's) or buffering. Two buttons, "Watch anyway" and "Pick another";
+ * Asked before a channel others reported plays: off the air (a box got its
+ * provider's "not here"), down (its own report or its category's) or
+ * buffering. Two buttons, "Watch anyway" and "Pick another";
  * the highlight starts on Pick another, so a second OK out of habit does not
  * start a channel that is likely broken. Owns the remote while open: ◀ ▶ ▲ ▼
  * move, OK chooses, Back is Pick another.

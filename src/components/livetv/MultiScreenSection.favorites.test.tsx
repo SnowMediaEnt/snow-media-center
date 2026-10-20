@@ -22,6 +22,7 @@ vi.mock('@/lib/favoritesSync', () => ({
     [303, { stream_id: 303, name: 'Mid Movies', category_id: '1' }],
   ]),
   lineKey: (c: { host: string; username: string }) => `${c.host.replace(/^https?:\/\//, '')}|${c.username}`,
+  normalizeHost: (h: string) => h.replace(/^https?:\/\//, ''),
 }));
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn() }));
 vi.mock('@/hooks/useMultiScreenPlayers', () => ({

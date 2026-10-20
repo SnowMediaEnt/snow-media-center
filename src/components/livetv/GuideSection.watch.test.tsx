@@ -111,7 +111,8 @@ describe("Guide: a channel plays in Live TV's player", () => {
     await seeRow('News Channel');
     const row = [...document.querySelectorAll('[data-guide-name]')].find((el) => el.textContent === 'News Channel')!;
     act(() => { fireEvent.click(row); });
-    expect(onWatch).toHaveBeenCalledTimes(1);
+    // Once the down-channel reports are fresh (a second at most).
+    await waitFor(() => expect(onWatch).toHaveBeenCalledTimes(1));
     expect(deeplink()).toMatchObject({ streamId: 301, categoryId: '1' });
   });
 

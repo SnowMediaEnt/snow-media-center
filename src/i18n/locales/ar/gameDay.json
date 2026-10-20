@@ -11,6 +11,7 @@
     "liveDetail": "مباشر {{detail}}",
     "findingChannels": "جارٍ البحث عن قنواتك…",
     "reportedDown": "تم الإبلاغ عن تعطله حاليًا",
+    "offAir": "متوقفة عن البث الآن",
     "reportedBuffering": "تم الإبلاغ عن تقطّعها مؤخرًا",
     "notInChannelsOn": "{{networks}} — غير متوفرة في قنواتك",
     "streamingOnly": "{{networks}} (بث عبر الإنترنت فقط)",

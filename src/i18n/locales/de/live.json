@@ -64,6 +64,8 @@
       "onAirChip": "ON AIR",
       "downLabel": "Gerade als ausgefallen gemeldet",
       "downNote": "Gerade als ausgefallen gemeldet – wir kümmern uns darum",
+      "offAirLabel": "Nicht auf Sendung",
+      "offAirNote": "Gerade nicht auf Sendung – läuft erst wieder, wenn er zurück ist",
       "noInfo": "Keine Informationen",
       "categoryDownLabel": "Kategorie als ausgefallen gemeldet",
       "categoryDownNote": "Die ganze Kategorie wurde als ausgefallen gemeldet – läuft evtl. nicht",
@@ -428,6 +430,8 @@
     "warn": {
       "downTitle": "Als ausgefallen gemeldet",
       "downBody": "Jemand hat diesen Sender kürzlich als ausgefallen gemeldet – er läuft evtl. nicht.",
+      "offAirTitle": "Nicht auf Sendung",
+      "offAirBody": "Dieser Sender ist gerade nicht auf Sendung – er läuft erst wieder, wenn er zurück ist.",
       "categoryTitle": "Kategorie als ausgefallen gemeldet",
       "categoryBody": "Die ganze Kategorie {{category}} wurde kürzlich als ausgefallen gemeldet – dieser Sender läuft evtl. nicht.",
       "categoryBodyNoName": "Die ganze Kategorie wurde kürzlich als ausgefallen gemeldet – dieser Sender läuft evtl. nicht.",

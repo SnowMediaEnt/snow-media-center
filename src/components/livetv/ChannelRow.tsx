@@ -43,7 +43,8 @@ interface Props {
   /** Down right now, by what other boxes see (lib/channelStatus). */
   isDown?: boolean;
   /** What the others reported about it (lib/channelStatus channelReport):
-   *  down or its category down (red), buffering (amber). Wins over isDown. */
+   *  off the air, down or its category down (red), buffering (amber). Wins
+   *  over isDown. */
   report?: ChannelReport;
   nowNext?: EpgNowNext;
   onSelect: (index: number) => void;
@@ -72,11 +73,12 @@ interface Props {
 
 const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isDown = false, report, nowNext, onSelect, onActivate, onLongPress, variant = 'compact', labels, serviceTag, compactTile = false }: Props) => {
   const L = labels ?? channelRowLabels(i18n.t.bind(i18n));
-  // Down (the channel or its whole category) is red; buffering is amber.
+  // Off the air and down (the channel or its whole category) are red;
+  // buffering is amber.
   const flag: ChannelReport = report !== undefined ? report : isDown ? 'down' : null;
   const flagged = flag !== null;
-  const flagLabel = flag === 'buffering' ? L.buffering : flag === 'category' ? L.categoryDown : L.down;
-  const flagNote = flag === 'buffering' ? L.bufferingNote : flag === 'category' ? L.categoryDownNote : L.downNote;
+  const flagLabel = flag === 'buffering' ? L.buffering : flag === 'category' ? L.categoryDown : flag === 'offair' ? L.offAir : L.down;
+  const flagNote = flag === 'buffering' ? L.bufferingNote : flag === 'category' ? L.categoryDownNote : flag === 'offair' ? L.offAirNote : L.downNote;
   const flagIcon = flag === 'buffering' ? 'text-amber-400' : 'text-red-400';
   const flagText = flag === 'buffering' ? 'text-amber-300' : 'text-red-300';
   const [iconError, setIconError] = useState(() => compactTile && !!channel.stream_icon && failedWallLogos.has(channel.stream_icon));

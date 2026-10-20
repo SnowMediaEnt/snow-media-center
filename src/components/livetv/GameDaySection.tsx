@@ -60,7 +60,7 @@ import { AlertTriangle, Bell, BellRing, FolderOpen, Loader2, Play, RotateCcw, St
 import { useToast } from '@/hooks/use-toast';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { handLiveCategory, handLiveDeeplink } from '@/lib/appActions';
-import { channelReport, isCategoryDown, signalCategory, signalChannel, useDownChannels, type ChannelReport } from '@/lib/channelStatus';
+import { channelReport, isCategoryDown, openWhenFresh, signalCategory, signalChannel, useDownChannels, type ChannelReport } from '@/lib/channelStatus';
 import { trackEvent } from '@/lib/analytics';
 import ChannelWarningDialog from './ChannelWarningDialog';
 import { noteWatchAnyway, warnedRecently } from './channelWarning';
@@ -131,7 +131,7 @@ const canRemind = (g: Game) => g.state !== 'in' && Date.parse(g.start) > Date.no
  *  heading. */
 type LinkGroup = 'main' | 'search' | 'unconfirmed' | 'zone';
 type PickItem =
-  | { kind: 'link'; link: GameChannel; down: boolean; buffering: boolean; group: LinkGroup }
+  | { kind: 'link'; link: GameChannel; down: boolean; offAir: boolean; buffering: boolean; group: LinkGroup }
   | { kind: 'browse'; line: XtreamCreds; categoryId: string; name: string }
   // The search couldn't be finished and found nothing of the game's own: ask again.
   | { kind: 'retry' };
@@ -316,12 +316,13 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
   }, []);
 
   const down = useDownChannels(lines, isActive);
-  // What the boxes reported (what the report menu clears): down, its whole
-  // category down, or buffering…
+  // What the boxes reported (what the report menu clears): off the air, down,
+  // its whole category down, or buffering…
   const crowdReport = useCallback((c: GameChannel): ChannelReport => channelReport(down, c.line.host, c.stream.stream_id, c.stream.category_id), [down]);
   // …or marked down by the owner for this game: the same to the list.
   const flagOf = useCallback((c: GameChannel): ChannelReport => (c.ownerDown ? 'down' : crowdReport(c)), [crowdReport]);
-  const isDown = useCallback((c: GameChannel) => { const f = flagOf(c); return f === 'down' || f === 'category'; }, [flagOf]);
+  const isDown = useCallback((c: GameChannel) => { const f = flagOf(c); return f === 'down' || f === 'category' || f === 'offair'; }, [flagOf]);
+  const isOffAir = useCallback((c: GameChannel) => flagOf(c) === 'offair', [flagOf]);
   const isBuffering = useCallback((c: GameChannel) => flagOf(c) === 'buffering', [flagOf]);
   // Working first, then buffering, down last.
   const flagRank = useCallback((c: GameChannel) => (isDown(c) ? 2 : isBuffering(c) ? 1 : 0), [isDown, isBuffering]);
@@ -473,12 +474,12 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
     // Nothing found, and no line's channels could be read: "couldn't check".
     const failed = !pick && !looking && allMissing;
     return {
-      game: g, auto, search, found, picks, channel: pick, channelDown: !!pick && isDown(pick), channelBuffering: !!pick && isBuffering(pick),
+      game: g, auto, search, found, picks, channel: pick, channelDown: !!pick && isDown(pick), channelOffAir: !!pick && isOffAir(pick), channelBuffering: !!pick && isBuffering(pick),
       more: Math.max(0, found.length + searched.length - 1), when, tv, unsure, looking, failed,
     };
     // t: the kickoff day and time are drawn in the app's language, so a language change recomputes them.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [shown, matched, searchByGame, guided, edits, lines, channels, boxServices, isDown, isBuffering, flagOf, lineupPending, aiSearching, allMissing, t]);
+  }), [shown, matched, searchByGame, guided, edits, lines, channels, boxServices, isDown, isOffAir, isBuffering, flagOf, lineupPending, aiSearching, allMissing, t]);
 
   // The owner's adds to games nothing else found: each sent once a day.
   useEffect(() => {
@@ -531,14 +532,14 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
     // brought it back), what they mark down goes last.
     const arranged = applyChannelEdits(pickerRow.game, [...main, ...search, ...unconfirmed, ...zone], edits, lines, channels ?? []);
     const items: PickItem[] = arranged.map((link) => ({
-      kind: 'link', link, down: isDown(link), buffering: isBuffering(link),
+      kind: 'link', link, down: isDown(link), offAir: isOffAir(link), buffering: isBuffering(link),
       // A channel the owner picked is up with the picks, not in its group.
       group: link.picked ? 'main' : found.has(channelKey(link)) ? 'search' : unsure.has(channelKey(link)) ? 'unconfirmed' : link.via === 'zone' ? 'zone' : 'main',
     }));
     const own = pickerRow.game.league === 'ppv' ? new Set(pickerRow.found.map(channelKey)) : undefined;
     for (const c of channels ? leagueCategories(pickerRow.game, channels, 2, own) : []) items.push({ kind: 'browse', ...c });
     return items;
-  }, [picker, pickerRow, channels, isDown, isBuffering, flagRank, lines, edits]);
+  }, [picker, pickerRow, channels, isDown, isOffAir, isBuffering, flagRank, lines, edits]);
   // Still looking for this game's channels: the line-up isn't read yet (the
   // guide is asked once it is), the guide is being asked, or the search's
   // answer is on its way with nothing of the game's own listed. Never "not
@@ -666,17 +667,33 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
   }, []);
   const closePicker = useCallback(() => { noteMiss(); setPicker(null); }, [noteMiss]);
 
+  const activateRef = useRef<(item: PickItem | undefined, confirmed?: boolean) => void>(() => undefined);
+  // The newest pick: another OK while the reports are on their way replaces it.
+  const openSeqRef = useRef(0);
   const activate = useCallback((item: PickItem | undefined, confirmed = false) => {
     if (!item) return;
     if (item.kind === 'retry') { retry(); return; }
-    // Reported down or buffering: asked first (Watch anyway / Pick another),
-    // the list stays open behind. Not again for one just chosen anyway.
+    // Off the air, reported down or buffering: asked first (Watch anyway /
+    // Pick another), the list stays open behind. Not again for one just
+    // chosen anyway. The reports are asked for again first when the list is
+    // older than a few seconds (openWhenFresh, a second at most), so a
+    // channel marked a minute ago asks before it plays.
     if (item.kind === 'link' && !confirmed) {
-      const report = flagOfRef.current(item.link);
-      if (report && !warnedRecently(item.link.line.host, item.link.stream.stream_id)) {
-        setWarn({ item, report });
-        return;
-      }
+      const c = item.link;
+      const seq = ++openSeqRef.current;
+      let sync = true;
+      openWhenFresh(c.line.host, (fresh) => {
+        // Another pick since, or the list closed while the reports came.
+        if (seq !== openSeqRef.current || (!sync && !stateRef.current.picker)) return;
+        const report = fresh ? (c.ownerDown ? 'down' : channelReport(fresh, c.line.host, c.stream.stream_id, c.stream.category_id)) : flagOfRef.current(c);
+        if (report && !warnedRecently(c.line.host, c.stream.stream_id)) {
+          setWarn({ item, report });
+          return;
+        }
+        activateRef.current(item, true);
+      });
+      sync = false;
+      return;
     }
     const gameId = stateRef.current.picker?.gameId;
     noteMiss();
@@ -703,6 +720,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
     }
     onWatch(gameId);
   }, [onWatch, toast, t, noteMiss, retry]);
+  activateRef.current = activate;
 
   // A kickoff reminder with no channel asked for this game's list.
   useEffect(() => {
@@ -933,12 +951,13 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
                 ) : r.channel ? (
                   <div className="min-w-0">
                     <div className="flex items-center min-w-0">
-                      {r.channelDown && <AlertTriangle className="w-4 h-4 text-red-400 mr-1 shrink-0" aria-label={t('gameDay.reportedDown')} />}
+                      {r.channelDown && <AlertTriangle data-gd-offair={r.channelOffAir ? 'true' : undefined} className="w-4 h-4 text-red-400 mr-1 shrink-0" aria-label={r.channelOffAir ? t('gameDay.offAir') : t('gameDay.reportedDown')} />}
                       {r.channelBuffering && <AlertTriangle className="w-4 h-4 text-amber-400 mr-1 shrink-0" aria-label={t('gameDay.reportedBuffering')} />}
                       <span className={`truncate text-sm ${r.channelDown ? 'text-red-300' : r.channelBuffering ? 'text-amber-300' : 'text-white/90'}`}>{r.channel.stream.name}</span>
                       {multi && <ServiceTag name={serviceName(r.channel.line)} label={t('gameDay.serviceTag', { service: serviceName(r.channel.line) })} onLight={false} />}
                       {r.more > 0 && <span className="ml-1 text-xs text-white/50 shrink-0">+{r.more}</span>}
                     </div>
+                    {r.channelOffAir && <span className="block truncate text-xs text-red-300">{t('gameDay.offAir')}</span>}
                     {searchOf(r.channel) && !r.channel.picked && (
                       <span className="block truncate text-xs text-brand-ice/70">{t('gameDay.foundBySearch')}</span>
                     )}
@@ -1032,7 +1051,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
                   )}
                   <button type="button" data-gd-pick={i} data-focused={focused ? 'true' : 'false'} data-howto={item.down ? 'gd.down' : undefined} className={base} onClick={() => activate(item)}>
                     {item.down
-                      ? <AlertTriangle className={`w-5 h-5 mr-3 shrink-0 ${focused ? 'text-red-600' : 'text-red-400'}`} aria-label={t('gameDay.reportedDown')} />
+                      ? <AlertTriangle data-gd-offair={item.offAir ? 'true' : undefined} className={`w-5 h-5 mr-3 shrink-0 ${focused ? 'text-red-600' : 'text-red-400'}`} aria-label={item.offAir ? t('gameDay.offAir') : t('gameDay.reportedDown')} />
                       : item.buffering
                         ? <AlertTriangle className="w-5 h-5 mr-3 shrink-0 text-amber-500" aria-label={t('gameDay.reportedBuffering')} />
                         : <Play className="w-5 h-5 mr-3 shrink-0" />}
@@ -1047,6 +1066,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
                           <span className="truncate">{t('gameDay.link.picked', { defaultValue: PICKED_LABEL })}</span>
                         </span>
                       )}
+                      {item.offAir && <span data-gd-offair-label className={`block truncate text-xs font-bold ${focused ? 'text-red-700' : 'text-red-300'}`}>{t('gameDay.offAir')}</span>}
                       {link.note && <span className={`block truncate text-xs ${focused ? 'text-black/60' : 'text-white/50'}`}>{link.note}</span>}
                     </span>
                     <span className={`ml-3 shrink-0 text-xs font-bold uppercase tracking-wide ${focused ? 'text-black/60' : 'text-brand-ice/70'}`}>

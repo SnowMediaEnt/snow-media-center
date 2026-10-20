@@ -53,7 +53,7 @@ vi.mock('@/lib/xtream', async (orig) => ({ ...(await orig<typeof import('@/lib/x
 // answer, never asked over the network in a test, would hold the rows at
 // "Finding your channels…".
 vi.mock('@/hooks/useFeatureFlag', () => ({ useFeatureFlag: () => ({ enabled: false, loading: false }) }));
-vi.mock('@/lib/channelStatus', () => ({ useDownChannels: () => new Set<string>(), isChannelDown: () => false, channelReport: () => null, isCategoryDown: () => false, signalCategory: () => undefined }));
+vi.mock('@/lib/channelStatus', () => ({ useDownChannels: () => new Set<string>(), isChannelDown: () => false, channelReport: () => null, isCategoryDown: () => false, signalCategory: () => undefined, openWhenFresh: (_h: string, go: (f: null) => void) => go(null) }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
 // OK plays when it is let go (a held OK opens the channel's menu instead), so OK is pressed and released.

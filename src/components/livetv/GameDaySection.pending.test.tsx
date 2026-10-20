@@ -61,7 +61,7 @@ vi.mock('@/lib/gameDay', async (orig) => {
 });
 vi.mock('@/lib/xtream', async (orig) => ({ ...(await orig<typeof import('@/lib/xtream')>()), loadSavedAccounts: async () => world.saved }));
 vi.mock('@/hooks/useFeatureFlag', () => ({ useFeatureFlag: () => ({ enabled: world.flag, loading: false }) }));
-vi.mock('@/lib/channelStatus', () => ({ useDownChannels: () => new Set<string>(), isChannelDown: () => false, channelReport: () => null, isCategoryDown: () => false, signalCategory: () => undefined, signalChannel: vi.fn() }));
+vi.mock('@/lib/channelStatus', () => ({ useDownChannels: () => new Set<string>(), isChannelDown: () => false, channelReport: () => null, isCategoryDown: () => false, signalCategory: () => undefined, openWhenFresh: (_h: string, go: (f: null) => void) => go(null), signalChannel: vi.fn() }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: vi.fn() }), toast: vi.fn() }));
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn(), startTimer: vi.fn(), stopTimer: vi.fn(), getDeviceId: () => 'dev-1' }));
 vi.mock('@/integrations/supabase/client', () => ({

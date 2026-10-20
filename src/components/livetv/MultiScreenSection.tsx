@@ -6,7 +6,7 @@ import { App as CapApp } from '@capacitor/app';
 import { useTranslation } from 'react-i18next';
 import type { PluginListenerHandle } from '@capacitor/core';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Loader2, Plus, Tv, X, ChevronRight } from 'lucide-react';
+import { AlertTriangle, Loader2, Plus, Tv, X, ChevronRight } from 'lucide-react';
 import {
   buildNativeLiveUrl,
   getLiveCategories,
@@ -33,6 +33,10 @@ import {
 } from '@/hooks/useMultiScreenPlayers';
 import { trackEvent } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
+import { channelReport, openWhenFresh, useDownChannels, type ChannelReport } from '@/lib/channelStatus';
+import ChannelWarningDialog from './ChannelWarningDialog';
+import { noteWatchAnyway, warnedRecently } from './channelWarning';
+import { channelRowLabels } from './channelRowLabels';
 import { LAYOUT_ORDER, LAYOUT_TILE_COUNT, MAIN_TILE, layoutNeighbor, okSwapsIntoMain, soundTile, threeArrangement, threeHintPlace, tilesForLayout, type GridBox, type Layout } from './multiScreenLayout';
 
 // Demo latch (?demo=1) — false on native, so dead code in the APK.
@@ -93,6 +97,17 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
   const [showHint, setShowHint] = useState(false);
   const showHintRef = useRef(showHint);
   showHintRef.current = showHint;
+  // Channels the others see as off the air, down or buffering (⚠️ in the
+  // picker, lib/channelStatus), kept fresh while the picker is open; and the
+  // warning before one of them goes on a screen (Watch anyway / Pick another).
+  const downSet = useDownChannels(DEMO ? [] : [creds], isActive && pickerOpenForTile !== null);
+  const downSetRef = useRef(downSet);
+  downSetRef.current = downSet;
+  const rowLabels = useMemo(() => channelRowLabels(t), [t]);
+  const [warn, setWarn] = useState<{ tileIdx: number; ch: XtreamLiveStream; report: Exclude<ChannelReport, null> } | null>(null);
+  const warnRef = useRef(warn);
+  warnRef.current = warn;
+  const pickSeqRef = useRef(0);
   // The buffering hint's OK was a button the remote could not reach (owner,
   // 2026-10-11: "I am unable to get down and press the button to make it go
   // away"): it now goes by itself after HINT_SHOWN_MS, and Back closes it
@@ -428,6 +443,24 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
     }));
   }, [layout, applyRect, loadSlot, closeSlot, focusAudio, creds, fetchEpgForTile]);
 
+  // A channel chosen in the picker for screen `tileIdx`. One the others found
+  // off the air, or reported down or buffering, asks first (the picker stays
+  // open behind), after the reports are asked for again when they are older
+  // than a few seconds (openWhenFresh, a second at most). Only the newest
+  // pick goes on, and only while the picker is still open for that screen.
+  const pickChannel = useCallback((tileIdx: number, ch: XtreamLiveStream) => {
+    const seq = ++pickSeqRef.current;
+    openWhenFresh(creds.host, (fresh) => {
+      if (seq !== pickSeqRef.current || pickerOpenForTileRef.current !== tileIdx) return;
+      const report = channelReport(fresh ?? downSetRef.current, creds.host, ch.stream_id, ch.category_id);
+      if (report && !warnedRecently(creds.host, ch.stream_id)) { setWarn({ tileIdx, ch, report }); return; }
+      setPickerOpenForTile(null);
+      void openTileForChannel(tileIdx, ch);
+    });
+  }, [creds.host, openTileForChannel]);
+  const pickChannelRef = useRef(pickChannel);
+  pickChannelRef.current = pickChannel;
+
   const closeTile = useCallback(async (tileIdx: number) => {
     if (!layout) return;
     const spec = tilesForLayout(layout);
@@ -608,6 +641,8 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
     };
     const handler = (e: KeyboardEvent) => {
+      // The warning before a reported channel goes on a screen has the remote.
+      if (warnRef.current) return;
       const target = e.target as HTMLElement | null;
       const typing = !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
       if (typing) return;
@@ -690,10 +725,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
           consume(e);
           const ch = channelsRef.current[channelIdxRef.current];
           const tIdx = pickerOpenForTileRef.current;
-          if (ch && tIdx !== null) {
-            setPickerOpenForTile(null);
-            void openTileForChannel(tIdx, ch);
-          }
+          if (ch && tIdx !== null) pickChannelRef.current(tIdx, ch);
         }
         return;
       }
@@ -762,6 +794,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
     };
     const upHandler = (e: KeyboardEvent) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (warnRef.current) return;
       if (holdTimerRef.current) {
         window.clearTimeout(holdTimerRef.current);
         holdTimerRef.current = null;
@@ -1067,6 +1100,9 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
                       const ch = channels[v.index];
                       if (!ch) return null;
                       const focused = pickerPane === 'ch' && channelIdx === v.index;
+                      const report = channelReport(downSet, creds.host, ch.stream_id, ch.category_id);
+                      const flagLabel = report === 'offair' ? rowLabels.offAir : report === 'buffering' ? rowLabels.buffering
+                        : report === 'category' ? rowLabels.categoryDown : rowLabels.down;
                       return (
                         <div
                           key={ch.stream_id}
@@ -1077,10 +1113,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
                             data-focused={focused ? 'true' : 'false'}
                             onClick={() => {
                               const tIdx = pickerOpenForTile;
-                              if (tIdx !== null) {
-                                setPickerOpenForTile(null);
-                                void openTileForChannel(tIdx, ch);
-                              }
+                              if (tIdx !== null) pickChannel(tIdx, ch);
                             }}
                             className={`tv-ring h-full flex items-center px-4 rounded-xl cursor-pointer ${
                               focused ? 'bg-brand-gold/25 scale-[1.01] z-10' : 'hover:bg-white/5'
@@ -1096,9 +1129,17 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
                                 <Tv className="w-5 h-5 text-brand-ice/40" />
                               )}
                             </span>
-                            <span className={`flex-1 min-w-0 truncate text-xl font-quicksand font-semibold ${focused ? 'text-white' : 'text-brand-ice'}`}>
-                              {ch.name}
+                            <span className="flex-1 min-w-0">
+                              <span className={`block truncate text-xl font-quicksand font-semibold ${focused ? 'text-white' : 'text-brand-ice'}`}>
+                                {ch.name}
+                              </span>
+                              {report && (
+                                <span data-ms-report={report} className={`block truncate text-sm font-nunito ${report === 'buffering' ? 'text-amber-300' : 'text-red-300'}`}>
+                                  {flagLabel}
+                                </span>
+                              )}
                             </span>
+                            {report && <AlertTriangle className={`w-5 h-5 ml-3 flex-shrink-0 ${report === 'buffering' ? 'text-amber-400' : 'text-red-400'}`} aria-label={flagLabel} />}
                           </div>
                         </div>
                       );
@@ -1109,6 +1150,28 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
             </div>
           </div>
         </div>
+      )}
+
+      {warn && (
+        <ChannelWarningDialog
+          channelName={warn.ch.name}
+          report={warn.report}
+          categoryName={categories[categoryIdx]?.name}
+          onWatch={() => {
+            const w = warn;
+            setWarn(null);
+            noteWatchAnyway(creds.host, w.ch.stream_id);
+            try { trackEvent('report_warning', 'player', { status: w.report, choice: 'watch', where: 'multi_screen' }); } catch { /* ignore */ }
+            if (pickerOpenForTileRef.current !== w.tileIdx) return;
+            setPickerOpenForTile(null);
+            void openTileForChannel(w.tileIdx, w.ch);
+          }}
+          onPickAnother={() => {
+            const w = warn;
+            setWarn(null);
+            try { trackEvent('report_warning', 'player', { status: w.report, choice: 'pick_another', where: 'multi_screen' }); } catch { /* ignore */ }
+          }}
+        />
       )}
 
       {/* 4-grid buffering hint */}

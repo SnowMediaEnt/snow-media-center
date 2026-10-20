@@ -160,7 +160,10 @@ describe('a dead channel (HTTP 404) with a second service', () => {
     // Well inside the second the old fresh start would have waited.
     await waitFor(() => expect(isLoad(last(), 'http://v.test', 501)).toBe(true), { timeout: 900 });
     expect(h.loads.slice(before).filter((u) => isLoad(u, 'http://h.test', 101))).toEqual([]);
-    expect(h.signalChannel).toHaveBeenCalledWith('http://h.test', 101, 'US: ESPN HD', 'fail');
+    // Off the air for every box on DreamStreams at once (offair-status), with
+    // the status number, never the address; not a plain 'fail'.
+    expect(h.signalChannel).toHaveBeenCalledWith('http://h.test', 101, 'US: ESPN HD', 'offair', expect.objectContaining({ host: 'http://h.test' }), 404);
+    expect(h.signalChannel).not.toHaveBeenCalledWith('http://h.test', 101, 'US: ESPN HD', 'fail');
     expect(h.toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'US: ESPN HD is down on DreamStreams — playing it from Vibez' }));
     expect(h.trackEvent).toHaveBeenCalledWith('live_failover', 'player', { found: true, auto: true });
     await sleep(1300);
