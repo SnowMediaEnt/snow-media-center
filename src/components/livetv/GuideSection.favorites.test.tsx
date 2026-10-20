@@ -138,6 +138,32 @@ describe('Guide: Favorites', () => {
     expect(screen.getAllByText('Alpha News').length).toBeGreaterThan(0);
   });
 
+  it('lists them in the order Live TV shows them (the viewer’s own, or A–Z), and ▲▼ full screen walks that order', async () => {
+    saveFavs([fav(202, 'Zed Sports', '2'), fav(101, 'Alpha News', '1'), fav(303, 'Mid Movies', '1')]);
+    // Moved in Live TV (lib/favoritesOrder): Mid Movies, then Zed Sports; Alpha News, not
+    // placed yet, after them.
+    localStorage.setItem('snow-livetv-fav-order-v1:main', JSON.stringify({ mode: 'mine', keys: [['h|u', 303, 'Mid Movies'], ['h|u', 202, 'Zed Sports']] }));
+    const { Guide } = await freshGuide();
+    render(<Guide creds={line as never} isActive onExitLeft={() => {}} />);
+    await seeRow('News Channel');
+    await key('ArrowUp');
+    await key('ArrowLeft');
+    await seeRow('Mid Movies');
+    expect(rowNames()).toEqual(['Mid Movies', 'Zed Sports', 'Alpha News']);
+
+    // Sorted A–Z in Live TV: the Guide follows at once.
+    const { saveFavOrder, loadFavOrder } = await import('@/lib/favoritesOrder');
+    act(() => saveFavOrder({ ...loadFavOrder(), mode: 'az' }));
+    expect(rowNames()).toEqual(['Alpha News', 'Mid Movies', 'Zed Sports']);
+    await key('ArrowDown'); // into the grid
+    await key('Enter');
+    expect((await screen.findByTestId('video')).getAttribute('data-src')).toBe('http://h/live/u/p/101.m3u8');
+    await key('ArrowDown');
+    expect(screen.getByTestId('video').getAttribute('data-src')).toBe('http://h/live/u/p/303.m3u8');
+    await key('ArrowDown');
+    expect(screen.getByTestId('video').getAttribute('data-src')).toBe('http://h/live/u/p/202.m3u8');
+  });
+
   it('with no favourites the chip is still first, with how to add one (as the list shows it)', async () => {
     const { Guide } = await freshGuide();
     render(<Guide creds={line as never} isActive onExitLeft={() => {}} />);
