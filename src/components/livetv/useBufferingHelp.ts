@@ -19,16 +19,14 @@
 // a day; a step confirmed today ("Yes, I restarted", the VPN step's guide
 // opened) is skipped for the rest of the day. Kept per box in localStorage
 // (every access wrapped: a box with storage off simply asks every time).
-// The VPN step is left out on a Vibez line: the guide says a VPN does not
-// work with it.
+// The VPN step is asked on every service, Vibez included (owner, 2026-10-20).
 //
 // Analytics: 'buffering_help' with { step, action } (and the service's own
 // label, which lineEventProps turns into 'outside' for an outside service's
 // line) — never a channel name, host or address.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { trackEvent } from '@/lib/analytics';
-import { isOutsideLine, lineEventProps } from '@/lib/outsideSource';
-import { SERVERS, hostNameOf } from '@/lib/servers';
+import { lineEventProps } from '@/lib/outsideSource';
 import type { XtreamCreds } from '@/lib/xtream';
 
 export type BufferHelpStep = 'restart' | 'vpn' | 'guide';
@@ -92,20 +90,11 @@ export function bufferHelpAllowed(s: Stored, now = Date.now()): boolean {
   return !(s.closedAt > 0 && s.closedAt <= now && now - s.closedAt < SNOOZE_MS);
 }
 
-const VIBEZ_HOST = hostNameOf(SERVERS.find((s) => s.label === 'Vibez')?.host);
-/** A Vibez line: the Buffering Guide says a VPN does not work with it. */
-export function isVibezLine(line: XtreamCreds | null | undefined): boolean {
-  if (!line || isOutsideLine(line)) return false;
-  if (line.serverLabel === 'Vibez') return true;
-  const h = hostNameOf(line.host);
-  return !!h && !!VIBEZ_HOST && (h === VIBEZ_HOST || h.endsWith(`.${VIBEZ_HOST}`));
-}
-
 /** The steps to walk through, in order: what was confirmed today is left out. */
-export function bufferHelpSteps(s: Pick<Stored, 'restart' | 'vpn'>, line: XtreamCreds | null | undefined): BufferHelpStep[] {
+export function bufferHelpSteps(s: Pick<Stored, 'restart' | 'vpn'>): BufferHelpStep[] {
   const steps: BufferHelpStep[] = [];
   if (!s.restart) steps.push('restart');
-  if (!s.vpn && !isVibezLine(line)) steps.push('vpn');
+  if (!s.vpn) steps.push('vpn');
   steps.push('guide');
   return steps;
 }
@@ -184,7 +173,7 @@ export function useBufferingHelp({ enabled, watching, loadKey, buffering, error,
     setDue(null);
     if (!bufferHelpAllowed(s, now)) return;
     writeBufferHelpStore({ shown: s.shown + 1 }, now);
-    const list = bufferHelpSteps(s, lineRef.current);
+    const list = bufferHelpSteps(s);
     setSteps(list);
     openRef.current = true;
     setOpen(true);

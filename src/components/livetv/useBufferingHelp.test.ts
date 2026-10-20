@@ -2,7 +2,7 @@
 // three stalls within two minutes after the channel's start-up; never with
 // the error card or behind another layer; 15 minutes' rest after it closes,
 // three a day, the restart step left out once confirmed today; the VPN step
-// left out on a Vibez line. Analytics carry no channel, host or address.
+// asked on every service. Analytics carry no channel, host or address.
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { XtreamCreds } from '@/lib/xtream';
@@ -16,7 +16,6 @@ import {
 } from './useBufferingHelp';
 
 const DREAM: XtreamCreds = { host: 'http://dstreams.xyz:8080', username: 'u', password: 'p', output: 'ts', serverLabel: 'Dreamstreams' };
-const VIBEZ: XtreamCreds = { host: 'https://strmz.xyz', username: 'v', password: 'p', output: 'ts', serverLabel: 'Vibez' };
 const OUTSIDE: XtreamCreds = { host: 'http://elsewhere.test', username: 'o', password: 'p', output: 'ts', serverLabel: 'My Other TV', outside: true };
 
 interface P { buffering: boolean; error: boolean; busy: boolean; key: string | null; line: XtreamCreds; url: string | null; enabled: boolean }
@@ -242,7 +241,7 @@ describe('not nagging', () => {
     expect(s.r.result.current.steps).toEqual(['vpn', 'guide']);
     expect(helpEvents().at(-1)![2]).toMatchObject({ step: 'vpn', action: 'shown' });
     // Tomorrow it asks again.
-    expect(bufferHelpSteps(readBufferHelpStore(new Date(2026, 9, 21, 9).getTime()), DREAM)).toEqual(['restart', 'vpn', 'guide']);
+    expect(bufferHelpSteps(readBufferHelpStore(new Date(2026, 9, 21, 9).getTime()))).toEqual(['restart', 'vpn', 'guide']);
   });
 
   it('a box with storage off still works (and asks every time)', () => {
@@ -266,10 +265,10 @@ describe('not nagging', () => {
 });
 
 describe('steps and analytics per line', () => {
-  it('a Vibez line skips the VPN step (the guide says it does not work there)', () => {
-    expect(bufferHelpSteps({ restart: false, vpn: false }, VIBEZ)).toEqual(['restart', 'guide']);
-    expect(bufferHelpSteps({ restart: false, vpn: false }, { ...VIBEZ, serverLabel: undefined })).toEqual(['restart', 'guide']);
-    expect(bufferHelpSteps({ restart: true, vpn: true }, DREAM)).toEqual(['guide']);
+  it('every service gets the VPN step, Vibez included; what was confirmed today is left out', () => {
+    expect(bufferHelpSteps({ restart: false, vpn: false })).toEqual(['restart', 'vpn', 'guide']);
+    expect(bufferHelpSteps({ restart: true, vpn: false })).toEqual(['vpn', 'guide']);
+    expect(bufferHelpSteps({ restart: true, vpn: true })).toEqual(['guide']);
   });
 
   it('an outside service is only "outside" in analytics', () => {
