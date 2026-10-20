@@ -17,7 +17,7 @@ import { REWIND_SETTINGS_EVENT, loadRewindSettings } from '@/lib/liveRewind';
 import { useLiveRowSize } from '@/lib/liveRows';
 import { readOutsideHere } from '@/lib/outsideActions';
 import { OUTSIDE_SOURCES_EVENT, outsideCreds } from '@/lib/outsideSource';
-import { SAVED_ACCOUNTS_REFRESH_EVENT, expDateToMs, savedAccountId, type XtreamCreds } from '@/lib/xtream';
+import { SAVED_ACCOUNTS_REFRESH_EVENT, expDateToMs, savedAccountId, serverDisplayName, type XtreamCreds } from '@/lib/xtream';
 
 /** The Settings menu's rows, top to bottom. */
 export type HubRow = 'account' | 'services' | 'channels' | 'appearance' | 'rewind' | 'player' | 'help' | 'signout';
@@ -99,7 +99,9 @@ export function useHubStates(refresh: unknown): Record<HubRow, string> {
     const exp = expDateToMs(account.expDate);
     // "Nov 19" this year, "Jan 3, 2027" for another.
     const date = exp ? formatDate(exp, new Date(exp).getFullYear() === new Date().getFullYear() ? 'short' : 'medium') : '';
-    return date ? `${account.serverLabel} · ${t('liveAccount.hub.state.expires', { date })}` : account.serverLabel;
+    // The brand's own spelling ("DreamStreams"): the stored label is "Dreamstreams".
+    const name = serverDisplayName(account.serverLabel);
+    return date ? `${name} · ${t('liveAccount.hub.state.expires', { date })}` : name;
   })();
 
   const layoutInfo = LIVE_LAYOUTS.find((l) => l.id === layout);

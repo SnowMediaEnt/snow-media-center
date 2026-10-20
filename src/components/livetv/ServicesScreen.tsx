@@ -44,6 +44,7 @@ import {
   SAVED_ACCOUNTS_REFRESH_EVENT,
   type SavedAccount,
   type XtreamCreds,
+  serverDisplayName,
 } from '@/lib/xtream';
 import { keepInView } from '@/utils/keepInView';
 import OutsideSourceScreen from './OutsideSourceScreen';
@@ -306,7 +307,7 @@ const ServicesScreen = memo(({ onBack, onPicked, onAddAccount, active = true }: 
           const isCurrent = a.id === currentId;
           return (
             <div key={a.id} {...rowProps(id)} className={rowCls(id, 'items-center bg-slate-900/70 border-white/10')}>
-              <Badge className="mr-3 shrink-0 bg-brand-gold/25 text-brand-gold border border-brand-gold/40">{a.serverLabel}</Badge>
+              <Badge className="mr-3 shrink-0 bg-brand-gold/25 text-brand-gold border border-brand-gold/40">{serverDisplayName(a.serverLabel)}</Badge>
               <span className="flex-1 min-w-0 font-nunito truncate">{a.username}</span>
               {busyId === a.id && <Loader2 className="w-5 h-5 ml-3 animate-spin text-brand-gold shrink-0" />}
               {isCurrent ? (

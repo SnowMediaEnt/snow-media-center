@@ -256,7 +256,7 @@ describe('Services: Add another service', () => {
     h.savedAccounts = [];
     await renderScreen();
     expect(rows()).toEqual(['add', DS_ROW]);
-    expect(row(DS_ROW).textContent).toContain('Dreamstreams');
+    expect(row(DS_ROW).textContent).toContain('DreamStreams');
   });
 });
 
