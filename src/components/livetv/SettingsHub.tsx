@@ -48,6 +48,8 @@ interface Props {
   onOpenBufferingGuide?: () => void;
   /** Leave the Player for another screen (Fix a problem › Speed test / Submit a Ticket open in Support). */
   onNavigate?: (view: string) => void;
+  /** Services › Add another service › DreamStreams or Vibez line: an empty sign-in form (else onChangeCredentials). */
+  onAddLine?: () => void;
 }
 
 type MenuId = HubRow;
@@ -98,7 +100,7 @@ const PREVIEW_REST_MS = 250;
  */
 const SettingsHub = memo(({
   onBack, initialView, onSignOut, onChangeCredentials, onSwitchAccount, onTryLayout, line = null,
-  onUpdateChannels, onOpenBufferingGuide, onNavigate,
+  onUpdateChannels, onOpenBufferingGuide, onNavigate, onAddLine,
 }: Props) => {
   const { t } = useTranslation();
   const billingOn = useBillingEnabled();
@@ -144,15 +146,28 @@ const SettingsHub = memo(({
     });
   }, [toast, t]);
 
+  // Sign out asks once: the first OK says "Press OK again to sign out", the
+  // second signs out. Moving the highlight, another row or Back takes it back.
+  const [signOutAsk, setSignOutAsk] = useState(false);
+  const signOutAskRef = useRef(signOutAsk);
+  signOutAskRef.current = signOutAsk;
+
   const activate = useCallback((id: MenuId) => {
     // Demo: My Account / Services / Channels / Sign out are inert — the demo
     // account is pre-loaded. Appearance, Recording & rewind, Player and Fix a
     // problem stay fully functional (per-box settings; nothing to protect).
-    if (DEMO && !DEMO_OK.has(id)) { setPane('menu'); demoNote(); return; }
+    if (DEMO && !DEMO_OK.has(id)) { setPane('menu'); setSignOutAsk(false); demoNote(); return; }
     // A row without a page beside the menu leaves the remote on the menu
     // (a tap or air-mouse click can come while the remote is in a page).
-    if (id === 'signout') { setPane('menu'); onSignOut(); }
-    else if (EMBEDDED.has(id)) { setShown(id); setPane('page'); }
+    if (id === 'signout') {
+      setPane('menu');
+      if (!signOutAskRef.current) { setSignOutAsk(true); return; }
+      setSignOutAsk(false);
+      onSignOut();
+    } else {
+      setSignOutAsk(false);
+      if (EMBEDDED.has(id)) { setShown(id); setPane('page'); }
+    }
   }, [demoNote, onSignOut]);
 
   // The menu's keys (the page beside it owns them while the remote is in it).
@@ -165,6 +180,8 @@ const SettingsHub = memo(({
       if (typing) return;
       if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        // Back first takes back Sign out's question (one Back, one step).
+        if (signOutAskRef.current) { setSignOutAsk(false); return; }
         onBack();
         return;
       }
@@ -173,9 +190,10 @@ const SettingsHub = memo(({
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
       const ae = document.activeElement as HTMLElement | null;
       if (ae && ae !== document.body && typeof ae.blur === 'function') ae.blur();
-      if (e.key === 'ArrowDown') setMenuIdx(i => Math.min(COUNT - 1, i + 1));
-      else if (e.key === 'ArrowUp') setMenuIdx(i => Math.max(0, i - 1));
+      if (e.key === 'ArrowDown') { setSignOutAsk(false); setMenuIdx(i => Math.min(COUNT - 1, i + 1)); }
+      else if (e.key === 'ArrowUp') { setSignOutAsk(false); setMenuIdx(i => Math.max(0, i - 1)); }
       else if (e.key === 'ArrowLeft') return; // the menu is the left edge
+      else if (e.repeat) return; // a held OK would answer Sign out's question
       else {
         const i = menuIdxRef.current;
         if (i === 0) { if (e.key !== 'ArrowRight') onBack(); return; }
@@ -189,14 +207,23 @@ const SettingsHub = memo(({
     return () => window.removeEventListener('keydown', handler, true);
   }, [view, pane, onBack, activate]);
 
-  const toMenu = useCallback(() => setPane('menu'), []);
-  const openBilling = useCallback(() => setView('billing'), []);
-  // Back from the plans and renewals: My Account's page, with the remote in it (one layer back).
+  /** My Account's button that opened the billing view: it has the highlight again on the way back. */
+  const [billingFrom, setBillingFrom] = useState<'renew' | 'plans' | undefined>(undefined);
+  /** Renew: the billing account's service for this line, renewed as the view opens. */
+  const [renewServiceId, setRenewServiceId] = useState<number | undefined>(undefined);
+  const toMenu = useCallback(() => { setPane('menu'); setBillingFrom(undefined); }, []);
+  const openBilling = useCallback((serviceId?: number) => {
+    setRenewServiceId(serviceId);
+    setBillingFrom(serviceId != null ? 'renew' : 'plans');
+    setView('billing');
+  }, []);
+  // Back from the plans and renewals: My Account's page, with the remote in it (one level back), on the button used.
   const closeBilling = useCallback(() => {
     setView('menu');
     setShown('account');
     setMenuIdx(MENU.findIndex((m) => m.id === 'account') + 1);
     setPane('page');
+    setRenewServiceId(undefined);
   }, []);
   // Fix a problem › Speed test / Submit a Ticket: Support, on that tool.
   const openTool = useCallback((tool: SupportTool) => { if (onNavigate) openSupportTool(tool, onNavigate); }, [onNavigate]);
@@ -204,7 +231,7 @@ const SettingsHub = memo(({
   if (view === 'billing') {
     return (
       <Suspense fallback={fallback}>
-        <BillingAccountScreen onBack={closeBilling} onUseInPlayer={onSwitchAccount} />
+        <BillingAccountScreen onBack={closeBilling} onUseInPlayer={onSwitchAccount} renewServiceId={renewServiceId} />
       </Suspense>
     );
   }
@@ -216,16 +243,16 @@ const SettingsHub = memo(({
     if (DEMO && !DEMO_OK.has(shown)) return <PageHint text={t('liveAccount.hub.demoDesc')} />;
     switch (shown) {
       // Devices on this line asks the server for the line's devices: only once opened from the page.
-      case 'account': return <AccountInfoScreen {...common} onChangeCredentials={onChangeCredentials} onSignOut={onSignOut} onOpenBilling={billingOn ? openBilling : undefined} devicesLine={line} />;
+      case 'account': return <AccountInfoScreen {...common} onChangeCredentials={onChangeCredentials} onSignOut={onSignOut} onOpenBilling={billingOn ? openBilling : undefined} initialFocus={billingFrom} devicesLine={line} />;
       // Reads only what is on the box (a line too long unchecked is checked with its panel).
-      case 'services': return <ServicesScreen active={inPage} onBack={toMenu} onPicked={onSwitchAccount} onAddAccount={onChangeCredentials} />;
+      case 'services': return <ServicesScreen active={inPage} onBack={toMenu} onPicked={onSwitchAccount} onAddAccount={onAddLine ?? onChangeCredentials} />;
       // Hide categories reads every line's categories from its server: only once opened from the page.
       case 'channels': return <ChannelsScreen active={inPage} onBack={toMenu} onUpdateChannels={onUpdateChannels} />;
       case 'appearance': return <AppearanceScreen {...common} onTryLayout={onTryLayout} />;
       case 'rewind': return <RewindSettingsScreen {...common} />;
       case 'player': return <PlaybackScreen {...common} />;
       case 'help': return <FixProblemScreen active={inPage} onBack={toMenu} onOpenBufferingGuide={onOpenBufferingGuide} onOpenSupportTool={onNavigate ? openTool : undefined} />;
-      case 'signout': return <PageHint text={t('liveAccount.hub.signOutHint')} />;
+      case 'signout': return <PageHint text={signOutAsk ? t('liveAccount.hub.signOutConfirm') : t('liveAccount.hub.signOutHint')} />;
       default: return null;
     }
   })();
@@ -269,7 +296,9 @@ const SettingsHub = memo(({
                   <div className="min-w-0 flex-1">
                     <p data-hub-label className="text-sm leading-5 font-quicksand font-semibold truncate">{t(m.labelKey)}</p>
                     {/* Always one line tall, so the rows don't jump while a state is read. */}
-                    <p data-hub-state className="text-xs leading-4 font-nunito text-brand-ice/70 truncate">{states[m.id] || '\u00a0'}</p>
+                    {m.id === 'signout' && signOutAsk
+                      ? <p data-hub-state data-confirm="true" className="text-xs leading-4 font-nunito text-amber-300 truncate">{t('liveAccount.hub.signOutConfirm')}</p>
+                      : <p data-hub-state className="text-xs leading-4 font-nunito text-brand-ice/70 truncate">{states[m.id] || '\u00a0'}</p>}
                   </div>
                 </div>
               );
@@ -277,7 +306,17 @@ const SettingsHub = memo(({
           </div>
         </div>
 
-        <div className="flex-1 min-w-0 min-h-0 flex flex-col" data-settings-preview={inPage ? 'false' : 'true'} data-settings-page={shown}>
+        {/* A tap or air-mouse click in the page beside the menu takes the remote into it, as OK
+            would: otherwise a level opened by the tap (Devices on this line, Hide categories, the
+            other provider's form) gets no keys, and Back closes Settings altogether. */}
+        <div
+          className="flex-1 min-w-0 min-h-0 flex flex-col"
+          data-settings-preview={inPage ? 'false' : 'true'}
+          data-settings-page={shown}
+          onClickCapture={() => {
+            if (!inPage && EMBEDDED.has(shown) && !(DEMO && !DEMO_OK.has(shown))) { setSignOutAsk(false); setPane('page'); }
+          }}
+        >
           <h2 className="text-base font-quicksand font-semibold text-brand-ice/90 mb-2 truncate">{t(shownItem.labelKey)}</h2>
           <div className={`flex-1 min-h-0 transition-opacity duration-150 ${inPage ? '' : 'opacity-80'}`}>
             <Suspense fallback={<div className="h-full flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-brand-gold" /></div>}>

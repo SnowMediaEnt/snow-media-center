@@ -17,6 +17,9 @@ vi.mock('@/hooks/usePlayerAccount', () => ({
 vi.mock('@/lib/demoMode', () => ({ isDemo: () => h.demo }));
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn() }));
 vi.mock('./RenewQR', () => ({ default: () => <div data-testid="renew-qr" /> }));
+// Is this line one of the billing account's services? (asked when Renew is pressed with billing on)
+const bill = vi.hoisted(() => ({ serviceId: null as number | null, asked: [] as string[] }));
+vi.mock('@/lib/billing', () => ({ renewableServiceForLine: async (u: string) => { bill.asked.push(u); return bill.serviceId; } }));
 // The line's devices come from the server: stood in for.
 const dev = vi.hoisted(() => ({ props: null as null | Record<string, unknown> }));
 vi.mock('./LineDevicesPanel', () => ({ default: (p: Record<string, unknown>) => { dev.props = p; return <div data-testid="line-devices" />; } }));
@@ -26,7 +29,8 @@ import AccountInfoScreen from './AccountInfoScreen';
 const key = (k: string) => { act(() => { fireEvent.keyDown(window, { key: k }); }); };
 const focused = (c: HTMLElement) => (c.querySelector('[data-focused="true"]')?.textContent ?? '').trim();
 
-beforeEach(() => { h.demo = false; });
+beforeEach(() => { h.demo = false; bill.serviceId = null; bill.asked = []; });
+const flush = () => act(async () => { for (let i = 0; i < 5; i += 1) await Promise.resolve(); });
 
 describe('Account info by remote', () => {
   it('Up and Down walk the column from Back to Sign out, stopping at the ends', () => {
@@ -45,6 +49,9 @@ describe('Account info by remote', () => {
     expect(focused(container)).toMatch(/Sign out/i);
     key('ArrowDown'); // already at the bottom: no wrap back to Back
     expect(focused(container)).toMatch(/Sign out/i);
+    key('Enter'); // asks first
+    expect(onSignOut).not.toHaveBeenCalled();
+    expect(focused(container)).toBe('Press OK again to sign out');
     key('Enter');
     expect(onSignOut).toHaveBeenCalledTimes(1);
     expect(onBack).not.toHaveBeenCalled();
@@ -87,30 +94,100 @@ describe('Account info by remote', () => {
   });
 });
 
-describe('My Account: one Renew path', () => {
+describe('My Account: one Renew, and Plans & billing', () => {
   const labels = (c: HTMLElement) => Array.from(c.querySelectorAll('[data-account-actions] button')).map((b) => b.textContent?.trim());
 
-  it('billing off: Renew shows the renewal QR', () => {
+  it('billing off: Renew shows the renewal QR, without asking billing', async () => {
     const { container, queryByTestId } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} />);
     expect(labels(container)).toEqual(['Show password', 'Change credentials', 'Renew', 'Sign out']);
     key('ArrowDown'); key('ArrowDown');
     key('Enter');
+    await flush();
+    expect(queryByTestId('renew-qr')).toBeTruthy();
+    expect(bill.asked).toEqual([]);
+  });
+
+  it('billing on, this line one of the billing account\'s services: Renew renews it there (same label)', async () => {
+    bill.serviceId = 42;
+    const onOpenBilling = vi.fn();
+    const { container, queryByTestId } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} onOpenBilling={onOpenBilling} />);
+    expect(labels(container)).toEqual(['Show password', 'Change credentials', 'Renew', 'Plans & billing', 'Sign out']);
+    key('ArrowDown'); key('ArrowDown');
+    expect(focused(container)).toBe('Renew');
+    key('Enter');
+    await flush();
+    expect(bill.asked).toEqual(['jane']);
+    expect(onOpenBilling).toHaveBeenCalledWith(42);
+    expect(queryByTestId('renew-qr')).toBeNull();
+  });
+
+  it('billing on, a line that isn\'t in the billing account (Vibez, a reseller line, no billing sign-in): Renew is the QR', async () => {
+    bill.serviceId = null;
+    const onOpenBilling = vi.fn();
+    const { queryByTestId } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} onOpenBilling={onOpenBilling} />);
+    key('ArrowDown'); key('ArrowDown');
+    key('Enter');
+    await flush();
+    expect(onOpenBilling).not.toHaveBeenCalled();
     expect(queryByTestId('renew-qr')).toBeTruthy();
   });
 
-  it('billing on: Renew & plans takes Renew\'s place and opens the billing view (no QR, no second Renew)', () => {
+  it('Plans & billing opens the billing view as it is (OK or a tap)', async () => {
     const onOpenBilling = vi.fn();
-    const { container, queryByTestId } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} onOpenBilling={onOpenBilling} />);
-    expect(labels(container)).toEqual(['Show password', 'Change credentials', 'Renew & plans', 'Sign out']);
-    key('ArrowDown'); key('ArrowDown');
-    expect(focused(container)).toBe('Renew & plans');
+    const { container } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} onOpenBilling={onOpenBilling} />);
+    key('ArrowDown'); key('ArrowDown'); key('ArrowDown');
+    expect(focused(container)).toBe('Plans & billing');
     key('Enter');
-    expect(onOpenBilling).toHaveBeenCalledTimes(1);
-    expect(queryByTestId('renew-qr')).toBeNull();
-    // A tap does the same.
-    act(() => { (container.querySelectorAll('[data-account-actions] button')[2] as HTMLElement).click(); });
+    expect(onOpenBilling).toHaveBeenCalledWith();
+    act(() => { (container.querySelector('[data-action="plans"]') as HTMLElement).click(); });
     expect(onOpenBilling).toHaveBeenCalledTimes(2);
-    expect(queryByTestId('renew-qr')).toBeNull();
+    expect(bill.asked).toEqual([]);
+  });
+
+  it('back from the billing view: the button that opened it has the highlight', () => {
+    const { container } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} onOpenBilling={vi.fn()} initialFocus="plans" />);
+    expect(focused(container)).toBe('Plans & billing');
+  });
+
+  it('billing turning on while the page is open: the highlight stays on its button', () => {
+    const props = { embedded: true, active: true, onBack: vi.fn(), onSignOut: vi.fn(), onChangeCredentials: vi.fn() };
+    const { container, rerender } = render(<AccountInfoScreen {...props} />);
+    key('ArrowDown'); key('ArrowDown'); key('ArrowDown');
+    expect(focused(container)).toBe('Sign out');
+    rerender(<AccountInfoScreen {...props} onOpenBilling={vi.fn()} />);
+    expect(focused(container)).toBe('Sign out');
+    expect(labels(container)).toContain('Plans & billing');
+  });
+});
+
+describe('My Account: Sign out asks once', () => {
+  it('the first OK asks; moving away or Back takes the question back; the second OK signs out', () => {
+    const onSignOut = vi.fn();
+    const onBack = vi.fn();
+    const { container } = render(<AccountInfoScreen embedded active onBack={onBack} onSignOut={onSignOut} onChangeCredentials={vi.fn()} />);
+    for (let i = 0; i < 4; i += 1) key('ArrowDown');
+    expect(focused(container)).toBe('Sign out');
+    key('Enter');
+    expect(focused(container)).toBe('Press OK again to sign out');
+    key('ArrowUp'); key('ArrowDown'); // moving takes it back
+    expect(focused(container)).toBe('Sign out');
+    key('Enter');
+    key('Escape'); // Back takes it back, and stays
+    expect(focused(container)).toBe('Sign out');
+    expect(onBack).not.toHaveBeenCalled();
+    key('Enter'); key('Enter');
+    expect(onSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('by touch: two taps on Sign out', () => {
+    const onSignOut = vi.fn();
+    const { container } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={onSignOut} onChangeCredentials={vi.fn()} />);
+    const btn = () => container.querySelector('[data-action="signout"]') as HTMLElement;
+    act(() => { btn().click(); });
+    expect(onSignOut).not.toHaveBeenCalled();
+    expect(btn().textContent).toContain('Press OK again to sign out');
+    act(() => { btn().click(); });
+    expect(onSignOut).toHaveBeenCalledTimes(1);
   });
 });
 

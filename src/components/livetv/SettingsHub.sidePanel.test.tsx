@@ -130,7 +130,7 @@ describe('Live TV Settings: menu on the left, the page on the right', () => {
     expect(pageProps.services.active).toBe(true);
   });
 
-  it('Sign out: OK signs out, Right does not; Up from the first row reaches Back and Back on the menu leaves', async () => {
+  it('Sign out asks once: the first OK says "Press OK again", the second signs out; Right does not; Up from the first row reaches Back and Back on the menu leaves', async () => {
     const { container, props } = renderHub();
     await settle();
     for (let i = 0; i < 7; i++) key('ArrowDown');
@@ -140,6 +140,19 @@ describe('Live TV Settings: menu on the left, the page on the right', () => {
     key('ArrowRight');
     expect(props.onSignOut).not.toHaveBeenCalled();
     key('Enter');
+    expect(props.onSignOut).not.toHaveBeenCalled();
+    const state = () => container.querySelector('[data-hub-row="signout"] [data-hub-state]');
+    expect(state()?.textContent).toBe('Press OK again to sign out');
+    expect(shownPage(container).textContent).toContain('Press OK again to sign out');
+    // Moving takes the question back.
+    key('ArrowUp'); key('ArrowDown');
+    expect(state()?.textContent).toBe('Signed in as jsmith');
+    key('Enter');
+    // Back takes it back too, and stays in Settings.
+    key('Escape');
+    expect(props.onBack).not.toHaveBeenCalled();
+    expect(state()?.textContent).toBe('Signed in as jsmith');
+    key('Enter'); key('Enter');
     expect(props.onSignOut).toHaveBeenCalledTimes(1);
     for (let i = 0; i < 8; i++) key('ArrowUp');
     expect(container.querySelector('[data-focused="true"]')?.textContent).toMatch(/back/i);
@@ -166,14 +179,55 @@ describe('Live TV Settings: menu on the left, the page on the right', () => {
     const signOutRow = container.querySelector('[data-howto="hub.signOut"]') as HTMLElement;
     act(() => { signOutRow.click(); });
     await settle();
-    expect(props.onSignOut).toHaveBeenCalledTimes(1);
+    expect(props.onSignOut).not.toHaveBeenCalled(); // the first tap asks
     expect(shownPage(container).getAttribute('data-settings-preview')).toBe('true'); // remote on the menu
+    act(() => { signOutRow.click(); });
+    expect(props.onSignOut).toHaveBeenCalledTimes(1);
     key('Escape'); // the menu has the remote again: Back leaves
     expect(props.onBack).toHaveBeenCalledTimes(1);
   });
 });
 
+describe('Live TV Settings: by touch or air mouse', () => {
+  it('a tap in the page beside the menu takes the remote into it (so a level opened by the tap gets the keys, and Back goes up one)', async () => {
+    const { container, props } = renderHub();
+    await settle();
+    await goTo(container, 'channels');
+    expect(pageProps.channels.active).toBe(false);
+    act(() => { (screen.getByTestId('page-channels') as HTMLElement).click(); });
+    await settle();
+    expect(pageProps.channels.active).toBe(true);
+    expect(shownPage(container).getAttribute('data-settings-preview')).toBe('false');
+    // The page owns Back now: the hub doesn't leave.
+    key('Escape');
+    expect(props.onBack).not.toHaveBeenCalled();
+  });
+
+  it('a tap on a page with nothing to go into (Sign out\'s note) leaves the remote on the menu', async () => {
+    const { container } = renderHub();
+    await settle();
+    await goTo(container, 'signout');
+    act(() => { (shownPage(container) as HTMLElement).click(); });
+    await settle();
+    expect(shownPage(container).getAttribute('data-settings-preview')).toBe('true');
+  });
+});
+
 describe('Live TV Settings: each page gets what it needs', () => {
+  it('Services › Add › DreamStreams or Vibez line: the empty sign-in form when Live TV gives one, else the change-login form', async () => {
+    const onAddLine = vi.fn();
+    const { container, props, unmount } = renderHub({ onAddLine });
+    await settle();
+    await goTo(container, 'services');
+    expect(pageProps.services.onAddAccount).toBe(onAddLine);
+    unmount();
+    const again = renderHub();
+    await settle();
+    await goTo(again.container, 'services');
+    expect(pageProps.services.onAddAccount).toBe(again.props.onChangeCredentials);
+    expect(props.onChangeCredentials).not.toHaveBeenCalled();
+  });
+
   it('My Account: the line for Devices on this line (none without a line); Services: switching and adding', async () => {
     const line = { host: 'http://dstreams.xyz:8080', username: 'jsmith' };
     const { container, props, unmount } = renderHub({ line });
@@ -260,6 +314,35 @@ describe('Live TV Settings: My Account (the line and, with billing on, its plans
     await settle();
     expect(focusedRow(container)).toBe('account');
     expect(props.onBack).not.toHaveBeenCalled();
+  });
+
+  it('Renew for a line in the billing account: the billing view renewing it; Back lands on Renew', async () => {
+    billing.on = true;
+    const { container } = renderHub();
+    await settle();
+    key('Enter');
+    await settle();
+    act(() => { (pageProps.account as { onOpenBilling: (id?: number) => void }).onOpenBilling(42); });
+    expect(await screen.findByTestId('page-billingView')).toBeTruthy();
+    expect(pageProps.billingView.renewServiceId).toBe(42);
+    act(() => { pageProps.billingView.onBack!(); });
+    await settle();
+    expect(shownPage(container).getAttribute('data-settings-page')).toBe('account');
+    expect(pageProps.account.initialFocus).toBe('renew');
+  });
+
+  it('Plans & billing: the billing view as it is; Back lands on Plans & billing', async () => {
+    billing.on = true;
+    renderHub();
+    await settle();
+    key('Enter');
+    await settle();
+    act(() => { (pageProps.account as { onOpenBilling: (id?: number) => void }).onOpenBilling(); });
+    expect(await screen.findByTestId('page-billingView')).toBeTruthy();
+    expect(pageProps.billingView.renewServiceId).toBeUndefined();
+    act(() => { pageProps.billingView.onBack!(); });
+    await settle();
+    expect(pageProps.account.initialFocus).toBe('plans');
   });
 
   it('opened on billing (initialView "billing"): the billing view, whose Back lands on My Account', async () => {

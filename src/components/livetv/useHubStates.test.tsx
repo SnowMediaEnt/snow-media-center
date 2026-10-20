@@ -71,8 +71,17 @@ const daysFromToday = (days: number) => { const d = new Date(); d.setHours(0, 0,
 describe('Settings menu state lines', () => {
   it('My Account: the service and its end date; Trial with the days left; Expired', async () => {
     const r = await render();
-    expect(r.result.current.account).toBe(`Dreamstreams · expires ${formatDate(IN_40_DAYS * 1000, 'short')}`);
+    const sameYear = new Date(IN_40_DAYS * 1000).getFullYear() === new Date().getFullYear();
+    expect(r.result.current.account).toBe(`Dreamstreams · expires ${formatDate(IN_40_DAYS * 1000, sameYear ? 'short' : 'medium')}`);
     r.unmount();
+
+    // Another year: the year is said.
+    const nextYear = Math.floor(new Date(new Date().getFullYear() + 1, 0, 3, 12).getTime() / 1000);
+    h.account = { ...ACCOUNT, expDate: nextYear };
+    const later = await render();
+    expect(later.result.current.account).toBe(`Dreamstreams · expires ${formatDate(nextYear * 1000, 'medium')}`);
+    expect(later.result.current.account).toContain(String(new Date().getFullYear() + 1));
+    later.unmount();
 
     h.account = { ...ACCOUNT, isTrial: true, expDate: daysFromToday(1) };
     const trial = await render();

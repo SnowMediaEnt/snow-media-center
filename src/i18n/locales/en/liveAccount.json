@@ -11,6 +11,7 @@
       "help": "Fix a problem",
       "signOut": "Sign Out",
       "signOutHint": "Signs this box out of Live TV. Your line keeps working on your other devices. Press OK to sign out.",
+      "signOutConfirm": "Press OK again to sign out",
       "demoTitle": "Live demo",
       "demoDesc": "The demo is pre-loaded with a demo account — sign-in and account switching work in the installed app.",
       "state": {
@@ -67,7 +68,7 @@
       "hidePasswordBtn": "Hide password",
       "changeCredentialsBtn": "Change credentials",
       "renewBtn": "Renew",
-      "billingBtn": "Renew & plans",
+      "plansBtn": "Plans & billing",
       "daysLeft_one": "{{count}} day left",
       "daysLeft_other": "{{count}} days left",
       "countChannels_one": "{{num}} channel",

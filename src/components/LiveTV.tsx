@@ -121,7 +121,12 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // Read-only "Account info" view, shown from the header Account button.
   const [settingsOpen, setSettingsOpen] = useState(false);
   // The assistant can open Player Settings straight on a screen.
-  const [settingsInitialView, setSettingsInitialView] = useState<'appearance' | undefined>(undefined);
+  const [settingsInitialView, setSettingsInitialView] = useState<'appearance' | 'services' | undefined>(undefined);
+  // Settings › Services › Add another service › DreamStreams or Vibez line:
+  // the sign-in form opens empty (not the line in use), and a saved line
+  // closes Settings, the new line playing in Live TV.
+  const [accountFormAdd, setAccountFormAdd] = useState(false);
+  useEffect(() => { if (!accountFormOpen) setAccountFormAdd(false); }, [accountFormOpen]);
   // "Finish your Snow Media account": opened right after a Live TV sign-in
   // when Snow Media has no account for that line yet.
   const [claimOpen, setClaimOpen] = useState(false);
@@ -1288,7 +1293,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       <div className="min-h-screen text-white bg-black/70">
         <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
           <CredentialsForm
-            initial={creds}
+            initial={accountFormAdd ? null : creds}
             onChildOpenChange={(open) => { credsChildOpenRef.current = open; }}
             onSaved={(c) => {
               // A background auto sign-in must not save over this one.
@@ -1296,6 +1301,11 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               clearPlayerSignedOut();
               setCreds(c);
               setAccountFormOpen(false);
+              if (accountFormAdd) {
+                setAccountFormAdd(false);
+                setSettingsOpen(false);
+                setSettingsInitialView(undefined);
+              }
             }}
             onNeedProfile={() => { if (!isClaimDismissed() && !kidsLevel()) setClaimOpen(true); }}
             onCancel={creds ? () => setAccountFormOpen(false) : leaveMode}
@@ -1314,6 +1324,13 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           onBack={() => { setSettingsOpen(false); setSettingsInitialView(undefined); }}
           onSignOut={() => { void signOut(); }}
           onChangeCredentials={() => { if (DEMO) demoAccountNote(); else setAccountFormOpen(true); }}
+          onAddLine={() => {
+            if (DEMO) { demoAccountNote(); return; }
+            // Cancelled: Settings comes back on Services, where it was asked for.
+            setSettingsInitialView('services');
+            setAccountFormAdd(true);
+            setAccountFormOpen(true);
+          }}
           onSwitchAccount={onSwitchAccount}
           onTryLayout={tryLayout}
           line={settingsLine}

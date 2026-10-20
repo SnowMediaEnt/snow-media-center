@@ -17,6 +17,9 @@ vi.mock('./HideCategoriesScreen', () => ({
   default: (p: { active?: boolean; onBack: () => void }) => { h.hide = p; return <div data-testid="hide-categories" />; },
 }));
 
+const kept = vi.hoisted(() => ({ rows: [] as string[] }));
+vi.mock('@/utils/keepInView', () => ({ keepInView: (_c: HTMLElement, el: HTMLElement) => { kept.rows.push(el.getAttribute('data-row') ?? ''); } }));
+
 import ChannelsScreen from './ChannelsScreen';
 import { loadFavOrder, saveFavOrder } from '@/lib/favoritesOrder';
 
@@ -117,5 +120,19 @@ describe('Settings › Channels', () => {
     key('Enter'); key('Escape');
     expect(onBack).not.toHaveBeenCalled();
     expect(screen.queryByTestId('hide-categories')).toBeNull();
+  });
+
+  it('keeps the highlighted row on screen (a bigger text size, a longer language); the last row scrolls to the bottom', async () => {
+    localStorage.setItem('smc-live-line-count-v1', '2');
+    await renderPage();
+    const list = document.querySelector('[data-channels-screen] > div') as HTMLElement;
+    const tops: number[] = [];
+    Object.defineProperty(list, 'scrollHeight', { configurable: true, get: () => 700 });
+    Object.defineProperty(list, 'scrollTop', { configurable: true, get: () => tops[tops.length - 1] ?? 0, set: (v: number) => { tops.push(v); } });
+    kept.rows = [];
+    key('ArrowDown'); key('ArrowDown');
+    expect(kept.rows).toEqual(['favs', 'failover']);
+    key('ArrowDown');
+    expect(tops[tops.length - 1]).toBe(700);
   });
 });

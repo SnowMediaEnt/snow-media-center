@@ -11,6 +11,7 @@
       "help": "Problem lösen",
       "signOut": "Abmelden",
       "signOutHint": "Meldet dieses Gerät von Live TV ab. Deine Leitung funktioniert auf deinen anderen Geräten weiter. Drücke OK zum Abmelden.",
+      "signOutConfirm": "Drück noch einmal OK, um dich abzumelden",
       "demoTitle": "Live-Demo",
       "demoDesc": "Die Demo ist mit einem Demo-Konto vorgeladen – Anmeldung und Kontowechsel funktionieren in der installierten App.",
       "state": {
@@ -67,7 +68,7 @@
       "hidePasswordBtn": "Passwort verbergen",
       "changeCredentialsBtn": "Zugangsdaten ändern",
       "renewBtn": "Verlängern",
-      "billingBtn": "Verlängern & Tarife",
+      "plansBtn": "Tarife & Abrechnung",
       "daysLeft_one": "Noch {{count}} Tag",
       "daysLeft_other": "Noch {{count}} Tage",
       "countChannels_one": "{{num}} Sender",

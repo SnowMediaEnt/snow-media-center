@@ -97,7 +97,8 @@ export function useHubStates(refresh: unknown): Record<HubRow, string> {
       return days === null ? t('liveAccount.account.trial') : `${t('liveAccount.account.trial')} · ${t('liveAccount.account.daysLeft', { count: days })}`;
     }
     const exp = expDateToMs(account.expDate);
-    const date = exp ? formatDate(exp, 'short') : '';
+    // "Nov 19" this year, "Jan 3, 2027" for another.
+    const date = exp ? formatDate(exp, new Date(exp).getFullYear() === new Date().getFullYear() ? 'short' : 'medium') : '';
     return date ? `${account.serverLabel} · ${t('liveAccount.hub.state.expires', { date })}` : account.serverLabel;
   })();
 

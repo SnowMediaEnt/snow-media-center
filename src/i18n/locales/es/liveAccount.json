@@ -11,6 +11,7 @@
       "help": "Resolver un problema",
       "signOut": "Cerrar sesión",
       "signOutHint": "Cierra la sesión de Live TV en este equipo. Tu línea sigue funcionando en tus otros dispositivos. Pulsa OK para cerrar sesión.",
+      "signOutConfirm": "Pulsa OK otra vez para cerrar sesión",
       "demoTitle": "Demo en vivo",
       "demoDesc": "La demo viene con una cuenta de demostración — el inicio de sesión y el cambio de cuenta funcionan en la app instalada.",
       "state": {
@@ -70,7 +71,7 @@
       "hidePasswordBtn": "Ocultar contraseña",
       "changeCredentialsBtn": "Cambiar datos",
       "renewBtn": "Renovar",
-      "billingBtn": "Renovar y planes",
+      "plansBtn": "Planes y facturación",
       "daysLeft_one": "Queda {{count}} día",
       "daysLeft_other": "Quedan {{count}} días",
       "daysLeft_many": "Quedan {{count}} días",
