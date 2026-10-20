@@ -162,7 +162,7 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
       slide('watching', 'channels', ChevronsUpDown, 'live-player', [h('bar.prev', 'chDown'), h('bar.next', 'chUp')], { line2: true, remote: 'upDown' }),
       slide('watching', 'barButtons', Captions, 'live-player', [h('bar.report', 'report'), h('bar.cc', 'subtitles'), h('bar.audio', 'audio')], { line2: true }),
       slide('watching', 'top', RefreshCw, 'live-list', [h('live.updateChannels', 'updateChannels'), h('live.settingsBtn', 'settings')], { line2: true }),
-      slide('watching', 'settings', Settings, 'live-settings', [h('hub.switch', 'switchAccount'), h('hub.hideCats', 'hideCategories'), h('hub.appearance', 'appearance')], { line2: true }),
+      slide('watching', 'settings', Settings, 'live-settings', [h('hub.services', 'addService'), h('hub.hideCats', 'hideCategories'), h('hub.appearance', 'appearance')], { line2: true }),
       slide('watching', 'vod', Film, 'vod', [h('vod.categories', 'categories'), h('vod.grid', 'movies')], { line2: true }),
       slide('watching', 'multi', LayoutGrid, 'multi', [h('multi.layouts', 'pickLayout')], { line2: true }),
       slide('watching', 'backups', LifeBuoy, 'backups', [h('backups.list', 'backups'), h('backups.refresh', 'refresh')], { line2: true }),

@@ -52,7 +52,7 @@
         },
         "services": {
           "title": "Mehr als ein Dienst? Alle erscheinen in einer Liste.",
-          "line2": "Füge einen unter Live-TV-Einstellungen → Konto wechseln hinzu. Jeder hat eine eigene Überschrift."
+          "line2": "Neue gibt es unter Live-TV-Einstellungen → Dienst hinzufügen. Jeder hat eine eigene Überschrift."
         },
         "layout": {
           "title": "Wähle deinen Look: Klassisch, Kompakt oder Vibez.",
@@ -452,7 +452,7 @@
         "start": "Starten",
         "steps": "Schritte",
         "subtitles": "Untertitel",
-        "switchAccount": "Konto wechseln",
+        "addService": "Dienst hinzufügen",
         "talkNow": "Jetzt sprechen",
         "todaysGames": "Heutige Spiele",
         "typeHere": "Hier tippen",

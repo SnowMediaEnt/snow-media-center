@@ -16,13 +16,24 @@ import {
   lineOwnerKey,
   loadOutsideSources,
   markLineRefused,
+  outsideAllowed,
   outsideCreds,
+  ownerOnBox,
   removeOutsideSource,
   type OutsideSource,
 } from '@/lib/outsideSource';
 import { markReconciled, reconciledRecently, RECONCILE_URGENT_MS } from '@/lib/panelReconcile';
 import { forgetChannelHistory } from '@/lib/watchHistory';
-import { authenticateRouted, buildPlayerAccount, loadCreds, loadPlayerAccount, savePlayerAccount, type XtreamCreds } from '@/lib/xtream';
+import {
+  authenticateRouted,
+  buildPlayerAccount,
+  loadCreds,
+  loadPlayerAccount,
+  loadSavedAccounts,
+  savePlayerAccount,
+  type SavedAccount,
+  type XtreamCreds,
+} from '@/lib/xtream';
 
 /**
  * Remove a service and everything the box kept for it: its favourites (every
@@ -75,4 +86,40 @@ export async function recheckLine(active: XtreamCreds | null | undefined, opts: 
     if (!now || lineOwnerKey(now) !== lineOwnerKey(active)) return;
     await savePlayerAccount(buildPlayerAccount(res.server, res.creds, res.userInfo));
   } catch { /* offline: it stays hidden until a check gets through */ }
+}
+
+/** What Settings › Add service shows about the outside service on this box. */
+export interface OutsideHere {
+  /** The line in use: it becomes the owner of what is saved. */
+  active: XtreamCreds | null;
+  /** The line in use passes the rule (outsideAllowed). */
+  allowed: boolean;
+  /** The saved services (MAX_OUTSIDE_SOURCES at most). */
+  sources: OutsideSource[];
+  /** The first one's line is on this box: the one in use or a saved account. */
+  ownerHere: boolean;
+  /** The DreamStreams / Vibez lines saved on this box. */
+  accounts: SavedAccount[];
+}
+
+/**
+ * Read it all from the box. Nothing is asked of any server, except that a
+ * line not checked with its panel lately is checked now (recheckLine: the
+ * answer fires playerAccountRefresh, and the caller reads this again).
+ * Never throws: when something can't be read, nothing is allowed.
+ */
+export async function readOutsideHere(): Promise<OutsideHere> {
+  try {
+    const [active, account, sources, accounts] = await Promise.all([
+      loadCreds(),
+      loadPlayerAccount(),
+      loadOutsideSources(),
+      loadSavedAccounts().catch((): SavedAccount[] => []),
+    ]);
+    const first = sources[0] ?? null;
+    if (accountStale(account)) void recheckLine(active, { evenWithoutOne: true });
+    return { active, allowed: outsideAllowed(active, account), sources, ownerHere: !!first && ownerOnBox(first, active, accounts), accounts };
+  } catch {
+    return { active: null, allowed: false, sources: [], ownerHere: false, accounts: [] };
+  }
 }

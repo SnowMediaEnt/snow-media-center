@@ -54,8 +54,8 @@ describe('SettingsHub menu scrolling', () => {
     pane = signOut.parentElement!.parentElement as HTMLElement;
     expect(pane.scrollTop).toBe(0);
 
-    // Account Info is highlighted first; Sign Out is the 8th row, 7 presses down.
-    for (let i = 0; i < 7; i++) down();
+    // Account Info is highlighted first; Sign Out is the 7th row, 6 presses down.
+    for (let i = 0; i < 6; i++) down();
     expect(signOut.getAttribute('data-focused')).toBe('true');
     const r = signOut.getBoundingClientRect();
     expect(pane.scrollTop).toBeGreaterThan(0);
@@ -66,7 +66,7 @@ describe('SettingsHub menu scrolling', () => {
     // way back to the first row puts the menu back at the top.
     down();
     expect(signOut.getAttribute('data-focused')).toBe('true');
-    for (let i = 0; i < 7; i++) up();
+    for (let i = 0; i < 6; i++) up();
     expect(pane.scrollTop).toBe(0);
   });
 });

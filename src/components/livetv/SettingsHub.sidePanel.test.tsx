@@ -17,12 +17,11 @@ const stub = (name: string) => ({
   },
 });
 vi.mock('./AccountInfoScreen', () => stub('account'));
-vi.mock('./SwitchAccountScreen', () => stub('switch'));
+vi.mock('./ServicesScreen', () => stub('services'));
 vi.mock('./HideCategoriesScreen', () => stub('categories'));
 vi.mock('./AppearanceScreen', () => stub('appearance'));
 vi.mock('./RewindSettingsScreen', () => stub('rewind'));
 vi.mock('./PlaybackScreen', () => stub('playback'));
-vi.mock('./OutsideSourceScreen', () => stub('outside'));
 
 import SettingsHub from './SettingsHub';
 
@@ -53,7 +52,7 @@ describe('Live TV Settings: menu on the left, the page on the right', () => {
     await settle(100);
     expect(shownPage(container).getAttribute('data-settings-page')).toBe('account'); // not yet: still moving
     await settle(300);
-    expect(shownPage(container).getAttribute('data-settings-page')).toBe('switch');
+    expect(shownPage(container).getAttribute('data-settings-page')).toBe('services');
   });
 
   it('OK or Right moves the remote into the page; Back from the page returns to the menu', async () => {
@@ -73,21 +72,21 @@ describe('Live TV Settings: menu on the left, the page on the right', () => {
     expect(props.onBack).not.toHaveBeenCalled();
     key('ArrowDown'); await settle(300);
     key('Enter'); await settle();
-    expect(shownPage(container).getAttribute('data-settings-page')).toBe('switch');
-    expect(pageProps.switch.active).toBe(true);
+    expect(shownPage(container).getAttribute('data-settings-page')).toBe('services');
+    expect(pageProps.services.active).toBe(true);
   });
 
   it('Sign Out: OK signs out, Right does not; Up from the first row reaches Back and Back on the menu leaves', async () => {
     const { container, props } = renderHub();
     await settle();
-    for (let i = 0; i < 7; i++) key('ArrowDown');
+    for (let i = 0; i < 6; i++) key('ArrowDown');
     await settle(300);
     expect(shownPage(container).textContent).toMatch(/sign/i); // the Sign Out note
     key('ArrowRight');
     expect(props.onSignOut).not.toHaveBeenCalled();
     key('Enter');
     expect(props.onSignOut).toHaveBeenCalledTimes(1);
-    for (let i = 0; i < 8; i++) key('ArrowUp');
+    for (let i = 0; i < 7; i++) key('ArrowUp');
     expect(container.querySelector('[data-focused="true"]')?.textContent).toMatch(/back/i);
     key('Escape');
     expect(props.onBack).toHaveBeenCalledTimes(1);
@@ -114,5 +113,34 @@ describe('Live TV Settings: menu on the left, the page on the right', () => {
     key('Escape'); // the menu has the remote again: Back leaves
     expect(props.onBack).toHaveBeenCalledTimes(1);
   });
-});
 
+  it('Switch Account and Add another service are one row, "Add service", beside the menu like the others', async () => {
+    const { container, props } = renderHub();
+    await settle();
+    const labels = Array.from(container.querySelectorAll('[data-settings-menu] > div')).map((n) => n.textContent);
+    expect(labels).toEqual(['Account Info', 'Add service', 'Hide Categories', 'Appearance', 'Rewind & recording', 'Playback', 'Sign Out']);
+    expect(container.querySelector('[data-howto="hub.services"]')?.textContent).toBe('Add service');
+    key('ArrowDown');
+    await settle(300);
+    expect(shownPage(container).querySelector('h2')?.textContent).toBe('Add service');
+    expect(pageProps.services).toMatchObject({ active: false });
+    key('Enter');
+    await settle();
+    expect(pageProps.services.active).toBe(true);
+    // Switching a line and adding one are the hub's own callbacks.
+    const p = pageProps.services as unknown as { onPicked: unknown; onAddAccount: unknown };
+    expect(p.onPicked).toBe(props.onSwitchAccount);
+    expect(p.onAddAccount).toBe(props.onChangeCredentials);
+  });
+
+  it('opened on Add service (initialView "services") starts with the remote in it', async () => {
+    const { container } = renderHub({ initialView: 'services' as never });
+    await settle();
+    expect(shownPage(container).getAttribute('data-settings-page')).toBe('services');
+    expect(pageProps.services).toMatchObject({ active: true });
+    act(() => { pageProps.services.onBack!(); });
+    await settle();
+    expect(pageProps.services.active).toBe(false);
+    expect(container.querySelector('[data-focused="true"]')?.textContent).toBe('Add service');
+  });
+});

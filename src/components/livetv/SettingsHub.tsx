@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
-import { Tv, KeyRound, Users, Palette, LogOut, Loader2, CreditCard, ListFilter, Gauge, History, MonitorSmartphone, PlusCircle } from 'lucide-react';
+import { Tv, KeyRound, Palette, LogOut, Loader2, CreditCard, ListFilter, Gauge, History, MonitorSmartphone, PlusCircle } from 'lucide-react';
 import type { XtreamCreds } from '@/lib/xtream';
 import type { LiveLayout } from '@/lib/liveLayout';
 import { useToast } from '@/hooks/use-toast';
@@ -13,12 +13,12 @@ import { keepInView } from '@/utils/keepInView';
 const DEMO = isDemo();
 
 const AccountInfoScreen = lazy(() => import('./AccountInfoScreen'));
-const SwitchAccountScreen = lazy(() => import('./SwitchAccountScreen'));
+// Add service: the lines on this box (switch between them) and the outside service, and adding either.
+const ServicesScreen = lazy(() => import('./ServicesScreen'));
 const AppearanceScreen = lazy(() => import('./AppearanceScreen'));
 const PlaybackScreen = lazy(() => import('./PlaybackScreen'));
 const RewindSettingsScreen = lazy(() => import('./RewindSettingsScreen'));
 const HideCategoriesScreen = lazy(() => import('./HideCategoriesScreen'));
-const OutsideSourceScreen = lazy(() => import('./OutsideSourceScreen'));
 const LineDevicesPanel = lazy(() => import('./LineDevicesPanel'));
 // Billing account (plans, renew, trial) — behind the billing_account flag.
 const BillingAccountScreen = lazy(() => import('@/components/billing/BillingAccountScreen'));
@@ -36,8 +36,8 @@ interface Props {
   line?: { host: string; username: string } | null;
 }
 
-type View = 'menu' | 'billing' | 'account' | 'switch' | 'categories' | 'appearance' | 'rewind' | 'playback';
-type MenuId = 'billing' | 'account' | 'switch' | 'devices' | 'categories' | 'outside' | 'appearance' | 'rewind' | 'playback' | 'signout';
+type View = 'menu' | 'billing' | 'account' | 'services' | 'categories' | 'appearance' | 'rewind' | 'playback';
+type MenuId = 'billing' | 'account' | 'services' | 'devices' | 'categories' | 'appearance' | 'rewind' | 'playback' | 'signout';
 
 interface MenuItem { id: MenuId; labelKey: string; icon: typeof Tv; }
 
@@ -49,11 +49,11 @@ const fallback = (
 
 /** The How-to guide's hooks on the menu rows (data-howto; literals, so its check finds them). */
 const HUB_HOWTO: Partial<Record<MenuId, string>> = {
-  switch: 'hub.switch', categories: 'hub.hideCats', appearance: 'hub.appearance', rewind: 'hub.rewind', signout: 'hub.signOut',
+  services: 'hub.services', categories: 'hub.hideCats', appearance: 'hub.appearance', rewind: 'hub.rewind', signout: 'hub.signOut',
 };
 
 /** Pages drawn beside the menu. My Account (the store's plans and trial) keeps its own screen. */
-const EMBEDDED: ReadonlySet<MenuId> = new Set<MenuId>(['account', 'switch', 'devices', 'categories', 'outside', 'appearance', 'rewind', 'playback']);
+const EMBEDDED: ReadonlySet<MenuId> = new Set<MenuId>(['account', 'services', 'devices', 'categories', 'appearance', 'rewind', 'playback']);
 /** In the demo only these work; the account pages are inert there. */
 const DEMO_OK: ReadonlySet<MenuId> = new Set<MenuId>(['appearance', 'rewind', 'playback']);
 /** The page beside the menu follows the highlight once it rests this long (no page mounts for every row passed). */
@@ -73,12 +73,12 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
     // Info below stays the panel line's details.
     ...(billingOn ? [{ id: 'billing' as MenuId, labelKey: 'liveAccount.hub.myAccount', icon: CreditCard }] : []),
     { id: 'account',    labelKey: 'liveAccount.hub.accountInfo',  icon: KeyRound },
-    { id: 'switch',     labelKey: 'liveAccount.hub.switchAccount', icon: Users },
+    // Add service: switch between this box's lines, see and edit the outside
+    // service (lib/outsideSource), add either. Its name is this one key.
+    { id: 'services',   labelKey: 'liveAccount.hub.services',     icon: PlusCircle },
     // The TVs signed into this line, and a message to them (lib/deviceInbox).
     ...(line ? [{ id: 'devices' as MenuId, labelKey: 'lineDevices.hub.menuLabel', icon: MonitorSmartphone }] : []),
     { id: 'categories', labelKey: 'liveAccount.hub.hideCategories', icon: ListFilter },
-    // One service bought elsewhere, its Live TV beside ours (lib/outsideSource).
-    { id: 'outside',    labelKey: 'liveAccount.hub.outside',      icon: PlusCircle },
     { id: 'appearance', labelKey: 'liveAccount.hub.appearance',   icon: Palette },
     { id: 'rewind',     labelKey: 'liveAccount.hub.rewind',       icon: History },
     { id: 'playback',   labelKey: 'liveAccount.hub.playback',     icon: Gauge },
@@ -138,7 +138,7 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
   }, [toast, t]);
 
   const activate = useCallback((id: MenuId) => {
-    // Demo: Account Info / Switch Account / Sign Out are
+    // Demo: Account Info / Add service / Sign Out are
     // inert — the demo account is pre-loaded. Appearance, Rewind and Playback
     // stay fully functional (per-box settings; nothing to protect).
     if (DEMO && !DEMO_OK.has(id)) { setPane('menu'); demoNote(); return; }
@@ -203,12 +203,11 @@ const SettingsHub = memo(({ onBack, initialView, onSignOut, onChangeCredentials,
     if (DEMO && !DEMO_OK.has(shown)) return <PageHint text={t('liveAccount.hub.demoDesc')} />;
     switch (shown) {
       case 'account': return <AccountInfoScreen {...common} onChangeCredentials={onChangeCredentials} onSignOut={onSignOut} />;
-      case 'switch': return <SwitchAccountScreen {...common} onPicked={onSwitchAccount} onAddAccount={onChangeCredentials} />;
+      // Reads only what is on the box (a line too long unchecked is checked with its panel).
+      case 'services': return <ServicesScreen active={inPage} onBack={toMenu} onPicked={onSwitchAccount} onAddAccount={onChangeCredentials} />;
       // Its page reads every saved line's categories from the server: only
       // once the remote goes in, not for a highlight passing over it.
       case 'categories': return inPage ? <HideCategoriesScreen {...common} /> : <PageHint text={t('liveAccount.hideCategories.intro')} />;
-      // Reads only what is on the box (nothing is asked of any server till Test).
-      case 'outside': return <OutsideSourceScreen {...common} />;
       // Its page asks the server for the line's devices: only once the remote goes in.
       case 'devices': return inPage && line ? <LineDevicesPanel {...common} host={line.host} username={line.username} viaSupport /> : <PageHint text={t('lineDevices.hub.hint')} />;
       case 'appearance': return <AppearanceScreen {...common} onTryLayout={onTryLayout} />;

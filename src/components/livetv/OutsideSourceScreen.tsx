@@ -1,8 +1,10 @@
-// Live TV › Settings › Add another service: one service the viewer buys
-// elsewhere, whose Live TV channels then show in Live TV under its own name
-// (lib/outsideSource). Only with an active DreamStreams or Vibez line; without
-// one the page says so and shows no form (a saved service stays, and its
-// channels come back when the line is renewed).
+// Live TV › Settings › Add service › Another provider (ServicesScreen draws
+// it in its page: Add another service → Another provider, or OK on the saved
+// one in Your services): one service the viewer buys elsewhere, whose Live TV
+// channels then show in Live TV under its own name (lib/outsideSource). Only
+// with an active DreamStreams or Vibez line; without one the page says so and
+// shows no form (a saved service stays, and its channels come back when the
+// line is renewed).
 //
 // Two kinds: an Xtream login (server, username, password) or an M3U link. Test
 // signs in / reads the playlist and counts the channels, in plain words when
@@ -25,13 +27,9 @@ import { BackButton } from '@/components/ui/BackButton';
 import { trackEvent } from '@/lib/analytics';
 import { formatNumber } from '@/i18n/format';
 import { hostNameOf } from '@/lib/servers';
-import { loadCreds, loadPlayerAccount, loadSavedAccounts, type XtreamCreds } from '@/lib/xtream';
+import type { XtreamCreds } from '@/lib/xtream';
 import {
-  accountStale,
   lineOwnerKey,
-  loadOutsideSources,
-  outsideAllowed,
-  ownerOnBox,
   parseOutsideInput,
   saveOutsideSource,
   type OutsideInput,
@@ -40,7 +38,7 @@ import {
   type OutsideSource,
 } from '@/lib/outsideSource';
 import { testOutsideSource, type OutsideTestError } from '@/lib/outsideProbe';
-import { forgetOutsideSource, recheckLine } from '@/lib/outsideActions';
+import { forgetOutsideSource, readOutsideHere } from '@/lib/outsideActions';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { keepInView } from '@/utils/keepInView';
 
@@ -129,23 +127,17 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
   useEffect(() => () => { alive.current = false; }, []);
 
   // Who may: the line in use and its account record, and whether the saved
-  // service's line is on the box. Read again when the record changes (a
-  // renewal, an expiry found by the background check).
+  // service's line is on the box (lib/outsideActions, shared with Add
+  // service's list). Read again when the record changes (a renewal, an
+  // expiry found by the background check).
   useEffect(() => {
     const read = async () => {
-      try {
-        const [creds, account, list, accounts] = await Promise.all([loadCreds(), loadPlayerAccount(), loadOutsideSources(), loadSavedAccounts().catch(() => [])]);
-        if (!alive.current) return;
-        const first = list[0] ?? null;
-        setActiveLine(creds);
-        setGate(outsideAllowed(creds, account));
-        setSaved(first);
-        setOwnerHere(!!first && ownerOnBox(first, creds, accounts));
-        // Not checked with its panel lately: check it now (the answer reads this again).
-        if (accountStale(account)) void recheckLine(creds, { evenWithoutOne: true });
-      } catch {
-        if (alive.current) setGate(false);
-      }
+      const here = await readOutsideHere();
+      if (!alive.current) return;
+      setActiveLine(here.active);
+      setGate(here.allowed);
+      setSaved(here.sources[0] ?? null);
+      setOwnerHere(here.ownerHere);
     };
     void read();
     window.addEventListener('playerAccountRefresh', read);

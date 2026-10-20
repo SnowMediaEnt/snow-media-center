@@ -52,7 +52,7 @@
         },
         "services": {
           "title": "Plusieurs services ? Ils apparaissent tous dans une seule liste.",
-          "line2": "Ajoutez-en un dans Paramètres de TV en direct → Changer de compte. Chacun a son titre."
+          "line2": "Ajoutez-en un dans Paramètres de TV en direct → Ajouter un service. Chacun a son titre."
         },
         "layout": {
           "title": "Choisissez votre style : Classique, Compact ou Vibez.",
@@ -452,7 +452,7 @@
         "start": "Démarrer",
         "steps": "Étapes",
         "subtitles": "Sous-titres",
-        "switchAccount": "Changer de compte",
+        "addService": "Ajouter un service",
         "talkNow": "Parlez maintenant",
         "todaysGames": "Matchs du jour",
         "typeHere": "Saisissez ici",

@@ -52,7 +52,7 @@
         },
         "services": {
           "title": "More than one service? They all show in one list.",
-          "line2": "Add one under Live TV Settings → Switch Account. Each has its own heading."
+          "line2": "Add one under Live TV Settings → Add service. Each has its own heading."
         },
         "layout": {
           "title": "Pick your look: Classic, Compact or Vibez.",
@@ -452,7 +452,7 @@
         "start": "Start",
         "steps": "Steps",
         "subtitles": "Subtitles",
-        "switchAccount": "Switch Account",
+        "addService": "Add service",
         "talkNow": "Talk now",
         "todaysGames": "Today's games",
         "typeHere": "Type here",
