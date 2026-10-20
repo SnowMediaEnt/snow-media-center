@@ -171,7 +171,10 @@
       "recordingStoppedDesc": "It is in Live TV › Recordings.",
       "channelsFailedTitle": "Couldn't update the channels",
       "channelsFailedDesc": "The server didn't send the channel list. Try again in a minute; if it keeps happening, restart your internet router.",
-      "channelsEmptyTitle": "No channels on this account"
+      "channelsEmptyTitle": "No channels on this account",
+      "movingTitle": "Moving {{name}}",
+      "movingDesc": "▲▼ to move it, then OK to put it here.",
+      "movingDescGrid": "◀▶▲▼ to move it, then OK to put it here."
     },
     "categories": {
       "favorites": "Favorites",
@@ -298,6 +301,11 @@
       "wrongGame": "Not this game",
       "removeFavorite": "Remove from Favorites",
       "addFavorite": "Add to Favorites",
+      "moveFavorite": "Move",
+      "moveFavoriteUp": "Move up",
+      "moveFavoriteDown": "Move down",
+      "sortAz": "Sort A–Z",
+      "sortMine": "Sort my way",
       "refreshing": "Refreshing…",
       "refreshLink": "Refresh channel link",
       "choiceDown": "Channel down",

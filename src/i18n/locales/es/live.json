@@ -171,7 +171,10 @@
       "recordingStoppedDesc": "Está en TV en vivo › Grabaciones.",
       "channelsFailedTitle": "No se pudieron actualizar los canales",
       "channelsFailedDesc": "El servidor no envió la lista de canales. Inténtalo de nuevo en un minuto; si sigue pasando, reinicia el router de internet.",
-      "channelsEmptyTitle": "No hay canales en esta cuenta"
+      "channelsEmptyTitle": "No hay canales en esta cuenta",
+      "movingTitle": "Moviendo {{name}}",
+      "movingDesc": "▲▼ para moverlo y OK para dejarlo aquí.",
+      "movingDescGrid": "◀▶▲▼ para moverlo y OK para dejarlo aquí."
     },
     "categories": {
       "favorites": "Favoritos",
@@ -299,6 +302,11 @@
       "wrongGame": "No es este partido",
       "removeFavorite": "Quitar de Favoritos",
       "addFavorite": "Agregar a Favoritos",
+      "moveFavorite": "Mover",
+      "moveFavoriteUp": "Subir",
+      "moveFavoriteDown": "Bajar",
+      "sortAz": "Ordenar A–Z",
+      "sortMine": "Ordenar a mi manera",
       "refreshing": "Actualizando…",
       "refreshLink": "Actualizar enlace del canal",
       "choiceDown": "Canal caído",

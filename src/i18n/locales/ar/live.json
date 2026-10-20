@@ -171,7 +171,10 @@
       "recordingStoppedDesc": "ستجدها في البث المباشر › التسجيلات.",
       "channelsFailedTitle": "تعذّر تحديث القنوات",
       "channelsFailedDesc": "لم يرسل الخادم قائمة القنوات. حاول مرة أخرى بعد دقيقة؛ وإذا استمر ذلك، أعد تشغيل جهاز الإنترنت (الراوتر).",
-      "channelsEmptyTitle": "لا توجد قنوات على هذا الحساب"
+      "channelsEmptyTitle": "لا توجد قنوات على هذا الحساب",
+      "movingTitle": "نقل {{name}}",
+      "movingDesc": "استخدم ▲▼ لنقلها، ثم OK لوضعها هنا.",
+      "movingDescGrid": "استخدم ◀▶▲▼ لنقلها، ثم OK لوضعها هنا."
     },
     "categories": {
       "favorites": "المفضلة",
@@ -302,6 +305,11 @@
       "wrongGame": "ليست هذه المباراة",
       "removeFavorite": "إزالة من المفضلة",
       "addFavorite": "إضافة إلى المفضلة",
+      "moveFavorite": "نقل",
+      "moveFavoriteUp": "نقل لأعلى",
+      "moveFavoriteDown": "نقل لأسفل",
+      "sortAz": "ترتيب من A إلى Z",
+      "sortMine": "ترتيبي الخاص",
       "refreshing": "جارٍ التحديث…",
       "refreshLink": "تحديث رابط القناة",
       "choiceDown": "القناة متوقفة",

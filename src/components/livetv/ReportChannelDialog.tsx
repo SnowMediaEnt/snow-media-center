@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, AlertTriangle, Star, StarOff, Flag, X, RefreshCw, CheckCircle2, Circle, Ban } from 'lucide-react';
+import { Loader2, AlertTriangle, Star, StarOff, Flag, X, RefreshCw, CheckCircle2, Circle, Ban, ArrowUpDown, ArrowUp, ArrowDown, ArrowDownAZ, ListOrdered } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -54,6 +54,17 @@ interface Props {
    *  caller takes the link off the list; the menu closes. Left out (Live TV,
    *  every other link) the row is not shown. */
   onWrongGame?: () => void;
+  /** A Favorites list in the viewer's own order, on a TV: a "Move" row. The
+   *  menu closes and the caller lifts the channel to carry it with ▲▼. */
+  onMoveFavorite?: () => void;
+  /** The same on a touch screen (no ▲▼ to carry it): "Move up" / "Move
+   *  down", one place a tap. Each left out at that end of the list. */
+  onMoveFavoriteUp?: () => void;
+  onMoveFavoriteDown?: () => void;
+  /** A Favorites list: how it is sorted now. The row offers the other way
+   *  ("Sort A–Z" / "Sort my way"); left out, no row. */
+  favoritesSort?: 'mine' | 'az';
+  onToggleFavoritesSort?: () => void;
   onClose: () => void;
 }
 
@@ -101,6 +112,11 @@ const ReportChannelDialog = memo(({
   isDown = false,
   onClearDown,
   onWrongGame,
+  onMoveFavorite,
+  onMoveFavoriteUp,
+  onMoveFavoriteDown,
+  favoritesSort,
+  onToggleFavoritesSort,
   onClose,
 }: Props) => {
   const { t } = useTranslation();
@@ -189,12 +205,26 @@ const ReportChannelDialog = memo(({
     { id: 'report', label: t('live.report.reportChannel'), icon: Flag, run: () => { setStep('reasons'); setFocusIdx(0); } },
     ...(onWrongGame ? [{ id: 'wrong', label: t('live.report.wrongGame'), icon: Ban, run: () => { onWrongGame(); onClose(); } }] : []),
     ...(onToggleFavorite ? [{ id: 'fav', label: isFavorite ? t('live.report.removeFavorite') : t('live.report.addFavorite'), icon: isFavorite ? StarOff : Star, run: () => { onToggleFavorite(); onClose(); } }] : []),
+    // A Favorites list: put the channel somewhere else in it, or sort it.
+    ...(onMoveFavorite ? [{ id: 'move', label: t('live.report.moveFavorite'), icon: ArrowUpDown, run: () => { onMoveFavorite(); onClose(); } }] : []),
+    ...(onMoveFavoriteUp ? [{ id: 'moveUp', label: t('live.report.moveFavoriteUp'), icon: ArrowUp, run: () => { onMoveFavoriteUp(); onClose(); } }] : []),
+    ...(onMoveFavoriteDown ? [{ id: 'moveDown', label: t('live.report.moveFavoriteDown'), icon: ArrowDown, run: () => { onMoveFavoriteDown(); onClose(); } }] : []),
+    ...(favoritesSort && onToggleFavoritesSort ? [{
+      id: 'sort',
+      label: favoritesSort === 'az' ? t('live.report.sortMine') : t('live.report.sortAz'),
+      icon: favoritesSort === 'az' ? ListOrdered : ArrowDownAZ,
+      run: () => { onToggleFavoritesSort(); onClose(); },
+    }] : []),
     ...(onRecord ? [{ id: 'record', label: recording ? t('live.report.stopRecording') : t('live.report.recordChannel'), icon: Circle, run: () => { onRecord(); } }] : []),
     ...(canRefresh ? [{ id: 'refresh', label: refreshing ? t('live.report.refreshing') : t('live.report.refreshLink'), icon: RefreshCw, run: () => { void refreshNow(); } }] : []),
     { id: 'cancel', label: t('common.cancel'), icon: X, run: onClose },
   ];
   const menuItemsRef = useRef(menuItems);
   menuItemsRef.current = menuItems;
+  // A long menu (a favourite with Move and Sort, a channel showing ⚠️, Record
+  // and Refresh) is drawn tighter and without the footer, so every row still
+  // fits the 540px TV screen.
+  const dense = menuItems.length > 6;
 
   const submit = useCallback(
     async (choice: Choice, otherNote = '') => {
@@ -448,7 +478,7 @@ const ReportChannelDialog = memo(({
                   data-howto={MENU_HOWTO[item.id]}
                   onMouseEnter={() => setFocusIdx(i)}
                   onClick={() => item.run()}
-                  className={`tv-ring w-full text-left px-4 py-3 rounded-xl border border-white/10 font-nunito font-semibold transition-transform duration-150 ease-out flex items-center gap-3 ${
+                  className={`tv-ring w-full text-left px-4 ${dense ? 'py-2' : 'py-3'} rounded-xl border border-white/10 font-nunito font-semibold transition-transform duration-150 ease-out flex items-center gap-3 ${
                     focused
                       ? (isCancel
                           ? 'bg-white/15 scale-[1.02] z-10'
@@ -598,9 +628,11 @@ const ReportChannelDialog = memo(({
           </div>
         )}
 
-        <p className="mt-4 text-xs text-brand-ice/60 font-nunito">
-          {t('live.report.footer')}
-        </p>
+        {!(dense && atStep('menu')) && (
+          <p className="mt-4 text-xs text-brand-ice/60 font-nunito">
+            {t('live.report.footer')}
+          </p>
+        )}
       </div>
     </div>
   );
