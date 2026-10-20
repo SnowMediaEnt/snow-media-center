@@ -36,6 +36,7 @@ import {
   lineKey,
 } from '@/lib/favoritesSync';
 import {
+  lineChannelKey,
   lineLabel,
   loadHiddenCategories,
   loadCollapsedLines,
@@ -93,15 +94,16 @@ import { channelReport, isCategoryDown, isChannelFailure, signalCategory, signal
 import ChannelWarningDialog from './ChannelWarningDialog';
 import BufferingHelpDialog from './BufferingHelpDialog';
 import { useBufferingHelp } from './useBufferingHelp';
-import FullscreenChannelOverlay, { overlayChannelWindow, type OverlayCategory } from './FullscreenChannelOverlay';
+import FullscreenChannelOverlay, { type OverlayCategory } from './FullscreenChannelOverlay';
+import { overlayChannelWindow } from './listWindow';
 import RecentChannelsPanel from './RecentChannelsPanel';
 import { useRecentPanel } from './useRecentPanel';
 import { useHeldPreview } from './useHeldPreview';
 import { useOverlaySearch } from './useOverlaySearch';
 import { useFavoritesMove } from './useFavoritesMove';
 import MovingFavoriteMark from './MovingFavoriteMark';
-import { arrangeFavorites, favRefKey } from '@/lib/favoritesOrder';
-import { IDLE_FAILOVER, useChannelFailover, type ChannelFailover } from './useChannelFailover';
+import { arrangeFavorites, arrangeLineFavorites, favName, favRefKey } from '@/lib/favoritesOrder';
+import { IDLE_FAILOVER, useChannelFailover, type ChannelFailover, type FailoverWatch } from './useChannelFailover';
 import { recentChannelId, type RecentChannel } from '@/lib/recentChannels';
 // Not lazy: it must be up before the held OK that opens it is let go (that
 // release arms it), or the viewer's next OK would be swallowed.
@@ -251,7 +253,8 @@ interface CatEntry {
 }
 const EMPTY_COUNTS: CatalogCounts = { total: null, byCat: {}, at: 0 };
 const EMPTY_FAVS: Map<number, FavChannel> = new Map();
-const favKey = (f: { stream_id: number; name: string }) => f.name.trim().toLowerCase();
+/** A favourite's name as the heal compares it (lib/favoritesOrder's rule, so the order follows a re-link). */
+const favKey = (f: { stream_id: number; name: string }) => favName(f.name);
 /** Where a list's highlight goes back to: the channel it was on, else the
  *  same place, kept inside the list. */
 const placeIn = (list: Array<{ stream_id: number }>, was: { channelIdx: number; streamId: number | null }): number => {
@@ -1140,7 +1143,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         streamLineRef.current.set(st, currentCat.line);
         return st;
       });
-      return arrangeFavorites(out, favOrder, (st) => ({ line: currentCat.lineKey, id: st.stream_id, name: st.name }));
+      return arrangeLineFavorites(out, favOrder, currentCat.lineKey);
     }
     return streamsByCat.get(currentCat.id) || [];
   }, [searchOpen, searchQ, lines, allByLine, hidden, adultCatsByLine, currentCat, streamsByCat, favsByLine, favOrder]);
@@ -1747,18 +1750,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     lineFor,
     play: (st) => playChannelRef.current(st, undefined, true),
     // The channel in the box is the one playing (watched full screen before,
-    // or put there with OK): only the picture moves. Played again it would be
-    // counted twice (channel_play, Recently watched, Game Day's note).
-    fullScreen: (st) => {
-      if (playingKeyRef.current === `${lineKey(lineFor(st))}|${st.stream_id}`) setFullscreen(true);
-      else activateChannelRef.current(st);
-    },
-    // As activateChannel asks, for the box: not for the channel already
-    // playing, nor one this viewer chose to watch anyway a moment ago.
+    // or put there with OK): only the picture moves (fullScreenFromBox).
+    fullScreen: (st) => fullScreenFromBoxRef.current(st),
+    // As activateChannel asks (askFirstReport), for the box.
     askFirst: (st) => {
-      const line = lineFor(st);
-      const report = channelReport(downSetRef.current, line.host, st.stream_id, st.category_id);
-      if (!report || playingKeyRef.current === `${lineKey(line)}|${st.stream_id}` || warnedRecently(line.host, st.stream_id)) return false;
+      const report = askFirstReport(st, lineFor(st));
+      if (!report) return false;
       setWarnFor({ stream: st, report, inBox: true });
       return true;
     },
@@ -1839,7 +1836,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     if (!heldPreviewRef.current.isHeld()) return;
     heldPreviewRef.current.release();
     const inBox = previewChannelRef.current;
-    if (!inBox || playingKeyRef.current !== `${lineKey(lineFor(inBox))}|${inBox.stream_id}`) return;
+    if (!inBox || playingKeyRef.current !== lineChannelKey(lineFor(inBox), inBox.stream_id)) return;
     if (watchRecordTimerRef.current) { window.clearTimeout(watchRecordTimerRef.current); watchRecordTimerRef.current = null; }
     setPlayingChannelId(null);
   }, [lineFor]);
@@ -1849,6 +1846,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // What is on screen right now, for the watch timer below.
   const watchingRef = useRef<{ channel: string; category: string } | null>(null);
   const followOnPlayRef = useRef<{ st: XtreamLiveStream; run: () => void } | null>(null);
+  /** The name of a stream's own category on `line`, when that line's
+   *  categories list it (a play's analytics, a Recently watched pick,
+   *  failover's same-category lookup, the report dialogs). */
+  const categoryNameOn = useCallback((st: XtreamLiveStream, line: XtreamCreds): string | undefined => (st.category_id != null
+    ? categoriesByLine.get(lineKey(line))?.find((c) => String(c.category_id) === String(st.category_id))?.category_name
+    : undefined), [categoriesByLine]);
   // `catName`: the category to file the play under when it is not the one
   // the list shows (a Recently watched pick). `inBox`: upright on a phone the
   // video box is the player: the channel is watched there (Recently watched,
@@ -1878,10 +1881,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         // The channel's own category on its own line (a Guide hand-over, a
         // search pick or a zap is not filed under the list on screen); the
         // list's only when the line's categories don't name it.
-        const ownCat = stream.category_id != null
-          ? (categoriesByLine.get(lineKey(line)) ?? []).find((c) => String(c.category_id) === String(stream.category_id))?.category_name
-          : undefined;
-        const catName = catNameIn ?? ownCat ?? visibleCategories.find(c => c.id === (currentCat?.id ?? ''))?.name
+        const catName = catNameIn ?? categoryNameOn(stream, line) ?? visibleCategories.find(c => c.id === (currentCat?.id ?? ''))?.name
           ?? currentCat?.name ?? '';
         watchingRef.current = { channel: stream.name, category: catName };
         // Into history only once it has stayed on screen: zapping through
@@ -1903,14 +1903,24 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         }));
       }
     } catch { /* ignore */ }
-  }, [visibleCategories, currentCat, lineFor, categoriesByLine]);
+  }, [visibleCategories, currentCat, lineFor, categoryNameOn]);
 
   // OK on a channel goes full screen; the preview box already shows it.
   // One the others reported down (itself or its whole category) or
   // buffering asks first: Watch anyway / Pick another. Not for the channel
   // already playing, nor one this viewer chose to watch anyway a moment ago.
   const playingKeyRef = useRef('');
-  playingKeyRef.current = playingChannelId ? `${lineKey(playingLine)}|${playingChannelId}` : '';
+  playingKeyRef.current = playingChannelId ? lineChannelKey(playingLine, playingChannelId) : '';
+  /** It is the channel being watched (its line too: two services can share an id). */
+  const isPlayingNow = useCallback((st: XtreamLiveStream, line: XtreamCreds = lineFor(st)): boolean =>
+    playingKeyRef.current === lineChannelKey(line, st.stream_id), [lineFor]);
+  /** What to ask before `st` plays: its report, or null when nothing is
+   *  asked (not reported, the one playing, or watched anyway a moment ago).
+   *  Full screen (activateChannel) and the held box (useHeldPreview) alike. */
+  const askFirstReport = useCallback((st: XtreamLiveStream, line: XtreamCreds): Exclude<ChannelReport, null> | null => {
+    const report = channelReport(downSetRef.current, line.host, st.stream_id, st.category_id);
+    return report && !isPlayingNow(st, line) && !warnedRecently(line.host, st.stream_id) ? report : null;
+  }, [isPlayingNow]);
   // A channel that won't start, played from the viewer's other service
   // (useChannelFailover, set up once the native player is).
   const failoverRef = useRef<ChannelFailover>(IDLE_FAILOVER);
@@ -1918,16 +1928,44 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     // OK on the channel whose copy the preview box shows (it failed here):
     // the copy goes full screen, as the box's picture always does.
     const stream = failoverRef.current.redirect(picked) ?? picked;
-    const line = lineFor(stream);
-    const report = channelReport(downSetRef.current, line.host, stream.stream_id, stream.category_id);
-    if (report && playingKeyRef.current !== `${lineKey(line)}|${stream.stream_id}` && !warnedRecently(line.host, stream.stream_id)) {
+    const report = askFirstReport(stream, lineFor(stream));
+    if (report) {
       setWarnFor({ stream, report });
       return;
     }
     playChannel(stream, catName);
-  }, [playChannel, lineFor]);
+  }, [playChannel, lineFor, askFirstReport]);
   const activateChannelRef = useRef(activateChannel);
   useEffect(() => { activateChannelRef.current = activateChannel; }, [activateChannel]);
+  // The channel in the box goes full screen (OK on it while it is held, the
+  // phone turned sideways): when it is the one being watched only the picture
+  // moves, the same stream, not played or counted a second time
+  // (channel_play, Recently watched, Game Day's note); else it plays as OK
+  // plays any channel.
+  const fullScreenFromBox = useCallback((st: XtreamLiveStream) => {
+    if (isPlayingNow(st)) setFullscreen(true);
+    else activateChannelRef.current(st);
+  }, [isPlayingNow]);
+  const fullScreenFromBoxRef = useRef(fullScreenFromBox);
+  fullScreenFromBoxRef.current = fullScreenFromBox;
+  // OK on a channel row (the remote's short press: the keyup below; a click:
+  // onRowActivate), in this order:
+  //   1. a favourite being moved owns the list (useFavoritesMove: the key
+  //      handler gives it every key first; a click is ignored);
+  //   2. the box holding the channel being watched (useHeldPreview) plays it
+  //      there, or takes the one there full screen. Not the failed channel
+  //      whose copy the box shows (useChannelFailover's redirect): 3 takes
+  //      that copy full screen;
+  //   3. activateChannel: the redirect, the ask-first warning, full screen.
+  // A touch screen's tap-to-box comes between 2 and 3 (onRowActivate); the
+  // box is never held there. Over the picture OK is the list's own first
+  // (its Search row: useOverlaySearch, then pickFromOverlay), and on the
+  // error screen failover's "Try on…" before Retry.
+  const heldBoxTakesOk = useCallback((ch: XtreamLiveStream): boolean => {
+    if (!heldPreviewRef.current.isHeld() || failoverRef.current.redirect(ch)) return false;
+    heldPreviewRef.current.ok(ch);
+    return true;
+  }, []);
 
   // A channel chosen on the content bar (or Game Day, or a kickoff
   // reminder): play it as soon as its line is known. The payload is consumed
@@ -2177,6 +2215,28 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     return () => { document.documentElement.classList.remove('snowplayer-preview'); };
   }, [nativePreviewActive]);
 
+  // What the native player is showing, and where: the full-screen channel,
+  // or the one in the preview box. What failover watches, and what the
+  // channel status signals below are about (nativeStream).
+  const nativeShowing: FailoverWatch | null = nativeActive && playingChannelId && playingStream
+    ? { stream: playingStream, line: playingLine, where: 'full' }
+    : nativePreviewActive && previewChannel
+      ? { stream: previewChannel, line: lineFor(previewChannel), where: 'box' }
+      : null;
+
+  // A native player error (native.error) is answered in four places, each
+  // keeping to its own part:
+  //   - channel status (below): a channel that won't start (isChannelFailure)
+  //     tells the other boxes, on its own line;
+  //   - failover (useChannelFailover): looks for the same channel on the
+  //     other service; plays it by itself once, or offers "Try on…";
+  //   - the held box (useHeldPreview): lets go of a channel that failed in
+  //     the box, but only after failover is done with it (failoverLooking,
+  //     HELD_RELEASE_WAIT_MS), and only for the box's own stream (forUrl);
+  //   - player_error analytics (below), once per message.
+  // On the error screen failover's keys (◀ ▶, OK on "Try on…") come before
+  // OK = Retry (the key handler).
+  //
   // A channel that won't start, full screen or in the box, played from the
   // viewer's other service when that has it (useChannelFailover owns the
   // rules; it only asks for things to be played here).
@@ -2184,19 +2244,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     lines,
     off: DEMO,
     active: isActive,
-    watching: nativeActive && playingChannelId && playingStream
-      ? { stream: playingStream, line: playingLine, where: 'full' }
-      : nativePreviewActive && previewChannel
-        ? { stream: previewChannel, line: lineFor(previewChannel), where: 'box' }
-        : null,
+    watching: nativeShowing,
     error: native.error,
     fetchAll: fetchLiveStreams,
     known: (line) => allByLine.get(lineKey(line)),
     knownCategory: (line, catId) => streamsByCat.get(`${lineKey(line)}|${catId}`),
     categoriesOf: (line) => categoriesByLine.get(lineKey(line)),
-    categoryName: (st, line) => (st.category_id != null
-      ? categoriesByLine.get(lineKey(line))?.find((c) => String(c.category_id) === String(st.category_id))?.category_name
-      : undefined),
+    categoryName: categoryNameOn,
     // Never a channel search leaves out (adult, a hidden category's).
     skip: (st, line) => leftOutOfSearch(st, { hidden: hidden.get(lineKey(line)), adultCats: adultCatsByLine.get(lineKey(line)) }),
     lineOf: lineFor,
@@ -2330,13 +2384,16 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     return () => { off(); liveSkip.clear(); };
   }, [isActive, fullscreen, pokeBar, liveSkip]);
 
-  // What the native player is showing: the full-screen channel, or the one
-  // in the preview box.
-  const nativeStream = nativeActive && playingChannelId
-    ? { host: playingLine.host, id: playingChannelId, name: playingName, catId: playingStream?.category_id }
-    : nativePreviewActive && previewChannel
-      ? { host: lineFor(previewChannel).host, id: previewChannel.stream_id, name: previewChannel.name, catId: previewChannel.category_id }
-      : null;
+  // The channel the native player is showing (nativeShowing), as the
+  // channel status signals name it.
+  const nativeStream = nativeShowing
+    ? {
+      host: nativeShowing.line.host,
+      id: nativeShowing.stream.stream_id,
+      name: nativeShowing.where === 'full' ? playingName : nativeShowing.stream.name,
+      catId: nativeShowing.stream.category_id,
+    }
+    : null;
   const nativeStreamRef = useRef(nativeStream); nativeStreamRef.current = nativeStream;
 
   // Down channels (⚠️): a channel that won't start here tells the other
@@ -2455,9 +2512,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     setPane('channels');
     setChannelIdx(i);
     const ch = visibleChannelsRef.current[i];
-    // A channel held in the box (the remote, useHeldPreview): another one
-    // plays there, the one there goes full screen.
-    if (ch && heldPreviewRef.current.isHeld() && !failoverRef.current.redirect(ch)) { heldPreviewRef.current.ok(ch); return; }
+    // Who takes it, in order: see heldBoxTakesOk.
+    if (ch && heldBoxTakesOk(ch)) return;
     // A touch screen with a video box: the first tap plays the channel in
     // the box, a tap on the channel already there goes full screen.
     if (ch && tapToBoxRef.current) {
@@ -2481,7 +2537,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       }
     }
     if (ch) activateChannelRef.current(ch);
-  }, [lineFor]);
+  }, [lineFor, heldBoxTakesOk]);
   // A held OK opens the channel's short menu (Favorite, Report, and Record…
   // where recording is offered); Record… leads on to the recording options.
   const openChannelOptions = useCallback((c: XtreamLiveStream) => { setReportFor(c); }, []);
@@ -2759,10 +2815,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         setPane('channels');
       },
     };
-    const own = st.category_id != null
-      ? categoriesByLine.get(k)?.find((x) => String(x.category_id) === String(st.category_id))?.category_name
-      : undefined;
-    activateChannelRef.current(st, c.category ?? own);
+    activateChannelRef.current(st, c.category ?? categoryNameOn(st, c.line));
   };
   // Not left open behind a change of screen (full screen in or out, another section).
   useEffect(() => { recentRef.current.close(); }, [fullscreen, isActive]);
@@ -2788,11 +2841,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // is the player — gets the usual fixes over the picture, one at a time. It
   // waits while anything else has the remote, and never comes with the
   // error card (a channel that won't start: retry / failover).
-  const helpWatch = DEMO || !isActive ? null
-    : nativeActive && playingChannelId ? { key: playingKeyRef.current, line: playingLine, stream: playingStream ?? null }
-      : upright && nativePreviewActive && previewChannel && playingKeyRef.current === `${lineKey(lineFor(previewChannel))}|${previewChannel.stream_id}`
-        ? { key: playingKeyRef.current, line: lineFor(previewChannel), stream: previewChannel }
-        : null;
+  // The error card includes the dead channel's "isn't on the air" one.
+  const helpWatch = DEMO || !isActive || !nativeShowing ? null
+    : nativeShowing.where === 'full' || (upright && isPlayingNow(nativeShowing.stream, nativeShowing.line))
+      ? { key: lineChannelKey(nativeShowing.line, nativeShowing.stream.stream_id), line: nativeShowing.line, stream: nativeShowing.stream }
+      : null;
   const bufferHelp = useBufferingHelp({
     enabled: !DEMO && !kidsLevel(),
     watching: helpWatch,
@@ -2824,8 +2877,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       const pc = previewChannelRef.current;
       // Already the channel being watched (upright the box is the player):
       // the same stream goes full screen, nothing is played or counted again.
-      if (playingKeyRef.current === `${lineKey(lineFor(pc))}|${pc.stream_id}`) setFullscreen(true);
-      else activateChannelRef.current(pc);
+      fullScreenFromBoxRef.current(pc);
     } else if (!wasUpright && nowUpright && fullscreenRef.current) {
       // Rewound or watching a catch-up programme: that stays full screen (the
       // box would play the live stream and the place would be lost).
@@ -3373,15 +3425,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         return;
       }
       if (enterTimerRef.current) {
-        // Released before long-press threshold → treat as short press (play).
-        // With a channel held in the box (useHeldPreview) OK plays another
-        // one there, and goes full screen on the one there.
+        // Released before long-press threshold → treat as short press (play):
+        // the held box, else activateChannel (the order: heldBoxTakesOk).
         cancelEnterTimer();
         const ch = visibleChannelsRef.current[channelIdxRef.current];
-        // The box shows another service's copy of this channel (failover):
-        // OK takes that copy full screen (activateChannel redirects).
-        if (ch && heldPreviewRef.current.isHeld() && !failoverRef.current.redirect(ch)) heldPreviewRef.current.ok(ch);
-        else if (ch) activateChannelRef.current(ch);
+        if (ch && !heldBoxTakesOk(ch)) activateChannelRef.current(ch);
       }
       // If long-press already fired, just consume the keyup.
       enterFiredRef.current = false;
@@ -3397,7 +3445,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       cancelEnterTimer();
       cancelCatHold();
     };
-  }, [isActive, onExitLeft, onExitUp, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow, cancelEnterTimer, cancelCatHold, openCategoryOptions, toggleCollapsed, liveSkip, skipFromKey, openChannelOverlay, closeChannelOverlay, overlayBackStep, showOverlayCategories, pokeOverlay, openRecent, leavePicture]);
+  }, [isActive, onExitLeft, onExitUp, toggleFavorite, changeChannelInFullscreen, playChannel, pokeBar, hideBarNow, cancelEnterTimer, cancelCatHold, openCategoryOptions, toggleCollapsed, liveSkip, skipFromKey, openChannelOverlay, closeChannelOverlay, showOverlayCategories, pokeOverlay, openRecent, leavePicture, heldBoxTakesOk]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -3413,8 +3461,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           if ((window as unknown as { __playerOwnsBack?: boolean }).__playerOwnsBack) return;
           if (choosingLayoutRef.current) return; // the chooser answers Back itself
           (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
+          // One layer at a time, top first, as the key handler's Back: a
+          // dialog (it answers Back itself — "Still buffering?" too), a
+          // favourite being moved (put down where it is), the Player's menus,
+          // Recently watched, the list over the picture (overlayBack: the
+          // keyboard, a search typed there, its categories, the list), the
+          // picture, the caller (the Guide, Game Day), the categories, out.
           if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || recordingsOpenRef.current || bufferHelpOpenRef.current) return;
-          // A favourite being moved is put down where it is.
           if (favMoveRef.current.movingKey) { favMoveRef.current.drop(); return; }
           if (subMenuOpenRef.current || audioMenuOpenRef.current || volMenuOpenRef.current) { setSubMenuOpen(false); setAudioMenuOpen(false); setVolMenuOpen(false); return; }
           if (recentRef.current.isOpen()) { recentRef.current.close(); return; }
@@ -3513,10 +3566,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   ) : null;
 
   // The name of a channel's category on its line ('' when not listed).
-  const categoryNameOf = (st: XtreamLiveStream): string => {
-    const id = st.category_id != null ? String(st.category_id) : '';
-    return id ? (categoriesByLine.get(lineKey(lineFor(st)))?.find((c) => String(c.category_id) === id)?.category_name ?? '') : '';
-  };
+  const categoryNameOf = (st: XtreamLiveStream): string =>
+    (String(st.category_id ?? '') ? categoryNameOn(st, lineFor(st)) ?? '' : '');
   // A channel's menu in a Favorites list also moves it (Move on a TV; Move up
   // / Move down on a touch screen) and sorts the list (A–Z, or back to the
   // viewer's own order). Move needs the list on screen, in the viewer's own
@@ -3637,7 +3688,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     <BufferingHelpDialog
       steps={bufferHelp.steps}
       // Never for an outside service's channel (its menu offers no report).
-      canReport={!!helpWatch?.stream && !isOutsideLine(helpWatch.line)}
+      canReport={!!helpWatch && !isOutsideLine(helpWatch.line)}
       onRestartDone={bufferHelp.noteRestart}
       onOpenGuide={(from) => {
         if (from === 'vpn') bufferHelp.noteVpnGuide();
@@ -3645,9 +3696,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         openBufferingGuide();
       }}
       onReport={() => {
-        const st = helpWatch?.stream;
         bufferHelp.close();
-        if (!st || !helpWatch) return;
+        if (!helpWatch) return;
+        const st = helpWatch.stream;
         // The report flow, "Channel buffering" already picked; it finds the
         // line by the stream object.
         streamLineRef.current.set(st, helpWatch.line);

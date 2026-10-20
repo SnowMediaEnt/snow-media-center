@@ -57,6 +57,7 @@
     <string name="billing_internal">Un problème est survenu. Veuillez réessayer.</string>
     <string name="billing_sign_in">Veuillez vous connecter.</string>
     <string name="player_err_stream_dropping">Le flux continue de couper. Réessayez.</string>
+    <string name="player_err_channel_off_air">Cette chaîne n\'est pas diffusée en ce moment.</string>
     <string name="player_err_server_stopped">Le serveur ne répond plus. Réessayez.</string>
     <string name="player_err_refused">Le serveur a refusé ce fichier.</string>
     <string name="player_err_refused_status">Le serveur a refusé ce fichier (HTTP %1$d).</string>

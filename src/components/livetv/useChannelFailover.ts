@@ -31,7 +31,7 @@ import { isChannelFailure } from '@/lib/channelStatus';
 import { channelKey, findSameChannel, isEventChannel } from '@/lib/channelMatch';
 import { loadFailoverOn, noteLiveLineCount } from '@/lib/channelFailover';
 import { lineKey } from '@/lib/favoritesSync';
-import { lineLabel } from '@/lib/liveLines';
+import { lineChannelKey as chKey, lineLabel } from '@/lib/liveLines';
 import { hasLiveStreams, serverDisplayName, type XtreamCategory, type XtreamCreds, type XtreamLiveStream } from '@/lib/xtream';
 
 export type FailoverWhere = 'full' | 'box';
@@ -104,7 +104,6 @@ export const IDLE_FAILOVER: ChannelFailover = {
 
 /** How a service is named to the viewer (the group header's name, brand-spelled). */
 const serviceName = (line: XtreamCreds): string => serverDisplayName(lineLabel(line));
-const chKey = (line: XtreamCreds, id: number): string => `${lineKey(line)}|${id}`;
 
 // ---- looking a channel up on another line ---------------------------------
 
@@ -117,9 +116,6 @@ const chKey = (line: XtreamCreds, id: number): string => `${lineKey(line)}|${id}
 // downloaded again for 10 minutes.
 const REFETCH_MS = 10 * 60_000;
 const fetchedAt = new Map<string, number>();
-
-/** For tests: forget the downloads made. */
-export function __resetFailoverForTests(): void { fetchedAt.clear(); }
 
 const lowMemoryBox = (): boolean => {
   try { return document.documentElement.classList.contains('native-low-memory'); } catch { return false; }

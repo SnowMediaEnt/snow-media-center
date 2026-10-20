@@ -69,6 +69,7 @@ import androidx.media3.exoplayer.video.VideoFrameMetadataListener
 import androidx.media3.exoplayer.source.TrackGroupArray
 import androidx.media3.exoplayer.trackselection.ExoTrackSelection
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
+import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import androidx.media3.ui.SubtitleView
@@ -191,6 +192,14 @@ class SnowPlayerPlugin : Plugin() {
         var rangeFetch: Boolean = false
         var rangeShared: RangeFetchDataSource.Shared? = null
         var firstFrameSeen: Boolean = false
+        // A picture drawn since load() (firstFrameSeen starts over at every
+        // reconnect): a channel that has played is never given up as off
+        // the air (DeadStreamRule). Read on the loader thread too.
+        @Volatile var pictureThisLoad: Boolean = false
+        // A live channel's run of the same "not there" / server-error answer
+        // since load(), in a row (DeadStreamRule).
+        var deadKind: DeadStreamRule.Kind? = null
+        var deadStreak: Int = 0
         // Screen format. ExoPlayer stretches the picture to fill its
         // TextureView, so the view is sized to the picture's shape. These
         // three remember that shape, and applyFormat() does the work.
@@ -1111,6 +1120,29 @@ class SnowPlayerPlugin : Plugin() {
     }
 
     /**
+     * A live channel given up as off the air (DeadStreamRule): the WebView is
+     * told as for any give-up (RECONNECT_EXHAUSTED), with the status and its
+     * own words, and shows the error at once instead of a fresh start
+     * (useNativePlayer). Nothing is left to load it again: no watchdog, no
+     * reconnect, no black-picture look. (A channel holds no Wi-Fi lock.)
+     */
+    private fun giveUpOffAir(s: PlayerSlot, screenId: String, httpStatus: Int?) {
+        s.watchdogRunnable?.let { mainHandler.removeCallbacks(it) }
+        s.watchdogRunnable = null
+        s.reconnectRunnable?.let { mainHandler.removeCallbacks(it) }
+        s.reconnectRunnable = null
+        s.noPictureTick?.let { mainHandler.removeCallbacks(it) }
+        s.noPictureTick = null
+        notifyListeners(
+            "playerError",
+            JSObject().put("screenId", screenId)
+                .put("code", "RECONNECT_EXHAUSTED")
+                .put("message", localized(R.string.player_err_channel_off_air))
+                .put("httpStatus", httpStatus ?: JSONObject.NULL),
+        )
+    }
+
+    /**
      * A film or episode whose connection failed carries on from the same
      * place. After a fatal error the player is idle but still holds the item,
      * its length and the position, so prepare() just opens a new connection
@@ -1887,7 +1919,20 @@ class SnowPlayerPlugin : Plugin() {
             .setTrackSelector(ts)
             .setMediaSourceFactory(
                 DefaultMediaSourceFactory(dataSourceFactory, extractorsFactory)
-                    .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(6)),
+                    .setLoadErrorHandlingPolicy(object : DefaultLoadErrorHandlingPolicy(6) {
+                        // A live channel that has drawn nothing yet: a "not
+                        // there" or server-error answer is not retried here
+                        // (six quiet retries, 15 s, per try). Each try is one
+                        // request, and onPlayerError counts them
+                        // (DeadStreamRule). Everything else as before.
+                        override fun getRetryDelayMsFor(loadErrorInfo: LoadErrorHandlingPolicy.LoadErrorInfo): Long {
+                            val e = loadErrorInfo.exception
+                            if (e is HttpDataSource.InvalidResponseCodeException &&
+                                DeadStreamRule.skipLoaderRetry(s.isLive, s.pictureThisLoad, e.responseCode)
+                            ) return C.TIME_UNSET
+                            return super.getRetryDelayMsFor(loadErrorInfo)
+                        }
+                    }),
             )
         // Trimmed buffers for non-main slots so up to 4 concurrent players fit
         // in Fire TV memory — capped in bytes too, or a 15 Mb/s tile could
@@ -2064,6 +2109,7 @@ class SnowPlayerPlugin : Plugin() {
                 // hold is over, see openShutterIfReady). Never on load or a
                 // state change, so no earlier frame can show.
                 s.firstFrameSeen = true
+                s.pictureThisLoad = true
                 openShutterIfReady(s)
                 s.reconnectAttempts = 0
                 s.watchdogRunnable?.let { mainHandler.removeCallbacks(it) }
@@ -2152,6 +2198,22 @@ class SnowPlayerPlugin : Plugin() {
                     if (httpStatus != null) ev.put("httpStatus", httpStatus)
                     notifyListeners("playerError", ev)
                     return
+                }
+                // A live channel that has drawn nothing since it was loaded,
+                // whose server keeps answering that the stream isn't there
+                // (404 / 410) or can't serve it (5xx): off the air, given up
+                // after DeadStreamRule's few tries instead of 20 (and the
+                // WebView's fresh start, 20 more). 401 / 403, timeouts and
+                // failed connections, and a channel that has played, keep
+                // the patient reconnects below.
+                if (s.isLive && s.currentUrl != null) {
+                    val kind = DeadStreamRule.kindOf(httpStatus)
+                    s.deadStreak = DeadStreamRule.streak(s.deadKind, s.deadStreak, kind)
+                    s.deadKind = kind
+                    if (DeadStreamRule.givesUp(live = true, pictureThisLoad = s.pictureThisLoad, kind = kind, streak = s.deadStreak)) {
+                        giveUpOffAir(s, screenId, httpStatus)
+                        return
+                    }
                 }
                 // A film or episode stops after MAX_VOD_RECONNECTS in a row.
                 // When the server is what failed (ERROR_CODE_IO_*) it says
@@ -2505,6 +2567,9 @@ class SnowPlayerPlugin : Plugin() {
             s.lastPositionMs = startMs
             s.reconnectAttempts = 0
             s.transcodeHttpFails = 0
+            s.pictureThisLoad = false
+            s.deadKind = null
+            s.deadStreak = 0
             s.rangeFetch = rangeFetch && !live
             s.audioChoiceDone = false
             // Told again by the new stream's audio output (onAudioTrackInitialized).

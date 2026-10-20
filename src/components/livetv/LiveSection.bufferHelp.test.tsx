@@ -20,7 +20,7 @@ const h = vi.hoisted(() => ({
   trackEvent: vi.fn(),
   retry: vi.fn(),
   setBuffering: null as null | ((b: boolean) => void),
-  setError: null as null | ((e: { code?: string; message: string } | null) => void),
+  setError: null as null | ((e: { code?: string; message: string; httpStatus?: number } | null) => void),
   url: null as string | null,
 }));
 
@@ -81,7 +81,7 @@ vi.mock('@/hooks/useNativePlayer', async () => {
   return {
     useNativePlayer: (o: { active: boolean; url: string | null }) => {
       const [buffering, setBuffering] = React.useState(false);
-      const [error, setError] = React.useState<{ code?: string; message: string } | null>(null);
+      const [error, setError] = React.useState<{ code?: string; message: string; httpStatus?: number } | null>(null);
       h.setBuffering = setBuffering;
       h.setError = setError;
       h.url = o.active ? o.url : null;
@@ -223,16 +223,35 @@ describe('"Still buffering?" over a full-screen channel', () => {
     expect(helpEvents()[0]).toMatchObject({ action: 'shown', trigger: 'stalls' });
   });
 
-  it('never with the error card up', async () => {
+  // A dead channel (the server answers 404 / 5xx): the player gives it up
+  // in seconds with its own card — never this pop-up.
+  const OFF_AIR = { code: 'RECONNECT_EXHAUSTED', message: "This channel isn't on the air right now.", httpStatus: 404 };
+
+  it('never with the error card up (a dead channel\'s "isn\'t on the air" too)', async () => {
+    await watchNewsOne();
+    fakeTime();
+    buffering(true);
+    wait(4000);
+    act(() => { h.setError?.(OFF_AIR); });
+    wait(40_000);
+    expect(help()).toBeNull();
+    expect(text()).toContain("This channel isn't on the air right now.");
+    expect(helpEvents()).toEqual([]);
+  });
+
+  it('the error card coming up takes the remote from it', async () => {
     await watchNewsOne();
     fakeTime();
     wait(12_000);
     buffering(true);
-    act(() => { h.setError?.({ code: 'RECONNECT_EXHAUSTED', message: 'Source error' }); });
-    wait(40_000);
+    wait(20_000);
+    expect(help()).toBe('restart');
+    act(() => { h.setError?.(OFF_AIR); });
     expect(help()).toBeNull();
-    expect(text()).toContain('Playback Error');
-    expect(helpEvents()).toEqual([]);
+    expect(text()).toContain("This channel isn't on the air right now.");
+    // OK is the card's Retry again.
+    press('Enter');
+    expect(h.retry).toHaveBeenCalled();
   });
 
   it('Yes, I did → Try a VPN → Open the Buffering Guide goes to Support\'s guide', async () => {

@@ -55,7 +55,8 @@ export const MATCH_FRAME_RATE_KEY = 'smc-match-frame-rate-v1';
 /** Sent when a player setting changes, so a mounted screen re-reads it. */
 export const PLAYER_SETTINGS_EVENT = 'smc:player-settings-changed';
 
-function readBool(key: string, fallback: boolean): boolean {
+/** A per-box on/off setting kept as '1' / '0' (anything else: `fallback`). */
+export function readBool(key: string, fallback: boolean): boolean {
   try {
     const raw = localStorage.getItem(key);
     if (raw === '1') return true;
@@ -64,7 +65,8 @@ function readBool(key: string, fallback: boolean): boolean {
   return fallback;
 }
 
-function writeBool(key: string, value: boolean): void {
+/** Save one, and tell the screens that show it (PLAYER_SETTINGS_EVENT). */
+export function writeBool(key: string, value: boolean): void {
   try { localStorage.setItem(key, value ? '1' : '0'); } catch { /* ignore */ }
   try { window.dispatchEvent(new CustomEvent(PLAYER_SETTINGS_EVENT)); } catch { /* ignore */ }
 }

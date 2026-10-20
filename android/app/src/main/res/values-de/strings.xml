@@ -57,6 +57,7 @@
     <string name="billing_internal">Etwas ist schiefgelaufen. Bitte versuche es erneut.</string>
     <string name="billing_sign_in">Bitte melde dich an.</string>
     <string name="player_err_stream_dropping">Der Stream bricht immer wieder ab. Versuche es erneut.</string>
+    <string name="player_err_channel_off_air">Dieser Sender ist gerade nicht auf Sendung.</string>
     <string name="player_err_server_stopped">Der Server antwortet nicht mehr. Versuche es erneut.</string>
     <string name="player_err_refused">Der Server hat diese Datei abgelehnt.</string>
     <string name="player_err_refused_status">Der Server hat diese Datei abgelehnt (HTTP %1$d).</string>
