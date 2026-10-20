@@ -42,7 +42,7 @@ import {
   saveCollapsedLines,
   HIDDEN_CATEGORIES_EVENT,
 } from '@/lib/liveLines';
-import { isOutsideHost, lineEventProps } from '@/lib/outsideSource';
+import { isOutsideHost, isOutsideLine, lineEventProps } from '@/lib/outsideSource';
 import { useLiveLines } from './useLiveLines';
 import {
   countsAreFresh,
@@ -91,6 +91,8 @@ import { adultCategoryIds } from '@/lib/adultSearch';
 import { toast } from '@/hooks/use-toast';
 import { channelReport, isCategoryDown, isChannelFailure, signalCategory, signalChannel, useDownChannels, type ChannelReport } from '@/lib/channelStatus';
 import ChannelWarningDialog from './ChannelWarningDialog';
+import BufferingHelpDialog from './BufferingHelpDialog';
+import { useBufferingHelp } from './useBufferingHelp';
 import FullscreenChannelOverlay, { overlayChannelWindow, type OverlayCategory } from './FullscreenChannelOverlay';
 import RecentChannelsPanel from './RecentChannelsPanel';
 import { useRecentPanel } from './useRecentPanel';
@@ -589,6 +591,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const [warnFor, setWarnFor] = useState<{ stream: XtreamLiveStream; report: Exclude<ChannelReport, null>; inBox?: boolean } | null>(null);
   const warnForRef = useRef(warnFor);
   warnForRef.current = warnFor;
+  // "Still buffering?" over the picture (useBufferingHelp, further down): owns
+  // the remote while open, like the dialogs above.
+  const bufferHelpOpenRef = useRef(false);
   // The reports list (useDownChannels, further down), for callbacks made before it.
   const downSetRef = useRef<Set<string>>(new Set());
   // Record now (TRACKER 25): the dialog (hold OK on a channel, or Record in
@@ -2314,6 +2319,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       changeChannelRef.current(d);
     };
     const off = onMediaKey((k) => {
+      // "Still buffering?" is up: no zap or jump behind it.
+      if (bufferHelpOpenRef.current) return;
       if (k === 'ff') { liveSkip.push(+MEDIA_SKIP_SEC); pokeBar(); }
       else if (k === 'rw') { liveSkip.push(-MEDIA_SKIP_SEC); pokeBar(); }
       else if (k === 'next' || k === 'chup') { liveSkip.clear(); zap(+1); pokeBar(); }
@@ -2775,6 +2782,30 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       isFav: c.isFav,
     }))
     : []), [chOverlayOpen, visibleCategories, t]);
+
+  // "Still buffering?" (useBufferingHelp decides when): a channel that keeps
+  // buffering full screen — or in the box upright on a phone, where the box
+  // is the player — gets the usual fixes over the picture, one at a time. It
+  // waits while anything else has the remote, and never comes with the
+  // error card (a channel that won't start: retry / failover).
+  const helpWatch = DEMO || !isActive ? null
+    : nativeActive && playingChannelId ? { key: playingKeyRef.current, line: playingLine, stream: playingStream ?? null }
+      : upright && nativePreviewActive && previewChannel && playingKeyRef.current === `${lineKey(lineFor(previewChannel))}|${previewChannel.stream_id}`
+        ? { key: playingKeyRef.current, line: lineFor(previewChannel), stream: previewChannel }
+        : null;
+  const bufferHelp = useBufferingHelp({
+    enabled: !DEMO && !kidsLevel(),
+    watching: helpWatch,
+    loadKey: nativeUrl,
+    buffering: native.buffering,
+    error: !!native.error,
+    busy: !!(warnFor || reportFor || reportCatFor || recordFor) || recordingsOpen || chOverlayOpen || recent.open
+      || subMenuOpen || audioMenuOpen || volMenuOpen || choosingLayout,
+  });
+  bufferHelpOpenRef.current = bufferHelp.open;
+  // Over the picture with the bar down: Back from it leaves the picture as it was.
+  useEffect(() => { if (bufferHelp.open) hideBarNow(); }, [bufferHelp.open, hideBarNow]);
+
   // Turning the phone (or a tablet) while a channel plays (Tronix 2ca8249):
   // sideways it goes full screen, upright it comes back to the box. Not while
   // something else owns the screen (Recordings, the Report / Record / warning
@@ -2786,7 +2817,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   useEffect(() => {
     const from = turnedFromRef.current;
     turnedFromRef.current = phoneLayout;
-    if (recordingsOpenRef.current || reportForRef.current || recordForRef.current || warnForRef.current || !activeForTurnRef.current) return;
+    if (recordingsOpenRef.current || reportForRef.current || recordForRef.current || warnForRef.current || bufferHelpOpenRef.current || !activeForTurnRef.current) return;
     const wasUpright = from === 'portrait';
     const nowUpright = phoneLayout === 'portrait';
     if (wasUpright && !nowUpright && !fullscreenRef.current && previewChannelRef.current) {
@@ -2831,8 +2862,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
      try {
-      // The Report / Record dialogs and the Recordings screen own the keyboard while open.
-      if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || recordingsOpenRef.current) return;
+      // The Report / Record dialogs, "Still buffering?" and the Recordings screen own the keyboard while open.
+      if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || recordingsOpenRef.current || bufferHelpOpenRef.current) return;
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
 
@@ -3334,7 +3365,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         }
         hold.fired = false;
       }
-      if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || recordingsOpenRef.current) return;
+      if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || recordingsOpenRef.current || bufferHelpOpenRef.current) return;
       if (e.key !== 'Enter' && e.key !== ' ') return;
       if (paneRef.current !== 'channels' || fullscreenRef.current) {
         cancelEnterTimer();
@@ -3382,7 +3413,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           if ((window as unknown as { __playerOwnsBack?: boolean }).__playerOwnsBack) return;
           if (choosingLayoutRef.current) return; // the chooser answers Back itself
           (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
-          if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || recordingsOpenRef.current) return;
+          if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || recordingsOpenRef.current || bufferHelpOpenRef.current) return;
           // A favourite being moved is put down where it is.
           if (favMoveRef.current.movingKey) { favMoveRef.current.drop(); return; }
           if (subMenuOpenRef.current || audioMenuOpenRef.current || volMenuOpenRef.current) { setSubMenuOpen(false); setAudioMenuOpen(false); setVolMenuOpen(false); return; }
@@ -3517,6 +3548,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       },
     };
   };
+  // Support's Buffering Guide (the report menu, "Still buffering?").
+  const openBufferingGuide = () => {
+    onNavigate?.('support');
+    setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
+  };
   const channelReportDialog = reportFor ? (
     <Suspense fallback={null}>
       <ReportChannelDialog
@@ -3556,8 +3592,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         onOpenBufferingGuide={() => {
           setReportFor(null);
           enterFiredRef.current = false;
-          onNavigate?.('support');
-          setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
+          openBufferingGuide();
         }}
         onClose={() => { setReportFor(null); enterFiredRef.current = false; }}
       />
@@ -3598,11 +3633,37 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       }}
     />
   ) : null;
+  const bufferHelpDialog = bufferHelp.open ? (
+    <BufferingHelpDialog
+      steps={bufferHelp.steps}
+      // Never for an outside service's channel (its menu offers no report).
+      canReport={!!helpWatch?.stream && !isOutsideLine(helpWatch.line)}
+      onRestartDone={bufferHelp.noteRestart}
+      onOpenGuide={(from) => {
+        if (from === 'vpn') bufferHelp.noteVpnGuide();
+        bufferHelp.close();
+        openBufferingGuide();
+      }}
+      onReport={() => {
+        const st = helpWatch?.stream;
+        bufferHelp.close();
+        if (!st || !helpWatch) return;
+        // The report flow, "Channel buffering" already picked; it finds the
+        // line by the stream object.
+        streamLineRef.current.set(st, helpWatch.line);
+        setReportPreset({ choice: 'Channel buffering' });
+        setReportFor(st);
+      }}
+      onClose={bufferHelp.close}
+      track={bufferHelp.track}
+    />
+  ) : null;
   const reportDialog = (
     <>
       {channelReportDialog}
       {categoryReportDialog}
       {warnDialog}
+      {bufferHelpDialog}
     </>
   );
 

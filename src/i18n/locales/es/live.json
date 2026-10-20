@@ -437,6 +437,27 @@
       "watchBtn": "Ver igual",
       "pickBtn": "Elegir otro"
     },
+    "bufferHelp": {
+      "label": "Ayuda con los cortes",
+      "restartTitle": "¿Reiniciaste tu TV box y tu router de internet?",
+      "restartBody": "Reiniciar soluciona muchos cortes.",
+      "restartYesBtn": "Sí, ya lo hice",
+      "restartHowBtn": "Muéstrame cómo",
+      "howTitle": "Reinicia tu box y tu router",
+      "how1": "Desconecta tu TV box y tu router de internet.",
+      "how2": "Espera 30 segundos.",
+      "how3": "Vuelve a conectar el router y dale unos 2 minutos para que se encienda.",
+      "how4": "Vuelve a conectar el TV box y abre Snow Media Center.",
+      "howDoneBtn": "Ya lo hice",
+      "nextTipBtn": "Otro consejo",
+      "vpnSetup": "La Guía de buffering te muestra cómo configurar una.",
+      "openGuideBtn": "Abrir la Guía de buffering",
+      "notNowBtn": "Ahora no",
+      "guideTitle": "¿Sigue cortándose? Abre la Guía de buffering",
+      "guideBody": "Repasa cada solución, una por una. La mayoría de los cortes se arreglan en unos minutos.",
+      "reportBody": "¿Solo este canal? Repórtalo y lo revisaremos.",
+      "reportBtn": "Reportar este canal"
+    },
     "phone": {
       "tapToWatch": "Toca un canal para verlo aquí",
       "fullScreenLabel": "Pantalla completa"
