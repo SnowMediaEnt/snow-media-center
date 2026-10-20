@@ -257,7 +257,8 @@
       "skipBack": "{{sec}} s zurück",
       "skipForward": "{{sec}} s vor",
       "behindLive": "{{time}} hinter live",
-      "atLive": "Live"
+      "atLive": "Live",
+      "reportIt": "Melden"
     },
     "failover": {
       "note": "{{channel}} ist bei {{service}} gestört – läuft jetzt über {{other}}",

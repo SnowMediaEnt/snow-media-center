@@ -133,17 +133,26 @@ const playingOn = (host: string, id: number) => !!h.url && h.url.startsWith(host
 const failoverEvents = () => h.trackEvent.mock.calls.filter((c) => c[0] === 'live_failover');
 const errorCard = () => text().includes('Playback Error');
 const offer = () => document.querySelector('[data-failover-offer]') as HTMLElement | null;
+const reportBtn = () => document.querySelector('[data-failover-report]') as HTMLElement | null;
+const retryBtn = () => Array.from(document.querySelectorAll<HTMLElement>('button')).find((b) => (b.textContent ?? '').trim() === 'Retry') ?? null;
+const dialog = () => document.querySelector('[role="dialog"]');
+/** The plugin gave the channel up as off the air (DeadStreamRule.kt). */
+const OFF_AIR = "This channel isn't on the air right now.";
+const failOffAir = () => act(() => {
+  (h.setError as unknown as (e: Record<string, unknown>) => void)?.({ code: 'RECONNECT_EXHAUSTED', message: OFF_AIR, httpStatus: 404, forUrl: h.url ?? undefined });
+});
+const focusedOnCard = () => [retryBtn(), offer(), reportBtn()].filter(Boolean).map((b) => (b!.getAttribute('data-focused') === 'true' ? (b!.textContent ?? '').trim() : null)).filter(Boolean);
 
-async function openSports() {
+async function openSports(creds: typeof line & { outside?: true } = line) {
   vi.resetModules();
   const { default: Live } = await import('./LiveSection');
-  const r = render(<Live creds={line} isActive onExitLeft={() => {}} onBack={() => {}} />);
+  const r = render(<Live creds={creds} isActive onExitLeft={() => {}} onBack={() => {}} />);
   await waitFor(() => expect(text()).toContain('Sports'));
   await sleep(50);
   press('ArrowRight');
   await waitFor(() => expect(text()).toContain('News Two'));
   await sleep(50);
-  return { setActive: (on: boolean) => r.rerender(<Live creds={line} isActive={on} onExitLeft={() => {}} onBack={() => {}} />) };
+  return { setActive: (on: boolean) => r.rerender(<Live creds={creds} isActive={on} onExitLeft={() => {}} onBack={() => {}} />) };
 }
 /** The whole Vibez line-up asked for (no category). */
 const vibezWholeAsked = () => h.getLiveStreams.mock.calls.filter((c) => c[0].host === 'http://v.test' && !c[1]).length;
@@ -490,11 +499,12 @@ describe('review fixes', () => {
     press('ArrowLeft'); // on Retry already
     await sleep(30);
     expect(document.querySelector('[data-channel-overlay]')).toBeNull();
-    press('ArrowRight');
-    press('ArrowRight'); // on "Try on…" already
+    press('ArrowRight'); // "Try on…"
+    press('ArrowRight'); // "Report it", the last
+    press('ArrowRight'); // stays
     await sleep(30);
     expect(document.querySelector('[data-recent-panel]')).toBeNull();
-    expect(offer()?.getAttribute('data-focused')).toBe('true');
+    expect(focusedOnCard()).toEqual(['Report it']);
   });
 
   it('two lines on the same service: "your other DreamStreams line"', async () => {
@@ -509,6 +519,91 @@ describe('review fixes', () => {
     await waitFor(() => expect(errorCard()).toBe(true));
     await waitFor(() => expect(offer()?.textContent).toBe('Try on your other DreamStreams line'));
     expect(document.querySelector('[data-failover-both]')?.textContent).toBe("US: ESPN HD didn't play on either of your DreamStreams lines.");
+  });
+});
+
+describe('"Report it" on the error card', () => {
+  it('an off-air channel: Retry and Report it; ◀ ▶ between them; OK opens the channel report for it, "Channel down" picked; closed, the remote is back on Retry', async () => {
+    h.saved = [];
+    await openSports();
+    await watch(0);
+    failOffAir();
+    await waitFor(() => expect(reportBtn()?.textContent?.trim()).toBe('Report it'));
+    expect(text()).toContain(OFF_AIR);
+    expect(focusedOnCard()).toEqual(['Retry']);
+    press('ArrowRight');
+    expect(focusedOnCard()).toEqual(['Report it']);
+    press('ArrowRight'); // the last one: stays
+    expect(focusedOnCard()).toEqual(['Report it']);
+    expect(document.querySelector('[data-recent-panel]')).toBeNull();
+    press('ArrowLeft');
+    expect(focusedOnCard()).toEqual(['Retry']);
+    press('ArrowLeft'); // the first one: stays, no channel list
+    expect(document.querySelector('[data-channel-overlay]')).toBeNull();
+    press('ArrowRight');
+    press('Enter');
+    await waitFor(() => expect(dialog()).not.toBeNull());
+    expect(h.retry).not.toHaveBeenCalled();
+    expect(dialog()?.textContent).toContain('US: ESPN HD');
+    // Straight at the reasons, on "Channel down".
+    const down = Array.from(dialog()!.querySelectorAll<HTMLElement>('[data-focused]')).find((el) => (el.textContent ?? '').includes('Channel down'));
+    expect(down?.getAttribute('data-focused')).toBe('true');
+    // Closed (Back to its menu, Back again): the card, on Retry.
+    press('Escape');
+    press('Escape');
+    await waitFor(() => expect(dialog()).toBeNull());
+    expect(errorCard()).toBe(true);
+    expect(focusedOnCard()).toEqual(['Retry']);
+    press('Enter');
+    expect(h.retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('with "Try on…" too: Retry, Try on…, Report it, in that order; the report is for the channel that failed (the copy)', async () => {
+    await openSports();
+    await watch(0);
+    fail();
+    await waitFor(() => expect(playingOn('http://v.test', 501)).toBe(true));
+    await sleep(30);
+    failOffAir();
+    await waitFor(() => expect(offer()?.textContent).toBe('Try on DreamStreams'));
+    const order = Array.from(document.querySelectorAll<HTMLElement>('button')).map((b) => (b.textContent ?? '').trim()).filter((x) => ['Retry', 'Try on DreamStreams', 'Report it'].includes(x));
+    expect(order).toEqual(['Retry', 'Try on DreamStreams', 'Report it']);
+    press('ArrowRight');
+    expect(focusedOnCard()).toEqual(['Try on DreamStreams']);
+    press('ArrowRight');
+    expect(focusedOnCard()).toEqual(['Report it']);
+    press('Enter');
+    await waitFor(() => expect(dialog()).not.toBeNull());
+    expect(dialog()?.textContent).toContain('USA | ESPN FHD');
+    // Nothing switched.
+    expect(playingOn('http://v.test', 501)).toBe(true);
+  });
+
+  it('any channel that would not start gets it (not only off air); this box\'s own trouble does not', async () => {
+    h.saved = [];
+    await openSports();
+    await watch(0);
+    fail(); // RECONNECT_EXHAUSTED, no status
+    await waitFor(() => expect(reportBtn()).not.toBeNull());
+    act(() => { (h.setError as unknown as (e: Record<string, unknown>) => void)?.({ code: 'NO_PICTURE', message: 'x', forUrl: h.url ?? undefined }); });
+    await waitFor(() => expect(errorCard()).toBe(true));
+    expect(reportBtn()).toBeNull();
+    act(() => { (h.setError as unknown as (e: Record<string, unknown>) => void)?.({ code: 'AUDIO_DECODE', message: 'x', forUrl: h.url ?? undefined }); });
+    await sleep(20);
+    expect(reportBtn()).toBeNull();
+  });
+
+  it('an outside service\'s channel: no button, the note says who to ask', async () => {
+    h.saved = [];
+    await openSports({ ...line, outside: true });
+    await watch(0);
+    failOffAir();
+    await waitFor(() => expect(errorCard()).toBe(true));
+    await sleep(20);
+    expect(reportBtn()).toBeNull();
+    expect(document.querySelector('[data-outside-note]')?.textContent).toBe('Outside service — report problems to that provider.');
+    // ◀ ▶ are not taken by a card with Retry alone.
+    expect(focusedOnCard()).toEqual(['Retry']);
   });
 });
 

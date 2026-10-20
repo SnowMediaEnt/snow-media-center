@@ -1,7 +1,7 @@
 /**
- * A live channel off the air (its server answers 404 / 410, or 5xx, and it
- * never drew a picture): the plugin gives up after a couple of tries
- * (DeadStreamRule.kt) and this hook shows the error at once, without the
+ * A live channel off the air (its own address answers 404 / 410, or 5xx, and
+ * it never played): the plugin gives up after its spread-out tries, about 8 s
+ * (DeadStreamRule.kt), and this hook shows the error at once, without the
  * extra fresh start. It used to be 20 reconnects, a fresh start and 20 more:
  * minutes of "Buffering… try a VPN" before the error (and before a failover
  * to the viewer's other service). Everything else is unchanged. The Kotlin
@@ -116,21 +116,30 @@ describe('unchanged', () => {
 });
 
 describe('the plugin side (pinned)', () => {
-  it('gives up after 2 tries for 404 / 410 and 4 for 5xx, before a picture, on a live channel only', () => {
+  it('gives up after 404 / 410 twice or 5xx four times in a row, for the address, never before 8 s, on a live channel that has not played', () => {
     expect(rule).toMatch(/const val GONE_TRIES = 2/);
     expect(rule).toMatch(/const val SERVER_TRIES = 4/);
-    expect(rule).toMatch(/404, 410 -> Kind\.GONE/);
-    expect(rule).toMatch(/500, 502, 503, 504 -> Kind\.SERVER/);
-    expect(rule).toMatch(/live && !pictureThisLoad && kind != null && streak >= tries\(kind\)/);
+    expect(rule).toMatch(/const val FLOOR_MS = 8000L/);
+    expect(rule).toMatch(/if \(!address\) null else when \(httpStatus\) \{\s*404, 410 -> Kind\.GONE\s*500, 502, 503, 504 -> Kind\.SERVER/);
+    expect(rule).toMatch(/live && !played && kind != null && streak >= tries\(kind\) && sinceLoadMs >= FLOOR_MS/);
   });
 
   it('says RECONNECT_EXHAUSTED with the status and its own words, and skips the player\'s quiet retries of that answer', () => {
     expect(plugin).toMatch(/DeadStreamRule\.givesUp\([^)]*\)\) \{\s*giveUpOffAir\(s, screenId, httpStatus\)\s*return/);
+    // Counted tries are spread out (1 s, 2 s, 4 s…), not the usual 500 ms.
+    expect(plugin).toMatch(/reconnect\(s, screenId, httpRestartReason\(error, httpStatus\), DeadStreamRule\.retryDelayMs\(s\.deadStreak, sinceLoad\)\)/);
     expect(plugin).toMatch(/localized\(R\.string\.player_err_channel_off_air\)\)\s*\.put\("httpStatus", httpStatus \?: JSONObject\.NULL\)/);
-    expect(plugin).toMatch(/DeadStreamRule\.skipLoaderRetry\(s\.isLive, s\.pictureThisLoad, e\.responseCode\)/);
-    // A picture since load() keeps the patient reconnects; a load starts the count over.
-    expect(plugin).toMatch(/s\.pictureThisLoad = true/);
-    expect(plugin).toMatch(/s\.pictureThisLoad = false\s*\n\s*s\.deadKind = null\s*\n\s*s\.deadStreak = 0/);
+    // Only the stream's own address (a playlist, or a raw stream with no format): an HLS segment keeps its retries.
+    expect(plugin).toMatch(/val address = data\.dataType == C\.DATA_TYPE_MANIFEST \|\|\s*\(data\.dataType == C\.DATA_TYPE_MEDIA && data\.trackFormat == null\)/);
+    expect(plugin).toMatch(/DeadStreamRule\.skipLoaderRetry\(s\.isLive, s\.playedThisLoad, e\.responseCode, address\)/);
+    expect(plugin).toMatch(/DeadStreamRule\.kindOf\(httpStatus, s\.lastHttpAddress\)/);
+    // Played since load() (a picture, or playing at all: a radio channel) keeps the patient reconnects;
+    // playback getting going ends a run; a load starts everything over.
+    expect(plugin).toMatch(/if \(isPlaying\) \{ s\.playedThisLoad = true; s\.deadKind = null; s\.deadStreak = 0 \}/);
+    expect(plugin).toMatch(/if \(state == Player\.STATE_READY\) \{ s\.deadKind = null; s\.deadStreak = 0 \}/);
+    expect(plugin).toMatch(/s\.firstFrameSeen = true\s*s\.playedThisLoad = true/);
+    expect(plugin.match(/s\.playedThisLoad = false\s*\n\s*s\.deadKind = null\s*\n\s*s\.deadStreak = 0\s*\n\s*s\.lastHttpAddress = false/g)).toHaveLength(2);
+    expect(plugin).toMatch(/@Volatile var isLive: Boolean = true/);
     expect(strings).toContain(`<string name="player_err_channel_off_air">This channel isn\\'t on the air right now.</string>`);
   });
 });
