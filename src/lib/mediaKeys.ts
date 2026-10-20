@@ -25,17 +25,29 @@ const isMediaKey = (v: unknown): v is MediaKey =>
   v === 'playpause' || v === 'play' || v === 'pause' || v === 'ff' || v === 'rw' || v === 'next' || v === 'prev'
   || v === 'chup' || v === 'chdown';
 
+// A dialog that owns the remote over a playing picture ("Still buffering?")
+// turns the media buttons off for every listener here — the player's own
+// Play/Pause included — until it lets go. Counted, so two never clash.
+let heldBy = 0;
+/** Media buttons off until the returned release is called. */
+export function holdMediaKeys(): () => void {
+  heldBy += 1;
+  let released = false;
+  return () => { if (!released) { released = true; heldBy = Math.max(0, heldBy - 1); } };
+}
+export const mediaKeysHeld = (): boolean => heldBy > 0;
+
 /** Listen for the remote's media buttons. Returns the unsubscribe. */
 export function onMediaKey(fn: (key: MediaKey) => void): () => void {
   const onCustom = (e: Event) => {
     const k = (e as CustomEvent).detail;
-    if (isMediaKey(k)) fn(k);
+    if (isMediaKey(k) && !mediaKeysHeld()) fn(k);
   };
   const onKey = (e: KeyboardEvent) => {
     const k = KEY_NAMES[e.key];
     if (!k) return;
     e.preventDefault();
-    fn(k);
+    if (!mediaKeysHeld()) fn(k);
   };
   window.addEventListener(MEDIA_KEY_EVENT, onCustom);
   window.addEventListener('keydown', onKey);

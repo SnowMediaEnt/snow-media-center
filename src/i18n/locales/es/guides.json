@@ -52,7 +52,7 @@
         },
         "services": {
           "title": "¿Más de un servicio? Todos salen en una sola lista.",
-          "line2": "Agrega uno en Ajustes de TV en vivo → Cambiar de cuenta. Cada uno tiene su encabezado."
+          "line2": "Agrega uno en Ajustes de TV en vivo → Servicios. Cada uno tiene su encabezado."
         },
         "layout": {
           "title": "Elige tu estilo: Clásico, Compacto o Vibez.",
@@ -104,7 +104,7 @@
         },
         "settings": {
           "title": "Ajustes de TV en vivo",
-          "line2": "Datos de la cuenta, cambiar de servicio, ocultar categorías, la apariencia, retroceso y cerrar sesión."
+          "line2": "Mi cuenta, servicios, canales, la apariencia, la grabación, el reproductor y ayuda cuando algo falla."
         },
         "vod": {
           "title": "VOD: las películas de tu servicio.",
@@ -386,7 +386,6 @@
         "goHere": "Ve aquí desde tu celular",
         "goLive": "Ver en vivo",
         "help": "Ayuda",
-        "hideCategories": "Ocultar categorías",
         "holdToReport": "Mantén OK y reporta",
         "howFar": "Cuánto retroceder",
         "howLong": "Cuánto tiempo",
@@ -437,7 +436,7 @@
         "report": "Reportar",
         "reportedDown": "⚠️ Reportado caído",
         "results": "Resultados",
-        "rewindSettings": "Retroceso y grabación",
+        "rewindSettings": "Grabación y retroceso",
         "saveTo": "Dónde guardar",
         "scanPhone": "Escanea con tu celular",
         "scanToPay": "Escanea para pagar",
@@ -452,7 +451,7 @@
         "start": "Iniciar",
         "steps": "Pasos",
         "subtitles": "Subtítulos",
-        "switchAccount": "Cambiar de cuenta",
+        "services": "Servicios",
         "talkNow": "Habla ahora",
         "todaysGames": "Partidos de hoy",
         "typeHere": "Escribe aquí",

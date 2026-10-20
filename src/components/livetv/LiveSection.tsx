@@ -43,7 +43,7 @@ import {
   saveCollapsedLines,
   HIDDEN_CATEGORIES_EVENT,
 } from '@/lib/liveLines';
-import { isOutsideHost, lineEventProps } from '@/lib/outsideSource';
+import { isOutsideHost, isOutsideLine, lineEventProps } from '@/lib/outsideSource';
 import { useLiveLines } from './useLiveLines';
 import {
   countsAreFresh,
@@ -70,7 +70,7 @@ import BufferingDiagnostics from './BufferingDiagnostics';
 import SnowLoader from '@/components/SnowLoader';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
 import type { VideoController } from './VideoPlayer';
-import { AlertTriangle, FastForward, Rewind, RotateCw } from 'lucide-react';
+import { AlertTriangle, FastForward, Flag, Rewind, RotateCw } from 'lucide-react';
 import { hasNativePlayer, SnowPlayer } from '@/capacitor/SnowPlayer';
 import { SnowRecorder, RECORDINGS_CHANGED_EVENT, hasRecorder, notifyRecordingsChanged, type RecordingJob } from '@/capacitor/SnowRecorder';
 import { programmeTimeUtcMs } from '@/lib/recordSchedule';
@@ -92,6 +92,8 @@ import { adultCategoryIds } from '@/lib/adultSearch';
 import { toast } from '@/hooks/use-toast';
 import { channelReport, isCategoryDown, isChannelFailure, openWhenFresh, signalCategory, signalChannel, useDownChannels, type ChannelReport } from '@/lib/channelStatus';
 import ChannelWarningDialog from './ChannelWarningDialog';
+import BufferingHelpDialog from './BufferingHelpDialog';
+import { BUFFER_HELP_ARM_MS, useBufferingHelp } from './useBufferingHelp';
 import FullscreenChannelOverlay, { type OverlayCategory } from './FullscreenChannelOverlay';
 import { overlayChannelWindow } from './listWindow';
 import RecentChannelsPanel from './RecentChannelsPanel';
@@ -592,6 +594,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const [warnFor, setWarnFor] = useState<{ stream: XtreamLiveStream; report: Exclude<ChannelReport, null>; inBox?: boolean } | null>(null);
   const warnForRef = useRef(warnFor);
   warnForRef.current = warnFor;
+  // "Still buffering?" over the picture (useBufferingHelp, further down): owns
+  // the remote while open, like the dialogs above. When the error card takes
+  // over from it, a press made as they swap does nothing (BUFFER_HELP_ARM_MS).
+  const bufferHelpOpenRef = useRef(false);
+  const bufferHelpGaveWayAtRef = useRef(0);
   // The reports list (useDownChannels, further down), for callbacks made before it.
   const downSetRef = useRef<Set<string>>(new Set());
   // Record now (TRACKER 25): the dialog (hold OK on a channel, or Record in
@@ -2248,6 +2255,23 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     return () => { document.documentElement.classList.remove('snowplayer-preview'); };
   }, [nativePreviewActive]);
 
+  // The error card's "Report it" (owner: "if it's not on air, have the
+  // option to report it"): the channel that failed to start, through the
+  // channel menu's own report, "Channel down" picked. Not for this box's own
+  // trouble (sound or picture: isChannelFailure), and never for an outside
+  // service's channel: not ours to fix, and nothing about it goes to our
+  // servers (lib/outsideSource; the card says who to ask instead).
+  const failedOnCard = NATIVE_PLAYBACK && !DEMO && fullscreen && !!playingChannelId && isChannelFailure(native.error);
+  const failedOutside = failedOnCard && isOutsideLine(playingLine);
+  const reportFailed = failedOnCard && !failedOutside && playingStream
+    ? () => {
+      // The menu finds the channel's line by the stream object.
+      streamLineRef.current.set(playingStream, playingLine);
+      setReportPreset({ choice: 'Channel down' });
+      setReportFor(playingStream);
+    }
+    : null;
+
   // What the native player is showing, and where: the full-screen channel,
   // or the one in the preview box. What failover watches, and what the
   // channel status signals below are about (nativeStream).
@@ -2267,13 +2291,14 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   //     the box, but only after failover is done with it (failoverLooking,
   //     HELD_RELEASE_WAIT_MS), and only for the box's own stream (forUrl);
   //   - player_error analytics (below), once per message.
-  // On the error screen failover's keys (◀ ▶, OK on "Try on…") come before
-  // OK = Retry (the key handler).
+  // On the error screen failover's keys (◀ ▶ across Retry, "Try on…" and
+  // "Report it"; OK on the last two) come before OK = Retry (the key handler).
   //
   // A channel that won't start, full screen or in the box, played from the
   // viewer's other service when that has it (useChannelFailover owns the
   // rules; it only asks for things to be played here).
   const failover = useChannelFailover({
+    onReport: reportFailed,
     lines,
     off: DEMO,
     active: isActive,
@@ -2886,6 +2911,32 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       isFav: c.isFav,
     }))
     : []), [chOverlayOpen, visibleCategories, t]);
+
+  // "Still buffering?" (useBufferingHelp decides when): a channel that keeps
+  // buffering full screen — or in the box upright on a phone, where the box
+  // is the player — gets the usual fixes over the picture, one at a time. It
+  // waits while anything else has the remote, and never comes with the
+  // error card (a channel that won't start: retry / failover).
+  // The error card includes the dead channel's "isn't on the air" one.
+  const helpWatch = DEMO || !isActive || !nativeShowing ? null
+    : nativeShowing.where === 'full' || (upright && isPlayingNow(nativeShowing.stream, nativeShowing.line))
+      ? { key: lineChannelKey(nativeShowing.line, nativeShowing.stream.stream_id), line: nativeShowing.line, stream: nativeShowing.stream }
+      : null;
+  const bufferHelp = useBufferingHelp({
+    enabled: !DEMO && !kidsLevel(),
+    watching: helpWatch,
+    // A retry or the app coming back loads the same address again: start-up too.
+    loadKey: nativeUrl ? `${nativeUrl}#${native.loads ?? 0}` : null,
+    buffering: native.buffering,
+    error: !!native.error,
+    busy: !!(warnFor || reportFor || reportCatFor || recordFor) || recordingsOpen || chOverlayOpen || recent.open
+      || subMenuOpen || audioMenuOpen || volMenuOpen || choosingLayout,
+    onGone: (why) => { if (why === 'error') bufferHelpGaveWayAtRef.current = Date.now(); },
+  });
+  bufferHelpOpenRef.current = bufferHelp.open;
+  // Over the picture with the bar down: Back from it leaves the picture as it was.
+  useEffect(() => { if (bufferHelp.open) hideBarNow(); }, [bufferHelp.open, hideBarNow]);
+
   // Turning the phone (or a tablet) while a channel plays (Tronix 2ca8249):
   // sideways it goes full screen, upright it comes back to the box. Not while
   // something else owns the screen (Recordings, the Report / Record / warning
@@ -2897,6 +2948,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   useEffect(() => {
     const from = turnedFromRef.current;
     turnedFromRef.current = phoneLayout;
+    // "Still buffering?" does not hold the turn: it goes by itself once the
+    // picture moves (useBufferingHelp), and in this same commit it is still open.
     if (recordingsOpenRef.current || reportForRef.current || recordForRef.current || warnForRef.current || !activeForTurnRef.current) return;
     const wasUpright = from === 'portrait';
     const nowUpright = phoneLayout === 'portrait';
@@ -2941,8 +2994,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
      try {
-      // The Report / Record dialogs and the Recordings screen own the keyboard while open.
-      if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || recordingsOpenRef.current) return;
+      // The Report / Record dialogs, "Still buffering?" and the Recordings screen own the keyboard while open.
+      if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || recordingsOpenRef.current || bufferHelpOpenRef.current) return;
+      // It just gave way to the error card: a press made as they swapped
+      // never lands on Retry / Try on / Report it.
+      if (Date.now() - bufferHelpGaveWayAtRef.current < BUFFER_HELP_ARM_MS) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); return; }
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
 
@@ -3444,7 +3500,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         }
         hold.fired = false;
       }
-      if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || recordingsOpenRef.current) return;
+      if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || recordingsOpenRef.current || bufferHelpOpenRef.current) return;
       if (e.key !== 'Enter' && e.key !== ' ') return;
       if (paneRef.current !== 'channels' || fullscreenRef.current) {
         cancelEnterTimer();
@@ -3489,12 +3545,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           if (choosingLayoutRef.current) return; // the chooser answers Back itself
           (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = Date.now();
           // One layer at a time, top first, as the key handler's Back: a
-          // dialog (it answers Back itself), a favourite being moved (put
-          // down where it is), the Player's menus, Recently watched, the
-          // list over the picture (overlayBack: the keyboard, a search typed
-          // there, its categories, the list), the picture, the caller (the
-          // Guide, Game Day), the categories, out.
-          if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || recordingsOpenRef.current) return;
+          // dialog (it answers Back itself — "Still buffering?" too), a
+          // favourite being moved (put down where it is), the Player's menus,
+          // Recently watched, the list over the picture (overlayBack: the
+          // keyboard, a search typed there, its categories, the list), the
+          // picture, the caller (the Guide, Game Day), the categories, out.
+          if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || recordingsOpenRef.current || bufferHelpOpenRef.current) return;
           if (favMoveRef.current.movingKey) { favMoveRef.current.drop(); return; }
           if (subMenuOpenRef.current || audioMenuOpenRef.current || volMenuOpenRef.current) { setSubMenuOpen(false); setAudioMenuOpen(false); setVolMenuOpen(false); return; }
           if (recentRef.current.isOpen()) { recentRef.current.close(); return; }
@@ -3626,6 +3682,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       },
     };
   };
+  // Support's Buffering Guide (the report menu, "Still buffering?").
+  const openBufferingGuide = () => {
+    onNavigate?.('support');
+    setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
+  };
   const channelReportDialog = reportFor ? (
     <Suspense fallback={null}>
       <ReportChannelDialog
@@ -3665,8 +3726,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         onOpenBufferingGuide={() => {
           setReportFor(null);
           enterFiredRef.current = false;
-          onNavigate?.('support');
-          setTimeout(() => { window.dispatchEvent(new CustomEvent('support:open-buffering-guide')); }, 80);
+          openBufferingGuide();
         }}
         onClose={() => { setReportFor(null); enterFiredRef.current = false; }}
       />
@@ -3707,11 +3767,37 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       }}
     />
   ) : null;
+  const bufferHelpDialog = bufferHelp.open ? (
+    <BufferingHelpDialog
+      steps={bufferHelp.steps}
+      // Never for an outside service's channel (its menu offers no report).
+      canReport={!!helpWatch && !isOutsideLine(helpWatch.line)}
+      onRestartDone={bufferHelp.noteRestart}
+      onOpenGuide={(from) => {
+        if (from === 'vpn') bufferHelp.noteVpnGuide();
+        bufferHelp.close();
+        openBufferingGuide();
+      }}
+      onReport={() => {
+        bufferHelp.close();
+        if (!helpWatch) return;
+        const st = helpWatch.stream;
+        // The report flow, "Channel buffering" already picked; it finds the
+        // line by the stream object.
+        streamLineRef.current.set(st, helpWatch.line);
+        setReportPreset({ choice: 'Channel buffering' });
+        setReportFor(st);
+      }}
+      onClose={bufferHelp.close}
+      track={bufferHelp.track}
+    />
+  ) : null;
   const reportDialog = (
     <>
       {channelReportDialog}
       {categoryReportDialog}
       {warnDialog}
+      {bufferHelpDialog}
     </>
   );
 
@@ -3897,7 +3983,18 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                   {failover.offerLabel}
                 </button>
               )}
+              {reportFailed && (
+                <button
+                  data-failover-report
+                  onClick={(e) => { e.stopPropagation(); failover.report(); }}
+                  data-focused={failover.focus === 'report' ? 'true' : 'false'}
+                  className={`tv-ring ml-4 flex items-center gap-2 px-5 py-3 rounded-xl bg-white/10 border border-white/25 text-white font-quicksand font-bold ${failover.focus === 'report' ? 'scale-105 z-10' : ''}`}
+                >
+                  <Flag className="w-4 h-4" /> {t('live.player.reportIt')}
+                </button>
+              )}
             </div>
+            {failedOutside && <p data-outside-note className="text-sm text-brand-ice/70 font-nunito max-w-md mt-4">{t('liveAccount.outside.reportNote')}</p>}
           </div>
         )}
         {NATIVE_PLAYBACK && statsShown && !chOverlayOpen && !recent.open && <PlayerStatsPanel />}

@@ -1,8 +1,7 @@
 {
   "lineDevices": {
     "hub": {
-      "menuLabel": "Appareils sur cette ligne",
-      "hint": "Les téléviseurs connectés à cette ligne, et un court message à leur envoyer. Appuyez sur OK pour ouvrir."
+      "menuLabel": "Appareils sur cette ligne"
     },
     "panel": {
       "title": "Appareils sur cette ligne",

@@ -143,36 +143,13 @@ describe('PlaybackScreen', () => {
     expect(localStorage.getItem('smc-match-frame-rate-v1')).toBe('1');
   });
 
-  it('one line on the box: no "other service" switch', async () => {
-    render(<PlaybackScreen onBack={() => {}} />);
-    await wait();
-    expect(document.querySelector('[data-playback-toggle="failover"]')).toBeNull();
-    expect(screen.queryByText('Live TV')).toBeNull();
-  });
-
-  it('more than one line (as Live TV counted them): the switch is there, on by default, under the Picture ones; OK turns it off and it is remembered', async () => {
+  it('the "other service" switch is not here any more, even with two lines: it moved to Settings › Channels', async () => {
     localStorage.setItem('smc-live-line-count-v1', '2');
     render(<PlaybackScreen onBack={() => {}} />);
     await wait();
-    const row = () => document.querySelector('[data-playback-toggle="failover"]') as HTMLElement;
-    expect(row().textContent).toContain('When a channel is down, play it from my other service');
-    expect(row().getAttribute('data-on')).toBe('true');
-    down(); down(); down(); // chips -> Match frame rate -> Decode audio -> this
-    expect(row().getAttribute('data-focused')).toBe('true');
-    down(); // the last row: stays
-    expect(row().getAttribute('data-focused')).toBe('true');
-    ok();
-    expect(row().getAttribute('data-on')).toBe('false');
-    expect(localStorage.getItem('smc-live-failover-v1')).toBe('0');
-    up();
+    expect(document.querySelector('[data-playback-toggle="failover"]')).toBeNull();
+    expect(screen.queryByText('When a channel is down, play it from my other service')).toBeNull();
+    down(); down(); down(); // chips -> Match frame rate -> Decode audio, the last row
     expect((document.querySelector('[data-playback-toggle="decodeAudio"]') as HTMLElement).getAttribute('data-focused')).toBe('true');
-  });
-
-  it('two saved accounts, before Live TV has counted: the switch is there too', async () => {
-    const acc = (host: string, username: string) => ({ id: host, serverLabel: 'X', host, username, password: 'pw', output: 'm3u8', addedAt: 1 });
-    h.prefs.set('snow-livetv-saved-accounts-v1', JSON.stringify([acc('http://a.test', 'one'), acc('http://b.test', 'two')]));
-    render(<PlaybackScreen onBack={() => {}} />);
-    await wait(); await wait();
-    expect(document.querySelector('[data-playback-toggle="failover"]')).not.toBeNull();
   });
 });

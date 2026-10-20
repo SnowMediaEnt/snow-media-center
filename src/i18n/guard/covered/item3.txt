@@ -10,7 +10,6 @@ src/components/livetv/AccountInfoScreen.tsx
 src/components/livetv/AppearanceScreen.tsx
 src/components/livetv/BackupsSection.tsx
 src/components/livetv/HideCategoriesScreen.tsx
-src/components/livetv/SwitchAccountScreen.tsx
 src/components/livetv/CredentialsForm.tsx
 src/components/livetv/ClaimAccountCard.tsx
 src/components/livetv/ExpirationNoticeDialog.tsx
@@ -23,3 +22,6 @@ src/lib/recording.ts
 src/lib/recordSchedule.ts
 src/lib/lineEmail.ts
 src/hooks/useLiveRewind.ts
+src/components/livetv/ChannelsScreen.tsx
+src/components/livetv/FixProblemScreen.tsx
+src/components/livetv/useHubStates.ts

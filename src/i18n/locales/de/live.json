@@ -126,10 +126,7 @@
       "decodeAudio": "Ton auf diesem Gerät dekodieren",
       "decodeAudioDesc": "Für einen Fernseher oder Receiver, der den Film zeigt, aber keinen Ton spielt: Dolby und DTS werden dann hier dekodiert statt durchgereicht. Für den besten Ton ausgeschaltet lassen.",
       "on": "An",
-      "off": "Aus",
-      "liveHeading": "Live-TV",
-      "failover": "Fällt ein Sender aus, über meinen anderen Dienst abspielen",
-      "failoverDesc": "Startet ein Sender nicht, spielt Live-TV denselben Sender über deinen anderen Dienst ab, einmal pro gewähltem Sender. Aus: Der Fehlerbildschirm bietet es als Taste an."
+      "off": "Aus"
     },
     "shell": {
       "signingIn": "Du wirst mit deinem Konto angemeldet…",
@@ -259,7 +256,8 @@
       "skipBack": "{{sec}} s zurück",
       "skipForward": "{{sec}} s vor",
       "behindLive": "{{time}} hinter live",
-      "atLive": "Live"
+      "atLive": "Live",
+      "reportIt": "Melden"
     },
     "failover": {
       "note": "{{channel}} ist bei {{service}} gestört – läuft jetzt über {{other}}",
@@ -439,6 +437,27 @@
       "bufferingBody": "Kürzlich Ruckeln gemeldet – läuft evtl. nicht flüssig.",
       "watchBtn": "Trotzdem ansehen",
       "pickBtn": "Anderen wählen"
+    },
+    "bufferHelp": {
+      "label": "Hilfe bei Ruckeln",
+      "restartTitle": "Hast du deine TV-Box und deinen Internet-Router neu gestartet?",
+      "restartBody": "Ein Neustart behebt viel Ruckeln.",
+      "restartYesBtn": "Ja, gemacht",
+      "restartHowBtn": "Zeig mir wie",
+      "howTitle": "Box und Router neu starten",
+      "how1": "Zieh den Stecker von TV-Box und Internet-Router.",
+      "how2": "Warte 30 Sekunden.",
+      "how3": "Steck den Router wieder ein und gib ihm etwa 2 Minuten zum Hochfahren.",
+      "how4": "Steck die TV-Box wieder ein und öffne Snow Media Center.",
+      "howDoneBtn": "Erledigt",
+      "nextTipBtn": "Nächster Tipp",
+      "vpnSetup": "Die Buffering-Hilfe zeigt dir, wie du eins einrichtest.",
+      "openGuideBtn": "Buffering-Hilfe öffnen",
+      "notNowBtn": "Jetzt nicht",
+      "guideTitle": "Ruckelt es noch? Öffne die Buffering-Hilfe",
+      "guideBody": "Sie geht jede Lösung der Reihe nach durch. Das meiste Ruckeln ist in wenigen Minuten behoben.",
+      "reportBody": "Nur dieser Sender? Melde ihn und wir sehen ihn uns an.",
+      "reportBtn": "Diesen Sender melden"
     },
     "phone": {
       "tapToWatch": "Tippe auf einen Sender, um ihn hier zu sehen",

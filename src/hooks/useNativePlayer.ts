@@ -77,9 +77,10 @@ export interface NativePlayerError { code?: string; message: string; httpStatus?
 
 /**
  * A live channel the plugin gave up as off the air (DeadStreamRule.kt): it
- * drew nothing, and its server kept answering that the stream isn't there
- * (404 / 410) or couldn't serve it (5xx). The plugin's own give-up after 20
- * reconnects carries no status, and a film's carries one but is not live.
+ * never played, and its own address kept answering that the stream isn't
+ * there (404 / 410) or couldn't be served (5xx), over at least 8 s. The
+ * plugin's own give-up after 20 reconnects carries no status, and a film's
+ * carries one but is not live.
  */
 export const isOffAirAnswer = (code: string | undefined, httpStatus: number | null | undefined, live: boolean): boolean =>
   live && code === 'RECONNECT_EXHAUSTED' && httpStatus != null && [404, 410, 500, 502, 503, 504].includes(httpStatus);
@@ -104,6 +105,9 @@ export interface NativePlayerState {
    *  useNativePlayer's engineFallback listener) or before any fallback. */
   engineNotice: string | null;
   retry: () => void;
+  /** Goes up on every reload of the same address (a retry, the app coming
+   *  back): each one starts up again, like a new address. */
+  loads: number;
   seekTo: (seconds: number) => Promise<void>;
   getPosition: () => Promise<{ position: number; duration: number; playing: boolean }>;
 }
@@ -331,8 +335,8 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
           // same answer; the caller (PlexSection) starts a fresh session or
           // another quality instead.
           // A live channel off the air (isOffAirAnswer): the plugin has
-          // already asked twice (four times for a server error) and got the
-          // same answer; a fresh start would ask the same server again. The
+          // already asked about five times over 8 s and got the same answer
+          // every time; a fresh start would ask the same server again. The
           // error at once, so the card (and a failover to the viewer's
           // other service) comes in seconds, not minutes.
           // NO_PICTURE: the sound played and the picture never started, and
@@ -640,7 +644,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   }, [active, background, live, skipKeys]);
 
   return useMemo(
-    () => ({ controller, buffering, paused, error, audioWarning, engineNotice, retry, seekTo, getPosition }),
-    [controller, buffering, paused, error, audioWarning, engineNotice, retry, seekTo, getPosition],
+    () => ({ controller, buffering, paused, error, audioWarning, engineNotice, retry, loads: retryNonce, seekTo, getPosition }),
+    [controller, buffering, paused, error, audioWarning, engineNotice, retry, retryNonce, seekTo, getPosition],
   );
 }

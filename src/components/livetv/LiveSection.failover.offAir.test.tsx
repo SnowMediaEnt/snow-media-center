@@ -155,7 +155,7 @@ describe('a dead channel (HTTP 404) with a second service', () => {
     await waitFor(() => expect(h.listeners.get('playerError')?.length ?? 0).toBeGreaterThan(0));
     const before = h.loads.length;
 
-    // What the plugin says after the first try and one retry both got 404.
+    // What the plugin says once its tries (about 8 s of 404s) are spent.
     fire('playerError', { screenId: 'main', code: 'RECONNECT_EXHAUSTED', message: OFF_AIR, httpStatus: 404 });
     // Well inside the second the old fresh start would have waited.
     await waitFor(() => expect(isLoad(last(), 'http://v.test', 501)).toBe(true), { timeout: 900 });

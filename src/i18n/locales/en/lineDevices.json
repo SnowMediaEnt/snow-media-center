@@ -1,8 +1,7 @@
 {
   "lineDevices": {
     "hub": {
-      "menuLabel": "Devices on this line",
-      "hint": "The TVs signed in to this line, and a short message to send them. Press OK to open."
+      "menuLabel": "Devices on this line"
     },
     "panel": {
       "title": "Devices on this line",

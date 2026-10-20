@@ -126,10 +126,7 @@
       "decodeAudio": "Décoder le son sur ce boîtier",
       "decodeAudioDesc": "Pour une TV ou un ampli qui affiche le film sans son : le Dolby et le DTS sont alors décodés ici au lieu d'être transmis tels quels. Laissez désactivé pour le meilleur son.",
       "on": "Oui",
-      "off": "Non",
-      "liveHeading": "TV en direct",
-      "failover": "Si une chaîne ne fonctionne pas, la lire depuis mon autre service",
-      "failoverDesc": "Si une chaîne ne démarre pas, TV en direct lit la même chaîne depuis votre autre service, une fois par chaîne choisie. Désactivé : l'écran d'erreur le propose avec un bouton."
+      "off": "Non"
     },
     "shell": {
       "signingIn": "Connexion avec votre compte…",
@@ -259,7 +256,8 @@
       "skipBack": "{{sec}} s en arrière",
       "skipForward": "{{sec}} s en avant",
       "behindLive": "{{time}} de retard sur le direct",
-      "atLive": "En direct"
+      "atLive": "En direct",
+      "reportIt": "Le signaler"
     },
     "failover": {
       "note": "{{channel}} ne fonctionne pas sur {{service}} — lecture depuis {{other}}",
@@ -440,6 +438,27 @@
       "bufferingBody": "Coupures signalées récemment — la lecture risque de mal passer.",
       "watchBtn": "Regarder quand même",
       "pickBtn": "En choisir une autre"
+    },
+    "bufferHelp": {
+      "label": "Aide en cas de coupures",
+      "restartTitle": "Avez-vous redémarré votre box TV et votre routeur internet ?",
+      "restartBody": "Un redémarrage règle beaucoup de coupures.",
+      "restartYesBtn": "Oui, c'est fait",
+      "restartHowBtn": "Montrez-moi",
+      "howTitle": "Redémarrez votre box et votre routeur",
+      "how1": "Débranchez votre box TV et votre routeur internet.",
+      "how2": "Attendez 30 secondes.",
+      "how3": "Rebranchez le routeur et laissez-lui environ 2 minutes pour redémarrer.",
+      "how4": "Rebranchez la box TV et ouvrez Snow Media Center.",
+      "howDoneBtn": "C'est fait",
+      "nextTipBtn": "Autre conseil",
+      "vpnSetup": "Le guide anti-coupures vous montre comment en installer un.",
+      "openGuideBtn": "Ouvrir le guide anti-coupures",
+      "notNowBtn": "Plus tard",
+      "guideTitle": "Toujours des coupures ? Ouvrez le guide anti-coupures",
+      "guideBody": "Il passe en revue chaque solution, une par une. La plupart des coupures se règlent en quelques minutes.",
+      "reportBody": "Seulement cette chaîne ? Signalez-la et nous y jetterons un œil.",
+      "reportBtn": "Signaler cette chaîne"
     },
     "phone": {
       "tapToWatch": "Touchez une chaîne pour la regarder ici",

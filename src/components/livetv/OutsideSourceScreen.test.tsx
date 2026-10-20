@@ -1,5 +1,5 @@
 /**
- * Live TV › Settings › Add another service (OutsideSourceScreen): with an
+ * Live TV › Settings › Services › Another provider (OutsideSourceScreen): with an
  * active DreamStreams / Vibez line, Test signs in to the other service and
  * counts its channels (plain words when it fails), Save keeps what the test
  * tried and only after it worked, the saved service shows without its
@@ -186,7 +186,7 @@ describe('Add another service', () => {
     goTo('test');
     key('Enter');
     await until(() => result() === 'ours');
-    expect(screen.getByRole('status').textContent).toBe("That's one of ours — add it from Switch Account.");
+    expect(screen.getByRole('status').textContent).toBe("That's one of ours — add it as a DreamStreams or Vibez line.");
     expect(h.authCalls).toEqual([]);
     expect(focusedRow()).toBe('server');
   });

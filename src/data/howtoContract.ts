@@ -32,7 +32,7 @@ export const HOWTO_SHOTS = {
   'multi': ['multi.layouts'], // stage (Multi-Screen layout picker)
   'backups': ['backups.list', 'backups.refresh'], // Live TV → Backups
   'vod': ['vod.categories', 'vod.grid'], // Live TV → VOD
-  'live-settings': ['hub.switch', 'hub.hideCats', 'hub.appearance', 'hub.rewind', 'hub.signOut'], // Live TV → Settings (hub menu)
+  'live-settings': ['hub.services', 'hub.channels', 'hub.appearance', 'hub.rewind', 'hub.signOut'], // Live TV → Settings (hub menu)
   'plex-connect': ['plexauth.connect', 'plexauth.ownServer'], // stage (PlexAuthScreen, signed out, line saved)
   'plex-link': ['plexauth.code', 'plexauth.url'], // stage (PlexAuthScreen, link code)
   'plex-home': ['plex.menu', 'plex.continue', 'plex.recent'], // Plex card → Plex Home
