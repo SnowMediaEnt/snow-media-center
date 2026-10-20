@@ -46,8 +46,17 @@
 // Snow Media" line, a hidden one is gone (from the row's Watch pick and a
 // reminder too), one marked down goes last with the ⚠️. A read that fails
 // leaves the lists as the matching made them.
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Bell, BellRing, FolderOpen, Loader2, Play, Star, Trophy, X } from 'lucide-react';
+//
+// "Not in your channels" is only ever said once the search is over: while
+// the line-up is still being read (or read again after it missed a line), or
+// the search's answer is on its way (a game with two teams), a row with
+// nothing yet says "Finding your channels…" and its list "Still finding this
+// game's channels…" (OK waits there; the list fills in, or says it's not
+// there, when the search ends). A line whose channels could not be read, or
+// a guide that didn't answer, is "couldn't check", never "not there": the
+// row says so, and the list offers Try again.
+import { lazy, memo, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, Bell, BellRing, FolderOpen, Loader2, Play, RotateCcw, Star, Trophy, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
 import { handLiveCategory, handLiveDeeplink } from '@/lib/appActions';
@@ -121,7 +130,9 @@ const canRemind = (g: Game) => g.state !== 'in' && Date.parse(g.start) > Date.no
 type LinkGroup = 'main' | 'search' | 'unconfirmed' | 'zone';
 type PickItem =
   | { kind: 'link'; link: GameChannel; down: boolean; buffering: boolean; group: LinkGroup }
-  | { kind: 'browse'; line: XtreamCreds; categoryId: string; name: string };
+  | { kind: 'browse'; line: XtreamCreds; categoryId: string; name: string }
+  // The search couldn't be finished and found nothing of the game's own: ask again.
+  | { kind: 'retry' };
 
 /** Best first; the original position settles a tie (an old WebView's sort is not stable). */
 const byScore = (list: GameChannel[]): GameChannel[] => (list.length < 2 ? list : list
@@ -130,12 +141,14 @@ const byScore = (list: GameChannel[]): GameChannel[] => (list.length < 2 ? list 
   .map((x) => x.l));
 
 /** `moved`: the viewer has moved in the list, so what the guide adds does
- *  not take the focus away. */
-interface Picker { gameId: string; focus: number; moved: boolean; scanning: boolean; extra: GameChannel[] }
+ *  not take the focus away. `scanning`: the guide is being asked; `waiting`:
+ *  it will be once the line-up has been read; `failed`: its answer came back
+ *  short (a lookup failed). */
+interface Picker { gameId: string; focus: number; moved: boolean; scanning: boolean; waiting: boolean; failed: boolean; extra: GameChannel[] }
 
 const pickKey = (it: PickItem): string => (it.kind === 'link'
   ? `l|${it.link.line.host}|${it.link.line.username}|${it.link.stream.stream_id}`
-  : `b|${it.line.host}|${it.line.username}|${it.categoryId}`);
+  : it.kind === 'browse' ? `b|${it.line.host}|${it.line.username}|${it.categoryId}` : 'r');
 
 /** The service a line belongs to, as the viewer reads it ("DreamStreams",
  *  "Vibez"). The active line may carry no label of its own, so the host
@@ -176,6 +189,11 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
   const [edits, setEdits] = useState<GameEdit[]>([]);
   const [error, setError] = useState(false);
   const [channels, setChannels] = useState<SportsChannel[] | null>(null);
+  // The line-up's read: one on its way, the lines it could not read (their
+  // channels are unknown, not none), and the lines it was for.
+  const [chBusy, setChBusy] = useState(true);
+  const [chMissing, setChMissing] = useState<XtreamCreds[]>([]);
+  const [chFor, setChFor] = useState('');
   // What the guide said for each game whose list has been opened (by game
   // id): a network it confirmed can then be the row's Watch pick.
   const [guided, setGuided] = useState<Map<string, GameChannel[]>>(() => new Map());
@@ -197,9 +215,10 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
   const { enabled: aiFlag, loading: aiFlagLoading } = useFeatureFlag(AI_FLAG);
   const [aiOk] = useState(aiAllowed);
   const aiOn = aiFlag && !aiFlagLoading && aiOk;
-  // What each provider's last scan found (by host), and scans on their way.
+  // What each provider's last scan found (by host), and the providers whose
+  // answer this screen has read (and whose scan, when one went, came back).
   const [aiScans, setAiScans] = useState<Map<string, CachedScan>>(() => new Map());
-  const [aiBusy, setAiBusy] = useState(0);
+  const [aiDone, setAiDone] = useState('');
   // A "Not this game" was said: the found links are worked out again.
   const [wrongTick, setWrongTick] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
@@ -260,12 +279,20 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
   }, [isActive]);
   useEffect(() => {
     let alive = true;
-    void loadChannels(lines, learnedRef.current)
-      .then((c) => { if (alive) setChannels(c); })
-      .catch(() => { if (alive) setChannels((old) => old ?? []); });
+    const key = linesKey;
+    const missing: XtreamCreds[] = [];
+    setChBusy(true);
+    void loadChannels(lines, learnedRef.current, missing)
+      .then((c) => { if (alive) { setChannels(c); setChMissing(missing); setChFor(key); setChBusy(false); } })
+      // Nothing came: what was read before stays, but no line was checked.
+      .catch(() => { if (alive) { setChannels((old) => old ?? []); setChMissing(lines); setChFor(key); setChBusy(false); } });
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the lines themselves
   }, [linesKey, channelsTick]);
+  // The line-up isn't known yet: not read at all, read for other lines (a
+  // line signed in since: its read is on its way), or being read again after
+  // a read that missed a line. Until it is, no game is "not in your channels".
+  const lineupPending = channels === null || chFor !== linesKey || (chBusy && chMissing.length > 0);
   // The guide's answers were read from one channel list: a new one (the
   // ten-minute refresh) starts over.
   useEffect(() => { setGuided((m) => (m.size ? new Map() : m)); }, [channels]);
@@ -342,6 +369,12 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
   }, []);
   const aiCheckedRef = useRef('');
   useEffect(() => { if (!isActive) aiCheckedRef.current = ''; }, [isActive]);
+  const aiKey = aiHosts.join(',');
+  // The search's answer is still on its way (every call gives up after six
+  // seconds): a game with two teams and nothing found yet isn't "not in your
+  // channels" until it has come. A later read (a scan the server finishes
+  // after answering) only adds to the lists.
+  const aiSearching = aiOn && isActive && !!channels && aiHosts.length > 0 && aiDone !== aiKey;
   useEffect(() => {
     if (!isActive || !aiOn || !channels || !aiHosts.length) return;
     const key = aiHosts.join(',');
@@ -351,29 +384,27 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
     const put = (host: string, scan: CachedScan | null) => {
       if (scan && aliveRef.current) setAiScans((m) => (m.get(host) === scan ? m : new Map(m).set(host, scan)));
     };
-    for (const host of aiHosts) {
-      void (async () => {
-        const cached = await fetchCachedScan(host);
-        put(host, cached);
-        const cands = scanCandidates(list, host);
-        if (!cands.length) return;
-        const hash = lineupHash(cands);
-        if (!shouldScan(host, cached, hash)) return;
-        setAiBusy((n) => n + 1);
-        let r: ScanResult = 'error';
-        try { r = await sendScan(host, cands, hash); } finally { if (aliveRef.current) setAiBusy((n) => Math.max(0, n - 1)); }
-        if (r !== 'scanned' && r !== 'started' && r !== 'fresh' && r !== 'busy' && r !== 'timeout') return;
-        put(host, await fetchCachedScan(host, true));
-        // The server finishes the scan after answering, or it was given up on
-        // after six seconds, or another box on this provider is scanning it
-        // now: read it again a little later (never a second scan).
-        if ((r === 'started' || r === 'timeout' || r === 'busy') && aliveRef.current) {
-          for (const ms of [SCAN_SOON_MS, SCAN_LATE_MS]) {
-            lateTimers.current.push(window.setTimeout(() => { if (aliveRef.current) void fetchCachedScan(host, true).then((s) => put(host, s)); }, ms));
-          }
+    const runs = aiHosts.map((host) => (async () => {
+      const cached = await fetchCachedScan(host);
+      put(host, cached);
+      const cands = scanCandidates(list, host);
+      if (!cands.length) return;
+      const hash = lineupHash(cands);
+      if (!shouldScan(host, cached, hash)) return;
+      let r: ScanResult = 'error';
+      try { r = await sendScan(host, cands, hash); } catch { r = 'error'; }
+      if (r !== 'scanned' && r !== 'started' && r !== 'fresh' && r !== 'busy' && r !== 'timeout') return;
+      put(host, await fetchCachedScan(host, true));
+      // The server finishes the scan after answering, or it was given up on
+      // after six seconds, or another box on this provider is scanning it
+      // now: read it again a little later (never a second scan).
+      if ((r === 'started' || r === 'timeout' || r === 'busy') && aliveRef.current) {
+        for (const ms of [SCAN_SOON_MS, SCAN_LATE_MS]) {
+          lateTimers.current.push(window.setTimeout(() => { if (aliveRef.current) void fetchCachedScan(host, true).then((s) => put(host, s)); }, ms));
         }
-      })().catch(() => undefined);
-    }
+      }
+    })().catch(() => undefined));
+    void Promise.all(runs).then(() => { if (aliveRef.current) setAiDone(key); });
   }, [isActive, aiOn, channels, aiHosts]);
   // What was found for each game listed, as links on this box: only a channel
   // still loaded under that name (or one still naming a team), and never one
@@ -428,13 +459,19 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
     // No pick, but the guide may still find one: a network its name matched,
     // or a feed on this box of one of the game's streaming services.
     const unsure = !pick && (groups.unconfirmed.length > 0 || gameServices(g).some((s) => boxServices.has(s)));
+    // Nothing yet, but the search isn't over (the line-up is being read, or
+    // the search's answer is on its way): "Finding your channels…" (a row
+    // that offers to check its guide still does).
+    const looking = !pick && (lineupPending || (aiSearching && !!g.home && !!g.away));
+    // Nothing found, but a line's channels could not be read: "couldn't check".
+    const failed = !pick && !looking && chMissing.length > 0;
     return {
       game: g, auto, search, found, picks, channel: pick, channelDown: !!pick && isDown(pick), channelBuffering: !!pick && isBuffering(pick),
-      more: Math.max(0, found.length + searched.length - 1), when, tv, unsure,
+      more: Math.max(0, found.length + searched.length - 1), when, tv, unsure, looking, failed,
     };
     // t: the kickoff day and time are drawn in the app's language, so a language change recomputes them.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [shown, matched, searchByGame, guided, edits, lines, channels, boxServices, isDown, isBuffering, flagOf, t]);
+  }), [shown, matched, searchByGame, guided, edits, lines, channels, boxServices, isDown, isBuffering, flagOf, lineupPending, aiSearching, chMissing, t]);
 
   // The owner's adds to games nothing else found: each sent once a day.
   useEffect(() => {
@@ -455,7 +492,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
 
   // ── the game's channel list ───────────────────────────────────────────────
   const pickerRow = picker ? rows.find((r) => r.game.id === picker.gameId) ?? null : null;
-  const pickItems = useMemo<PickItem[]>(() => {
+  const pickLinks = useMemo<PickItem[]>(() => {
     if (!picker || !pickerRow) return [];
     // Each channel once, best source first, always with its current name
     // (never one a guide check cached before the last channel-list refresh).
@@ -495,12 +532,52 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
     for (const c of channels ? leagueCategories(pickerRow.game, channels, 2, own) : []) items.push({ kind: 'browse', ...c });
     return items;
   }, [picker, pickerRow, channels, isDown, isBuffering, flagRank, lines, edits]);
+  // Still looking for this game's channels: the line-up isn't read yet (the
+  // guide is asked once it is), the guide is being asked, or the search's
+  // answer is on its way with nothing of the game's own listed. Never "not
+  // in your channels" then.
+  const pickHasMain = pickLinks.some((it) => it.kind === 'link' && it.group === 'main');
+  const pickLineup = !!picker && (lineupPending || picker.waiting);
+  const pickSearching = !!picker && aiSearching && !!pickerRow?.game.home && !!pickerRow?.game.away && !pickHasMain;
+  const pickPending = pickLineup || !!picker?.scanning || pickSearching;
+  // The search is over but part of it failed (a line's channels or the guide
+  // didn't come), and nothing of the game's own was found: "couldn't check",
+  // with Try again (never "not in your channels").
+  const pickFailed = !!picker && !pickPending && !pickHasMain && (chMissing.length > 0 || picker.failed);
+  const pickItems = useMemo<PickItem[]>(() => (pickFailed ? [...pickLinks, { kind: 'retry' }] : pickLinks), [pickLinks, pickFailed]);
   const firstLinkIdx = pickItems.findIndex((it) => it.kind === 'link');
   // Where the "Found by search", "Not confirmed by the guide" and the zone
   // groups start (their headings go there).
   const firstSearchIdx = useMemo(() => pickItems.findIndex((it) => it.kind === 'link' && it.group === 'search'), [pickItems]);
   const firstUnconfirmedIdx = useMemo(() => pickItems.findIndex((it) => it.kind === 'link' && it.group === 'unconfirmed'), [pickItems]);
   const firstZoneIdx = useMemo(() => pickItems.findIndex((it) => it.kind === 'link' && it.group === 'zone'), [pickItems]);
+
+  // What the guide says of the channels found by name, and of the league's
+  // numbered channels and the game's streaming feeds no name found. The
+  // list fills in as the answers come (a few lookups at a time). Only the
+  // latest ask is heard (Try again asks again).
+  const guideAsk = useRef(0);
+  const askGuide = useCallback((gameId: string) => {
+    const r = rows.find((x) => x.game.id === gameId);
+    if (!r || !channels) return;
+    const ask = ++guideAsk.current;
+    setPicker((p) => (p && p.gameId === gameId ? { ...p, scanning: true, waiting: false, failed: false } : p));
+    const lay = (extra: GameChannel[], done: boolean, failed = false) => {
+      if (ask !== guideAsk.current) return;
+      setPicker((p) => (p && p.gameId === gameId
+        ? { ...p, extra, scanning: !done, failed, focus: extra.length && !p.moved ? 0 : p.focus }
+        : p));
+      // The whole answer stays with the game's row (until the channel list
+      // is read again): a network it confirmed can be the row's Watch pick.
+      if (done) setGuided((m) => (m.get(gameId) === extra ? m : new Map(m).set(gameId, extra)));
+    };
+    // The guide is asked about the channels found by search too: one showing
+    // something else is dropped, one with the game joins its channels.
+    const stats = { failed: 0 };
+    void checkGuides(r.game, channels, r.search.length ? [...r.auto, ...r.search] : r.auto, games ?? [], Date.now(), (partial) => lay(partial, false), stats)
+      .then((extra) => lay(extra, true, stats.failed > 0))
+      .catch(() => { if (ask === guideAsk.current) setPicker((p) => (p && p.gameId === gameId ? { ...p, scanning: false, failed: true } : p)); });
+  }, [rows, channels, games]);
 
   const openPicker = useCallback((i: number) => {
     const r = rows[i];
@@ -509,25 +586,32 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
     const first = r.found.findIndex((c) => !isDown(c));
     // A PPV event is its channel's name: no guide to ask.
     const hasGuide = r.game.league !== 'ppv';
-    setPicker({ gameId, focus: Math.max(0, first), moved: false, scanning: !!channels && hasGuide, extra: [] });
-    if (!channels || !hasGuide) return;
-    // What the guide says of the channels found by name, and of the league's
-    // numbered channels and the game's streaming feeds no name found.
-    // The list fills in as the answers come (a few lookups at a time).
-    const lay = (extra: GameChannel[], done: boolean) => {
-      setPicker((p) => (p && p.gameId === gameId
-        ? { ...p, extra, scanning: !done, focus: extra.length && !p.moved ? 0 : p.focus }
-        : p));
-      // The whole answer stays with the game's row (until the channel list
-      // is read again): a network it confirmed can be the row's Watch pick.
-      if (done) setGuided((m) => (m.get(gameId) === extra ? m : new Map(m).set(gameId, extra)));
-    };
-    // The guide is asked about the channels found by search too: one showing
-    // something else is dropped, one with the game joins its channels.
-    void checkGuides(r.game, channels, r.search.length ? [...r.auto, ...r.search] : r.auto, games ?? [], Date.now(), (partial) => lay(partial, false))
-      .then((extra) => lay(extra, true))
-      .catch(() => setPicker((p) => (p && p.gameId === gameId ? { ...p, scanning: false } : p)));
-  }, [rows, channels, isDown, games]);
+    // Opened before the line-up has been read: the list says it's still
+    // looking, and the guide is asked once the line-up is in.
+    const waiting = hasGuide && lineupPending;
+    setPicker({ gameId, focus: Math.max(0, first), moved: false, scanning: hasGuide && !waiting, waiting, failed: false, extra: [] });
+    if (hasGuide && !waiting) askGuide(gameId);
+  }, [rows, isDown, lineupPending, askGuide]);
+  useEffect(() => {
+    if (picker?.waiting && !lineupPending) askGuide(picker.gameId);
+  }, [picker?.waiting, picker?.gameId, lineupPending, askGuide]);
+
+  // Try again, after a search that couldn't be finished: a line that didn't
+  // load reads the line-up again (and the guide is asked again once it has
+  // come); a guide that didn't answer is asked again.
+  const retry = useCallback(() => {
+    const st = stateRef.current;
+    const p = st.picker;
+    if (!p) return;
+    const hasGuide = st.rows.find((r) => r.game.id === p.gameId)?.game.league !== 'ppv';
+    if (st.chMissing.length) {
+      setChBusy(true);
+      setChannelsTick((n) => n + 1);
+      setPicker((x) => (x && x.gameId === p.gameId ? { ...x, waiting: hasGuide, scanning: false, failed: false } : x));
+    } else if (hasGuide) {
+      askGuide(p.gameId);
+    }
+  }, [askGuide]);
 
   // The guide's answers reorder the list: a viewer who has moved stays on the
   // channel they were on, not on whatever now sits at that row.
@@ -556,6 +640,8 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
     const st = stateRef.current;
     const row = st.picker ? st.rows.find((r) => r.game.id === st.picker?.gameId) : undefined;
     if (!row || !row.game.home || !row.game.away) return;
+    // Not known yet (or couldn't be checked): not a miss.
+    if (st.pickPending || st.pickFailed) return;
     if (st.pickItems.some((it) => it.kind === 'link' && it.group === 'main' && !it.down)) return;
     rememberMiss(row.game, teamTokens(row.game));
   }, []);
@@ -563,6 +649,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
 
   const activate = useCallback((item: PickItem | undefined, confirmed = false) => {
     if (!item) return;
+    if (item.kind === 'retry') { retry(); return; }
     // Reported down or buffering: asked first (Watch anyway / Pick another),
     // the list stays open behind. Not again for one just chosen anyway.
     if (item.kind === 'link' && !confirmed) {
@@ -596,7 +683,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
       handLiveCategory({ host: item.line.host, username: item.line.username, categoryId: item.categoryId });
     }
     onWatch(gameId);
-  }, [onWatch, toast, t, noteMiss]);
+  }, [onWatch, toast, t, noteMiss, retry]);
 
   // A kickoff reminder with no channel asked for this game's list.
   useEffect(() => {
@@ -645,8 +732,8 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
   }, [picker]);
 
   const lastBack = useRef(0);
-  const stateRef = useRef({ zone, chipIdx, rowIdx, action, rows, leagues, picker, pickItems, lines, reportFor, warn });
-  stateRef.current = { zone, chipIdx, rowIdx, action, rows, leagues, picker, pickItems, lines, reportFor, warn };
+  const stateRef = useRef({ zone, chipIdx, rowIdx, action, rows, leagues, picker, pickItems, pickPending, pickFailed, chMissing, lines, reportFor, warn });
+  stateRef.current = { zone, chipIdx, rowIdx, action, rows, leagues, picker, pickItems, pickPending, pickFailed, chMissing, lines, reportFor, warn };
   // OK on a channel in the list: let go soon = play, held = its menu.
   const holdRef = useRef<{ timer: number | null; item: PickItem | null; fired: boolean }>({ timer: null, item: null, fired: false });
   const clearHold = useCallback(() => {
@@ -656,7 +743,9 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
   }, []);
   useEffect(() => { if (!picker) clearHold(); }, [picker, clearHold]);
   useEffect(() => clearHold, [clearHold]);
-  useEffect(() => {
+  // Put back as the screen is drawn (not after): a key pressed the moment the
+  // games or the channels come in reaches the handler that knows them.
+  useLayoutEffect(() => {
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
       // The report menu and the warning own the remote while open.
@@ -689,8 +778,9 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
         else if (ok) {
           const item = n ? st.pickItems[Math.min(st.picker.focus, n - 1)] : undefined;
           const hold = holdRef.current;
-          if (!item) closePicker();
-          else if (item.kind === 'browse') activate(item);
+          // Nothing listed yet while still looking: OK waits for what is found.
+          if (!item) { if (!st.pickPending) closePicker(); }
+          else if (item.kind !== 'link') activate(item);
           else if (!hold.timer && !hold.fired) {
             hold.item = item;
             hold.timer = window.setTimeout(() => {
@@ -819,7 +909,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
                 )}
               </div>
               <div className="w-56 shrink-0 mr-3 min-w-0">
-                {channels === null ? (
+                {channels === null || (r.looking && !r.unsure) ? (
                   <span className="text-xs text-white/50">{t('gameDay.findingChannels')}</span>
                 ) : r.channel ? (
                   <div className="min-w-0">
@@ -838,7 +928,8 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
                   <span className="text-xs text-white/50 truncate block">
                     {r.unsure
                       ? t('gameDay.checkOn', { networks: g.networks.join(', ') })
-                      : tv.length ? t('gameDay.notInChannelsOn', { networks: tv.join(', ') }) : g.networks.length ? t('gameDay.streamingOnly', { networks: g.networks.join(', ') }) : t('gameDay.notInChannels')}
+                      : r.failed ? t('gameDay.couldntCheck')
+                        : tv.length ? t('gameDay.notInChannelsOn', { networks: tv.join(', ') }) : g.networks.length ? t('gameDay.streamingOnly', { networks: g.networks.join(', ') }) : t('gameDay.notInChannels')}
                   </span>
                 )}
               </div>
@@ -883,6 +974,17 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
             {pickItems.map((item, i) => {
               const focused = picker.focus === i;
               const base = `tv-ring flex items-center rounded-xl px-4 py-3 mb-2 w-full text-left ${focused ? 'bg-white text-black' : 'bg-white/5 text-white'}`;
+              if (item.kind === 'retry') {
+                return (
+                  <div key="retry">
+                    <p className="text-white/70 px-2 pt-2 pb-2">{t('gameDay.couldntCheckList')}</p>
+                    <button type="button" data-gd-pick={i} data-focused={focused ? 'true' : 'false'} className={base} onClick={() => activate(item)}>
+                      <RotateCcw className="w-5 h-5 mr-3 shrink-0" />
+                      <span className="flex-1 min-w-0 truncate font-semibold">{t('common.tryAgain')}</span>
+                    </button>
+                  </div>
+                );
+              }
               if (item.kind === 'browse') {
                 return (
                   <button key={`b-${item.line.host}-${item.categoryId}`} type="button" data-gd-pick={i} data-focused={focused ? 'true' : 'false'} className={base} onClick={() => activate(item)}>
@@ -935,13 +1037,16 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
                 </div>
               );
             })}
-            {picker.scanning && (
+            {pickLineup && (
+              <div className="flex items-center text-white/70 px-2 py-4" role="status"><Loader2 className="w-5 h-5 animate-spin mr-2 shrink-0" /> {t('gameDay.stillFinding')}</div>
+            )}
+            {!pickLineup && picker.scanning && (
               <div className="flex items-center text-white/60 text-sm px-2 py-2"><Loader2 className="w-4 h-4 animate-spin mr-2" /> {t('gameDay.checkingGuide')}</div>
             )}
-            {aiBusy > 0 && !!pickerRow.game.home && !!pickerRow.game.away && !pickItems.some((it) => it.kind === 'link' && it.group === 'main') && (
+            {!pickLineup && pickSearching && (
               <div className="flex items-center text-white/60 text-sm px-2 py-2"><Loader2 className="w-4 h-4 animate-spin mr-2" /> {t('gameDay.searching')}</div>
             )}
-            {!picker.scanning && pickItems.length === 0 && (
+            {!pickPending && !pickFailed && pickItems.length === 0 && (
               <div className="text-white/70 px-2 py-4">
                 {pickerRow.game.networks.length ? t('gameDay.noneOn', { networks: pickerRow.game.networks.join(', ') }) : t('gameDay.none')}
               </div>

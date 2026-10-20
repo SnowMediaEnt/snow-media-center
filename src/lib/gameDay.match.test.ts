@@ -17,6 +17,7 @@ vi.mock('@/lib/xtream', () => ({
 
 import type { Game, GameTeam, SportsChannel } from './gameDay';
 import * as xtream from '@/lib/xtream';
+import type { XtreamCreds } from '@/lib/xtream';
 
 const line = { host: 'http://dstreams.xyz:8080', username: 'u', password: 'p' } as never;
 const other = { host: 'https://strmz.xyz', username: 'v', password: 'q' } as never;
@@ -391,5 +392,75 @@ describe('the line-up search', () => {
     const groups = arrangeLinks(g, mergeLinks([extra, search], list), false);
     expect(ids(groups.main)).toEqual([21]);
     expect(ids(groups.search)).toEqual([23]);
+  });
+});
+
+describe('a search that fails is "couldn\'t check", never "none"', () => {
+  it('loadSportsChannels names a line whose channels could not be read, and keeps the others', async () => {
+    const { loadSportsChannels } = await import('./gameDay');
+    const cats = vi.mocked(xtream.getLiveCategories);
+    cats.mockReset();
+    cats.mockImplementation((async (l: { host: string }) => {
+      if (l.host === 'https://strmz.xyz') throw new Error('timeout');
+      return [{ category_id: '1', category_name: 'US| SPORTS' }];
+    }) as never);
+    const streams = vi.mocked(xtream.getLiveStreams);
+    streams.mockReset();
+    streams.mockResolvedValue([{ stream_id: 1, name: 'ESPN', category_id: '1' }] as never);
+    const missing: XtreamCreds[] = [];
+    const got = await loadSportsChannels([line, other], undefined, missing);
+    expect(ids(got)).toEqual([1]);
+    expect(missing).toEqual([other]);
+    // Not kept: the next read asks that line again.
+    cats.mockClear();
+    await loadSportsChannels([line, other], undefined, []);
+    expect(cats.mock.calls.map((c) => (c[0] as { host: string }).host)).toEqual(['http://dstreams.xyz:8080', 'https://strmz.xyz']);
+  });
+
+  it('on a box short of memory, a line none of whose channel lists came is missing; one that came is not', async () => {
+    document.documentElement.classList.add('native-low-memory');
+    const { loadSportsChannels } = await import('./gameDay');
+    vi.mocked(xtream.getLiveCategories).mockReset();
+    vi.mocked(xtream.getLiveCategories).mockResolvedValue([
+      { category_id: '1', category_name: 'US| SPORTS' }, { category_id: '2', category_name: 'NFL' },
+    ] as never);
+    const streams = vi.mocked(xtream.getLiveStreams);
+    streams.mockReset();
+    streams.mockRejectedValue(new Error('offline'));
+    const missing: XtreamCreds[] = [];
+    expect(await loadSportsChannels([line], undefined, missing)).toEqual([]);
+    expect(missing).toEqual([line]);
+    // One list came (an empty one): the line was read, it just has nothing.
+    streams.mockReset();
+    streams.mockImplementation((async (_l: unknown, cat?: string) => {
+      if (cat === '2') return [];
+      throw new Error('offline');
+    }) as never);
+    const after: XtreamCreds[] = [];
+    expect(await loadSportsChannels([line], undefined, after)).toEqual([]);
+    expect(after).toEqual([]);
+  });
+
+  it('checkGuides counts the lookups that failed and does not keep that answer', async () => {
+    const { checkGuides } = await import('./gameDay');
+    const now = Date.parse('2026-10-02T22:00:00Z');
+    const kick = now + 60 * 60_000;
+    const g = hockey(BU(), { start: new Date(kick).toISOString() });
+    const list = [chans(11, 'B1G+ 03', 'STREAMING')];
+    epg[11] = [{ title: 'College Hockey', description: 'Boston University at Michigan.', start: kick - 5 * 60_000, end: kick + 3 * 60 * 60_000 }];
+    const lookups = vi.mocked(xtream.getShortEpg);
+    lookups.mockRejectedValueOnce(new Error('timeout'));
+    const failed = { failed: 0 };
+    expect(await checkGuides(g, list, [], [g], now, undefined, failed)).toEqual([]);
+    expect(failed.failed).toBe(1);
+    // Asked again (nothing kept), and this time the guide answers.
+    const ok = { failed: 0 };
+    const got = await checkGuides(g, list, [], [g], now, undefined, ok);
+    expect(got.map((c) => [c.stream.stream_id, c.guide])).toEqual([[11, 'yes']]);
+    expect(ok.failed).toBe(0);
+    expect(lookups).toHaveBeenCalledTimes(2);
+    // A whole answer is kept as before.
+    await checkGuides(g, list, [], [g], now, undefined, ok);
+    expect(lookups).toHaveBeenCalledTimes(2);
   });
 });

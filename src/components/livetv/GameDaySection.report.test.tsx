@@ -56,6 +56,10 @@ vi.mock('@/integrations/supabase/client', () => ({
   },
 }));
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn(), startTimer: vi.fn(), stopTimer: vi.fn(), getDeviceId: () => 'd' }));
+// The line-up search stays off (the only function call here is the report).
+// The flag was read from the stub above, whose `from` has no select: an
+// unhandled rejection that failed the run.
+vi.mock('@/hooks/useFeatureFlag', () => ({ useFeatureFlag: () => ({ enabled: false, loading: false }) }));
 
 const down = (k: string) => act(() => { fireEvent.keyDown(window, { key: k }); });
 const up = (k: string) => act(() => { fireEvent.keyUp(window, { key: k }); });
