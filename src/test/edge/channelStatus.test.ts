@@ -298,20 +298,45 @@ describe('channel-status: a channel off the air', () => {
     call({ op: 'signal', host, stream_id: 42, name: 'ESPN', kind: 'offair', http_status: 404, device_id: device, ...extra }, { 'cf-connecting-ip': '203.0.113.9' });
   const listOnce = (host = 'strmz.xyz') => call({ op: 'list', hosts: [host] });
   const listRpcs = () => state.rpcs.filter((c) => c.name === 'channel_down_list').length;
+  const stores = () => state.rpcs.filter((c) => c.name === 'channel_offair_signal');
+  /** What the database's channel_offair_signal answers. */
+  let answer: string;
+  beforeEach(() => {
+    answer = 'stored';
+    state.handlers.onRpc = (c) => (c.name === 'channel_offair_signal' ? { data: answer } : c.name === 'channel_down_list' ? { data: [] } : undefined);
+  });
 
-  it('one offair from a known box is stored trusted, with its status code and nothing else about the stream', async () => {
+  it('is stored through channel_offair_signal (its limits are counted there, under one lock), with the status number and nothing else about the stream', async () => {
     lineDevices = ['real-box-0010'];
     const out = await offair('real-box-0010', { url: 'http://strmz.xyz/live/jsmith/hunter2/42.ts', line_user: 'jsmith' });
     expect(out.body.ok).toBe(true);
-    expect(inserted()[0]).toMatchObject({ host: 'strmz.xyz', stream_id: 42, kind: 'offair', http_status: 404, trusted: true });
-    // An automatic signal: no line, no address.
-    expect(inserted()[0]).not.toHaveProperty('line_user');
-    expect(JSON.stringify(inserted())).not.toContain('hunter2');
+    expect(stores()).toHaveLength(1);
+    expect(stores()[0].args).toMatchObject({ p_host: 'strmz.xyz', p_stream_id: 42, p_name: 'ESPN', p_http_status: 404, p_trusted: true, p_line_verified: true });
+    expect(typeof stores()[0].args.p_device_hash).toBe('string');
+    expect(typeof stores()[0].args.p_ip_hash).toBe('string');
+    // Not written by the function itself, and no line, no address.
+    expect(inserted()).toEqual([]);
+    expect(JSON.stringify(state.rpcs)).not.toContain('hunter2');
+    expect(JSON.stringify(state.rpcs)).not.toContain('jsmith');
   });
 
-  it('shows for everyone at the next ask: a known box’s offair drops the cached list, and it is listed as down and off the air', async () => {
+  it('says how the box is known: a verified line on that host, analytics only, or not at all', async () => {
+    analyticsDevices = ['analytics-box-1'];
+    await offair('analytics-box-1');
+    expect(stores()[0].args).toMatchObject({ p_trusted: true, p_line_verified: false });
+    await offair('made-up-device-10');
+    expect(stores()[1].args).toMatchObject({ p_trusted: false, p_line_verified: false });
+    // A line signed in on ANOTHER host is not this host's.
+    lineDevices = ['other-host-box'];
+    await offair('other-host-box', {}, 'dstreams.xyz:8080');
+    const lookup = state.queries.filter((q) => q.table === 'player_signins').pop()!;
+    expect(eqValue(lookup, 'panel_host')).toBe('dstreams.xyz:8080');
+  });
+
+  it('shows at the next ask when stored trusted: the cached list is dropped', async () => {
     let off = false;
-    state.handlers.onRpc = (c) => (c.name === 'channel_down_list' ? { data: off ? [{ host: 'strmz.xyz', stream_id: 42, source: 'offair' }] : [] } : undefined);
+    state.handlers.onRpc = (c) => (c.name === 'channel_offair_signal' ? { data: 'stored' }
+      : c.name === 'channel_down_list' ? { data: off ? [{ host: 'strmz.xyz', stream_id: 42, source: 'offair' }] : [] } : undefined);
     expect((await listOnce()).body.down).toEqual([]);
     lineDevices = ['real-box-0011'];
     await offair('real-box-0011');
@@ -322,51 +347,46 @@ describe('channel-status: a channel off the air', () => {
     expect(out.body).toMatchObject({ ok: true, down: ['strmz.xyz|42'], offair: ['strmz.xyz|42'] });
   });
 
-  it('a box it does not know is stored untrusted and never changes what boxes see', async () => {
-    state.handlers.onRpc = (c) => (c.name === 'channel_down_list' ? { data: [] } : undefined);
+  it('stored untrusted (a box past its burst, or one nobody knows): the cached list stands', async () => {
     await listOnce('quiet.example');
-    const out = await offair('made-up-device-10', {}, 'quiet.example');
-    expect(out.body.ok).toBe(true);
-    expect(inserted()[0]).toMatchObject({ kind: 'offair', trusted: false });
-    // The cached list stands: not even asked again.
+    answer = 'stored_untrusted';
+    lineDevices = ['real-box-0012'];
+    expect((await offair('real-box-0012', {}, 'quiet.example')).body.ok).toBe(true);
     expect((await listOnce('quiet.example')).body.down).toEqual([]);
     expect(listRpcs()).toBe(1);
   });
 
-  it('needs the status code, 400-599, and keeps it only on offair', async () => {
-    expect((await offair('some-device-10', { http_status: undefined })).status).toBe(400);
-    expect((await offair('some-device-10', { http_status: 302 })).status).toBe(400);
-    expect((await offair('some-device-10', { http_status: '404; drop table' })).status).toBe(400);
-    expect((await offair('some-device-10', { http_status: 503 })).body.ok).toBe(true);
-    expect(inserted()[0]).toMatchObject({ http_status: 503 });
-    await call({ op: 'signal', host: 'strmz.xyz', stream_id: 42, kind: 'fail', http_status: 404, device_id: 'some-device-10' });
-    expect(inserted()[1]).not.toHaveProperty('http_status');
-  });
-
-  it('one device marks at most 20 different channels off the air an hour', async () => {
-    signalsByDevice = Array.from({ length: 20 }, (_, i) => ({ kind: 'offair', stream_id: 100 + i }));
-    expect((await offair('broken-box-01')).body).toEqual({ ok: false, reason: 'rate_limited' });
-    // One it already marked is not another channel…
-    const again = await call({ op: 'signal', host: 'strmz.xyz', stream_id: 105, kind: 'offair', http_status: 404, device_id: 'broken-box-01' });
-    expect(again.body.ok).toBe(true);
-    // …and its other signals still go.
-    expect((await signal('ok', 'broken-box-01')).body.ok).toBe(true);
-  });
-
-  it('one IP marks at most 60, whatever device id each one claims', async () => {
-    signalsByIp = Array.from({ length: 60 }, (_, i) => ({ kind: 'offair', stream_id: 500 + i }));
-    expect((await offair('brand-new-device-77')).body).toEqual({ ok: false, reason: 'rate_limited' });
+  it('past its limits (20 channels an hour a device, 10 an hour and 30 a day an IP): rate limited', async () => {
+    answer = 'rate_limited';
+    expect((await offair('busy-device-11')).body).toEqual({ ok: false, reason: 'rate_limited' });
   });
 
   it('counts with every other signal in the hourly limit', async () => {
     signalsByDevice = Array(40).fill('fail');
     expect((await offair('busy-device-10')).body.reason).toBe('rate_limited');
+    expect(stores()).toEqual([]);
   });
 
-  it('keeps offair, ok and clear for 8 days (a mark counts for 7), every other signal for 2', async () => {
+  it('takes only the statuses a dead stream answers with: 404, 410, 500, 502, 503, 504', async () => {
+    for (const status of [404, 410, 500, 502, 503, 504]) expect((await offair('some-device-10', { http_status: status })).body.ok).toBe(true);
+    for (const status of [undefined, 302, 400, 403, 418, 501, 599, '404; drop table']) {
+      expect((await offair('some-device-10', { http_status: status })).status).toBe(400);
+    }
+    expect(stores()).toHaveLength(6);
+    // Another kind keeps no status.
+    await call({ op: 'signal', host: 'strmz.xyz', stream_id: 42, kind: 'fail', http_status: 404, device_id: 'some-device-10' });
+    expect(inserted()[0]).not.toHaveProperty('http_status');
+  });
+
+  it('a database without the migration: nothing stored, the box hears db_error', async () => {
+    state.handlers.onRpc = (c) => (c.name === 'channel_offair_signal' ? { error: { message: 'function channel_offair_signal does not exist' } } : undefined);
+    expect((await offair('some-device-12')).body).toEqual({ ok: false, reason: 'db_error' });
+  });
+
+  it('keeps offair, ok and clear 8 days (the Hub’s history), every other signal 2', async () => {
     const spy = vi.spyOn(Math, 'random').mockReturnValue(0);
     try {
-      await offair('some-device-11');
+      await signal('fail', 'some-device-11');
     } finally { spy.mockRestore(); }
     const deletes = state.queries.filter((q) => q.table === 'channel_signals' && q.ops.some((o) => o.op === 'delete'));
     expect(deletes).toHaveLength(2);
@@ -379,7 +399,7 @@ describe('channel-status: a channel off the air', () => {
     expect(long.ops.some((o) => o.op === 'not')).toBe(false);
   });
 
-  it('an admin marking it working or clearing it ends the mark for good; marking it down does not', async () => {
+  it('an admin marking it working ends the mark for good; Clear (no status) and Down leave the boxes’ evidence', async () => {
     state.handlers.onRpc = (c) => (c.name === 'has_role' ? { data: true } : undefined);
     const auth = { Authorization: `Bearer ${ADMIN_TOKEN}` };
     const offairDeletes = () => state.queries.filter((q) => q.table === 'channel_signals' && q.ops.some((o) => o.op === 'delete') && eqValue(q, 'kind') === 'offair');
@@ -388,9 +408,10 @@ describe('channel-status: a channel off the air', () => {
     expect(eqValue(offairDeletes()[0], 'stream_id')).toBe(42);
     expect(eqValue(offairDeletes()[0], 'host')).toBe('strmz.xyz');
     await call({ op: 'admin_set', host: 'strmz.xyz', stream_id: 42, status: null }, auth);
-    expect(offairDeletes()).toHaveLength(2);
+    expect(offairDeletes()).toHaveLength(1);
+    expect(state.queries.some((q) => q.table === 'channel_overrides' && q.ops.some((o) => o.op === 'delete'))).toBe(true);
     await call({ op: 'admin_set', host: 'strmz.xyz', stream_id: 42, status: 'down', hours: 2 }, auth);
-    expect(offairDeletes()).toHaveLength(2);
+    expect(offairDeletes()).toHaveLength(1);
   });
 
   it('the Hub sees each channel off the air with its status code and when, even with nothing else said in 3 hours', async () => {
@@ -402,7 +423,7 @@ describe('channel-status: a channel off the air', () => {
         expect(c.args).toEqual({ p_hosts: null });
         return { data: [
           { host: 'strmz.xyz', stream_id: 9, channel_name: 'ESPN', http_status: 404, since: '2026-10-20T09:00:00Z', last_at: '2026-10-20T10:00:00Z' },
-          { host: 'dstreams.xyz:8080', stream_id: 77, channel_name: 'Old News', http_status: 503, since: '2026-10-17T09:00:00Z', last_at: '2026-10-18T09:00:00Z' },
+          { host: 'dstreams.xyz:8080', stream_id: 77, channel_name: 'Old News', http_status: 503, since: '2026-10-20T03:00:00Z', last_at: '2026-10-20T04:00:00Z' },
         ] };
       }
       if (c.name === 'channel_down_list') return { data: [{ host: 'strmz.xyz', stream_id: 9 }, { host: 'dstreams.xyz:8080', stream_id: 77 }] };
@@ -411,7 +432,7 @@ describe('channel-status: a channel off the air', () => {
     const out = await call({ op: 'admin_list' }, { Authorization: `Bearer ${ADMIN_TOKEN}` });
     const channels = out.body.channels as Array<Record<string, unknown>>;
     expect(channels.find((c) => c.key === 'strmz.xyz|9')).toMatchObject({ down: true, offair: { http_status: 404, since: '2026-10-20T09:00:00Z', last: '2026-10-20T10:00:00Z' } });
-    expect(channels.find((c) => c.key === 'dstreams.xyz:8080|77')).toMatchObject({ name: 'Old News', down: true, offair: { http_status: 503, since: '2026-10-17T09:00:00Z' } });
+    expect(channels.find((c) => c.key === 'dstreams.xyz:8080|77')).toMatchObject({ name: 'Old News', down: true, offair: { http_status: 503, since: '2026-10-20T03:00:00Z' } });
     // The other host was asked about too.
     const downAsk = state.rpcs.find((c) => c.name === 'channel_down_list')!;
     expect(downAsk.args.p_hosts).toEqual(expect.arrayContaining(['strmz.xyz', 'dstreams.xyz:8080']));
@@ -429,22 +450,45 @@ describe('channel-status: a channel off the air', () => {
 });
 
 describe('channel-status: the off-the-air migration', () => {
-  // The rule lives in SQL (checked against a throwaway Postgres when it was
+  // The rule lives in SQL (run against a throwaway Postgres when it was
   // written); this keeps its load-bearing parts from drifting.
-  it('one trusted offair, ended by a later trusted ok / clear or an override, for at most 7 days', async () => {
-    const sql = readFileSync(path.resolve(__dirname, '../../../supabase/migrations/20261020120000_channel_offair.sql'), 'utf8');
-    const fn = sql.slice(sql.indexOf('create or replace function public.channel_offair_list'), sql.indexOf('-- 3. channel_down_list'));
-    expect(fn).toMatch(/s\.trusted/);
-    expect(fn).toMatch(/max\(s\.created_at\) filter \(where s\.kind in \('ok', 'clear'\)\) as last_good/);
-    expect(fn).toMatch(/c\.last_off > c\.last_good/);
-    expect(fn).toMatch(/s\.created_at > now\(\) - interval '7 days'/);
-    expect(fn).toMatch(/channel_overrides/);
-    expect(fn).not.toMatch(/count\(/);
-    expect(sql).toMatch(/check \(kind in \('down', 'fail', 'ok', 'clear', 'buffering', 'offair'\)\)/);
-    expect(sql).toMatch(/http_status between 400 and 599/);
-    // Older apps see it as down.
-    expect(sql.slice(sql.indexOf('-- 3. channel_down_list'))).toMatch(/from public\.channel_offair_list\(p_hosts\)/);
-    // The one deviation is written down for the owner.
+  const sql = readFileSync(path.resolve(__dirname, '../../../supabase/migrations/20261020120000_channel_offair.sql'), 'utf8');
+  const fn = (name: string) => {
+    const at = sql.indexOf(`create or replace function public.${name}(`);
+    return sql.slice(at, sql.indexOf('$$;', at));
+  };
+
+  it('a lone box counts only for 404 / 410 from a verified line; 5xx needs two boxes on two IPs within 30 minutes', () => {
+    expect(fn('channel_offair_rows')).toMatch(/\(o\.line_verified and o\.http_status in \(404, 410\)\) as strong/);
+    const list = fn('channel_offair_list');
+    expect(list).toMatch(/o\.line_verified and not o\.outage/);
+    expect(list).toMatch(/b\.device_hash <> e\.device_hash and b\.ip_hash <> e\.ip_hash/);
+    expect(list).toMatch(/interval '30 minutes'/);
+  });
+
+  it('slides 24 h from the newest 404 / 410 and 3 h from the newest 5xx, ended by a later trusted ok / clear', () => {
+    const list = fn('channel_offair_list');
+    expect(list).toMatch(/when r\.http_status in \(404, 410\) then interval '24 hours' else interval '3 hours'/);
+    expect(list).toMatch(/g\.kind in \('ok', 'clear'\) and g\.trusted/);
+    expect(list).toMatch(/channel_overrides/);
     expect(sql).toMatch(/THE ONE DEVIATION/);
+  });
+
+  it('the outage breaker: 10 channels of one host in 10 minutes', () => {
+    expect(fn('channel_offair_rows')).toMatch(/count\(distinct b\.stream_id\)[\s\S]*>= 10/);
+  });
+
+  it('counts and writes under one lock per IP and per device', () => {
+    const store = fn('channel_offair_signal');
+    expect(store).toMatch(/pg_advisory_xact_lock\(hashtext\('smc-offair-ip:' \|\| p_ip_hash\)\)/);
+    expect(store).toMatch(/dev_hour >= 20 or ip_hour >= 10 or ip_day >= 30/);
+    expect(store).toMatch(/dev_burst >= 3 or ip_burst >= 3 then keep_trusted := false/);
+  });
+
+  it('only the statuses a dead stream answers with; older apps see them as down; short lock waits', () => {
+    expect(sql).toMatch(/check \(kind in \('down', 'fail', 'ok', 'clear', 'buffering', 'offair'\)\)/);
+    expect(sql).toMatch(/http_status in \(404, 410, 500, 502, 503, 504\)/);
+    expect(fn('channel_down_list')).toMatch(/from public\.channel_offair_list\(p_hosts\)/);
+    expect(sql.trimStart().split('\n').filter((l) => !l.startsWith('--') && l.trim()).shift()).toBe("set lock_timeout = '3s';");
   });
 });

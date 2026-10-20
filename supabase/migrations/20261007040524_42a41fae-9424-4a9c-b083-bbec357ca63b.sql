@@ -30,7 +30,9 @@
 -- username and how many of its connections were in use / allowed when it was
 -- sent (line_user, active_cons, max_cons; null when the panel did not say in
 -- time). Never the password or the host address. Automatic signals and
--- clears carry none. Like every signal, deleted after two days.
+-- clears carry none. Like every signal, deleted after two days (since
+-- 20261020120000 the offair, ok and clear signals, which never carry a
+-- username, are kept 8 days, for the Hub's off-the-air history).
 --
 -- Safe to run twice. Nothing existing is renamed or dropped: channel_signals
 -- only gains a kind value and three nullable columns; channel_down_list and

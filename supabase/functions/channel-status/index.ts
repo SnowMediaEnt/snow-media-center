@@ -23,7 +23,8 @@
 //                                              offair (the box asked for the
 //                                              stream and the provider said
 //                                              it isn't there: http_status
-//                                              400-599, required) |
+//                                              404 / 410 / 500 / 502 / 503 /
+//                                              504, required) |
 //                                              fail | ok (see the migrations).
 //                                              Limits below; counts only from
 //                                              a box we know (knownBox).
@@ -44,23 +45,29 @@
 //                                              while, or null to clear (a
 //                                              channel, or with category_id a
 //                                              whole category). For a channel,
-//                                              ok or null also ends an off-the-
-//                                              air mark for good (its offair
-//                                              signals are deleted).
+//                                              ok also ends an off-the-air
+//                                              mark for good (its offair
+//                                              signals are deleted); null
+//                                              (the Hub's Clear) only takes
+//                                              the override off and leaves
+//                                              the boxes' evidence alone.
 //
 // Boxes are counted by a hash of their device id, callers by a hash of their
 // IP address (an IPv6 /64 counts once); nothing else about them is kept, and
-// signals older than two days are deleted (offair, ok and clear: after
-// OFFAIR_KEEP_MS, as an off-the-air mark lasts up to 7 days).
+// signals older than two days are deleted (offair, ok and clear, which never
+// carry a line: after OFFAIR_KEEP_MS, for the Hub's history).
 //
-// Off the air (migration 20261020120000): ONE offair signal from a box we
-// know marks the channel down for every box on that host at once, until a
-// later ok / clear from a box we know or the admin ends it; never longer than
-// 7 days (the migration's one deviation from "until it streams again"). The
-// box sends it only for its provider's "not here" before any picture. On top
-// of the usual limits, one device marks at most MAX_OFFAIR_CHANNELS_PER_HOUR
-// different channels an hour (one IP MAX_OFFAIR_CHANNELS_PER_IP_HOUR), so one
-// broken box cannot blank a line-up.
+// Off the air (migration 20261020120000 has the whole rule): a 404 / 410
+// from a box that signed a verified line in on that host (player_signins)
+// marks the channel for every box on it at once; a 5xx needs two such boxes
+// on different IP addresses within 30 minutes, and none is listed while ten
+// or more channels of one host go off the air in ten minutes (an outage);
+// an offair from a box known only by its analytics counts like a 'fail'.
+// The mark slides from the newest signal (24 h for 404 / 410, 3 h for 5xx)
+// and ends at the first ok / clear. The limits (one device 20 different
+// channels an hour, one IP 10 an hour and 30 a day, the 4th and further in
+// 15 minutes stored untrusted) are counted and the row written atomically
+// in channel_offair_signal.
 //
 // One report from a real box is still enough to put ⚠️ on a channel for
 // everyone (migration 20260927060000). What stops a script doing that to a
@@ -105,13 +112,11 @@ const MAX_CATEGORY_PER_HOUR = 12;
 const MAX_CATEGORY_DOWN_PER_HOUR = 3;
 const MAX_CATEGORY_PER_IP_HOUR = 60;
 const MAX_CATEGORY_DOWN_PER_IP_HOUR = 6;
-// Off the air: different channels one device / one IP may mark in an hour.
-const MAX_OFFAIR_CHANNELS_PER_HOUR = 20;
-const MAX_OFFAIR_CHANNELS_PER_IP_HOUR = 60;
-// How long offair, ok and clear signals are kept (an off-the-air mark counts
-// for 7 days, channel_offair_list; a day over, so the ok / clear that ended
-// one is never deleted before it).
+// How long offair, ok and clear signals are kept: 8 days, for the Hub's
+// history (a mark itself lasts 24 h at most, channel_offair_list).
 const OFFAIR_KEEP_MS = 8 * 24 * 60 * 60 * 1000;
+// The statuses an offair may carry (the app's isOffAirAnswer).
+const OFFAIR_STATUSES = [404, 410, 500, 502, 503, 504];
 const SIGNAL_KEEP_MS = 2 * 24 * 60 * 60 * 1000;
 const KEPT_LONGER = '("offair","ok","clear")';
 const SIGNAL_KINDS = ['down', 'fail', 'ok', 'clear', 'buffering', 'offair'];
@@ -149,18 +154,13 @@ const sha256 = async (s: string) => {
 
 type Admin = ReturnType<typeof createClient>;
 
-/** This hour's signals for one device or IP: all of them, down/clear, and
- *  the channels it marked off the air. */
+/** This hour's signals for one device or IP: all of them, and down/clear. */
 async function hourCounts(admin: Admin, column: 'device_hash' | 'ip_hash', value: string, cap: number) {
   const { data } = await admin.from('channel_signals')
-    .select('kind, stream_id').eq(column, value).gte('created_at', new Date(Date.now() - 60 * 60 * 1000).toISOString())
+    .select('kind').eq(column, value).gte('created_at', new Date(Date.now() - 60 * 60 * 1000).toISOString())
     .limit(cap + 1);
-  const rows = (data ?? []) as Array<{ kind: string; stream_id?: number }>;
-  return {
-    all: rows.length,
-    manual: rows.filter((r) => MANUAL_KINDS.includes(r.kind)).length,
-    offair: new Set(rows.filter((r) => r.kind === 'offair').map((r) => Number(r.stream_id))),
-  };
+  const kinds = ((data ?? []) as Array<{ kind: string }>).map((r) => r.kind);
+  return { all: kinds.length, manual: kinds.filter((k) => MANUAL_KINDS.includes(k)).length };
 }
 
 /** This hour's category signals for one device or IP: all of them, and 'down'. */
@@ -192,18 +192,21 @@ async function insertSignal(admin: Admin, table: string, row: Record<string, unk
   return admin.from(table).insert(row);
 }
 
-/** A box we have seen before: signed a line in on this host, or has been
- *  sending analytics for a while (see the top of this file). */
-async function knownBox(admin: Admin, deviceId: string, host: string): Promise<boolean> {
+/** A box we have seen before, and how: 'line' when it signed a verified
+ *  line in on this host (player_signins), 'analytics' when it has only been
+ *  sending analytics for a while (see the top of this file), null when
+ *  neither. Off the air takes a box's word on its own only for 'line'. */
+async function knownBox(admin: Admin, deviceId: string, host: string): Promise<'line' | 'analytics' | null> {
   try {
     const [line, seen] = await Promise.all([
       admin.from('player_signins').select('id').eq('device_id', deviceId).eq('panel_host', host).limit(1),
       admin.from('analytics_sessions').select('id').eq('device_id', deviceId)
         .lt('created_at', new Date(Date.now() - KNOWN_BOX_AFTER_MS).toISOString()).limit(1),
     ]);
-    return !!((line.data ?? []).length || (seen.data ?? []).length);
+    if ((line.data ?? []).length) return 'line';
+    return (seen.data ?? []).length ? 'analytics' : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -250,11 +253,11 @@ Deno.serve(async (req) => {
       const streamId = Number(body.stream_id);
       const kind = String(body.kind ?? '');
       const deviceId = String(body.device_id ?? '').slice(0, 200);
-      // Off the air: the status the provider answered with, a number only.
+      // Off the air: the status the provider answered with, one of a few numbers.
       const httpStatus = Number(body.http_status);
       if (
         !HOST.test(host) || !Number.isInteger(streamId) || streamId <= 0 || !SIGNAL_KINDS.includes(kind) || deviceId.length < 8
-        || (kind === 'offair' && !(Number.isInteger(httpStatus) && httpStatus >= 400 && httpStatus <= 599))
+        || (kind === 'offair' && !OFFAIR_STATUSES.includes(httpStatus))
       ) {
         return json({ ok: false, reason: 'bad_request' }, 400);
       }
@@ -263,29 +266,38 @@ Deno.serve(async (req) => {
       const ipHash = await hashClientIpKey(req.headers, 'smc-channel-ip:');
       const [byDevice, byIp] = await Promise.all([
         hourCounts(admin, 'device_hash', deviceHash, MAX_SIGNALS_PER_HOUR),
-        ipHash ? hourCounts(admin, 'ip_hash', ipHash, MAX_SIGNALS_PER_IP_HOUR) : Promise.resolve({ all: 0, manual: 0, offair: new Set<number>() }),
+        ipHash ? hourCounts(admin, 'ip_hash', ipHash, MAX_SIGNALS_PER_IP_HOUR) : Promise.resolve({ all: 0, manual: 0 }),
       ]);
-      // A channel it already marked this hour is not another one.
-      const offairOver = (seen: Set<number>, cap: number) => seen.size >= cap && !seen.has(streamId);
       if (
         byDevice.all >= MAX_SIGNALS_PER_HOUR || byIp.all >= MAX_SIGNALS_PER_IP_HOUR
         || (manual && (byDevice.manual >= MAX_MANUAL_PER_HOUR || byIp.manual >= MAX_MANUAL_PER_IP_HOUR))
-        || (kind === 'offair' && (offairOver(byDevice.offair, MAX_OFFAIR_CHANNELS_PER_HOUR) || offairOver(byIp.offair, MAX_OFFAIR_CHANNELS_PER_IP_HOUR)))
       ) {
         return json({ ok: false, reason: 'rate_limited' });
       }
-      const trusted = await knownBox(admin, deviceId, host);
+      const known = await knownBox(admin, deviceId, host);
       const name = typeof body.name === 'string' ? body.name.slice(0, 200) : null;
+      if (kind === 'offair') {
+        // Its own limits, counted and written under one lock (the migration).
+        const { data: stored, error } = await admin.rpc('channel_offair_signal', {
+          p_host: host, p_stream_id: streamId, p_name: name, p_http_status: httpStatus,
+          p_device_hash: deviceHash, p_ip_hash: ipHash, p_trusted: !!known, p_line_verified: known === 'line',
+        });
+        if (error) { console.error('[channel-status] offair:', error.message); return json({ ok: false, reason: 'db_error' }); }
+        if (stored === 'rate_limited') return json({ ok: false, reason: 'rate_limited' });
+        if (stored === 'bad_request') return json({ ok: false, reason: 'bad_request' }, 400);
+        if (stored === 'stored') dropCachedHost(host);
+        return json({ ok: true });
+      }
+      const trusted = !!known;
       const { error } = await insertSignal(admin, 'channel_signals', {
         host, stream_id: streamId, channel_name: name, kind, device_hash: deviceHash, ip_hash: ipHash, trusted,
-        ...(kind === 'offair' ? { http_status: httpStatus } : {}),
       }, reportLine(body, kind === 'down' || kind === 'buffering'));
       if (error) { console.error('[channel-status] signal:', error.message); return json({ ok: false, reason: 'db_error' }); }
       // Drop the host's cached list so the change shows at the next ask.
       if (trusted) dropCachedHost(host);
       // Now and then, forget signals nobody needs any more: after two days,
-      // but offair / ok / clear only after OFFAIR_KEEP_MS (an off-the-air
-      // mark, and the ok or clear that ended it, count for 7 days).
+      // but offair / ok / clear (no line in them) only after OFFAIR_KEEP_MS,
+      // for the Hub's history of off-the-air channels.
       if (Math.random() < 0.02) {
         await admin.from('channel_signals').delete()
           .lt('created_at', new Date(Date.now() - SIGNAL_KEEP_MS).toISOString()).not('kind', 'in', KEPT_LONGER);
@@ -314,7 +326,7 @@ Deno.serve(async (req) => {
       ) {
         return json({ ok: false, reason: 'rate_limited' });
       }
-      const trusted = await knownBox(admin, deviceId, host);
+      const trusted = !!(await knownBox(admin, deviceId, host));
       const name = typeof body.name === 'string' ? body.name.slice(0, 200) : null;
       const { error } = await insertSignal(admin, 'category_signals', {
         host, category_id: categoryId, category_name: name, kind, device_hash: deviceHash, ip_hash: ipHash, trusted,
@@ -361,10 +373,11 @@ Deno.serve(async (req) => {
         const streamId = Number(body.stream_id);
         if (!HOST.test(host) || !Number.isInteger(streamId)) return json({ ok: false, reason: 'bad_request' }, 400);
         const status = body.status === 'down' || body.status === 'ok' ? body.status : null;
-        // Working, or the mark taken off: an off-the-air mark ends for good
-        // (an override alone would bring it back when it runs out). A box
-        // that gets the same answer again marks it again.
-        if (status !== 'down') {
+        // Working: an off-the-air mark ends for good (an override alone would
+        // bring it back when it runs out); a box that gets the same answer
+        // again marks it again. Clear (no status) only takes the admin's own
+        // override off: the boxes' evidence stays.
+        if (status === 'ok') {
           const { error } = await admin.from('channel_signals').delete().eq('host', host).eq('stream_id', streamId).eq('kind', 'offair');
           if (error) console.error('[channel-status] admin_set offair:', error.message);
         }

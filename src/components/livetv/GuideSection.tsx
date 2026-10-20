@@ -723,6 +723,20 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
   // asked for again first when they are older than a few seconds
   // (openWhenFresh, a second at most); only the newest OK goes on.
   const openSeqRef = useRef(0);
+  // A pick still waiting for the reports is dropped when the viewer leaves
+  // meanwhile: Back (the remote's, or the system's, which arrives as an
+  // Escape), the Guide losing the remote, or the Guide going away.
+  useEffect(() => () => { openSeqRef.current += 1; }, [isActive]);
+  useEffect(() => {
+    if (!isActive) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      const typing = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+      if (e.key === 'Escape' || e.keyCode === 4 || (e.key === 'Backspace' && !typing)) openSeqRef.current += 1;
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [isActive]);
   const askThenHandOver = useCallback((ch: XtreamLiveStream, handOver: () => void) => {
     const seq = ++openSeqRef.current;
     openWhenFresh(creds.host, (fresh) => {
