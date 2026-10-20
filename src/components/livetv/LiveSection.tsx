@@ -95,7 +95,7 @@ import FullscreenChannelOverlay, { OVERLAY_CHANNEL_ROWS, type OverlayCategory } 
 import RecentChannelsPanel from './RecentChannelsPanel';
 import { useRecentPanel } from './useRecentPanel';
 import { useFavoritesMove } from './useFavoritesMove';
-import MovingFavoriteFrame from './MovingFavoriteFrame';
+import MovingFavoriteMark from './MovingFavoriteMark';
 import { arrangeFavorites, favRefKey } from '@/lib/favoritesOrder';
 import { recentChannelId, type RecentChannel } from '@/lib/recentChannels';
 // Not lazy: it must be up before the held OK that opens it is let go (that
@@ -268,6 +268,12 @@ const favToStream = (f: FavChannel): XtreamLiveStream => ({
   category_id: f.category_id,
   epg_channel_id: f.epg_channel_id,
 });
+/** favToStream, made once per saved favourite (a changed one is a new object, so a new row). */
+const favStreamOf = (cache: WeakMap<FavChannel, XtreamLiveStream>, f: FavChannel): XtreamLiveStream => {
+  let st = cache.get(f);
+  if (!st) { st = favToStream(f); cache.set(f, st); }
+  return st;
+};
 
 const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBack, onNavigate, onBackToCaller, onForgetGuideReturn }: Props) => {
   const { t } = useTranslation();
@@ -1072,11 +1078,18 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }, [categoriesByLine]);
 
   // Favorites in the viewer's own order or A–Z (lib/favoritesOrder), and a
-  // favourite being moved (Move in its menu: useFavoritesMove).
-  const favMove = useFavoritesMove({ lines, favsByLine, active: isActive });
+  // favourite being moved (Move in its menu: useFavoritesMove). A move lasts
+  // only while the list has the remote: full screen (a voice "put on …"),
+  // search (the assistant's report), the categories pane or the Player's
+  // side menu put it down where it is, saved.
+  const favMove = useFavoritesMove({ lines, favsByLine, active: isActive && !fullscreen && !searchOpen && pane === 'channels' });
   const favOrder = favMove.order;
   const favMoveRef = useRef(favMove);
   favMoveRef.current = favMove;
+  // One row object per saved favourite: a new order (each ▲▼ of a move) only
+  // reorders the same rows, so ChannelRow's memo holds and the playing
+  // channel keeps its identity.
+  const favStreamsRef = useRef(new WeakMap<FavChannel, XtreamLiveStream>());
 
   // Resolve channel list for the focused category / favorites / search.
   const visibleChannels: XtreamLiveStream[] = useMemo(() => {
@@ -1095,7 +1108,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       for (const line of lines) {
         const k = lineKey(line);
         for (const f of (favsByLine.get(k) ?? EMPTY_FAVS).values()) {
-          const st = favToStream(f);
+          const st = favStreamOf(favStreamsRef.current, f);
           streamLineRef.current.set(st, line);
           lineOf.set(st, k);
           out.push(st);
@@ -1106,7 +1119,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     if (currentCat.isFav) {
       const favs = favsByLine.get(currentCat.lineKey) ?? EMPTY_FAVS;
       const out = [...favs.values()].map((f) => {
-        const st = favToStream(f);
+        const st = favStreamOf(favStreamsRef.current, f);
         streamLineRef.current.set(st, currentCat.line);
         return st;
       });
@@ -1194,17 +1207,21 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }, [visibleChannels.length, channelIdx]);
   // Favourites in a new order (a sort, Move up / down, a move under way): the
   // highlight stays on the channel that moved. One being moved that is no
-  // longer in the list (taken off on another box) is put down.
+  // longer in the list (taken off on another box) is put down. Only in a
+  // Favorites list: anywhere else (search opened, another category) the
+  // channel asked for is forgotten.
   const favFocusKeyRef = useRef<string | null>(null);
   const movingFavKey = favMove.movingKey;
+  const onFavList = !searchOpen && !!currentCat?.isFav;
   useEffect(() => {
     const k = movingFavKey ?? favFocusKeyRef.current;
     if (!k) return;
     favFocusKeyRef.current = null;
+    if (!onFavList) { if (movingFavKey) favMoveRef.current.drop(); return; }
     const i = visibleChannels.findIndex((st) => favRefKey(lineKey(lineFor(st)), st.stream_id) === k);
     if (i >= 0) setChannelIdx(i);
     else if (movingFavKey) favMoveRef.current.drop();
-  }, [visibleChannels, movingFavKey, lineFor]);
+  }, [visibleChannels, movingFavKey, lineFor, onFavList]);
 
   // Derive focused channel from a CLAMPED index so it's never out of range
   // for even a single frame between renders.
@@ -2283,6 +2300,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const openChannelOptionsRef = useRef(openChannelOptions);
   openChannelOptionsRef.current = openChannelOptions;
   const onRowLongPress = useCallback((i: number) => {
+    // A favourite being moved owns the list until it is put down.
+    if (favMoveRef.current.movingKey) return;
     setChannelIdx(i);
     const c = visibleChannelsRef.current[i];
     if (c) openChannelOptionsRef.current(c);
@@ -3772,7 +3791,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
               >
                 {slot.map((s, c) => {
                   const idx = first + c;
-                  const row = (
+                  return (
                     <ChannelRow
                       key={s.stream_id}
                       variant={rowVariant}
@@ -3792,11 +3811,24 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                       serviceTag={currentCat?.isAllFavs && !searchOpen ? lineLabel(lineFor(s)) : undefined}
                     />
                   );
-                  // The favourite being moved (it keeps the highlight): lifted, with its arrows.
-                  return favMove.movingKey && favRefKey(lineKey(lineFor(s)), s.stream_id) === favMove.movingKey
-                    ? <MovingFavoriteFrame key={s.stream_id} grid={cols > 1}>{row}</MovingFavoriteFrame>
-                    : row;
                 })}
+                {/* The favourite being moved: lifted, with its arrows, laid over its row. */}
+                {movingFavKey && (() => {
+                  const c = slot.findIndex((s) => favRefKey(lineKey(lineFor(s)), s.stream_id) === movingFavKey);
+                  if (c < 0) return null;
+                  const gap = tvWall ? tvWall.gap : 12;
+                  const tile = `(100% - ${(cols - 1) * gap}px) / ${cols}`;
+                  return (
+                    <MovingFavoriteMark
+                      key="fav-moving"
+                      channelId={slot[c].stream_id}
+                      grid={cols > 1}
+                      style={cols > 1
+                        ? { top: 4, bottom: 4, left: `calc(${tile} * ${c} + ${c * gap}px)`, width: `calc(${tile})` }
+                        : { top: 2, bottom: 2, left: 0, right: 0 }}
+                    />
+                  );
+                })()}
               </div>
             );
           })}
