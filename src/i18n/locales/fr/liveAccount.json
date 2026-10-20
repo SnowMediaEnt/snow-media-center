@@ -11,6 +11,7 @@
       "help": "Résoudre un problème",
       "signOut": "Se déconnecter",
       "signOutHint": "Déconnecte cet appareil de Live TV. Votre ligne continue de fonctionner sur vos autres appareils. Appuyez sur OK pour vous déconnecter.",
+      "signOutConfirm": "Appuyez de nouveau sur OK pour vous déconnecter",
       "demoTitle": "Démo en direct",
       "demoDesc": "La démo est préchargée avec un compte de démonstration : la connexion et le changement de compte fonctionnent dans l'appli installée.",
       "state": {
@@ -70,7 +71,7 @@
       "hidePasswordBtn": "Masquer mot de passe",
       "changeCredentialsBtn": "Modifier les identifiants",
       "renewBtn": "Renouveler",
-      "billingBtn": "Renouveler et forfaits",
+      "plansBtn": "Forfaits et facturation",
       "daysLeft_one": "{{count}} jour restant",
       "daysLeft_other": "{{count}} jours restants",
       "daysLeft_many": "{{count}} jours restants",

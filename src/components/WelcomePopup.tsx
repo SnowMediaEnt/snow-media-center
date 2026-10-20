@@ -195,7 +195,7 @@ const CHANGELOG: Record<string, string[]> = {
   ],
   '1.5.7': [
     'New: full EPG "Guide" — classic cable-grid layout under Live TV',
-    'New: Settings hub — Account, Switch Account, Appearance, Sign Out in one place',
+    'New: Settings hub — My Account, Services, Appearance, Sign Out in one place',
     'New: Saved Accounts — save Dreamstreams + Vibez and switch without re-typing',
     'New: Appearance — customize font, text size, highlight, background & text color',
     'Player closed captions + audio-track selection',

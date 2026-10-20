@@ -1,9 +1,9 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
-  ArrowLeft, Tv, Calendar, KeyRound, Users, Server, Clock, ShieldCheck, LogOut, Eye, EyeOff, RefreshCw, Library, CreditCard, MonitorSmartphone,
+  ArrowLeft, Tv, Calendar, KeyRound, Users, Server, Clock, ShieldCheck, LogOut, Eye, EyeOff, RefreshCw, Library, CreditCard, MonitorSmartphone, Loader2,
 } from 'lucide-react';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { expDateToMs } from '@/lib/xtream';
@@ -11,6 +11,7 @@ import { readCounts } from '@/lib/catalogCounts';
 import { formatDate, formatDateTime, formatNumber } from '@/i18n/format';
 import { useTranslation } from 'react-i18next';
 import { trackEvent } from '@/lib/analytics';
+import { renewableServiceForLine } from '@/lib/billing';
 import { isDemo } from '@/lib/demoMode';
 import RenewQR from './RenewQR';
 import LineDevicesPanel from './LineDevicesPanel';
@@ -25,11 +26,15 @@ interface Props {
   /** Embedded only: whether the remote is on this page (false while it is on the menu). */
   active?: boolean;
   /**
-   * Billing on (Live TV Settings › My Account): the plans, renewals and trial
-   * of the billing account. Its button takes Renew's place, so there is one
-   * Renew path; without it Renew shows the renewal QR, as before.
+   * Billing on (Live TV Settings › My Account): opens the billing account's
+   * view. "Plans & billing" opens it as it is; Renew opens it renewing this
+   * line (`renewServiceId`) when the line is one of the billing account's
+   * services, and otherwise shows the renewal QR as before. Renew's label
+   * never changes: where it goes is decided when it is pressed.
    */
-  onOpenBilling?: () => void;
+  onOpenBilling?: (renewServiceId?: number) => void;
+  /** Coming back from the billing view: the button that opened it has the highlight. */
+  initialFocus?: 'renew' | 'plans';
   /**
    * The line Live TV is signed into (Live TV Settings › My Account): "Devices
    * on this line" opens its devices in this page (LineDevicesPanel), Back
@@ -44,39 +49,86 @@ const fmtDay = (ms: number | null) => (ms ? formatDate(ms) : '—');
 
 interface Row { label: string; value: React.ReactNode; icon: typeof Tv; mono?: boolean }
 
+/** The column's buttons (Back only when the page has its own header). */
+type ActionId = 'back' | 'showPwd' | 'change' | 'renew' | 'plans' | 'devices' | 'signout';
+
 /**
  * Read-only Xtream account info screen (Live TV Settings -> My Account).
  * Back sits top-left; the actions stand in a column beside the details, so
  * the remote's Up / Down walk Back -> Show password -> Change login -> Renew
- * -> Sign out. (They were one row across the top that only Left / Right
- * reached, which viewers found confusing — owner, 2026-10-14.)
+ * -> (Plans & billing) -> (Devices on this line) -> Sign out. (They were one
+ * row across the top that only Left / Right reached, which viewers found
+ * confusing — owner, 2026-10-14.) The highlight follows a button, not a
+ * place, so a button that appears late (billing loads) doesn't move it.
+ * Sign out asks once: the first OK says "Press OK again", moving or Back
+ * takes that back.
  */
-const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials, embedded = false, active = true, onOpenBilling, devicesLine = null }: Props) => {
+const AccountInfoScreen = memo(({
+  onBack, onSignOut, onChangeCredentials, embedded = false, active = true, onOpenBilling, initialFocus, devicesLine = null,
+}: Props) => {
   const { t } = useTranslation();
   const { account, state, days } = usePlayerAccount();
   const [showPwd, setShowPwd] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [devicesOpen, setDevicesOpen] = useState(false);
-  const [focusIdx, setFocusIdx] = useState(1);
-  const focusIdxRef = useRef(focusIdx);
-  useEffect(() => { focusIdxRef.current = focusIdx; }, [focusIdx]);
+  const [confirmOut, setConfirmOut] = useState(false);
+  /** Renew is finding out where it goes (the billing account's services). */
+  const [renewBusy, setRenewBusy] = useState(false);
+  const alive = useRef(true);
+  useEffect(() => () => { alive.current = false; }, []);
 
-  // Renew QR is available at ANY days-left value (people renew early) but
-  // never in demo mode. With billing on, its slot is Renew & plans instead.
-  const showRenew = !!onOpenBilling || (!isDemo() && !!account?.username);
-  // Back / Show pwd / Change creds / Renew? / Devices on this line? / Sign out
-  const renewIdx = showRenew ? 3 : -1;
-  const devicesIdx = devicesLine ? (showRenew ? 4 : 3) : -1;
-  const BTN_COUNT = 4 + (showRenew ? 1 : 0) + (devicesLine ? 1 : 0);
-  const signOutIdx = BTN_COUNT - 1;
+  // Renew is available at ANY days-left value (people renew early) but never in demo mode.
+  const showRenew = !isDemo() && !!account?.username;
+  const ids = useMemo<ActionId[]>(() => [
+    ...(embedded ? [] : ['back' as const]),
+    'showPwd', 'change',
+    ...(showRenew ? ['renew' as const] : []),
+    ...(onOpenBilling ? ['plans' as const] : []),
+    ...(devicesLine ? ['devices' as const] : []),
+    'signout',
+  ], [embedded, showRenew, onOpenBilling, devicesLine]);
+  const [focus, setFocusRaw] = useState<ActionId>(initialFocus ?? 'showPwd');
+  // Any move takes back Sign out's question.
+  const setFocus = useCallback((id: ActionId) => { setFocusRaw(id); setConfirmOut(false); }, []);
+  // A button that went away hands the highlight to the first one.
+  const shownFocus: ActionId = ids.includes(focus) ? focus : ids[embedded ? 0 : 1];
+  const stateRef = useRef({ ids, focus: shownFocus, confirmOut });
+  stateRef.current = { ids, focus: shownFocus, confirmOut };
   // The remote went back to the Settings menu by a tap there: this page is itself again.
-  useEffect(() => { if (!active) setDevicesOpen(false); }, [active]);
+  useEffect(() => { if (!active) { setDevicesOpen(false); setConfirmOut(false); } }, [active]);
 
-  const openRenew = () => {
-    if (onOpenBilling) { onOpenBilling(); return; }
+  const showRenewQr = () => {
     try { trackEvent('renew_qr_shown', 'player', { server: account?.serverLabel || '', days_left: days }); } catch { /* ignore */ }
     setShowQR(true);
   };
+  /** Billing on and this line one of the billing account's services: its renewal there; else the QR. */
+  const openRenew = async () => {
+    if (renewBusy) return;
+    if (onOpenBilling && account?.username) {
+      setRenewBusy(true);
+      const serviceId = await renewableServiceForLine(account.username);
+      if (!alive.current) return;
+      setRenewBusy(false);
+      if (serviceId != null) { onOpenBilling(serviceId); return; }
+    }
+    showRenewQr();
+  };
+  const signOutPressed = () => {
+    if (!stateRef.current.confirmOut) { setConfirmOut(true); return; }
+    setConfirmOut(false);
+    onSignOut();
+  };
+  const press = (id: ActionId) => {
+    if (id === 'back') onBack();
+    else if (id === 'showPwd') setShowPwd((v) => !v);
+    else if (id === 'change') onChangeCredentials();
+    else if (id === 'renew') void openRenew();
+    else if (id === 'plans') onOpenBilling?.();
+    else if (id === 'devices') setDevicesOpen(true);
+    else if (id === 'signout') signOutPressed();
+  };
+  const pressRef = useRef(press);
+  pressRef.current = press;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -87,6 +139,8 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials, embedd
       if (typing) return;
       if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        // Back first takes back Sign out's question (one Back, one step).
+        if (stateRef.current.confirmOut) { setConfirmOut(false); return; }
         onBack();
         return;
       }
@@ -100,24 +154,17 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials, embedd
       // (embedded) or Back; Right has nothing to go to (the details are not
       // selectable). They used to move up and down the column too, so Left
       // from Renew went up instead of to the menu (owner, 2026-10-16).
-      const first = embedded ? 1 : 0;
-      if (e.key === 'ArrowLeft') { if (embedded) onBack(); else setFocusIdx(0); return; }
+      const { ids: list, focus: cur } = stateRef.current;
+      const at = Math.max(0, list.indexOf(cur));
+      if (e.key === 'ArrowLeft') { if (embedded) onBack(); else setFocus('back'); return; }
       if (e.key === 'ArrowRight') return;
-      if (e.key === 'ArrowUp') setFocusIdx(i => Math.max(first, i - 1));
-      else if (e.key === 'ArrowDown') setFocusIdx(i => Math.min(BTN_COUNT - 1, i + 1));
-      else if (e.key === 'Enter' || e.key === ' ') {
-        const i = focusIdxRef.current;
-        if (i === 0) onBack();
-        else if (i === 1) setShowPwd(v => !v);
-        else if (i === 2) onChangeCredentials();
-        else if (i === renewIdx) openRenew();
-        else if (i === devicesIdx) setDevicesOpen(true);
-        else if (i === signOutIdx) onSignOut();
-      }
+      if (e.key === 'ArrowUp') setFocus(list[Math.max(0, at - 1)]);
+      else if (e.key === 'ArrowDown') setFocus(list[Math.min(list.length - 1, at + 1)]);
+      else if (!e.repeat) pressRef.current(cur);
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [onBack, onSignOut, onChangeCredentials, onOpenBilling, showQR, devicesOpen, BTN_COUNT, renewIdx, devicesIdx, signOutIdx, embedded, active]);
+  }, [onBack, setFocus, showQR, devicesOpen, embedded, active]);
 
   if (devicesOpen && devicesLine) {
     return <LineDevicesPanel embedded active={active} host={devicesLine.host} username={devicesLine.username} viaSupport onBack={() => setDevicesOpen(false)} />;
@@ -200,16 +247,15 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials, embedd
     )},
   ];
 
-  const actions = [
-    { idx: 1, icon: showPwd ? EyeOff : Eye, onClick: () => setShowPwd(v => !v),
-      label: showPwd ? t('liveAccount.account.hidePasswordBtn') : t('liveAccount.account.showPasswordBtn') },
-    { idx: 2, icon: KeyRound, onClick: onChangeCredentials, label: t('liveAccount.account.changeCredentialsBtn') },
-    ...(showRenew ? [onOpenBilling
-      ? { idx: renewIdx, icon: CreditCard, onClick: openRenew, label: t('liveAccount.account.billingBtn') }
-      : { idx: renewIdx, icon: RefreshCw, onClick: openRenew, label: t('liveAccount.account.renewBtn') }] : []),
-    ...(devicesLine ? [{ idx: devicesIdx, icon: MonitorSmartphone, onClick: () => { setFocusIdx(devicesIdx); setDevicesOpen(true); }, label: t('lineDevices.hub.menuLabel') }] : []),
-    { idx: signOutIdx, icon: LogOut, onClick: onSignOut, label: t('common.signOut') },
-  ];
+  const ACTION_LOOK: Record<Exclude<ActionId, 'back'>, { icon: typeof Tv; label: string }> = {
+    showPwd: { icon: showPwd ? EyeOff : Eye, label: showPwd ? t('liveAccount.account.hidePasswordBtn') : t('liveAccount.account.showPasswordBtn') },
+    change: { icon: KeyRound, label: t('liveAccount.account.changeCredentialsBtn') },
+    renew: { icon: renewBusy ? Loader2 : RefreshCw, label: t('liveAccount.account.renewBtn') },
+    plans: { icon: CreditCard, label: t('liveAccount.account.plansBtn') },
+    devices: { icon: MonitorSmartphone, label: t('lineDevices.hub.menuLabel') },
+    signout: { icon: LogOut, label: confirmOut ? t('liveAccount.hub.signOutConfirm') : t('common.signOut') },
+  };
+  const actions = ids.filter((id): id is Exclude<ActionId, 'back'> => id !== 'back');
 
   return (
     <div className={embedded ? 'h-full min-h-0 overflow-hidden flex flex-col text-white' : 'h-screen overflow-hidden flex flex-col text-white bg-black/70'}>
@@ -219,7 +265,7 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials, embedd
             onClick={onBack}
             label={t('common.back')}
             data-player-header-btn=""
-            focused={focusIdx === 0}
+            focused={shownFocus === 'back'}
           />
           <div className="flex items-center gap-2">
             <Tv className="w-7 h-7 text-brand-gold" />
@@ -233,18 +279,24 @@ const AccountInfoScreen = memo(({ onBack, onSignOut, onChangeCredentials, embedd
         <div className="mx-auto w-full max-w-5xl flex flex-col md:flex-row md:items-start">
           {/* Beside the Settings menu the columns are narrower, so the details keep two columns at 960 px. */}
           <div className={`space-y-3 shrink-0 mb-4 md:mb-0 ${embedded ? 'md:w-48 lg:w-60 md:mr-4' : 'md:w-72 md:mr-6'}`} data-account-actions>
-            {actions.map(({ idx, icon: Icon, onClick, label }) => (
-              <Button
-                key={idx}
-                variant="white"
-                onClick={onClick}
-                data-focused={focusIdx === idx ? 'true' : 'false'}
-                className={`tv-ring w-full justify-start rounded-xl ${embedded ? 'h-12 px-4 text-sm' : 'h-14 px-5 text-base'} transition-transform duration-150 ease-out ${focusIdx === idx ? 'scale-105 z-10' : ''}`}
-              >
-                <Icon className="w-5 h-5 mr-2 shrink-0" />
-                <span className="min-w-0 truncate">{label}</span>
-              </Button>
-            ))}
+            {actions.map((id) => {
+              const { icon: Icon, label } = ACTION_LOOK[id];
+              const on = shownFocus === id;
+              return (
+                <Button
+                  key={id}
+                  variant="white"
+                  data-action={id}
+                  onClick={() => { if (id !== 'signout') setFocus(id); else setFocusRaw(id); press(id); }}
+                  data-focused={on ? 'true' : 'false'}
+                  data-confirm={id === 'signout' && confirmOut ? 'true' : undefined}
+                  className={`tv-ring w-full justify-start rounded-xl ${embedded ? 'h-12 px-4 text-sm' : 'h-14 px-5 text-base'} transition-transform duration-150 ease-out ${on ? 'scale-105 z-10' : ''}`}
+                >
+                  <Icon className={`w-5 h-5 mr-2 shrink-0 ${id === 'renew' && renewBusy ? 'animate-spin' : ''}`} />
+                  <span className="min-w-0 truncate">{label}</span>
+                </Button>
+              );
+            })}
           </div>
 
           <Card className={`flex-1 min-w-0 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-950 border-slate-700 shadow-xl ${embedded ? 'p-4' : 'p-6'}`}>

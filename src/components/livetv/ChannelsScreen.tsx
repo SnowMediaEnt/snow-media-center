@@ -16,6 +16,8 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDownAZ, ChevronRight, ListFilter, RefreshCw, Shuffle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { fingerIsDriving } from '@/lib/phoneMode';
+import { keepInView } from '@/utils/keepInView';
 import { loadFailoverOn, readLiveLineCount, saveFailoverOn } from '@/lib/channelFailover';
 import { loadFavOrder, saveFavOrder, useFavoritesOrder, type FavSortMode } from '@/lib/favoritesOrder';
 import { loadSavedAccounts, savedAccountId } from '@/lib/xtream';
@@ -93,6 +95,19 @@ const ChannelsScreen = memo(({ onBack, active = true, onUpdateChannels }: Props)
     return () => window.removeEventListener('keydown', onKey, true);
   }, [active, hideOpen, onBack, activate]);
 
+  // Keep the highlighted row on screen (a bigger text size, a longer language);
+  // on the last row show what is under it too.
+  const listRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = listRef.current;
+    if (!node || !active || fingerIsDriving()) return;
+    const { rows: list, focus: cur } = stateRef.current;
+    if (cur === list[list.length - 1]) { node.scrollTop = node.scrollHeight; return; }
+    if (cur === list[0]) { node.scrollTop = 0; return; }
+    const el = Array.from(node.querySelectorAll<HTMLElement>('[data-row]')).find((n) => n.getAttribute('data-row') === cur);
+    if (el) keepInView(node, el, 12);
+  }, [focus, active]);
+
   const closeHide = useCallback(() => { setHideOpen(false); setFocus('hide'); }, []);
   if (hideOpen) return <HideCategoriesScreen embedded active={active} onBack={closeHide} />;
 
@@ -107,7 +122,7 @@ const ChannelsScreen = memo(({ onBack, active = true, onUpdateChannels }: Props)
 
   return (
     <div className="h-full min-h-0 overflow-hidden flex flex-col text-white" data-channels-screen>
-      <div className="flex-1 overflow-auto p-1">
+      <div ref={listRef} className="flex-1 overflow-auto p-1">
         <div className="w-full max-w-3xl space-y-3">
           <div {...rowProps('hide')}>
             <ListFilter className="w-5 h-5 mr-3 text-brand-gold shrink-0" />

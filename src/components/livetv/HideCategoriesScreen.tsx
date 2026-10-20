@@ -129,6 +129,9 @@ const HideCategoriesScreen = memo(({ onBack, embedded = false, active = true }: 
       else if (e.key === 'ArrowDown') setFocusIdx((i) => (i + 1) % total);
       else if (e.key === 'ArrowUp') setFocusIdx((i) => (i - 1 + total) % total);
       else {
+        // A held OK repeats: the OK that opened this page (Settings › Channels)
+        // would land on "Show all" and clear the line's hidden categories.
+        if (e.repeat) return;
         const i = focusIdxRef.current;
         if (i === 0) { onBack(); return; }
         const row = rowsRef.current[focusableRef.current[i - 1]];

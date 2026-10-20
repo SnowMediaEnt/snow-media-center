@@ -40,6 +40,11 @@ interface Props {
   onUseInPlayer?: (creds: XtreamCreds) => void;
   /** Mounted somewhere that does not already own the hardware Back (the dashboard). */
   ownsHardwareBack?: boolean;
+  /**
+   * Live TV Settings › My Account › Renew: this service's renewal starts as
+   * soon as the list is in, as if its RENEW were pressed.
+   */
+  renewServiceId?: number;
 }
 
 type View = 'loading' | 'auth' | 'services' | 'plans' | 'pay' | 'provisioning' | 'ready';
@@ -63,7 +68,7 @@ const RESUME_POLL = 'resume-pending';
  * This component is the state machine; each view is its own component with
  * its own D-pad handling, so only one keyboard owner is mounted at a time.
  */
-const BillingAccountScreen = memo(({ onBack, onUseInPlayer, ownsHardwareBack }: Props) => {
+const BillingAccountScreen = memo(({ onBack, onUseInPlayer, ownsHardwareBack, renewServiceId }: Props) => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { account: playerAccount } = usePlayerAccount();
@@ -188,6 +193,19 @@ const BillingAccountScreen = memo(({ onBack, onUseInPlayer, ownsHardwareBack }: 
       setBusyId(null);
     }
   };
+
+  // Opened from My Account's Renew: that service's renewal starts once the
+  // list is in (once; a service that can't be renewed just shows in the list).
+  const renewRef = useRef(renew);
+  renewRef.current = renew;
+  const autoRenewedRef = useRef(false);
+  useEffect(() => {
+    if (renewServiceId == null || autoRenewedRef.current || view !== 'services') return;
+    const s = services.find((x) => x.id === renewServiceId);
+    if (!s) return;
+    autoRenewedRef.current = true;
+    if (isRenewable(s)) void renewRef.current(s);
+  }, [renewServiceId, view, services]);
 
   /** A pending paid order: mint a fresh link for its invoice. */
   const finishPayment = async (s: BillingService | null, pend: BillingPendingInvoice | null) => {

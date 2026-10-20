@@ -5,6 +5,10 @@
  */
 import { act, render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+
+const kept = vi.hoisted(() => ({ rows: [] as string[] }));
+vi.mock('@/utils/keepInView', () => ({ keepInView: (_c: HTMLElement, el: HTMLElement) => { kept.rows.push(el.getAttribute('data-row') ?? ''); } }));
+
 import FixProblemScreen from './FixProblemScreen';
 
 const key = (k: string) => act(() => {
@@ -57,5 +61,20 @@ describe('Settings › Fix a problem', () => {
     key('Enter'); key('Escape');
     expect(onOpenBufferingGuide).not.toHaveBeenCalled();
     expect(onBack).not.toHaveBeenCalled();
+  });
+
+  it('keeps the highlighted row on screen; on the last row it shows what is under it (the restart tip)', () => {
+    render(<FixProblemScreen active onBack={vi.fn()} onOpenBufferingGuide={vi.fn()} onOpenSupportTool={vi.fn()} />);
+    const list = document.querySelector('[data-fix-screen] > div') as HTMLElement;
+    const tops: number[] = [];
+    Object.defineProperty(list, 'scrollHeight', { configurable: true, get: () => 800 });
+    Object.defineProperty(list, 'scrollTop', { configurable: true, get: () => tops[tops.length - 1] ?? 0, set: (v: number) => { tops.push(v); } });
+    kept.rows = [];
+    key('ArrowDown');
+    expect(kept.rows).toEqual(['speedtest']);
+    key('ArrowDown');
+    expect(tops[tops.length - 1]).toBe(800);
+    key('ArrowUp'); key('ArrowUp');
+    expect(tops[tops.length - 1]).toBe(0);
   });
 });

@@ -194,6 +194,25 @@ export function isThisDevice(s: BillingService, playerUsername: string | null | 
   return s.credentials.username.trim().toLowerCase() === playerUsername.trim().toLowerCase();
 }
 
+/**
+ * Live TV Settings › My Account › Renew: the billing account's renewable
+ * service for this line (the one whose username is the player's), or null
+ * when billing isn't signed in here, the line isn't one of its services, or
+ * anything fails — Renew then shows the renewal QR, as before.
+ */
+export async function renewableServiceForLine(playerUsername: string | null | undefined): Promise<number | null> {
+  if (!playerUsername) return null;
+  try {
+    const st = await SmcBilling.getState();
+    if (!st.configured || !st.signedIn) return null;
+    const { services } = await SmcBilling.services();
+    const s = services.find((x) => isThisDevice(x, playerUsername) && isRenewable(x));
+    return s ? s.id : null;
+  } catch {
+    return null;
+  }
+}
+
 // ── player sign-in ──────────────────────────────────────────────────────────
 
 const hostKey = (h: string) => h.trim().replace(/\/+$/, '').toLowerCase();

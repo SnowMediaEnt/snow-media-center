@@ -8,6 +8,8 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Gauge, LifeBuoy, Power, Ticket } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { fingerIsDriving } from '@/lib/phoneMode';
+import { keepInView } from '@/utils/keepInView';
 
 /** A Support tool this page opens. */
 export type SupportTool = 'speedtest' | 'tickets';
@@ -70,11 +72,24 @@ const FixProblemScreen = memo(({ onBack, active = true, onOpenBufferingGuide, on
     return () => window.removeEventListener('keydown', onKey, true);
   }, [active, onBack, activate]);
 
+  // Keep the highlighted row on screen (a bigger text size, a longer language);
+  // on the last row show what is under it too.
+  const listRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = listRef.current;
+    if (!node || !active || fingerIsDriving()) return;
+    const { rows: list, focus: cur } = stateRef.current;
+    if (cur === list[list.length - 1]) { node.scrollTop = node.scrollHeight; return; }
+    if (cur === list[0]) { node.scrollTop = 0; return; }
+    const el = Array.from(node.querySelectorAll<HTMLElement>('[data-row]')).find((n) => n.getAttribute('data-row') === cur);
+    if (el) keepInView(node, el, 12);
+  }, [focus, active]);
+
   const shownFocus = rows.includes(focus) ? focus : rows[0];
 
   return (
     <div className="h-full min-h-0 overflow-hidden flex flex-col text-white" data-fix-screen>
-      <div className="flex-1 overflow-auto p-1">
+      <div ref={listRef} className="flex-1 overflow-auto p-1">
         <div className="w-full max-w-3xl">
           <p className="text-brand-ice/85 font-nunito mb-3">{t('liveAccount.help.intro')}</p>
           <div className="space-y-3">
