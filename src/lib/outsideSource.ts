@@ -498,18 +498,20 @@ export function noteOutsideStreamHosts(hosts: Iterable<string>): void {
   }
 }
 
-/** Matches `secret` as a whole word (not inside a longer one), case aside. */
+/** Matches `secret` as a whole word (not inside a longer one, `_` counting as part of a word), case aside. */
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const wordRe = (secret: string): RegExp => new RegExp('(^|[^a-z0-9])' + escapeRe(secret.toLowerCase()) + '($|[^a-z0-9])');
+const wordRe = (secret: string): RegExp => new RegExp('(^|[^a-z0-9_])' + escapeRe(secret.toLowerCase()) + '($|[^a-z0-9_])');
 
 /**
  * Analytics: an event about an outside channel may say `server: 'outside'`,
  * never which service. Every string in it — nested objects and arrays too —
  * that carries an outside service's host (or a host its playlist plays from)
- * or playlist address, or its name, username or password as a word (those
- * only from 4 characters: shorter ones would hit ordinary words), becomes
- * 'outside'. Case doesn't matter. Returns the same object when there is
- * nothing to change. Call sites tag their own params too (lineEventProps).
+ * or playlist address, or its username or password as a word (only from 4
+ * characters: shorter ones would hit ordinary words), becomes 'outside'.
+ * Not its name: the viewer picks it ("Sports", "Live") and it is no secret,
+ * so matching it would blank ordinary values in every event; call sites
+ * already leave names out for an outside line (lineEventProps). Case doesn't
+ * matter. Returns the same object when there is nothing to change.
  */
 export function scrubOutside<T>(props: T): T {
   const list = known();
@@ -517,7 +519,7 @@ export function scrubOutside<T>(props: T): T {
   const words: RegExp[] = [];
   const inside: string[] = [];
   for (const s of list) {
-    for (const v of [s.name, s.username, s.password]) {
+    for (const v of [s.username, s.password]) {
       const w = (v ?? '').trim();
       if (w.length >= 4) words.push(wordRe(w));
     }
