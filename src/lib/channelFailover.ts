@@ -3,21 +3,16 @@
  * failover (components/livetv/useChannelFailover) keeps on the box. Light on
  * purpose: the settings page reads it without loading Live TV's code.
  */
-import { PLAYER_SETTINGS_EVENT } from '@/lib/playerFlags';
+import { readBool, writeBool } from '@/lib/playerFlags';
 
 // ---- the setting (Player Settings › Playback), per box --------------------
+// Kept like the page's other switches (lib/playerFlags): '1' / '0'.
 
 const FAILOVER_KEY = 'smc-live-failover-v1';
 
 /** On unless the viewer turned it off. */
-export function loadFailoverOn(): boolean {
-  try { return localStorage.getItem(FAILOVER_KEY) !== '0'; } catch { return true; }
-}
-
-export function saveFailoverOn(on: boolean): void {
-  try { localStorage.setItem(FAILOVER_KEY, on ? '1' : '0'); } catch { /* ignore */ }
-  try { window.dispatchEvent(new CustomEvent(PLAYER_SETTINGS_EVENT)); } catch { /* ignore */ }
-}
+export const loadFailoverOn = (): boolean => readBool(FAILOVER_KEY, true);
+export const saveFailoverOn = (on: boolean): void => writeBool(FAILOVER_KEY, on);
 
 // ---- how many lines Live TV shows -----------------------------------------
 // The setting is only offered with more than one line. Live TV knows its
