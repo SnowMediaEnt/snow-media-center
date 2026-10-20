@@ -200,8 +200,8 @@
     },
     "help": {
       "intro": "Meistens hilft eine dieser Möglichkeiten gegen Ruckeln. Fang mit der Buffering-Hilfe an.",
-      "restartTitle": "Gerät und Router neu starten",
-      "restartTip": "Zieh bei beiden 30 Sekunden den Stecker. Steck zuerst den Router ein, warte, bis seine Lämpchen ruhig leuchten, dann das Gerät."
+      "restartTitle": "Box und Router neu starten",
+      "restartTip": "Zieh den Stecker von TV-Box und Internet-Router. Warte 30 Sekunden. Steck den Router wieder ein und gib ihm etwa 2 Minuten zum Hochfahren. Steck die TV-Box wieder ein und öffne Snow Media Center."
     },
     "outside": {
       "title": "Anderer Anbieter",

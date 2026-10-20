@@ -208,8 +208,8 @@
     },
     "help": {
       "intro": "Casi todos los cortes se arreglan con una de estas opciones. Empieza por la Guía de buffering.",
-      "restartTitle": "Reinicia tu equipo y tu router",
-      "restartTip": "Desconecta ambos 30 segundos. Conecta primero el router, espera a que sus luces se estabilicen y luego el equipo."
+      "restartTitle": "Reinicia tu box y tu router",
+      "restartTip": "Desconecta tu TV box y tu router de internet. Espera 30 segundos. Vuelve a conectar el router y dale unos 2 minutos para que se encienda. Vuelve a conectar el TV box y abre Snow Media Center."
     },
     "outside": {
       "title": "Otro proveedor",

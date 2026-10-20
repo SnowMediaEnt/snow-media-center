@@ -201,7 +201,7 @@
     "help": {
       "intro": "Most buffering is fixed by one of these. Start with the Buffering Guide.",
       "restartTitle": "Restart your box and router",
-      "restartTip": "Unplug both for 30 seconds. Plug the router in first, wait until its lights settle, then the box."
+      "restartTip": "Unplug your TV box and your internet router. Wait 30 seconds. Plug the router back in and give it about 2 minutes to come back on. Plug the TV box back in and open Snow Media Center."
     },
     "outside": {
       "title": "Another provider",

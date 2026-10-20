@@ -208,8 +208,8 @@
     },
     "help": {
       "intro": "La plupart des coupures se règlent avec l'une de ces options. Commencez par le Guide anti-coupures.",
-      "restartTitle": "Redémarrez votre appareil et votre routeur",
-      "restartTip": "Débranchez les deux pendant 30 secondes. Rebranchez d'abord le routeur, attendez que ses voyants se stabilisent, puis l'appareil."
+      "restartTitle": "Redémarrez votre box et votre routeur",
+      "restartTip": "Débranchez votre box TV et votre routeur internet. Attendez 30 secondes. Rebranchez le routeur et laissez-lui environ 2 minutes pour redémarrer. Rebranchez la box TV et ouvrez Snow Media Center."
     },
     "outside": {
       "title": "Autre fournisseur",
