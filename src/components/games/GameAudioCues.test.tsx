@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -66,6 +66,7 @@ describe('authoritative game audio cues', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
     localStorage.removeItem('snow-games-reduced-fx-v1');
   });
@@ -79,9 +80,23 @@ describe('authoritative game audio cues', () => {
       expect(button.getAttribute('aria-disabled')).toBeNull();
       return button;
     });
+    // The settle animation starts its clock with performance.now() and then
+    // reads each animation frame's timestamp. A browser gives both the same
+    // starting point; jsdom stamps frames from its own later start, so in a
+    // real-timer test the wheel waited seconds before it even began to turn
+    // and the cues raced the timeout. One fake clock for both keeps the
+    // wheel on browser timing.
+    vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame', 'performance', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
     fireEvent.click(spin);
 
-    await waitFor(() => expect(outcomeCues()).toEqual(['reelStop', 'bonus']), { timeout: 5000 });
+    // The server's answer alone stays silent: the cues wait for the wheel.
+    await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+    expect(outcomeCues()).toEqual([]);
+
+    // Well past the longest settle (4 s with full effects): exactly one landing
+    // and one jackpot cue.
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+    expect(outcomeCues()).toEqual(['reelStop', 'bonus']);
   });
 
   it('sounds each successful video-poker deal/draw and its outcome once', async () => {

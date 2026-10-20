@@ -1,9 +1,9 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import Plinko, { buildPlinkoMotion, PLINKO_PEGS, PLINKO_RISK_MODES } from './Plinko';
 import { plinkoSlotFromPath, reflectPlinkoPath, widePlinkoMultipliers, widePlinkoProbabilities } from './plinkoBoards';
-import { createPlinkoPuck, stepPlinkoPuck, simulatePlinko, physicsMultipliers, physicsProbabilities } from './plinkoPhysics.js';
+import { createPlinkoPuck, stepPlinkoPuck, simulatePlinko, physicsMultipliers, physicsProbabilities, PHYSICS_MAX_STEPS, PHYSICS_STEP } from './plinkoPhysics.js';
 
 const press = (key: string, keyCode?: number) => {
   fireEvent.keyDown(window, { key, keyCode, bubbles: true, cancelable: true });
@@ -14,6 +14,10 @@ describe('Snow Plinko TV game', () => {
   beforeEach(() => {
     localStorage.clear();
     localStorage.setItem('snow-games-reduced-fx-v1', 'true');
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('builds a seeded contact-and-recoil track that lands in the server slot', () => {
@@ -172,6 +176,12 @@ describe('Snow Plinko TV game', () => {
   });
 
   it('blocks Back during a drop, then leaves after the puck lands', async () => {
+    // The puck lands from real physics played on animation frames, and a slow
+    // frame only plays a little of it (no catch-up burst). jsdom's real frames
+    // are slow, and polling with getByRole on every puck move slowed them to
+    // ~14 fps, so the drop took longer than any sane wait. A fake frame clock
+    // plays the same drop at a steady 60 fps, so the landing is certain.
+    vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
     const onBack = vi.fn();
     render(<Plinko onBack={onBack} />);
     fireEvent.click(screen.getByRole('button', { name: 'Drop puck' }));
@@ -180,7 +190,11 @@ describe('Snow Plinko TV game', () => {
     expect(onBack).not.toHaveBeenCalled();
     expect(screen.getByText('Let the puck land first')).toBeTruthy();
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Drop puck' }).getAttribute('data-busy')).toBeNull(), { timeout: 3500 });
+    // Every drop is forced to end within PHYSICS_MAX_STEPS physics steps, and
+    // the game plays steps faster than real time, so this much time always
+    // covers the slowest possible drop, whatever the random seed.
+    await act(async () => { await vi.advanceTimersByTimeAsync(PHYSICS_MAX_STEPS * PHYSICS_STEP * 1000); });
+    expect(screen.getByRole('button', { name: 'Drop puck' }).getAttribute('data-busy')).toBeNull();
     press('Escape');
     expect(onBack).toHaveBeenCalledTimes(1);
   });
