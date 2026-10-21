@@ -88,7 +88,8 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
   // the cursor on a bottom button instead of the Username field.
   const hasCancel = !!onCancel;
   const navigation = useMemo<TVFocusNavigationMap>(() => ({
-    'cf-user':   { down: 'cf-pass' },
+    // Right stays put: the nearest thing to the right is the password's Show, a row down.
+    'cf-user':   { down: 'cf-pass', right: null },
     'cf-pass':   { up: 'cf-user', down: 'cf-submit', right: 'cf-pass-show' },
     // Show / Hide inside the password box: Up / Down go where the box's go,
     // Left back to it, Right stays (spatial search would reach Cancel).

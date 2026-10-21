@@ -26,11 +26,16 @@ interface PasswordRevealButtonProps
  * the button. Absolute offsets and margins only (Chrome 66: no flex gap, no
  * `inset` shorthand).
  *
+ * Placement and stacking are inline on purpose: the remote's highlight
+ * ([data-tv-focused="true"] in styles/tv.css, loaded after the utilities)
+ * sets position: relative and z-index: 30 on whatever it is on. As classes,
+ * a highlighted button left the box, and a highlighted box covered it.
+ *
  * A tap while the field has the phone's keyboard up toggles without taking
  * the focus from it (keepTypingFocus), so the keyboard stays up.
  */
 export const PasswordRevealButton = forwardRef<HTMLButtonElement, PasswordRevealButtonProps>(
-  ({ shown, onToggle, onClick, onMouseDown, className, ...rest }, ref) => {
+  ({ shown, onToggle, onClick, onMouseDown, className, style, ...rest }, ref) => {
     const { t } = useTranslation();
     const Icon = shown ? EyeOff : Eye;
     return (
@@ -44,12 +49,13 @@ export const PasswordRevealButton = forwardRef<HTMLButtonElement, PasswordReveal
         onMouseDown={(e) => { keepTypingFocus(e); onMouseDown?.(e); }}
         onClick={(e) => { onClick?.(e); onToggle(); }}
         className={cn(
-          'absolute top-1 bottom-1 right-1 z-10 flex items-center rounded-lg px-2',
+          'flex items-center rounded-lg px-2',
           'font-nunito font-semibold text-sm text-brand-ice/90 hover:bg-white/10',
           'data-[focused=true]:bg-white/15 data-[tv-focused=true]:bg-white/15',
           'disabled:opacity-50 disabled:pointer-events-none',
           className,
         )}
+        style={{ position: 'absolute', top: 4, bottom: 4, right: 4, zIndex: 40, ...style }}
       >
         <Icon className="w-4 h-4 mr-1 shrink-0" aria-hidden="true" />
         <span className="whitespace-nowrap">{shown ? t('common.passwordReveal.hideBtn') : t('common.passwordReveal.showBtn')}</span>

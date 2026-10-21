@@ -44,7 +44,7 @@ const VibezSignInScreen = memo(({ onDone, onBack, resumedLabel }: Props) => {
   const { toast } = useToast();
 
   const navigation = useMemo<TVFocusNavigationMap>(() => ({
-    'vs-user': { down: 'vs-pass' },
+    'vs-user': { down: 'vs-pass', right: null },
     'vs-pass': { up: 'vs-user', down: 'vs-submit', right: 'vs-pass-show' },
     // Show / Hide inside the password box: Up / Down go where the box's go.
     'vs-pass-show': { up: 'vs-user', down: 'vs-submit', left: 'vs-pass', right: null },
