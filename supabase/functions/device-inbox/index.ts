@@ -45,7 +45,8 @@
 //       way the owner sees them but without their refs (a TV can't send), and
 //       this_tv on its own. All-Pro Streams has no Snow Media account, so this
 //       is how its TVs see the line's other TVs. 20 per key and 60 per line an
-//       hour, counted before the panel is asked.
+//       hour, counted before the panel is asked; a wrong password also counts
+//       as one of the line's register tries.
 //       → {ok:true, devices:[{label, app_version, last_seen_at, watching_now, registered_at, this_tv}]}
 //         | {ok:false, reason:'rate_limited'|'bad_line'|'panel_unreachable'|'unknown_key'|'other_line'}
 //   devices {host, username}
@@ -230,9 +231,11 @@ async function verifyLine(host: string, username: string, password: string): Pro
   const deadline = Date.now() + TOTAL_BUDGET_MS;
   for (const base of candidateBases(host)) {
     for (const ua of PANEL_AGENTS) {
-      if (Date.now() > deadline) break;
+      const left = deadline - Date.now();
+      if (left <= 0) break;
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+      // The last attempt gets only what is left: the whole search stays inside the budget.
+      const timer = setTimeout(() => ctrl.abort(), Math.min(REQUEST_TIMEOUT_MS, left));
       let text: string;
       try {
         const res = await fetch(base + query, { signal: ctrl.signal, headers: { 'User-Agent': ua, Accept: 'application/json' } });
@@ -528,7 +531,12 @@ async function tvLineDevices(admin: Db, req: Request, body: Body): Promise<Respo
   }
   logIpHeadersOnce('device-inbox', req.headers);
   const verdict = await verifyLine(line.host, line.typed, password);
-  if (verdict === 'auth_failed') return json({ ok: false, reason: 'bad_line' });
+  if (verdict === 'auth_failed') {
+    // A wrong password also counts against the line's register tries: listing
+    // is no second way to guess one.
+    await throttle(db, `dib:line:${line.host}:${line.username}`, REGISTER_PER_LINE_PER_HOUR, HOUR_MS);
+    return json({ ok: false, reason: 'bad_line' });
+  }
   if (verdict === 'unreachable') return json({ ok: false, reason: 'panel_unreachable' });
   const devices = await lineDevices(admin, line);
   if (!devices) return serverError();
