@@ -156,6 +156,15 @@ class MainActivity : BridgeActivity() {
                             "{key:'ContextMenu',code:'ContextMenu',bubbles:true,cancelable:true}))",
                         null,
                     )
+                } else if (event.action == KeyEvent.ACTION_UP) {
+                    // Its release too: a menu it opened takes OK only after a
+                    // key goes up (so a held OK's repeats can't pick a row),
+                    // and without this the first OK there was swallowed.
+                    page.evaluateJavascript(
+                        "(document.activeElement||document.body).dispatchEvent(new KeyboardEvent('keyup'," +
+                            "{key:'ContextMenu',code:'ContextMenu',bubbles:true,cancelable:true}))",
+                        null,
+                    )
                 }
                 return true
             }
