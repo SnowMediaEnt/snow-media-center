@@ -18,6 +18,10 @@
     "tryAgain": "Erneut versuchen",
     "signInAction": "Anmelden",
     "signOut": "Abmelden",
+    "passwordReveal": {
+      "showBtn": "Zeigen",
+      "hideBtn": "Verbergen"
+    },
     "relative": {
       "justNow": "Gerade eben",
       "minutesAgo_one": "vor {{count}} Minute",

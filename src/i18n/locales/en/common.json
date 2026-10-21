@@ -18,6 +18,10 @@
     "tryAgain": "Try again",
     "signInAction": "Sign in",
     "signOut": "Sign out",
+    "passwordReveal": {
+      "showBtn": "Show",
+      "hideBtn": "Hide"
+    },
     "relative": {
       "justNow": "Just now",
       "minutesAgo_one": "{{count}} minute ago",

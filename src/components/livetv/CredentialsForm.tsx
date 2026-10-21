@@ -30,6 +30,7 @@ import { readPending } from '@/components/getstarted/pending';
 import { isNativePlatform } from '@/utils/platform';
 import { useTranslation } from 'react-i18next';
 import { keepTypingFocus } from '@/utils/keepTypingFocus';
+import { PasswordRevealButton, PASSWORD_REVEAL_PAD } from '@/components/ui/PasswordRevealButton';
 
 // Sign-up for someone with no account yet: DreamStreams end to end on the TV,
 // Vibez handed off to their site. Loaded only when the viewer presses it.
@@ -56,6 +57,8 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
   const { t } = useTranslation();
   const [username, setUsername] = useState(initial?.username || '');
   const [password, setPassword] = useState(initial?.password || '');
+  // Show / Hide on the password box: dots every time the form opens.
+  const [showPassword, setShowPassword] = useState(false);
   const [testing, setTesting] = useState(false);
   const [probingServer, setProbingServer] = useState<XtreamServer | null>(null);
   const { toast } = useToast();
@@ -86,7 +89,10 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
   const hasCancel = !!onCancel;
   const navigation = useMemo<TVFocusNavigationMap>(() => ({
     'cf-user':   { down: 'cf-pass' },
-    'cf-pass':   { up: 'cf-user', down: 'cf-submit' },
+    'cf-pass':   { up: 'cf-user', down: 'cf-submit', right: 'cf-pass-show' },
+    // Show / Hide inside the password box: Up / Down go where the box's go,
+    // Left back to it, Right stays (spatial search would reach Cancel).
+    'cf-pass-show': { up: 'cf-user', down: 'cf-submit', left: 'cf-pass', right: null },
     'cf-submit': { up: 'cf-pass', right: hasCancel ? 'cf-cancel' : undefined, down: showStart ? 'cf-start' : undefined },
     'cf-cancel': { up: 'cf-pass', left: 'cf-submit', down: showStart ? 'cf-start' : undefined },
     // Only `up` is pinned. Left/right/down are left undefined so useTVFocus
@@ -262,19 +268,32 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
           </div>
           <div className="space-y-2" data-howto="signin.password">
             <Label htmlFor="lt-pass" className="text-brand-ice font-nunito">{t('liveAccount.credentials.password')}</Label>
-            <Input
-              id="lt-pass"
-              {...focusProps('cf-pass')}
-              type="password"
-              placeholder={t('liveAccount.credentials.password')}
-              aria-label={t('liveAccount.credentials.password')}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="rounded-xl h-12 bg-black/30 text-white border-white/20 focus-visible:ring-0 focus-visible:ring-offset-0"
-              autoComplete="off"
-              enterKeyHint="done"
-              disabled={testing}
-            />
+            {/* Show / Hide comes BEFORE the field: the keyboard's Done after the
+                password lands on the next control in DOM order, Sign in. */}
+            <div className="relative">
+              <PasswordRevealButton
+                {...focusProps('cf-pass-show')}
+                shown={showPassword}
+                onToggle={() => setShowPassword((v) => !v)}
+                disabled={testing}
+              />
+              <Input
+                id="lt-pass"
+                {...focusProps('cf-pass')}
+                type={showPassword ? 'text' : 'password'}
+                placeholder={t('liveAccount.credentials.password')}
+                aria-label={t('liveAccount.credentials.password')}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={`rounded-xl h-12 bg-black/30 text-white border-white/20 focus-visible:ring-0 focus-visible:ring-offset-0 ${PASSWORD_REVEAL_PAD}`}
+                autoComplete="off"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                enterKeyHint="done"
+                disabled={testing}
+              />
+            </div>
           </div>
         </div>
 
@@ -317,7 +336,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
           <Button
             type="button"
             variant="white"
-            onClick={() => { openedFromRef.current = 'cf-start'; setChildOpen(true); }}
+            onClick={() => { openedFromRef.current = 'cf-start'; setShowPassword(false); setChildOpen(true); }}
             {...focusProps('cf-start')}
             disabled={testing}
             // The way in for someone with no login yet: the whole line shows,

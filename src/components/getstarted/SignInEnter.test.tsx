@@ -43,6 +43,84 @@ describe('Vibez sign-in: Done on the password', () => {
   });
 });
 
+describe('Vibez sign-in: Show / Hide password', () => {
+  const setup = async () => {
+    render(<VibezSignInScreen onDone={vi.fn()} onBack={vi.fn()} />);
+    await raf();
+    return {
+      user: document.getElementById('vs-user') as HTMLInputElement,
+      pass: document.getElementById('vs-pass') as HTMLInputElement,
+      reveal: document.querySelector('[data-tv-focus-id="vs-pass-show"]') as HTMLButtonElement,
+    };
+  };
+
+  it('starts as dots, flips to text and back keeping what was typed, and is dots again next time', async () => {
+    const { pass, reveal } = await setup();
+    expect(pass.type).toBe('password');
+    expect(reveal.getAttribute('aria-label')).toBe('Show password');
+    fireEvent.change(pass, { target: { value: 'secret' } });
+    fireEvent.click(reveal);
+    expect(pass.type).toBe('text');
+    expect(pass.value).toBe('secret');
+    expect(reveal.getAttribute('aria-pressed')).toBe('true');
+    expect(reveal.textContent).toBe('Hide');
+    expect(pass.getAttribute('autocorrect')).toBe('off');
+    expect(pass.getAttribute('autocapitalize')).toBe('none');
+    expect(pass.getAttribute('spellcheck')).toBe('false');
+    fireEvent.click(reveal);
+    expect(pass.type).toBe('password');
+    expect(pass.value).toBe('secret');
+
+    fireEvent.click(reveal);
+    cleanup();
+    const again = await setup();
+    expect(again.pass.type).toBe('password');
+  });
+
+  it('a tap while typing keeps the field focused', async () => {
+    const { pass, reveal } = await setup();
+    act(() => { pass.focus(); });
+    expect(fireEvent.mouseDown(reveal)).toBe(false);
+    fireEvent.click(reveal);
+    expect(document.activeElement).toBe(pass);
+    expect(pass.type).toBe('text');
+  });
+
+  it('the remote: Right from the password, OK flips it, Left back; Done after the password still lands on Sign in', async () => {
+    const { user, pass, reveal } = await setup();
+    fireEvent.keyDown(user, { key: 'ArrowDown', keyCode: 40 });
+    await flush();
+    expect(document.activeElement).toBe(pass);
+    fireEvent.keyDown(pass, { key: 'ArrowRight', keyCode: 39 });
+    await flush();
+    expect(document.activeElement).toBe(reveal);
+    await later();
+    fireEvent.keyDown(reveal, { key: 'Enter', keyCode: 13 });
+    await flush();
+    expect(pass.type).toBe('text');
+    fireEvent.keyDown(reveal, { key: 'ArrowDown', keyCode: 40 });
+    await flush();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /sign in/i }));
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowUp', keyCode: 38 });
+    await flush();
+    fireEvent.keyDown(pass, { key: 'ArrowRight', keyCode: 39 });
+    await flush();
+    fireEvent.keyDown(reveal, { key: 'ArrowLeft', keyCode: 37 });
+    await flush();
+    expect(document.activeElement).toBe(pass);
+
+    // Typed in, then Done: Sign in, not the toggle.
+    act(() => { pass.focus(); });
+    fireEvent.input(pass, { target: { value: 'secret' } });
+    await later();
+    fireEvent.keyDown(pass, { key: 'Enter', keyCode: 13 });
+    await flush();
+    expect(document.activeElement).not.toBe(reveal);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /sign in/i }));
+    expect(h.apply).not.toHaveBeenCalled();
+  });
+});
+
 describe('Billing sign-in / register: Done on the password', () => {
   it('sign-in: closes the keyboard, focuses Sign in, does not sign in', async () => {
     render(<BillingAuthForm onSuccess={vi.fn()} onCancel={vi.fn()} />);

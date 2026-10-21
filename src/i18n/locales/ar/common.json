@@ -18,6 +18,10 @@
     "tryAgain": "حاول مرة أخرى",
     "signInAction": "تسجيل الدخول",
     "signOut": "تسجيل الخروج",
+    "passwordReveal": {
+      "showBtn": "إظهار",
+      "hideBtn": "إخفاء"
+    },
     "relative": {
       "justNow": "الآن",
       "minutesAgo_zero": "منذ {{count}} دقيقة",

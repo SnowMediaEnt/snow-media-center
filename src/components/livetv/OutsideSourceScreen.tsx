@@ -18,8 +18,9 @@
 // walk the rows; OK on a field asks for the keyboard, whose Enter moves to the
 // next field and, after the last, lands on Test with the keyboard put away.
 // OK on the kind row switches Xtream login / M3U link. Back puts the keyboard
-// away first; then Back (or Left) leaves. Chrome 66: margins and space-y, no
-// flex gap.
+// away first; then Back (or Left) leaves. Right on the password row reaches
+// its Show / Hide (OK flips it, Left goes back, Up / Down as from the row).
+// Chrome 66: margins and space-y, no flex gap.
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Link2, Loader2, Pencil, PlusCircle, Trash2, X, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -41,6 +42,7 @@ import { testOutsideSource, type OutsideTestError } from '@/lib/outsideProbe';
 import { forgetOutsideSource, readOutsideHere } from '@/lib/outsideActions';
 import { focusTextInputForDpad, hideKeyboardForDpad } from '@/utils/dpadKeyboard';
 import { keepInView } from '@/utils/keepInView';
+import { PasswordRevealButton, PASSWORD_REVEAL_PAD } from '@/components/ui/PasswordRevealButton';
 
 interface Props {
   onBack: () => void;
@@ -94,6 +96,10 @@ const PROBLEM_FIELD: Partial<Record<Problem, Field>> = { needServer: 'server', n
 
 const EMPTY: Record<Field, string> = { server: '', user: '', pass: '', url: '', name: '' };
 
+/** Show / Hide inside the password row: not a row of its own (Up / Down go as from the password). */
+const REVEAL = 'pass-reveal';
+const rowOf = (id: string): string => (id === REVEAL ? 'pass' : id);
+
 /** What a test was of: the kind and every field. Save keeps a test only while this is unchanged. */
 const signature = (kind: OutsideKind, values: Record<Field, string>): string => JSON.stringify([kind, values]);
 
@@ -117,6 +123,8 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [focusId, setFocusId] = useState<string>('kind');
+  /** The password shows as text (Show / Hide): dots whenever the form opens. */
+  const [showPass, setShowPass] = useState(false);
 
   const inputs = useRef<Partial<Record<Field, HTMLInputElement | null>>>({});
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -151,6 +159,9 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
   const mine = !!saved && !!activeLine && saved.owner === lineOwnerKey(activeLine);
   const showForm = allowed === true && (!saved || editing);
   const fields = FIELDS[kind];
+  const passOnForm = showForm && fields.includes('pass');
+  // The password field went away (saved, cancelled, removed, M3U link): back to dots.
+  useEffect(() => { if (!passOnForm) setShowPass(false); }, [passOnForm]);
 
   /** The rows the remote lands on, top to bottom. */
   const rows = useMemo<string[]>(() => {
@@ -162,7 +173,7 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
 
   // A row that went away (the form closed, the kind changed) hands the highlight to the first row.
   useEffect(() => {
-    if (rows.includes(focusId)) return;
+    if (rows.includes(rowOf(focusId))) return;
     setFocusId(rows.find((r) => r !== 'back') ?? rows[0] ?? '');
   }, [rows, focusId]);
 
@@ -299,6 +310,7 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
     setTested(null);
     setOutcome(null);
     setConfirmRemove(false);
+    setShowPass(false);
     setEditing(true);
     setFocusId('kind');
   }, []);
@@ -360,13 +372,14 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
     if (id === 'edit') { startEdit(); return; }
     if (id === 'cancel') { cancelEdit(); return; }
     if (id === 'remove') { void remove(); return; }
+    if (id === REVEAL) { setShowPass((v) => !v); return; }
     if (stateRef.current.fields.includes(id as Field)) startTyping(id as Field);
   }, [onBack, toggleKind, test, save, startEdit, cancelEdit, remove, startTyping]);
 
   const move = useCallback((step: 1 | -1) => {
     const { rows: list, focusId: cur } = stateRef.current;
     if (!list.length) return;
-    const i = Math.max(0, list.indexOf(cur));
+    const i = Math.max(0, list.indexOf(rowOf(cur)));
     const next = list[Math.max(0, Math.min(list.length - 1, i + step))];
     // Leaving Remove takes back its question.
     if (next !== 'remove') setConfirmRemove(false);
@@ -401,10 +414,15 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
       if (isBackKey(e)) { swallow(e); markBack(); onBack(); return; }
       if (e.key === 'ArrowLeft') {
         swallow(e);
-        if (embedded) onBack(); else setFocusId('back');
+        if (stateRef.current.focusId === REVEAL) setFocusId('pass');
+        else if (embedded) onBack(); else setFocusId('back');
         return;
       }
-      if (e.key === 'ArrowRight') { swallow(e); return; }
+      if (e.key === 'ArrowRight') {
+        swallow(e);
+        if (stateRef.current.focusId === 'pass') setFocusId(REVEAL);
+        return;
+      }
       if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { swallow(e); move(e.key === 'ArrowDown' ? 1 : -1); return; }
       if (isOkKey(e)) {
         swallow(e);
@@ -421,8 +439,9 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
     const node = listRef.current;
     if (!node || focusId === 'back') return;
     const { rows: list } = stateRef.current;
-    if (focusId === list[list.length - 1]) { node.scrollTop = node.scrollHeight; return; }
-    const el = Array.from(node.querySelectorAll<HTMLElement>('[data-row]')).find((n) => n.getAttribute('data-row') === focusId);
+    const row = rowOf(focusId);
+    if (row === list[list.length - 1]) { node.scrollTop = node.scrollHeight; return; }
+    const el = Array.from(node.querySelectorAll<HTMLElement>('[data-row]')).find((n) => n.getAttribute('data-row') === row);
     if (el) keepInView(node, el, 12);
   }, [focusId]);
 
@@ -542,11 +561,20 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
                   return (
                     <div key={f} {...rowProps(f)} className={rowCls(f)}>
                       <span className="w-40 lg:w-48 mr-3 shrink-0 font-nunito text-sm text-brand-ice/85">{LABELS[f]}</span>
-                      <div className="flex-1 min-w-0">
+                      <div className={`flex-1 min-w-0 ${isPass ? 'relative' : ''}`}>
+                        {/* Before the field, as on the sign-in forms. A tap is not a press on the row. */}
+                        {isPass && (
+                          <PasswordRevealButton
+                            shown={showPass}
+                            onToggle={() => setShowPass((v) => !v)}
+                            onClick={(e) => e.stopPropagation()}
+                            data-focused={focused(REVEAL) ? 'true' : 'false'}
+                          />
+                        )}
                         {/* No autofocus: OK on the row asks for the keyboard. */}
                         <input
                           ref={(el) => { inputs.current[f] = el; }}
-                          type={isPass ? 'password' : 'text'}
+                          type={isPass && !showPass ? 'password' : 'text'}
                           value={values[f]}
                           placeholder={PLACEHOLDERS[f]}
                           autoComplete="off"
@@ -557,7 +585,7 @@ const OutsideSourceScreen = memo(({ onBack, embedded = false, active = true }: P
                           // Opening the keyboard clicks the field: that click is not a press on the row.
                           onClick={(e) => e.stopPropagation()}
                           onFocus={() => setFocusId(f)}
-                          className="w-full rounded-lg bg-black/30 border border-white/15 text-white px-3 py-1.5 font-nunito focus:outline-none"
+                          className={`w-full rounded-lg bg-black/30 border border-white/15 text-white px-3 py-1.5 font-nunito focus:outline-none ${isPass ? PASSWORD_REVEAL_PAD : ''}`}
                         />
                       </div>
                     </div>

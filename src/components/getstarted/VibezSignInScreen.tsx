@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { XtreamCreds } from '@/lib/xtream';
 import { applyServiceToPlayer } from '@/lib/billing';
 import { VIBEZ_HOST } from '@/lib/signupLinks';
+import { PasswordRevealButton, PASSWORD_REVEAL_PAD } from '@/components/ui/PasswordRevealButton';
 import { BTN, BTN_GOLD, CARD, INPUT, SCREEN } from '@/components/billing/shared';
 import { focusAttrs, scaleIf, useFocusRecovery } from '@/components/billing/shared';
 import { clearPending } from './pending';
@@ -37,12 +38,16 @@ const VibezSignInScreen = memo(({ onDone, onBack, resumedLabel }: Props) => {
   const { t } = useTranslation();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  // Show / Hide on the password box: dots every time the screen opens.
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const { toast } = useToast();
 
   const navigation = useMemo<TVFocusNavigationMap>(() => ({
     'vs-user': { down: 'vs-pass' },
-    'vs-pass': { up: 'vs-user', down: 'vs-submit' },
+    'vs-pass': { up: 'vs-user', down: 'vs-submit', right: 'vs-pass-show' },
+    // Show / Hide inside the password box: Up / Down go where the box's go.
+    'vs-pass-show': { up: 'vs-user', down: 'vs-submit', left: 'vs-pass', right: null },
     'vs-submit': { up: 'vs-pass', right: 'vs-back' },
     'vs-back': { up: 'vs-pass', left: 'vs-submit', right: 'vs-forget' },
     'vs-forget': { up: 'vs-pass', left: 'vs-back' },
@@ -119,11 +124,17 @@ const VibezSignInScreen = memo(({ onDone, onBack, resumedLabel }: Props) => {
               <div className="space-y-2">
                 <Label htmlFor="vs-pass" className="text-brand-ice font-nunito">{t('getStarted.signIn.passwordLabel')}</Label>
                 {/* No allow-enter: the keyboard's Done closes it and lands on Sign in
-                    (useTVFocus); it must not submit behind the viewer's back. */}
-                <Input id="vs-pass" type="password" autoComplete="off" enterKeyHint="done" disabled={busy}
-                  placeholder={t('getStarted.signIn.passwordPlaceholder')} aria-label={t('getStarted.signIn.passwordAria')}
-                  value={password} onChange={(e) => setPassword(e.target.value)} className={INPUT}
-                  {...focusAttrs(currentFocusId, 'vs-pass')} />
+                    (useTVFocus); it must not submit behind the viewer's back.
+                    Show / Hide sits BEFORE the field so that Done skips it. */}
+                <div className="relative">
+                  <PasswordRevealButton shown={showPassword} onToggle={() => setShowPassword((v) => !v)} disabled={busy}
+                    {...focusAttrs(currentFocusId, 'vs-pass-show')} />
+                  <Input id="vs-pass" type={showPassword ? 'text' : 'password'} autoComplete="off" autoCorrect="off"
+                    autoCapitalize="none" spellCheck={false} enterKeyHint="done" disabled={busy}
+                    placeholder={t('getStarted.signIn.passwordPlaceholder')} aria-label={t('getStarted.signIn.passwordAria')}
+                    value={password} onChange={(e) => setPassword(e.target.value)} className={`${INPUT} ${PASSWORD_REVEAL_PAD}`}
+                    {...focusAttrs(currentFocusId, 'vs-pass')} />
+                </div>
               </div>
             </div>
 

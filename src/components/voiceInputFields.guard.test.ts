@@ -9,7 +9,8 @@
  * fields carry none either.
  *
  * This guard reads the source: each field below must stay a plain text box.
- * Sign-in and password fields are the opposite and must keep type="password".
+ * Sign-in and password fields are the opposite and must keep type="password"
+ * (or, with Show / Hide, the no-suggestions attributes while shown as text).
  */
 import { describe, expect, it } from 'vitest';
 import fs from 'fs';
@@ -95,6 +96,17 @@ describe('free-text fields keep the keyboard voice key', () => {
 
 describe('password fields keep voice off', () => {
   it.each(PASSWORD_FIELDS)('%s', (_name, file, anchor) => {
-    expect(openingTag(file, anchor)).toMatch(/\btype="password"/);
+    const tag = openingTag(file, anchor);
+    // A Show / Hide box (PasswordRevealButton) is text while shown: then the
+    // no-suggestions attributes keep the keyboard's voice key (and its
+    // autocorrect and capitals) off instead.
+    if (/\btype=\{[^}]*'password'[^}]*\}/.test(tag)) {
+      expect(tag).toMatch(/\bautoComplete="off"/);
+      expect(tag).toMatch(/\bautoCorrect="off"/);
+      expect(tag).toMatch(/\bautoCapitalize="none"/);
+      expect(tag).toMatch(/\bspellCheck=\{false\}/);
+      return;
+    }
+    expect(tag).toMatch(/\btype="password"/);
   });
 });

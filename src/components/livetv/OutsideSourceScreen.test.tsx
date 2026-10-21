@@ -6,7 +6,7 @@
  * password, and Remove asks once. Without an active line: the reason, no
  * form. The other service's panel is mocked: nothing leaves the test.
  */
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
@@ -303,5 +303,86 @@ describe('Add another service: tied to the line that added it', () => {
     await renderScreen();
     expect(screen.getByText('Needs an active DreamStreams or Vibez line.')).toBeTruthy();
     expect(document.querySelector('[data-row="server"]')).toBeNull();
+  });
+});
+
+describe('Add another service: Show / Hide password', () => {
+  const reveal = () => document.querySelector('[data-row="pass"] [data-password-reveal]') as HTMLButtonElement;
+
+  it('starts as dots; a tap flips it to text and back, keeping what was typed, and is not a press on the row', async () => {
+    await renderScreen();
+    expect(input('pass').type).toBe('password');
+    expect(reveal().getAttribute('aria-label')).toBe('Show password');
+    type('pass', 'hunter22');
+    act(() => { fireEvent.click(reveal()); });
+    expect(input('pass').type).toBe('text');
+    expect(input('pass').value).toBe('hunter22');
+    expect(reveal().getAttribute('aria-pressed')).toBe('true');
+    expect(reveal().textContent).toBe('Hide');
+    expect(focusedRow()).toBe('kind'); // the row's own OK (open the keyboard) did not run
+    act(() => { fireEvent.click(reveal()); });
+    expect(input('pass').type).toBe('password');
+    expect(input('pass').value).toBe('hunter22');
+  });
+
+  it('the remote: Right from the password row reaches it, OK flips it, Left goes back, Up / Down as from the row', async () => {
+    await renderScreen();
+    type('pass', 'hunter22');
+    goTo('pass');
+    key('ArrowRight');
+    expect(focusedRow()).toBeUndefined();
+    expect(reveal().getAttribute('data-focused')).toBe('true');
+    key('Enter');
+    expect(input('pass').type).toBe('text');
+    expect(input('pass').value).toBe('hunter22');
+    key('Enter');
+    expect(input('pass').type).toBe('password');
+    key('ArrowLeft');
+    expect(focusedRow()).toBe('pass');
+    expect(reveal().getAttribute('data-focused')).toBe('false');
+    key('ArrowRight');
+    key('ArrowDown');
+    expect(focusedRow()).toBe('name');
+    key('ArrowUp');
+    key('ArrowRight');
+    key('ArrowUp');
+    expect(focusedRow()).toBe('user');
+  });
+
+  it('the keyboard\'s Enter on the password still goes on to the next field, not to the toggle', async () => {
+    await renderScreen();
+    goTo('pass');
+    key('Enter'); // OK: the keyboard on the password
+    await settle(1000);
+    type('pass', 'hunter22');
+    key('Enter'); // the keyboard's Enter
+    expect(focusedRow()).toBe('name');
+    expect(reveal().getAttribute('data-focused')).toBe('false');
+  });
+
+  it('is dots again after Save, and the next time the page opens', async () => {
+    await renderScreen();
+    type('server', 'other.tv:8000');
+    type('user', 'bob');
+    type('pass', 'hunter22');
+    act(() => { fireEvent.click(reveal()); });
+    expect(input('pass').type).toBe('text');
+    goTo('test');
+    key('Enter');
+    await until(() => result() === 'works');
+    key('Enter');
+    await until(() => result() === 'saved');
+    key('Enter'); // Edit
+    await settle();
+    expect(input('pass').type).toBe('password');
+
+    act(() => { fireEvent.click(reveal()); });
+    expect(input('pass').type).toBe('text');
+    cleanup();
+    await renderScreen();
+    expect(focusedRow()).toBe('edit'); // the saved service: Edit opens the form
+    key('Enter');
+    await settle();
+    expect(input('pass').type).toBe('password');
   });
 });

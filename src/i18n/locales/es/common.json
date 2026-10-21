@@ -18,6 +18,10 @@
     "tryAgain": "Inténtalo de nuevo",
     "signInAction": "Iniciar sesión",
     "signOut": "Cerrar sesión",
+    "passwordReveal": {
+      "showBtn": "Ver",
+      "hideBtn": "Ocultar"
+    },
     "relative": {
       "justNow": "Justo ahora",
       "minutesAgo_one": "hace {{count}} minuto",
