@@ -38,6 +38,16 @@
 //       an hour.
 //       → {ok:true} | {ok:false, reason:'bad_body'|'email_on_file'|'rate_limited'|'bad_line'|
 //                                   'panel_unreachable'|'unknown_key'|'other_line'}
+//   line_devices {inbox_key, host, username, password}
+//       a TV on that line (its key registered there) that also knows the
+//       line's password, checked with the panel again (a key outlives a
+//       password change): the TVs on the line seen in the last 30 days, the
+//       way the owner sees them but without their refs (a TV can't send), and
+//       this_tv on its own. All-Pro Streams has no Snow Media account, so this
+//       is how its TVs see the line's other TVs. 20 per key and 60 per line an
+//       hour, counted before the panel is asked.
+//       → {ok:true, devices:[{label, app_version, last_seen_at, watching_now, registered_at, this_tv}]}
+//         | {ok:false, reason:'rate_limited'|'bad_line'|'panel_unreachable'|'unknown_key'|'other_line'}
 //   devices {host, username}
 //       the line's owner or an admin (Authorization: Bearer <user JWT>): the
 //       TVs on the line seen in the last 30 days, watching ones first.
@@ -109,6 +119,9 @@ const MAX_DEVICES = 100;
 // Every ticket reaches Discord, the admin inbox and the admins' phones.
 const SUPPORT_REQUESTS_PER_LINE_PER_HOUR = 3;
 const SUPPORT_REQUESTS_PER_HOUR = 30;
+// Each one asks the panel: opening the list now and then, never a loop.
+const TV_LISTS_PER_KEY_PER_HOUR = 20;
+const TV_LISTS_PER_LINE_PER_HOUR = 60;
 
 const INBOX_KEY = /^[A-Za-z0-9_-]{32,128}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -474,6 +487,54 @@ async function supportRequest(admin: Db, req: Request, body: Body): Promise<Resp
   return json({ ok: true });
 }
 
+type LineDevice = { ref: string; label: string; app_version: string; last_seen_at: string; watching_now: boolean; registered_at: string };
+
+/** The TVs on a line seen in the last 30 days, watching ones first, then the latest seen. Null on a DB error. */
+async function lineDevices(admin: Db, line: Line): Promise<LineDevice[] | null> {
+  const { data, error } = await admin.from('device_inbox')
+    .select('id, device_label, app_version, last_seen_at, watching_at, registered_at')
+    .eq('panel_host', line.host).eq('panel_username', line.username)
+    .gte('last_seen_at', new Date(Date.now() - SEEN_WITHIN_MS).toISOString())
+    .order('last_seen_at', { ascending: false }).limit(MAX_DEVICES);
+  if (error) {
+    console.error('[device-inbox] devices failed:', error.message);
+    return null;
+  }
+  const nowMs = Date.now();
+  type Row = { id: string; device_label: string | null; app_version: string | null; last_seen_at: string; watching_at: string | null; registered_at: string };
+  return ((data ?? []) as Row[])
+    .map((d) => ({
+      ref: d.id,
+      label: d.device_label ?? '',
+      app_version: d.app_version ?? '',
+      last_seen_at: d.last_seen_at,
+      watching_now: !!d.watching_at && nowMs - Date.parse(d.watching_at) <= WATCHING_WITHIN_MS,
+      registered_at: d.registered_at,
+    }))
+    .sort((a, b) => Number(b.watching_now) - Number(a.watching_now) || Date.parse(b.last_seen_at) - Date.parse(a.last_seen_at));
+}
+
+async function tvLineDevices(admin: Db, req: Request, body: Body): Promise<Response> {
+  const password = typeof body.password === 'string' ? body.password : '';
+  if (!password || password.length > 512) return badRequest();
+  const tv = await tvOnLine(admin, body);
+  if (tv instanceof Response) return tv;
+  const { device, line } = tv;
+  // Limits first, so the panel is never asked in a loop.
+  const db = admin as unknown as ThrottleDb;
+  if (!(await throttle(db, `dil:key:${device.id}`, TV_LISTS_PER_KEY_PER_HOUR, HOUR_MS))
+    || !(await throttle(db, `dil:line:${line.host}:${line.username}`, TV_LISTS_PER_LINE_PER_HOUR, HOUR_MS))) {
+    return json({ ok: false, reason: 'rate_limited' });
+  }
+  logIpHeadersOnce('device-inbox', req.headers);
+  const verdict = await verifyLine(line.host, line.typed, password);
+  if (verdict === 'auth_failed') return json({ ok: false, reason: 'bad_line' });
+  if (verdict === 'unreachable') return json({ ok: false, reason: 'panel_unreachable' });
+  const devices = await lineDevices(admin, line);
+  if (!devices) return serverError();
+  return json({ ok: true, devices: devices.map(({ ref, ...d }) => ({ ...d, this_tv: ref === device.id })) });
+}
+
 // ── the owner / admin side ──────────────────────────────────────────────────
 
 /** The line's player_signins row names a customer whose account is the caller. */
@@ -525,27 +586,8 @@ async function lineAction(admin: Db, req: Request, action: 'devices' | 'send', b
   const seenSince = (ms: number) => new Date(Date.now() - ms).toISOString();
 
   if (action === 'devices') {
-    const { data, error } = await admin.from('device_inbox')
-      .select('id, device_label, app_version, last_seen_at, watching_at, registered_at')
-      .eq('panel_host', line.host).eq('panel_username', line.username).gte('last_seen_at', seenSince(SEEN_WITHIN_MS))
-      .order('last_seen_at', { ascending: false }).limit(MAX_DEVICES);
-    if (error) {
-      console.error('[device-inbox] devices failed:', error.message);
-      return serverError();
-    }
-    const nowMs = Date.now();
-    type Row = { id: string; device_label: string | null; app_version: string | null; last_seen_at: string; watching_at: string | null; registered_at: string };
-    const devices = ((data ?? []) as Row[])
-      .map((d) => ({
-        ref: d.id,
-        label: d.device_label ?? '',
-        app_version: d.app_version ?? '',
-        last_seen_at: d.last_seen_at,
-        watching_now: !!d.watching_at && nowMs - Date.parse(d.watching_at) <= WATCHING_WITHIN_MS,
-        registered_at: d.registered_at,
-      }))
-      .sort((a, b) => Number(b.watching_now) - Number(a.watching_now) || Date.parse(b.last_seen_at) - Date.parse(a.last_seen_at));
-    return json({ ok: true, devices });
+    const devices = await lineDevices(admin, line);
+    return devices ? json({ ok: true, devices }) : serverError();
   }
 
   // send: only the line's own TVs; picked ones seen in the last 30 days, "all"
@@ -607,6 +649,7 @@ Deno.serve(async (req) => {
       case 'dismiss': return await dismiss(admin, body);
       case 'owner_status': return await ownerStatus(admin, body);
       case 'support_request': return await supportRequest(admin, req, body);
+      case 'line_devices': return await tvLineDevices(admin, req, body);
       case 'devices':
       case 'send': return await lineAction(admin, req, action, body);
       default: return badRequest();
