@@ -106,6 +106,11 @@ async function onNewsOne(Live: typeof import('./LiveSection').default) {
   await waitFor(() => expect(text()).toContain('News One'));
   await sleep(50);
 }
+/** The remote's Menu (≡) as MainActivity hands it over: 'ContextMenu' on the
+ *  focused element, and (since 1.9.5) its release too. */
+const menuKey = (type: 'keyDown' | 'keyUp') => act(() => {
+  fireEvent[type](document.activeElement || document.body, { key: 'ContextMenu', code: 'ContextMenu' });
+});
 /** Hold OK past the hold time (600 ms), then let go. */
 async function holdOk() {
   down('Enter');
@@ -208,5 +213,32 @@ describe('hold OK on a channel in Live TV', () => {
     down('Escape');
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(document.querySelector('button[aria-label="Report channel"]')).not.toBeNull();
+  });
+});
+
+describe("the remote's Menu (≡) key on a channel in Live TV", () => {
+  it('opens the same menu, and once Menu is let go the first OK there acts', async () => {
+    const { Live } = await openList();
+    await onNewsOne(Live);
+    menuKey('keyDown');
+    await waitFor(() => expect(menuRows()).toContain('Record…'));
+    // Let go with the menu up, as a real press does (the menu loads lazily).
+    menuKey('keyUp');
+    down('Enter'); up('Enter');
+    await waitFor(() => expect(text()).toContain('Channel down'));
+  });
+
+  it("without Menu's release the menu is not armed: the first OK is swallowed", async () => {
+    const { Live } = await openList();
+    await onNewsOne(Live);
+    menuKey('keyDown');
+    await waitFor(() => expect(menuRows()).toContain('Record…'));
+    down('Enter'); up('Enter');
+    await sleep(50);
+    expect(text()).not.toContain('Channel down');
+    expect(menuRows()).toContain('Record…');
+    // Only the next OK, after that release armed it.
+    down('Enter'); up('Enter');
+    await waitFor(() => expect(text()).toContain('Channel down'));
   });
 });
