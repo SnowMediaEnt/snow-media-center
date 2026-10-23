@@ -7,6 +7,7 @@
     "loading": "Heutige Spiele werden geladen…",
     "loadError": "Die Spiele konnten nicht geladen werden. Prüfe deine Internetverbindung und versuche es in einer Minute erneut.",
     "empty": "Gerade keine großen Spiele – schau später wieder vorbei.",
+    "ppvEmpty": "Heute keine PPV-Events in deinen Sendern – schau später wieder vorbei.",
     "liveDot": "● LIVE {{detail}}",
     "liveDetail": "LIVE {{detail}}",
     "findingChannels": "Deine Sender werden gesucht…",

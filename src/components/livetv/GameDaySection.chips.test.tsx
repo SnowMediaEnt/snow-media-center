@@ -93,4 +93,57 @@ describe('GameDaySection chips under the remote', () => {
     expect(classes(second)).toContain('bg-white');
     expect(classes(all() ?? undefined)).toContain('bg-brand-gold');
   });
+
+  it('chips that wrap onto rows: Up/Down move row to row, Down from the last row reaches the games, Up from the first leaves', async () => {
+    // Two chips a row, as a narrow screen wraps them: All PPV / International More Soccer / MLS.
+    const rect = (top: number, left: number) => ({ top, left, width: 90, height: 30, bottom: top + 30, right: left + 90, x: left, y: top, toJSON: () => ({}) });
+    const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const i = Number(this.getAttribute('data-gd-chip'));
+      return (this.hasAttribute('data-gd-chip') ? rect(Math.floor(i / 2) * 40, (i % 2) * 100) : rect(0, 0)) as DOMRect;
+    });
+    try {
+      const { default: GameDay } = await import('./GameDaySection');
+      const onExitUp = vi.fn();
+      render(<GameDay creds={line as never} isActive onExitLeft={() => {}} onExitUp={onExitUp} onWatch={() => {}} />);
+      await waitFor(() => expect(rows().length).toBe(4));
+      const chips = () => Array.from(document.querySelectorAll<HTMLElement>('[data-howto="gd.chips"] button'));
+      expect(chips().map((b) => b.textContent)).toEqual(['All', 'PPV', 'International', 'More Soccer', 'MLS']);
+      const focusedChip = () => chips().find((b) => b.getAttribute('data-focused') === 'true')?.textContent ?? null;
+      const focusedRow = () => document.querySelector('[data-gd-row][data-focused="true"]')?.getAttribute('data-gd-row') ?? null;
+
+      key('ArrowUp'); // the games -> the chips
+      expect(focusedChip()).toBe('All');
+      key('ArrowDown'); // the row below, not the games
+      expect(focusedChip()).toBe('International');
+      expect(focusedRow()).toBeNull();
+      key('ArrowRight'); // along the row
+      expect(focusedChip()).toBe('More Soccer');
+      key('ArrowDown'); // the last row has one chip: that one
+      expect(focusedChip()).toBe('MLS');
+      key('ArrowDown'); // past the last row: the games
+      expect(focusedChip()).toBeNull();
+      expect(focusedRow()).toBe('0');
+      key('ArrowUp'); // the first game: back to the chip it came from
+      expect(focusedChip()).toBe('MLS');
+      key('ArrowUp');
+      expect(focusedChip()).toBe('International');
+      key('ArrowUp');
+      expect(focusedChip()).toBe('All');
+      expect(onExitUp).not.toHaveBeenCalled();
+      key('ArrowUp'); // the first row: Up leaves the chips
+      expect(onExitUp).toHaveBeenCalledTimes(1);
+      // Left/Right still go chip to chip, on to the next row at a row's end.
+      key('ArrowRight');
+      key('ArrowRight');
+      expect(focusedChip()).toBe('International');
+      key('ArrowLeft');
+      expect(focusedChip()).toBe('PPV');
+      // OK picks it.
+      key('Enter');
+      expect(rows()).toHaveLength(0);
+      expect(document.body.textContent).toContain('No PPV events on your channels today');
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });

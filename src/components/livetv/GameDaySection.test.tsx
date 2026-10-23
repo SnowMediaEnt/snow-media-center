@@ -160,6 +160,53 @@ describe('GameDaySection', () => {
     expect(JSON.parse(sessionStorage.getItem('smc-live-deeplink') || '{}')).toMatchObject({ streamId: 21 });
   });
 
+  it('PPV holds the UFC cards, boxing, wrestling and every PPV event; UFC has no chip of its own', async () => {
+    more.games = [{ id: 'ufc:333', league: 'ufc', leagueLabel: 'UFC', name: 'UFC 333: Volkanovski vs. Evloev', event: 'UFC 333: Volkanovski vs. Evloev',
+      start: soon, state: 'pre', detail: '', home: null, away: null, networks: ['ESPN+ PPV'] }];
+    more.channels = [
+      // The card's own PPV channel: listed once, as the card.
+      [41, 'PPV1: UFC 333 Volkanovski vs Evloev', 'PPV1'],
+      [42, `BOXING 01: Canelo vs Crawford (${eastern(2)})`, 'BOXING'],
+      [43, `WWE 03: Crown Jewel (${eastern(5)})`, 'US| WWE'],
+      // Round the clock: never an event.
+      [44, 'WWE Network', 'US| WWE'],
+      [45, 'UFC FIGHT PASS', 'UFC'],
+    ];
+    const { default: GameDay } = await import('./GameDaySection');
+    const onWatch = vi.fn();
+    render(<GameDay creds={line as never} isActive onExitLeft={() => {}} onWatch={onWatch} />);
+    const names = () => Array.from(document.querySelectorAll<HTMLElement>('[data-gd-row]')).map((r) => r.textContent ?? '');
+    expect(await screen.findByText('Canelo vs Crawford')).toBeTruthy();
+    const chips = Array.from(document.querySelectorAll<HTMLElement>('[data-howto="gd.chips"] button')).map((b) => b.textContent);
+    // PPV right after All; no UFC (nor boxing or wrestling) chip.
+    expect(chips.slice(0, 2)).toEqual(['All', 'PPV']);
+    expect(chips).not.toContain('UFC');
+    // All: the games, the UFC card and the fights; not wrestling or the races.
+    expect(names().some((r) => r.includes('UFC 333: Volkanovski vs. Evloev'))).toBe(true);
+    expect(names().some((r) => r.includes('Big Fight vs. Other Guy'))).toBe(true);
+    expect(screen.queryByText('Crown Jewel')).toBeNull();
+    expect(screen.queryByText('WWE Crown Jewel')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'PPV' }));
+    expect(await screen.findByText('WWE Crown Jewel')).toBeTruthy();
+    const ppv = names();
+    for (const n of ['UFC 333: Volkanovski vs. Evloev', 'Canelo vs Crawford', 'WWE Crown Jewel', 'Big Fight vs. Other Guy', 'Dirt Track 100 at Fonda']) {
+      expect(ppv.filter((r) => r.includes(n)), n).toHaveLength(1);
+    }
+    expect(ppv).toHaveLength(5);
+    expect(ppv.some((r) => r.includes('CHI @ GB') || r.includes('Packers'))).toBe(false);
+    expect(document.body.textContent).not.toContain('WWE Network');
+    expect(document.body.textContent).not.toContain('UFC FIGHT PASS');
+    // The UFC card still finds its PPV1 channel.
+    const card = Array.from(document.querySelectorAll<HTMLElement>('[data-gd-row]')).find((r) => r.textContent?.includes('UFC 333:'))!;
+    expect(card.textContent).toContain('PPV1: UFC 333 Volkanovski vs Evloev');
+    fireEvent.click(button(card, 'Watch'));
+    expect(await screen.findByText('Game channel')).toBeTruthy();
+    await key('Enter');
+    expect(onWatch).toHaveBeenCalledWith('ufc:333');
+    expect(JSON.parse(sessionStorage.getItem('smc-live-deeplink') || '{}')).toMatchObject({ streamId: 41 });
+  });
+
   it('a game only on a streaming service says so and plays nothing', async () => {
     const { default: GameDay } = await import('./GameDaySection');
     const onWatch = vi.fn();

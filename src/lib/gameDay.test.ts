@@ -373,6 +373,50 @@ describe('gameDay', () => {
       expect(got.find((p) => p.game.name === 'WWE Crown Jewel')?.game.state).toBe('in');
     });
 
+    it('boxing and wrestling: the fight channels\' events join the PPV list; their round-the-clock channels never do', async () => {
+      const { ppvEvent, ppvGames } = await import('./gameDay');
+      expect(ppvEvent('WWE 03: Crown Jewel (10.4 1:00 PM ET)', now)).toEqual({ title: 'WWE Crown Jewel', start: Date.parse('2026-10-04T17:00:00Z') });
+      expect(ppvEvent('US| AEW 02 | WrestleDream', now)?.title).toBe('AEW WrestleDream');
+      expect(ppvEvent('WWE 05', now)).toBeNull();
+      expect(ppvEvent('PPV 4: WWE', now)).toBeNull();
+      const list = [
+        chans(600, 'BOXING 01: Canelo vs Crawford (10.4 8:00 PM ET)', 'BOXING'),
+        chans(601, 'WWE 03: Crown Jewel (10.4 1:00 PM ET)', 'US| WWE'),
+        chans(602, 'AEW 02 | WrestleDream', 'AEW / TNA'),
+        chans(603, 'EVENT 05: WWE Saturday Night Main Event (10.4 8:00 PM ET)', 'LIVE EVENTS'),
+        chans(604, 'Fight Night: Smith vs Jones', 'FIGHT SPORTS'),
+        // Round the clock, a network, a label alone, nothing named for an event.
+        chans(610, 'WWE Network', 'US| WWE'),
+        chans(611, 'UFC FIGHT PASS', 'UFC'),
+        chans(612, 'WWE 24/7 (10.4 1:00 PM ET)', 'US| WWE'),
+        chans(613, 'BOXING 04', 'BOXING'),
+        chans(614, 'DAZN 1', 'BOXING'),
+        chans(615, 'AEW Dynamite', 'AEW / TNA'),
+        // Another sport's event channel, or a film: never PPV's.
+        chans(620, 'EVENT 06: Bears vs Packers (10.4 1:00 PM ET)', 'LIVE EVENTS'),
+        chans(621, 'Rocky vs Drago (10.4 9:00 PM ET)', 'MOVIES'),
+        chans(622, 'BOXING 05: Champions (10.4 9:00 PM ET)', 'KIDS'),
+      ];
+      const got = ppvGames(list, new Set(), now);
+      expect(got.map((p) => [p.game.name, ids(p.links)]).sort()).toEqual([
+        ['AEW WrestleDream', [602]],
+        ['Canelo vs Crawford', [600]],
+        ['Fight Night: Smith vs Jones', [604]],
+        ['WWE Crown Jewel', [601]],
+        ['WWE Saturday Night Main Event', [603]],
+      ]);
+      expect(got.every((p) => p.game.league === 'ppv')).toBe(true);
+    });
+
+    it('the PPV chip files UFC, boxing and wrestling; no chip of their own', async () => {
+      const { PPV_CHIP, chipOf } = await import('./gameDay');
+      for (const league of ['ppv', 'ufc', 'boxing', 'wwe', 'aew', 'wrestling', 'mma', 'pfl', 'bellator']) {
+        expect(chipOf({ league, leagueLabel: league.toUpperCase() }), league).toEqual({ id: PPV_CHIP, label: 'PPV' });
+      }
+      expect(chipOf({ league: 'nfl', leagueLabel: 'NFL' })).toEqual({ id: 'nfl', label: 'NFL' });
+      expect(chipOf({ league: 'f1', leagueLabel: 'F1' }).id).toBe('f1');
+    });
+
     it('a team game never takes a PPV1-3 channel', async () => {
       const { channelsForGame } = await import('./gameDay');
       const g = game({ id: 'nfl:9', league: 'nfl', leagueLabel: 'NFL', name: 'CHI @ GB', home: team('Packers', 'Green Bay', 'Green Bay Packers', 'GB'), away: team('Bears', 'Chicago', 'Chicago Bears', 'CHI') });

@@ -7,6 +7,7 @@
     "loading": "Chargement des matchs du jour…",
     "loadError": "Impossible de charger les matchs. Vérifiez votre connexion internet et réessayez dans une minute.",
     "empty": "Aucun grand match en ce moment — revenez plus tard.",
+    "ppvEmpty": "Aucun événement PPV sur vos chaînes aujourd'hui — revenez plus tard.",
     "liveDot": "● EN DIRECT {{detail}}",
     "liveDetail": "EN DIRECT {{detail}}",
     "findingChannels": "Recherche de vos chaînes…",

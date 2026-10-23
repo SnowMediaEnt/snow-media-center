@@ -19,12 +19,18 @@
 // event channels for each day's games.
 //
 // PPV: the fights, festivals and small races on the box's PPV channels, read
-// from their names (no scoreboard lists them), under their own PPV filter;
-// the fights show with the day's games too.
+// from their names (no scoreboard lists them), the boxing and wrestling
+// events named on its fight channels, and the UFC cards: all under the PPV
+// filter (always offered, right after All; UFC, boxing and wrestling have no
+// filter of their own). A PPV channel a UFC card has is listed once, as the
+// card. The fights show with the day's games too.
 //
 // Remote: Up/Down move through the games (Up from the first reaches the
 // league filters), Left/Right move between Watch and Remind me (Left from
 // Watch goes back to the side menu), OK presses, Back goes to the side menu.
+// The filters wrap onto rows: Left/Right move along them, Up/Down from row to
+// row (chipRows); Down from the last row reaches the games, Up from the first
+// leaves Game Day's filters.
 // In the channel list: Up/Down, OK plays, Back or Left closes it. A held OK
 // on a channel opens Live TV's short menu (ReportChannelDialog) to report it:
 // the report names the line and stream of that link, and "channel down" puts
@@ -65,7 +71,7 @@ import { trackEvent } from '@/lib/analytics';
 import ChannelWarningDialog from './ChannelWarningDialog';
 import { noteWatchAnyway, warnedRecently } from './channelWarning';
 import {
-  CHANNELS_TTL_MS, LINK_LABELS, aiLinks, lineupHash, scanCandidates, teamTokens, PICKED_LABEL, applyChannelEdits, arrangeLinks, cardChannels, channelKey, channelsForGame, checkGuides, chipOf, fetchGameEdits,
+  CHANNELS_TTL_MS, LINK_LABELS, PPV_CHIP, aiLinks, lineupHash, scanCandidates, teamTokens, PICKED_LABEL, applyChannelEdits, arrangeLinks, cardChannels, channelKey, channelsForGame, checkGuides, chipOf, fetchGameEdits,
   fetchGames, gameServices, isPpvFight, isStreamingOnly, kickoffLabel, kickoffParts, leagueCategories, loadSportsChannels, mergeLinks, ppvGames,
   type Game, type GameChannel, type GameEdit, type LearnedCats, type LinkGroups, type SportsChannel,
 } from '@/lib/gameDay';
@@ -78,6 +84,7 @@ import { buildLines, lineKey } from '@/lib/liveLines';
 import { SERVERS, loadSavedAccounts, serverDisplayName, type XtreamCreds } from '@/lib/xtream';
 import { setPausableInterval } from '@/utils/pausableInterval';
 import { useTranslation } from 'react-i18next';
+import { chipAcrossIn } from './chipRows';
 
 const ReportChannelDialog = lazy(() => import('./ReportChannelDialog'));
 
@@ -225,6 +232,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
   const [wrongTick, setWrongTick] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   const pickRef = useRef<HTMLDivElement>(null);
+  const chipsRef = useRef<HTMLDivElement>(null);
 
   // Every signed-in line, like Live TV.
   useEffect(() => {
@@ -329,9 +337,9 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
   const flagOfRef = useRef(flagOf);
   flagOfRef.current = flagOf;
 
-  // Today's PPV events, from the box's PPV channels' own names: every one
-  // under PPV (UFC cards too). Under All, a UFC card the scoreboard has is
-  // shown once, as its game (with these PPV channels).
+  // Today's PPV events, from the box's PPV and fight channels' own names:
+  // every one under PPV, with the scoreboard's UFC cards. A card the
+  // scoreboard has is shown once, as its game (with these PPV channels).
   const ppv = useMemo(() => (channels ? ppvGames(channels) : []), [channels]);
   const ppvShownAsGame = useMemo(() => {
     const out = new Set<string>();
@@ -345,16 +353,20 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
     // Live first, then by start.
     .sort((a, b) => (a.state === 'in' ? 0 : 1) - (b.state === 'in' ? 0 : 1) || (Date.parse(a.start) || 0) - (Date.parse(b.start) || 0)), [games, ppv]);
 
+  // PPV always, right after All (UFC, boxing and wrestling are in it), then
+  // each league with a game.
   const leagues = useMemo(() => {
     const seen = new Map<string, string>();
-    for (const g of allGames) if (g.league !== 'ppv') { const c = chipOf(g); if (!seen.has(c.id)) seen.set(c.id, c.labelKey ? t(c.labelKey) : c.label); }
-    return [{ id: 'all', label: t('gameDay.allChip') }, ...(ppv.length ? [{ id: 'ppv', label: 'PPV' }] : []), ...[...seen].map(([id, label]) => ({ id, label }))];
-  }, [allGames, ppv.length, t]);
+    for (const g of allGames) { const c = chipOf(g); if (c.id !== PPV_CHIP && !seen.has(c.id)) seen.set(c.id, c.labelKey ? t(c.labelKey) : c.label); }
+    return [{ id: 'all', label: t('gameDay.allChip') }, { id: PPV_CHIP, label: 'PPV' }, ...[...seen].map(([id, label]) => ({ id, label }))];
+  }, [allGames, t]);
 
-  // "All": every game, and of PPV the fights (once); everything on PPV
-  // channels under PPV.
+  // "All": every game, and of PPV the fights; everything on PPV channels,
+  // the fight cards, boxing and wrestling under PPV. A PPV event a listed
+  // card has the channels of is that card: never listed twice.
   const shown = useMemo(() => allGames
-    .filter((g) => (league === 'all' ? g.league !== 'ppv' || (isPpvFight(g) && !ppvShownAsGame.has(g.id)) : chipOf(g).id === league))
+    .filter((g) => !(g.league === 'ppv' && ppvShownAsGame.has(g.id)))
+    .filter((g) => (league === 'all' ? g.league !== 'ppv' || isPpvFight(g) : chipOf(g).id === league))
     .slice(0, lowMemory() ? 40 : 80), [allGames, league, ppvShownAsGame]);
   // What the matching finds for each (the slow part: not done again when the
   // owner's picks or the down list change).
@@ -730,8 +742,8 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
     if (!want) return;
     const i = rows.findIndex((r) => r.game.id === want);
     // A PPV event that isn't a fight is under the PPV filter: go there first.
-    if (i < 0 && want.startsWith('ppv:') && league !== 'ppv' && ppvLinks.has(want)) {
-      setLeague('ppv'); setChipIdx(Math.max(0, leagues.findIndex((l) => l.id === 'ppv')));
+    if (i < 0 && want.startsWith('ppv:') && league !== PPV_CHIP && ppvLinks.has(want)) {
+      setLeague(PPV_CHIP); setChipIdx(Math.max(0, leagues.findIndex((l) => l.id === PPV_CHIP)));
       return;
     }
     try { sessionStorage.removeItem(GAMEDAY_OPEN_KEY); } catch { /* ignore */ }
@@ -831,8 +843,13 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
       if (st.zone === 'chips') {
         if (e.key === 'ArrowLeft') { if (st.chipIdx === 0) onExitLeft(); else setChipIdx(st.chipIdx - 1); }
         else if (e.key === 'ArrowRight') setChipIdx(Math.min(st.leagues.length - 1, st.chipIdx + 1));
-        else if (e.key === 'ArrowUp') onExitUp?.();
-        else if (e.key === 'ArrowDown') { if (st.rows.length) { setZone('rows'); setRowIdx(0); } }
+        // The filters' rows first: the one above, or the one below.
+        else if (e.key === 'ArrowUp') { const j = chipAcrossIn(chipsRef.current, st.chipIdx, -1); if (j >= 0) setChipIdx(j); else onExitUp?.(); }
+        else if (e.key === 'ArrowDown') {
+          const j = chipAcrossIn(chipsRef.current, st.chipIdx, 1);
+          if (j >= 0) setChipIdx(j);
+          else if (st.rows.length) { setZone('rows'); setRowIdx(0); }
+        }
         else if (ok) { setLeague(st.leagues[st.chipIdx]?.id ?? 'all'); setRowIdx(0); }
         return;
       }
@@ -879,7 +896,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
       <div className="flex items-center mb-3">
         <Trophy className="w-6 h-6 text-brand-gold mr-2" />
         <h2 className="font-quicksand font-bold text-2xl mr-4">{t('gameDay.title')}</h2>
-        <div className="flex flex-wrap items-center" data-howto="gd.chips">
+        <div ref={chipsRef} className="flex flex-wrap items-center" data-howto="gd.chips">
           {leagues.map((l, i) => {
             const focused = isActive && zone === 'chips' && chipIdx === i && !picker;
             const on = league === l.id;
@@ -887,6 +904,7 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
               <button
                 key={l.id}
                 type="button"
+                data-gd-chip={i}
                 data-focused={focused ? 'true' : 'false'}
                 onClick={() => { setLeague(l.id); setRowIdx(0); }}
                 // The focus ring is gold: on the selected chip's solid gold
@@ -908,7 +926,9 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
         <div className="flex-1 flex items-center justify-center text-white/70">{t('gameDay.loadError')}</div>
       )}
       {games && rows.length === 0 && (
-        <div className="flex-1 flex items-center justify-center text-white/70">{t('gameDay.empty')}</div>
+        <div className="flex-1 flex items-center justify-center text-white/70">
+          {league !== PPV_CHIP ? t('gameDay.empty') : channels === null ? t('gameDay.findingChannels') : t('gameDay.ppvEmpty')}
+        </div>
       )}
 
       <div ref={listRef} className="flex-1 overflow-y-auto pr-1">
