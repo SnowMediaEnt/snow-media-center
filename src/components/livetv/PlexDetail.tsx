@@ -1094,7 +1094,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
             ) : episodes.length === 0 ? (
               <div className="text-brand-ice/70 font-nunito">{t('plex.detail.noEpisodes')}</div>
             ) : (
-              <div className="flex flex-col gap-1 px-1 py-1">
+              <div className="flex flex-col space-y-1 px-1 py-1">
                 {episodes.map((ep, i) => {
                   const vs = ep.versions ?? [];
                   let chips: string | undefined;

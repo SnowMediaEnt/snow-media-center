@@ -37,7 +37,7 @@ import { useTranslation } from 'react-i18next';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { trackEvent } from '@/lib/analytics';
-import { forgetOutsideSource, readOutsideHere, type OutsideHere } from '@/lib/outsideActions';
+import { forgetOutsideOwnedBy, forgetOutsideSource, readOutsideHere, type OutsideHere } from '@/lib/outsideActions';
 import { MAX_OUTSIDE_SOURCES, OUTSIDE_SOURCES_EVENT } from '@/lib/outsideSource';
 import { fingerIsDriving } from '@/lib/phoneMode';
 import { capturePlayerSignin } from '@/lib/playerSigninCapture';
@@ -113,6 +113,9 @@ const ServicesScreen = memo(({ onBack, onPicked, onAddAccount, onSignOut, active
   /** The line being switched to (it signs in again first). */
   const [busyId, setBusyId] = useState<string | null>(null);
   const busyRef = useRef(false);
+  // A menu a held OK opened takes OK only once that OK has been let go: a box
+  // whose repeats don't say so (e.repeat) must not run through to Delete.
+  const menuArmedRef = useRef(true);
   /** The hold menu: the row it is for (null: closed), its highlight, and Delete's question asked. */
   const [menu, setMenu] = useState<string | null>(null);
   const [menuFocus, setMenuFocus] = useState<MenuRow>('delete');
@@ -178,7 +181,7 @@ const ServicesScreen = memo(({ onBack, onPicked, onAddAccount, onSignOut, active
     setFocusId(rows[0]);
   }, [rows, focusId]);
 
-  const closeMenu = useCallback(() => { setMenu(null); setMenuFocus('delete'); setConfirm(false); }, []);
+  const closeMenu = useCallback(() => { setMenu(null); setMenuFocus('delete'); setConfirm(false); menuArmedRef.current = true; }, []);
 
   // The remote went back to the menu by a tap there: the page is the list again.
   useEffect(() => { if (!active) { setMode('list'); closeMenu(); } }, [active, closeMenu]);
@@ -304,8 +307,10 @@ const ServicesScreen = memo(({ onBack, onPicked, onAddAccount, onSignOut, active
       } else {
         const acc = s.lines.find((a) => lineRow(a) === id);
         if (!acc) return;
-        // Off the box's saved accounts: nothing is sent anywhere.
+        // Off the box's saved accounts: nothing is sent anywhere. The outside
+        // service it added goes with it, as Sign Out does (playerSignOut).
         await removeSavedAccount(acc.id).catch(() => undefined);
+        await forgetOutsideOwnedBy(acc).catch(() => undefined);
         if (acc.id === s.currentId) {
           // The line in use: Settings › Sign Out (Live TV signs out, Settings closes, it says so).
           onSignOutRef.current();
@@ -353,7 +358,7 @@ const ServicesScreen = memo(({ onBack, onPicked, onAddAccount, onSignOut, active
           setConfirm(false);
           return;
         }
-        if (ok && !e.repeat) pressMenu(stateRef.current.menuFocus);
+        if (ok && !e.repeat && menuArmedRef.current) pressMenu(stateRef.current.menuFocus);
         return;
       }
       if (isBackKey(e) || e.key === 'ArrowLeft') {
@@ -374,7 +379,7 @@ const ServicesScreen = memo(({ onBack, onPicked, onAddAccount, onSignOut, active
       if (stateRef.current.mode === 'list' && hasHoldMenu(id) && !busyRef.current) {
         holdRef.current = {
           id,
-          timer: window.setTimeout(() => { holdRef.current = null; openMenu(id); }, SERVICE_HOLD_MS) as unknown as number,
+          timer: window.setTimeout(() => { holdRef.current = null; menuArmedRef.current = false; openMenu(id); }, SERVICE_HOLD_MS) as unknown as number,
         };
         return;
       }
@@ -382,6 +387,8 @@ const ServicesScreen = memo(({ onBack, onPicked, onAddAccount, onSignOut, active
     };
     // OK let go before the hold time: the press it was.
     const onKeyUp = (e: KeyboardEvent) => {
+      // The held OK let go: from now on OK answers the menu.
+      if (stateRef.current.menu && isOkKey(e)) { swallow(e); menuArmedRef.current = true; return; }
       const h = holdRef.current;
       if (!h || !isOkKey(e)) return;
       swallow(e);

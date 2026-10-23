@@ -196,7 +196,7 @@
       "kindOutsideHint": "Sus canales de TV en vivo se ven junto a los tuyos: un acceso Xtream o un enlace M3U.",
       "outsideFull": "Ya tienes otro proveedor. Quítalo para agregar uno distinto.",
       "holdHint": "Mantén OK para eliminar",
-      "deleteLineNote": "La quita de este equipo. La línea sigue funcionando en tus otros dispositivos.",
+      "deleteLineNote": "La quita de este equipo. La línea sigue funcionando en tus otros dispositivos. También se quita el otro proveedor que se añadió con ella.",
       "deleteCurrentNote": "Estás viendo esta línea: eliminarla cierra la sesión de TV en vivo en este equipo, igual que Cerrar sesión.",
       "deleteOutsideNote": "Lo quita, con sus canales, de TV en vivo.",
       "confirmLine": "Pulsa OK otra vez para eliminar {{name}} de este equipo.",

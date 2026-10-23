@@ -272,7 +272,7 @@ describe('Multi-Screen: the line\'s connections', () => {
     await waitFor(() => expect(q('[data-line-limit="over"]')).toBeTruthy(), SLOW);
     expect(text()).toContain('Other TVs on the line are using 1.');
     key('ArrowDown'); key('ArrowDown');
-    expect(q('[data-line-choice="message"]')?.textContent).toBe('Message the other TVs on this line');
+    expect(q('[data-line-choice="message"]')?.textContent).toBe('Message the other TVs on this line (your screens stop)');
     key('Enter');
     expect(onMessageLine).toHaveBeenCalledTimes(1);
     await settle();

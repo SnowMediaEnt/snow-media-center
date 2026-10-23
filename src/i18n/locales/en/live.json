@@ -309,7 +309,7 @@
         "deviceBody": "Five screens at once may be more than this device can play smoothly: they may buffer or go black.",
         "addAnywayBtn": "Add anyway",
         "dontAddBtn": "Don't add",
-        "messageBtn": "Message the other TVs on this line"
+        "messageBtn": "Message the other TVs on this line (your screens stop)"
       }
     },
     "errors": {

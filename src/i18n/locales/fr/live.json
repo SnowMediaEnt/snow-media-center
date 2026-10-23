@@ -310,7 +310,7 @@
         "deviceBody": "Cinq écrans à la fois, c'est peut-être plus que cet appareil ne peut lire sans à-coups : ils risquent de couper ou de rester noirs.",
         "addAnywayBtn": "Ajouter quand même",
         "dontAddBtn": "Ne pas ajouter",
-        "messageBtn": "Écrire aux autres TV de cette ligne"
+        "messageBtn": "Écrire aux autres TV de cette ligne (vos écrans s'arrêtent)"
       }
     },
     "errors": {

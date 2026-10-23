@@ -431,6 +431,14 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
     setFocusedTile(0);
   }, []);
 
+  // When each line's screens last changed: the panel's count lags a moment,
+  // so a line is not read again straight after (multiScreenLines). A screen
+  // (re)opened on a line counts too, even with the line's count unchanged: a
+  // swap or a replaced channel opens a new connection before the old one ends.
+  const lineChangedAtRef = useRef(new Map<string, number>());
+  const markLineChanged = useCallback((line: XtreamCreds | null | undefined) => {
+    if (line?.host && line.username) lineChangedAtRef.current.set(lineKey(line), Date.now());
+  }, []);
   const openTileForChannel = useCallback(async (tileIdx: number, ch: XtreamLiveStream, line: XtreamCreds = creds) => {
     if (!layout) return;
     // Demo: never construct a stream URL. Unreachable today (demo is web-only
@@ -458,6 +466,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
       }
       if (gen !== loadsGenRef.current) return;
       const url = buildNativeLiveUrl(line, ch.stream_id);
+      markLineChanged(line);
       await loadSlot(sid, url);
       if (gen !== loadsGenRef.current) { void closeSlot(sid); return; }
       // Audio follows the highlighter: only grab audio if the loaded tile is
@@ -473,7 +482,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
       const occupiedCount = tilesRef.current.filter(t => t.channel).length;
       if (!DEMO) { try { trackEvent('multi_screen_play', 'player', { layout, tiles: occupiedCount }); } catch { /* ignore */ } }
     }));
-  }, [layout, applyRect, loadSlot, closeSlot, focusAudio, creds, fetchEpgForTile]);
+  }, [layout, applyRect, loadSlot, closeSlot, focusAudio, creds, fetchEpgForTile, markLineChanged]);
 
   // ── The line's connections ─────────────────────────────────────────────
   // Our screens per line: every screen with a channel, but not one whose
@@ -494,7 +503,6 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
   ownByLineRef.current = ownByLine;
   // When each line's screens last changed: the panel's count lags a moment,
   // so a line is not read again straight after (multiScreenLines).
-  const lineChangedAtRef = useRef(new Map<string, number>());
   const prevOwnRef = useRef<Record<string, number>>({});
   const ownKey = Object.keys(ownByLine).sort().map((k) => `${k}=${ownByLine[k]}`).join(',');
   useEffect(() => {
@@ -630,6 +638,8 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
     setFocusedTile(MAIN_TILE);
     const gen = loadsGenRef.current;
     const stopped = () => gen !== loadsGenRef.current;
+    markLineChanged(small.line ?? creds);
+    if (main?.channel) markLineChanged(main.line ?? creds);
     await loadSlot(mainSid, buildNativeLiveUrl(small.line ?? creds, small.channel.stream_id));
     if (stopped()) { void closeSlot(mainSid); return; }
     await focusAudio(mainSid);
@@ -638,7 +648,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
       if (stopped()) { void closeSlot(smallSid); return; }
     } else await closeSlot(smallSid);
     if (!DEMO) { try { trackEvent('multi_screen_swap', 'player', { layout }); } catch { /* ignore */ } }
-  }, [layout, loadSlot, closeSlot, focusAudio, creds]);
+  }, [layout, loadSlot, closeSlot, focusAudio, creds, markLineChanged]);
 
   const openTileMenu = useCallback(() => {
     setTileMenuIdx(0);

@@ -943,10 +943,13 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   const multiChromeHidden = multiImmersive && !touchUI && section === 'multi' && pane === 'content';
   // The same Settings where the header is not drawn (the Compact Guide's
   // drawer and bottom bar): none in the demo or on a Kids profile either.
-  const openSettings = useCallback(() => setSettingsOpen(true), []);
+  // A plain open starts on the menu: a view asked for before (Devices from Multi-Screen) never sticks.
+  const openSettings = useCallback(() => { setSettingsInitialView(undefined); setSettingsOpen(true); }, []);
   // Multi-Screen's warning before a screen that would take the line past its
   // limit: "Message the other TVs on this line" opens Settings › My Account ›
   // Devices on this line (a grown-up's, like all of Settings).
+  // However Settings closes (Back, Sign Out...), the next open starts on the menu.
+  useEffect(() => { if (!settingsOpen) setSettingsInitialView(undefined); }, [settingsOpen]);
   const openLineDevices = useCallback(() => {
     setSettingsInitialView('devices');
     setSettingsOpen(true);

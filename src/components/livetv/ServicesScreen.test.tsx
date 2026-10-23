@@ -318,11 +318,28 @@ describe('Services: hold OK to delete (owner, 2026-10-23)', () => {
     expect(menu()?.getAttribute('data-services-menu')).toBe(VIBEZ_ROW);
     expect(menuFocused()).toBe('delete');
     expect(menu()?.textContent).toContain('me@mail.com');
-    expect(document.querySelector('[data-menu-note]')?.textContent).toBe('Takes it off this box. The line keeps working on your other devices.');
+    expect(document.querySelector('[data-menu-note]')?.textContent).toBe('Takes it off this box. The line keeps working on your other devices. Another provider added with it is removed too.');
     // The held OK's repeats and its release answered nothing.
     expect(confirmText()).toBeUndefined();
     expect(h.authCalls).toEqual([]);
     expect(props.onPicked).not.toHaveBeenCalled();
+  });
+
+  it('a box whose held OK repeats without saying so: the menu takes no OK until that OK is let go', async () => {
+    await renderScreen();
+    goTo(VIBEZ_ROW);
+    key('Enter');
+    await settle(SERVICE_HOLD_MS + 20);
+    expect(menu()).toBeTruthy();
+    // Repeats with e.repeat false, as some WebViews send them: nothing is asked or deleted.
+    key('Enter'); key('Enter'); key('Enter');
+    await settle();
+    expect(confirmText()).toBeUndefined();
+    expect(h.removed).toEqual([]);
+    keyUp('Enter');
+    press();
+    expect(confirmText()).toBe('Press OK again to delete me@mail.com from this box.');
+    expect(h.removed).toEqual([]);
   });
 
   it('a saved line: Delete asks once, then it comes off the box and nothing is sent anywhere', async () => {

@@ -310,7 +310,7 @@
         "deviceBody": "Cinco pantallas a la vez pueden ser más de lo que este dispositivo reproduce con fluidez: podrían cortarse o quedarse en negro.",
         "addAnywayBtn": "Agregar igual",
         "dontAddBtn": "No agregar",
-        "messageBtn": "Avisar a los otros TV de esta línea"
+        "messageBtn": "Avisar a los otros TV de esta línea (tus pantallas se detienen)"
       }
     },
     "errors": {

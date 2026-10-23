@@ -188,7 +188,7 @@
       "kindOutsideHint": "Its Live TV channels show beside yours: an Xtream login or an M3U link.",
       "outsideFull": "You already have one other provider. Remove it to add a different one.",
       "holdHint": "Hold OK to delete",
-      "deleteLineNote": "Takes it off this box. The line keeps working on your other devices.",
+      "deleteLineNote": "Takes it off this box. The line keeps working on your other devices. Another provider added with it is removed too.",
       "deleteCurrentNote": "You're watching this line: deleting it signs this box out of Live TV, as Sign Out does.",
       "deleteOutsideNote": "Takes it and its channels out of Live TV.",
       "confirmLine": "Press OK again to delete {{name}} from this box.",

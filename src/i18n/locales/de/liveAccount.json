@@ -188,7 +188,7 @@
       "kindOutsideHint": "Seine Live-TV-Sender erscheinen neben deinen: Xtream-Login oder M3U-Link.",
       "outsideFull": "Du hast schon einen anderen Anbieter. Entferne ihn, um einen anderen hinzuzufügen.",
       "holdHint": "OK halten zum Löschen",
-      "deleteLineNote": "Entfernt sie von diesem Gerät. Die Line funktioniert auf deinen anderen Geräten weiter.",
+      "deleteLineNote": "Entfernt sie von diesem Gerät. Die Line funktioniert auf deinen anderen Geräten weiter. Ein damit hinzugefügter anderer Anbieter wird ebenfalls entfernt.",
       "deleteCurrentNote": "Du schaust gerade diese Line: Löschen meldet dieses Gerät von Live-TV ab, wie Abmelden.",
       "deleteOutsideNote": "Entfernt ihn samt seinen Sendern aus Live-TV.",
       "confirmLine": "Drück noch einmal OK, um {{name}} von diesem Gerät zu löschen.",
