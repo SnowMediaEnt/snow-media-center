@@ -213,6 +213,23 @@ describe('My Account: Devices on this line, inside the page', () => {
     expect(focused(container)).toBe('Sign out');
   });
 
+  it('opened on its devices (Multi-Screen\'s "Message the other TVs on this line"): the devices first, Back to the Devices button', () => {
+    const onBack = vi.fn();
+    const { container, queryByTestId } = render(<AccountInfoScreen embedded active onBack={onBack} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} devicesLine={LINE} initialDevicesOpen />);
+    expect(queryByTestId('line-devices')).toBeTruthy();
+    expect(dev.props).toMatchObject({ host: LINE.host, username: 'jsmith', embedded: true, active: true });
+    act(() => { (dev.props!.onBack as () => void)(); });
+    expect(queryByTestId('line-devices')).toBeNull();
+    expect(focused(container)).toBe('Devices on this line');
+    expect(onBack).not.toHaveBeenCalled();
+  });
+
+  it('asked to open on its devices without a line: the page as usual', () => {
+    const { queryByTestId, container } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} initialDevicesOpen />);
+    expect(queryByTestId('line-devices')).toBeNull();
+    expect(focused(container)).toBe('Show password');
+  });
+
   it('without a line: no Devices button', () => {
     const { container } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} />);
     expect(labels(container)).not.toContain('Devices on this line');

@@ -1,0 +1,3 @@
+# Multi-Screen: 5 screens, and the line's connections (the warning before a screen that would go over, F / O by the names)
+src/components/livetv/LineLimitDialog.tsx
+src/components/livetv/multiScreenLines.ts

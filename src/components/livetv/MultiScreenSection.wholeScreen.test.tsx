@@ -50,6 +50,8 @@ vi.mock('@/lib/xtream', async (orig) => ({
     { stream_id: 33, name: 'Charlie Music', num: 3, category_id: '1' },
   ],
   getShortEpg: async () => ({ epg_listings: [] }),
+  // The line's connections (multiScreenLines): the panel says nothing here, no request leaves the test.
+  authenticate: async () => ({ user_info: {} }),
   buildNativeLiveUrl: (_c: unknown, id: number) => `native://${id}`,
 }));
 

@@ -39,6 +39,8 @@ vi.mock('@/lib/xtream', async (orig) => ({
     { stream_id: 22, name: 'Bravo Sports', num: 2, category_id: '1' },
   ],
   getShortEpg: async () => ({ epg_listings: [] }),
+  // The line's connections (multiScreenLines): the panel says nothing here, no request leaves the test.
+  authenticate: async () => ({ user_info: {} }),
 }));
 
 import MultiScreenSection from './MultiScreenSection';

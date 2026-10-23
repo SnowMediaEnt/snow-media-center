@@ -1,5 +1,9 @@
-// Multi-screen (up to 4 slots) native player manager. Bypasses useNativePlayer
-// entirely and calls SnowPlayer directly with screenIds 'ms1'..'ms4'.
+// Multi-screen (up to 5 slots) native player manager. Bypasses useNativePlayer
+// entirely and calls SnowPlayer directly with screenIds 'ms1'..'ms5'. The
+// native side keeps a player per screenId with no cap of its own; each tile
+// player is built with trimmed buffers (SnowPlayerPlugin: 6 MB on a 2 GB box)
+// so several fit, and every one is a hardware decoder and a TextureView of
+// its own: five is the most any layout asks for (multiScreenLayout MAX_TILES).
 //
 // Slot ids match tile indexes in the grid: tile 0 → 'ms1', tile 1 → 'ms2', etc.
 // The caller must call applyRect(screenId, cssRect) BEFORE loadSlot(...) so the
@@ -11,8 +15,8 @@ import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import { loadPlayerVolume } from '@/utils/volume';
 import { enterQuiet, exitQuiet } from '@/utils/quietMode';
 
-export type MultiScreenId = 'ms1' | 'ms2' | 'ms3' | 'ms4';
-export const MS_SLOT_IDS: MultiScreenId[] = ['ms1', 'ms2', 'ms3', 'ms4'];
+export type MultiScreenId = 'ms1' | 'ms2' | 'ms3' | 'ms4' | 'ms5';
+export const MS_SLOT_IDS: MultiScreenId[] = ['ms1', 'ms2', 'ms3', 'ms4', 'ms5'];
 
 export interface SlotState {
   url: string | null;
@@ -36,6 +40,9 @@ const emptySlot = (): SlotState => ({
   retries: 0,
   bufferingSince: null,
 });
+const emptySlots = (): Record<MultiScreenId, SlotState> => ({
+  ms1: emptySlot(), ms2: emptySlot(), ms3: emptySlot(), ms4: emptySlot(), ms5: emptySlot(),
+});
 
 interface Api {
   slots: Record<MultiScreenId, SlotState>;
@@ -47,9 +54,7 @@ interface Api {
 }
 
 export function useMultiScreenPlayers(): Api {
-  const [slots, setSlots] = useState<Record<MultiScreenId, SlotState>>(() => ({
-    ms1: emptySlot(), ms2: emptySlot(), ms3: emptySlot(), ms4: emptySlot(),
-  }));
+  const [slots, setSlots] = useState<Record<MultiScreenId, SlotState>>(emptySlots);
   const slotsRef = useRef(slots);
   useEffect(() => { slotsRef.current = slots; }, [slots]);
 
@@ -64,7 +69,7 @@ export function useMultiScreenPlayers(): Api {
   const lastRectRef = useRef<Record<string, string>>({});
 
   const isMs = (id: string | undefined): id is MultiScreenId =>
-    !!id && (id === 'ms1' || id === 'ms2' || id === 'ms3' || id === 'ms4');
+    !!id && (MS_SLOT_IDS as string[]).includes(id);
 
   const updateSlot = useCallback((id: MultiScreenId, patch: Partial<SlotState>) => {
     setSlots(prev => ({ ...prev, [id]: { ...prev[id], ...patch } }));
@@ -79,7 +84,7 @@ export function useMultiScreenPlayers(): Api {
       root.classList.add('snowplayer-multiview');
       root.classList.add('streaming-active');
       // Same quiet mode the main player enters (useNativePlayer): with two to
-      // four streams decoding, every pausable interval in the app must stop.
+      // five streams decoding, every pausable interval in the app must stop.
       // Multi-Screen never asked for it, so alerts, updater checks and the
       // content-bar refresh all kept running underneath four decoders.
       enterQuiet('multi-screen');
@@ -258,7 +263,7 @@ export function useMultiScreenPlayers(): Api {
     retryTimersRef.current = {};
     try { await SnowPlayer.stopAll(); } catch { /* ignore */ }
     lastRectRef.current = {};
-    setSlots({ ms1: emptySlot(), ms2: emptySlot(), ms3: emptySlot(), ms4: emptySlot() });
+    setSlots(emptySlots());
     focusedAudioRef.current = null;
   }, []);
 

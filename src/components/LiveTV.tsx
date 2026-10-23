@@ -121,7 +121,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // Read-only "Account info" view, shown from the header Account button.
   const [settingsOpen, setSettingsOpen] = useState(false);
   // The assistant can open Player Settings straight on a screen.
-  const [settingsInitialView, setSettingsInitialView] = useState<'appearance' | 'services' | undefined>(undefined);
+  const [settingsInitialView, setSettingsInitialView] = useState<'appearance' | 'services' | 'devices' | undefined>(undefined);
   // Settings › Services › Add another service › DreamStreams or Vibez line:
   // the sign-in form opens empty (not the line in use), and a saved line
   // closes Settings, the new line playing in Live TV.
@@ -944,6 +944,13 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // The same Settings where the header is not drawn (the Compact Guide's
   // drawer and bottom bar): none in the demo or on a Kids profile either.
   const openSettings = useCallback(() => setSettingsOpen(true), []);
+  // Multi-Screen's warning before a screen that would take the line past its
+  // limit: "Message the other TVs on this line" opens Settings › My Account ›
+  // Devices on this line (a grown-up's, like all of Settings).
+  const openLineDevices = useCallback(() => {
+    setSettingsInitialView('devices');
+    setSettingsOpen(true);
+  }, []);
   const guideSettings = (!DEMO || HOWTO) && !kidsLevel() ? openSettings : undefined;
 
   useEffect(() => {
@@ -1561,6 +1568,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               onExitLeft={onExitLeft}
               onExitUp={onExitUp}
               onImmersiveChange={setMultiImmersive}
+              onMessageLine={!DEMO && !kidsLevel() ? openLineDevices : undefined}
             />
           </Suspense>
         )}

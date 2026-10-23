@@ -270,7 +270,7 @@
     },
     "multi": {
       "needsAppTitle": "Multi-Screen needs the Fire TV / Android app",
-      "needsAppBody": "Multi-Screen runs four native video players at once, which the web preview can't do. Open the installed app on your Fire TV or Android device.",
+      "needsAppBody": "Multi-Screen runs up to five native video players at once, which the web preview can't do. Open the installed app on your Fire TV or Android device.",
       "pickLayout": "Choose a Multi-Screen layout",
       "screens2": "2 Screens",
       "screens4": "4 Screens",
@@ -292,7 +292,25 @@
       "bufferingHint": "Buffering? Your plan may not have enough connections (4 screens need 4) or your device may not be strong enough — try fewer screens.",
       "screens3": "3 Screens",
       "bigPlusTwo": "1 Big + 2 Small",
-      "swapHint": "OK on a small screen: watch it big. Hold OK: options."
+      "swapHint": "OK on a small screen: watch it big. Hold OK: options.",
+      "screens5": "5 Screens",
+      "bigPlusFour": "1 Big + 4 Small",
+      "bufferingHint5": "Buffering? Your plan may not have enough connections (5 screens need 5) or your device may not be strong enough — try fewer screens.",
+      "weakBoxNote": "Five at once is a lot for this device — screens may buffer.",
+      "lineFull": "Line full",
+      "lineOver": "Over the line's limit",
+      "lineFullMark": "F",
+      "lineOverMark": "O",
+      "conn": {
+        "overTitle": "Over this line's limit",
+        "overBody": "With this screen the line would have {{total}} streams playing, and it allows {{max}}. Screens on this line will likely buffer.",
+        "othersNote": "Other TVs on the line are using {{others}}.",
+        "deviceTitle": "A lot for this device",
+        "deviceBody": "Five screens at once may be more than this device can play smoothly: they may buffer or go black.",
+        "addAnywayBtn": "Add anyway",
+        "dontAddBtn": "Don't add",
+        "messageBtn": "Message the other TVs on this line"
+      }
     },
     "errors": {
       "invalidLogin": "Invalid username or password.",

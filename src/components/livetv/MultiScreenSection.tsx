@@ -1,6 +1,13 @@
-// Multi-Screen (multiview) section. Native-only. Up to 4 tiles rendered by the
+// Multi-Screen (multiview) section. Native-only. Up to 5 tiles rendered by the
 // SnowPlayer native surface BEHIND the transparent WebView; the grid paints
 // chrome only (gaps, borders, labels).
+//
+// The line's live connections (owner, 2026-10-23): before a screen is added
+// that would take its line past the plan's limit the viewer is warned
+// (LineLimitDialog: add anyway, don't add, or message the other TVs on the
+// line), and each screen's name carries a mark while its line is full (an
+// amber F) or over (a red O). Counted per line; the panel is read gently
+// (multiScreenLines).
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { useTranslation } from 'react-i18next';
@@ -33,11 +40,15 @@ import {
 } from '@/hooks/useMultiScreenPlayers';
 import { trackEvent } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
+import { isOutsideLine } from '@/lib/outsideSource';
+import { isLowMemoryBox } from '@/utils/platform';
 import { channelReport, openWhenFresh, useDownChannels, type ChannelReport } from '@/lib/channelStatus';
 import ChannelWarningDialog from './ChannelWarningDialog';
 import { noteWatchAnyway, warnedRecently } from './channelWarning';
 import { channelRowLabels } from './channelRowLabels';
-import { LAYOUT_ORDER, LAYOUT_TILE_COUNT, MAIN_TILE, layoutNeighbor, okSwapsIntoMain, soundTile, threeArrangement, threeHintPlace, tilesForLayout, type GridBox, type Layout } from './multiScreenLayout';
+import { LAYOUT_ORDER, LAYOUT_TILE_COUNT, MAIN_TILE, MAX_TILES, hasBigScreen, layoutNeighbor, okSwapsIntoMain, smallArrangement, soundTile, swapHintPlace, tilesForLayout, type GridBox, type Layout } from './multiScreenLayout';
+import { addGoesOver, freshLineReading, lineMark, lineTotal, othersOf, useLineReadings, LINE_SETTLE_MS, type LineMark, type LineReading } from './multiScreenLines';
+import LineLimitDialog, { type LineOver } from './LineLimitDialog';
 
 // Demo latch (?demo=1) — false on native, so dead code in the APK.
 const DEMO = isDemo();
@@ -57,12 +68,33 @@ interface Props {
    *  with the remote on the side menu or the header, and on touch screens
    *  (no ◀ / ▲ to bring them back there). */
   onImmersiveChange?: (on: boolean) => void;
+  /** "Message the other TVs on this line", from the warning before a screen
+   *  that would take the line past its limit: Live TV Settings › My Account ›
+   *  Devices on this line (the line Live TV is signed into). Absent: not offered. */
+  onMessageLine?: () => void;
 }
 
 interface TileState {
   channel: XtreamLiveStream | null;
   nowNext?: EpgNowNext;
+  /** The line the channel plays from (its connection is counted there). */
+  line?: XtreamCreds;
 }
+
+const emptyTiles = (): TileState[] => Array.from({ length: MAX_TILES }, () => ({ channel: null }));
+
+/** The marker by a screen's name: a small triangle with F (the line is full,
+ *  amber) or O (over its limit, red); nothing while the line is under it. */
+const LineMarkIcon = ({ mark, label, letter }: { mark: Exclude<LineMark, null>; label: string; letter: string }) => (
+  <svg data-ms-line-mark={mark} role="img" aria-label={label} viewBox="0 0 20 18" className="w-5 flex-shrink-0 mr-1.5" style={{ height: 18 }}>
+    <title>{label}</title>
+    <path d="M10 1.5 L18.6 16.5 H1.4 Z" strokeLinejoin="round" strokeWidth="1" className={mark === 'over' ? 'fill-red-500 stroke-black/60' : 'fill-amber-400 stroke-black/60'} />
+    <text x="10" y="14.6" textAnchor="middle" fontSize="9" fontWeight="700" className={mark === 'over' ? 'fill-white' : 'fill-black'}>{letter}</text>
+  </svg>
+);
+
+/** Five streams at once: the most a layout asks for, and a lot for a 2 GB box. */
+const FIVE_STREAMS = 5;
 
 // Channel picker rows. Sized to be read from the couch: the picker used to
 // be a 40% side panel split in two, which left ~200px for channel names.
@@ -73,10 +105,12 @@ const HOLD_MS = 600;
 
 // Once dismissed the 4-grid buffering hint stays hidden for the session.
 let hintDismissedForSession = false;
+// "Add anyway" on the fifth screen of a low-memory box: not asked again this run.
+let fiveOkayedForSession = false;
 /** How long the 4-screen buffering hint stays up before it goes by itself. */
 const HINT_SHOWN_MS = 10_000;
 
-const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previewOnly = false, onImmersiveChange }: Props) => {
+const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previewOnly = false, onImmersiveChange, onMessageLine }: Props) => {
   const { t } = useTranslation();
   const native = hasNativePlayer();
   const touch = useTouchUI();
@@ -123,9 +157,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
   const holdTimerRef = useRef<number | null>(null);
   const holdFiredRef = useRef(false);
 
-  const [tiles, setTiles] = useState<TileState[]>(() => [
-    { channel: null }, { channel: null }, { channel: null }, { channel: null },
-  ]);
+  const [tiles, setTiles] = useState<TileState[]>(emptyTiles);
 
   const {
     slots, loadSlot, closeSlot, applyRect, focusAudio, stopAll,
@@ -169,7 +201,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
 
   // Grid tile refs
   const gridRef = useRef<HTMLDivElement | null>(null);
-  const tileRefs = useRef<Array<HTMLDivElement | null>>([null, null, null, null]);
+  const tileRefs = useRef<Array<HTMLDivElement | null>>(Array.from({ length: MAX_TILES }, () => null));
 
   // Every layout keeps its screens 16:9 and as large as the grid allows, so
   // the places depend on the grid's size (multiScreenLayout): followed as it
@@ -321,7 +353,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
       const el = tileRefs.current[i];
       const sid = spec[i].id;
       const s = slotsRef.current[sid];
-      if (!el || !s.url) continue;
+      if (!el || !s?.url) continue;
       const r = el.getBoundingClientRect();
       void applyRect(sid, { x: r.left, y: r.top, width: r.width, height: r.height });
     }
@@ -330,7 +362,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
   // Re-measure when a tile gains or loses a stream — not on every buffering
   // flip, which used to re-measure every tile and re-bind the listeners —
   // and when the grid changes size (the tiles have moved with it).
-  const occupiedKey = MS_SLOT_IDS.map((id) => (slots[id].url ? '1' : '0')).join('');
+  const occupiedKey = MS_SLOT_IDS.map((id) => (slots[id]?.url ? '1' : '0')).join('');
   useEffect(() => {
     if (!layout) return;
     // Rect after layout/paint
@@ -345,9 +377,9 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
   }, [measureAndApply]);
 
   // Fetch EPG for tile after channel set
-  const fetchEpgForTile = useCallback(async (tileIdx: number, streamId: number) => {
+  const fetchEpgForTile = useCallback(async (tileIdx: number, streamId: number, line: XtreamCreds = creds) => {
     try {
-      const res = await getShortEpg(creds, streamId, 4);
+      const res = await getShortEpg(line, streamId, 4);
       const nn = pickNowNext(res.epg_listings || []);
       setTiles(prev => {
         const copy = prev.slice();
@@ -372,14 +404,14 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
     void focusAudio(focusedHasUrl ? focusedSid : null);
   }, [focusedSid, focusedHasUrl, focusAudio]);
 
-  // 4-grid hint bar: any slot buffering > 6s
+  // 4 and 5 screens hint bar: any slot buffering > 6s
   useEffect(() => {
-    if (layout !== '4' || hintDismissedForSession || showHint) return;
+    if (!layout || LAYOUT_TILE_COUNT[layout] < 4 || hintDismissedForSession || showHint) return;
     const id = window.setInterval(() => {
       const now = Date.now();
       const bad = MS_SLOT_IDS.some(sid => {
         const s = slots[sid];
-        return s.url && s.buffering && s.bufferingSince && (now - s.bufferingSince) > 6000;
+        return s?.url && s.buffering && s.bufferingSince && (now - s.bufferingSince) > 6000;
       });
       if (bad && !showHint) setShowHint(true);
     }, 1000);
@@ -399,7 +431,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
     setFocusedTile(0);
   }, []);
 
-  const openTileForChannel = useCallback(async (tileIdx: number, ch: XtreamLiveStream) => {
+  const openTileForChannel = useCallback(async (tileIdx: number, ch: XtreamLiveStream, line: XtreamCreds = creds) => {
     if (!layout) return;
     // Demo: never construct a stream URL. Unreachable today (demo is web-only
     // and this section requires the native player), but keep the explicit
@@ -411,7 +443,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
     // Update tile state first so measure sees it as occupied
     setTiles(prev => {
       const copy = prev.slice();
-      copy[tileIdx] = { channel: ch, nowNext: undefined };
+      copy[tileIdx] = { channel: ch, nowNext: undefined, line };
       return copy;
     });
     // Measure THIS tile now and applyRect BEFORE loadSlot. DOUBLE rAF so the
@@ -425,7 +457,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
         await applyRect(sid, { x: r.left, y: r.top, width: r.width, height: r.height });
       }
       if (gen !== loadsGenRef.current) return;
-      const url = buildNativeLiveUrl(creds, ch.stream_id);
+      const url = buildNativeLiveUrl(line, ch.stream_id);
       await loadSlot(sid, url);
       if (gen !== loadsGenRef.current) { void closeSlot(sid); return; }
       // Audio follows the highlighter: only grab audio if the loaded tile is
@@ -437,27 +469,125 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
         const fsid = tilesForLayout(layoutRef.current!)[soundIdx]?.id;
         await focusAudio(fsid && slotsRef.current[fsid]?.url ? fsid : null);
       }
-      void fetchEpgForTile(tileIdx, ch.stream_id);
+      void fetchEpgForTile(tileIdx, ch.stream_id, line);
       const occupiedCount = tilesRef.current.filter(t => t.channel).length;
       if (!DEMO) { try { trackEvent('multi_screen_play', 'player', { layout, tiles: occupiedCount }); } catch { /* ignore */ } }
     }));
   }, [layout, applyRect, loadSlot, closeSlot, focusAudio, creds, fetchEpgForTile]);
 
+  // ── The line's connections ─────────────────────────────────────────────
+  // Our screens per line: every screen with a channel, but not one whose
+  // stream gave up ("Stream unavailable": it holds no connection).
+  const ownByLine = useMemo(() => {
+    const m: Record<string, number> = {};
+    if (!layout) return m;
+    const spec = tilesForLayout(layout);
+    for (let i = 0; i < spec.length; i++) {
+      const tile = tiles[i];
+      if (!tile?.channel || !tile.line || slots[spec[i].id]?.error) continue;
+      const k = lineKey(tile.line);
+      m[k] = (m[k] ?? 0) + 1;
+    }
+    return m;
+  }, [layout, tiles, slots]);
+  const ownByLineRef = useRef(ownByLine);
+  ownByLineRef.current = ownByLine;
+  // When each line's screens last changed: the panel's count lags a moment,
+  // so a line is not read again straight after (multiScreenLines).
+  const lineChangedAtRef = useRef(new Map<string, number>());
+  const prevOwnRef = useRef<Record<string, number>>({});
+  const ownKey = Object.keys(ownByLine).sort().map((k) => `${k}=${ownByLine[k]}`).join(',');
+  useEffect(() => {
+    const prev = prevOwnRef.current;
+    const now = Date.now();
+    for (const k of new Set([...Object.keys(prev), ...Object.keys(ownByLine)])) {
+      if ((prev[k] ?? 0) !== (ownByLine[k] ?? 0)) lineChangedAtRef.current.set(k, now);
+    }
+    prevOwnRef.current = ownByLine;
+    // Followed by its key: a re-render with the same counts changes nothing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ownKey]);
+  // The lines our screens play from, read every minute or so while they play.
+  const linesKey = tiles.map((tile) => (tile.channel && tile.line ? lineKey(tile.line) : '')).join(',');
+  const playingLines = useMemo(() => {
+    const seen = new Map<string, XtreamCreds>();
+    for (const tile of tiles) if (tile.channel && tile.line && !seen.has(lineKey(tile.line))) seen.set(lineKey(tile.line), tile.line);
+    return Array.from(seen.values());
+    // Followed by the lines' keys, not every tile change (EPG, a swap).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linesKey]);
+  const watchLines = native && !previewOnly && !DEMO && !!layout && playingLines.length > 0;
+  const ownOn = useCallback((k: string) => ownByLineRef.current[k] ?? 0, []);
+  const lineChangedAt = useCallback((k: string) => lineChangedAtRef.current.get(k) ?? 0, []);
+  const readings = useLineReadings(playingLines, ownOn, lineChangedAt, watchLines);
+  // What the line allows: the panel's latest word, else (the line Live TV is
+  // signed into) what Account info shows.
+  const maxFor = useCallback((k: string, reading: LineReading | null | undefined): number | null => {
+    if (reading) return reading.max;
+    return account?.host && account.username && lineKey(account) === k ? account.maxConnections : null;
+  }, [account]);
+  const markForTile = (tile: TileState | undefined): LineMark => {
+    if (!tile?.channel || !tile.line) return null;
+    const k = lineKey(tile.line);
+    return lineMark(lineTotal(readings[k], ownByLine[k] ?? 0), maxFor(k, readings[k]));
+  };
+  // A layout chosen: the line is read once now (after the moment its count
+  // needs to settle), so the first screen added needn't wait for it.
+  const credsLineKey = lineKey(creds);
+  useEffect(() => {
+    if (!layout || !native || previewOnly || DEMO) return;
+    const t = window.setTimeout(() => { void freshLineReading(creds, ownByLineRef.current[credsLineKey] ?? 0); }, LINE_SETTLE_MS);
+    return () => window.clearTimeout(t);
+    // Once per layout and line.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layout, credsLineKey, native, previewOnly]);
+
+  // Before a screen is added (one more stream on the line): past the line's
+  // limit, or the fifth stream at once on a low-memory box (every Fire TV),
+  // the viewer is told first (LineLimitDialog) and decides.
+  const [lineWarn, setLineWarn] = useState<{ tileIdx: number; ch: XtreamLiveStream; line: XtreamCreds; over: LineOver | null; device: boolean } | null>(null);
+  const lineWarnRef = useRef(lineWarn);
+  lineWarnRef.current = lineWarn;
+  const addOrWarn = useCallback(async (tileIdx: number, ch: XtreamLiveStream, seq: number) => {
+    const line = creds;
+    const k = lineKey(line);
+    const still = () => seq === pickSeqRef.current && pickerOpenForTileRef.current === tileIdx;
+    // The line this screen's stream is counted on now (none when empty or failed).
+    const l = layoutRef.current;
+    const tile = tilesRef.current[tileIdx];
+    const sid = l ? tilesForLayout(l)[tileIdx]?.id : undefined;
+    const countedOn = tile?.channel && tile.line && !(sid && slotsRef.current[sid]?.error) ? lineKey(tile.line) : null;
+    if (countedOn !== k && native && !DEMO) {
+      const own = ownByLineRef.current[k] ?? 0;
+      const playing = Object.values(ownByLineRef.current).reduce((a, b) => a + b, 0);
+      const device = !fiveOkayedForSession && isLowMemoryBox() && (countedOn ? playing : playing + 1) >= FIVE_STREAMS;
+      const reading = await freshLineReading(line, own);
+      if (!still()) return;
+      const max = maxFor(k, reading);
+      const total = lineTotal(reading, own + 1);
+      const over: LineOver | null = addGoesOver(total, max) ? { total, max: max as number, others: reading ? othersOf(reading) : null } : null;
+      if (over || device) { setLineWarn({ tileIdx, ch, line, over, device }); return; }
+    }
+    if (!still()) return;
+    setPickerOpenForTile(null);
+    void openTileForChannel(tileIdx, ch, line);
+  }, [creds, native, maxFor, openTileForChannel]);
+
   // A channel chosen in the picker for screen `tileIdx`. One the others found
   // off the air, or reported down or buffering, asks first (the picker stays
   // open behind), after the reports are asked for again when they are older
-  // than a few seconds (openWhenFresh, a second at most). Only the newest
-  // pick goes on, and only while the picker is still open for that screen.
+  // than a few seconds (openWhenFresh, a second at most). Then the line's
+  // connections (addOrWarn). Only the newest pick goes on, and only while
+  // the picker is still open for that screen.
   const pickChannel = useCallback((tileIdx: number, ch: XtreamLiveStream) => {
     const seq = ++pickSeqRef.current;
     openWhenFresh(creds.host, (fresh) => {
       if (seq !== pickSeqRef.current || pickerOpenForTileRef.current !== tileIdx) return;
       const report = channelReport(fresh ?? downSetRef.current, creds.host, ch.stream_id, ch.category_id);
       if (report && !warnedRecently(creds.host, ch.stream_id)) { setWarn({ tileIdx, ch, report }); return; }
-      setPickerOpenForTile(null);
-      void openTileForChannel(tileIdx, ch);
+      void addOrWarn(tileIdx, ch, seq);
     });
-  }, [creds.host, openTileForChannel]);
+  }, [creds.host, addOrWarn]);
   const pickChannelRef = useRef(pickChannel);
   pickChannelRef.current = pickChannel;
 
@@ -472,14 +602,14 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
       copy[tileIdx] = { channel: null };
       return copy;
     });
-    // Refocus audio: the big screen in the 3-screen layout, else the first remaining
+    // Refocus audio: the big screen in the 3- and 5-screen layouts, else the first remaining
     const soundIdx = soundTile(layout, focusedTileRef.current);
-    if (layout === '3' && soundIdx !== tileIdx && tilesRef.current[soundIdx]?.channel) { await focusAudio(spec[soundIdx].id); return; }
+    if (hasBigScreen(layout) && soundIdx !== tileIdx && tilesRef.current[soundIdx]?.channel) { await focusAudio(spec[soundIdx].id); return; }
     const firstRemaining = spec.findIndex((sp, i) => i !== tileIdx && tilesRef.current[i]?.channel);
     if (firstRemaining >= 0) await focusAudio(spec[firstRemaining].id); else await focusAudio(null);
   }, [layout, closeSlot, focusAudio]);
 
-  // 3-screen layout: OK on a small screen puts its channel in the big one
+  // 3- and 5-screen layouts: OK on a small screen puts its channel in the big one
   // (with the sound) and the big one's channel in that small one. Both slots
   // just load the other's stream: no re-layout, and the picture is back in a
   // second or two.
@@ -493,18 +623,18 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
     if (!mainSid || !smallSid || !small?.channel) return;
     setTiles(prev => {
       const copy = prev.slice();
-      copy[MAIN_TILE] = { channel: small.channel, nowNext: small.nowNext };
-      copy[tileIdx] = main?.channel ? { channel: main.channel, nowNext: main.nowNext } : { channel: null };
+      copy[MAIN_TILE] = { channel: small.channel, nowNext: small.nowNext, line: small.line };
+      copy[tileIdx] = main?.channel ? { channel: main.channel, nowNext: main.nowNext, line: main.line } : { channel: null };
       return copy;
     });
     setFocusedTile(MAIN_TILE);
     const gen = loadsGenRef.current;
     const stopped = () => gen !== loadsGenRef.current;
-    await loadSlot(mainSid, buildNativeLiveUrl(creds, small.channel.stream_id));
+    await loadSlot(mainSid, buildNativeLiveUrl(small.line ?? creds, small.channel.stream_id));
     if (stopped()) { void closeSlot(mainSid); return; }
     await focusAudio(mainSid);
     if (main?.channel) {
-      await loadSlot(smallSid, buildNativeLiveUrl(creds, main.channel.stream_id));
+      await loadSlot(smallSid, buildNativeLiveUrl(main.line ?? creds, main.channel.stream_id));
       if (stopped()) { void closeSlot(smallSid); return; }
     } else await closeSlot(smallSid);
     if (!DEMO) { try { trackEvent('multi_screen_swap', 'player', { layout }); } catch { /* ignore */ } }
@@ -582,8 +712,8 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
   useEffect(() => { onImmersiveChange?.(immersive); }, [immersive, onImmersiveChange]);
   useEffect(() => () => onImmersiveChange?.(false), [onImmersiveChange]);
 
-  /** "3 screens": a small screen whose stream failed. OK there tries it
-   *  again (a dead stream is not swapped up to take the sound). */
+  /** "3 screens" / "5 screens": a small screen whose stream failed. OK there
+   *  tries it again (a dead stream is not swapped up to take the sound). */
   const smallFailed = useCallback((idx: number) => {
     const l = layoutRef.current;
     if (!l || !okSwapsIntoMain(l, idx)) return false;
@@ -641,8 +771,14 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
     };
     const handler = (e: KeyboardEvent) => {
-      // The warning before a reported channel goes on a screen has the remote.
-      if (warnRef.current) return;
+      // The warning before a reported channel goes on a screen, or before a
+      // screen that would take the line past its limit, has the remote. Its
+      // Back counts as this press of Back: the hardware listener's second
+      // copy of it must not then close the picker or leave the grid.
+      if (warnRef.current || lineWarnRef.current) {
+        if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) lastBackAtRef.current = Date.now();
+        return;
+      }
       const target = e.target as HTMLElement | null;
       const typing = !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
       if (typing) return;
@@ -741,13 +877,13 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
         consume(e);
         loadsGenRef.current += 1;
         void stopAll();
-        setTiles([{ channel: null }, { channel: null }, { channel: null }, { channel: null }]);
+        setTiles(emptyTiles());
         setLayout(null);
         return;
       }
       if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         const dir = e.key === 'ArrowUp' ? 'up' : e.key === 'ArrowDown' ? 'down' : e.key === 'ArrowLeft' ? 'left' : 'right';
-        const n = layoutNeighbor(layoutRef.current, focusedTileRef.current, dir, threeArrangement(gridBoxRef.current));
+        const n = layoutNeighbor(layoutRef.current, focusedTileRef.current, dir, smallArrangement(layoutRef.current, gridBoxRef.current));
         if (n !== null) {
           consume(e);
           // Audio follows via the focusedSid effect.
@@ -764,7 +900,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
         return;
       }
       // The remote's Menu (≡): the highlighted screen's options, on any
-      // layout (the only way to a small screen's menu in the 3-screen one).
+      // layout (the only way to a small screen's menu in the 3- and 5-screen ones).
       if (e.key === 'ContextMenu' || e.keyCode === 82) {
         consume(e);
         if (tilesRef.current[focusedTileRef.current]?.channel) openTileMenu();
@@ -775,7 +911,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
         const tIdx = focusedTileRef.current;
         const t = tilesRef.current[tIdx];
         if (t?.channel && okSwapsIntoMain(layoutRef.current, tIdx)) {
-          // A small screen of the 3-screen layout: OK swaps it into the big
+          // A small screen of the 3- or 5-screen layout: OK swaps it into the big
           // one when let go; held, its options (the remote's Menu key never
           // reaches the page on a Fire TV). Repeats don't restart the hold.
           if (e.repeat || holdTimerRef.current || holdFiredRef.current) return;
@@ -794,7 +930,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
     };
     const upHandler = (e: KeyboardEvent) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
-      if (warnRef.current) return;
+      if (warnRef.current || lineWarnRef.current) return;
       if (holdTimerRef.current) {
         window.clearTimeout(holdTimerRef.current);
         holdTimerRef.current = null;
@@ -808,7 +944,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
           // "OK to retry" says, rather than swapping a dead stream up into
           // the big screen and the sound with it (Tronix 89c42b3 review).
           // Held, it still opens its options (Change channel, Close).
-          if (smallFailed(tIdx)) void openTileForChannel(tIdx, tile.channel);
+          if (smallFailed(tIdx)) void openTileForChannel(tIdx, tile.channel, tile.line);
           else void swapIntoMain(tIdx);
         }
       }
@@ -866,22 +1002,28 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
       { id: '2v', label: t('live.multi.screens2'), sub: t('live.multi.stacked'), need: 2 },
       { id: '3',  label: t('live.multi.screens3'), sub: t('live.multi.bigPlusTwo'), need: 3 },
       { id: '4',  label: t('live.multi.screens4'), sub: t('live.multi.grid'), need: 4 },
+      { id: '5',  label: t('live.multi.screens5'), sub: t('live.multi.bigPlusFour'), need: 5 },
     ];
     const maxCon = account?.maxConnections ?? null;
     const active = account?.activeCons ?? 0;
+    // Five decoders at once on a 2 GB box (every Fire TV): said on its card too.
+    const weakBox = isLowMemoryBox();
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 gap-8">
-        <h2 className="text-2xl font-quicksand font-bold text-white">{t('live.multi.pickLayout')}</h2>
-        <div className="flex gap-4" data-howto="multi.layouts">
+      <div className="flex-1 flex flex-col items-center justify-center p-8">
+        <h2 className="text-2xl font-quicksand font-bold text-white mb-8">{t('live.multi.pickLayout')}</h2>
+        {/* Five cards share the row (they wrap on a narrow phone); margins,
+            not flex gap, for Chrome 66. */}
+        <div className="w-full max-w-5xl flex flex-wrap justify-center" data-howto="multi.layouts">
           {cards.map((c, i) => {
             const overplan = maxCon !== null && c.need > maxCon;
             const focused = pickerIdx === i;
             return (
               <div
                 key={c.id}
+                data-layout-card={c.id}
                 data-focused={focused ? 'true' : 'false'}
                 onClick={() => { setPickerIdx(i); chooseLayout(c.id); }}
-                className={`tv-ring w-48 h-40 rounded-2xl py-4 px-5 border cursor-pointer flex flex-col justify-between transition-transform duration-150 ease-out ${
+                className={`tv-ring flex-1 min-w-[8.5rem] max-w-[12rem] min-h-[10rem] m-1.5 rounded-2xl py-4 px-4 border cursor-pointer flex flex-col justify-between transition-transform duration-150 ease-out ${
                   focused
                     ? 'bg-brand-gold/20 border-brand-gold scale-105 z-10'
                     : 'bg-black/60 border-white/10'
@@ -891,17 +1033,21 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
                   <div className="text-xs uppercase tracking-wider text-brand-ice/70 font-nunito">{c.sub}</div>
                   <div className="text-2xl font-quicksand font-bold text-white mt-1">{c.label}</div>
                 </div>
-                {overplan && (
-                  <div className="text-xs text-amber-300 font-nunito leading-snug">
+                {overplan ? (
+                  <div className="text-xs text-amber-300 font-nunito leading-snug mt-2">
                     {t('live.multi.planAllows', { count: maxCon })}
                   </div>
-                )}
+                ) : c.need >= FIVE_STREAMS && weakBox ? (
+                  <div className="text-xs text-amber-300 font-nunito leading-snug mt-2" data-weak-box="">
+                    {t('live.multi.weakBoxNote')}
+                  </div>
+                ) : null}
               </div>
             );
           })}
         </div>
         {maxCon !== null && (
-          <div className="text-sm text-brand-ice/70 font-nunito">
+          <div className="text-sm text-brand-ice/70 font-nunito mt-8">
             {t('live.multi.planUsage', { active, max: maxCon })}
           </div>
         )}
@@ -911,10 +1057,10 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
 
   // Grid mode
   const spec = tilesForLayout(layout, gridBox);
-  // "3 screens": the swap hint, in the free corner beside the small screens,
-  // while the highlighted small screen is not showing its own "OK to retry"
-  // (one hint at a time).
-  const hintPlace = layout === '3' ? threeHintPlace(gridBox) : null;
+  // "3 screens" and "5 screens": the swap hint, in the free room beside the
+  // small screens (or the big one), while the highlighted small screen is not
+  // showing its own "OK to retry" (one hint at a time).
+  const hintPlace = swapHintPlace(layout, gridBox);
   const highlightedSid = spec[focusedTile]?.id;
   const focusedSmallFailed = okSwapsIntoMain(layout, focusedTile) && !!tiles[focusedTile]?.channel && !!(highlightedSid && slots[highlightedSid]?.error);
   return (
@@ -931,7 +1077,8 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
       <div ref={gridRef} className="absolute inset-0">
         {spec.map((sp, i) => {
           const tile = tiles[i];
-          const s = slots[sp.id];
+          const s = slots[sp.id] ?? { buffering: false, error: null };
+          const mark = markForTile(tile);
           // Not while the side menu or the header has the remote (the tiles
           // play on behind it): one highlight on screen.
           const isFocused = isActive && focusedTile === i;
@@ -974,7 +1121,16 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
                   <>
                     {/* channel pill */}
                     <div className="absolute left-2 bottom-2 max-w-[70%] px-2 py-1 rounded-lg bg-black/75">
-                      <div className="text-xs text-white font-quicksand font-semibold truncate">{tile.channel!.name}</div>
+                      <div className="flex items-center min-w-0">
+                        {mark && (
+                          <LineMarkIcon
+                            mark={mark}
+                            label={mark === 'over' ? t('live.multi.lineOver') : t('live.multi.lineFull')}
+                            letter={mark === 'over' ? t('live.multi.lineOverMark') : t('live.multi.lineFullMark')}
+                          />
+                        )}
+                        <div className="min-w-0 text-xs text-white font-quicksand font-semibold truncate">{tile.channel!.name}</div>
+                      </div>
                       {tile.nowNext?.now && (
                         <div className="text-xs text-brand-ice/70 font-nunito truncate">{tile.nowNext.now.title}</div>
                       )}
@@ -998,7 +1154,7 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
         })}
       </div>
 
-      {/* 3 screens: how to swap, in the free corner beside the small screens */}
+      {/* 3 and 5 screens: how to swap, in the free room beside the small screens */}
       {hintPlace && !fullscreenSlot && !tileMenuOpen && !focusedSmallFailed && (
         <div
           data-ms-swap-hint=""
@@ -1163,8 +1319,8 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
             noteWatchAnyway(creds.host, w.ch.stream_id);
             try { trackEvent('report_warning', 'player', { status: w.report, choice: 'watch', where: 'multi_screen' }); } catch { /* ignore */ }
             if (pickerOpenForTileRef.current !== w.tileIdx) return;
-            setPickerOpenForTile(null);
-            void openTileForChannel(w.tileIdx, w.ch);
+            // Then the line's connections, as for any channel added.
+            void addOrWarn(w.tileIdx, w.ch, pickSeqRef.current);
           }}
           onPickAnother={() => {
             const w = warn;
@@ -1174,11 +1330,48 @@ const MultiScreenSection = memo(({ creds, isActive, onExitLeft, onExitUp, previe
         />
       )}
 
-      {/* 4-grid buffering hint */}
-      {showHint && layout === '4' && (
+      {lineWarn && (
+        <LineLimitDialog
+          over={lineWarn.over}
+          device={lineWarn.device}
+          onAdd={() => {
+            const w = lineWarn;
+            setLineWarn(null);
+            if (w.device) fiveOkayedForSession = true;
+            try { trackEvent('multi_screen_line_warning', 'player', { choice: 'add', over: !!w.over, device: w.device, layout }); } catch { /* ignore */ }
+            if (pickerOpenForTileRef.current !== w.tileIdx) return;
+            setPickerOpenForTile(null);
+            void openTileForChannel(w.tileIdx, w.ch, w.line);
+          }}
+          onCancel={() => {
+            const w = lineWarn;
+            setLineWarn(null);
+            try { trackEvent('multi_screen_line_warning', 'player', { choice: 'cancel', over: !!w.over, device: w.device, layout }); } catch { /* ignore */ }
+            // Not added: any other channel would be one more stream too.
+            setPickerOpenForTile(null);
+          }}
+          onMessage={
+            // The other TVs on the line Live TV is signed into (an outside
+            // service's line is never sent to our servers), when the panel
+            // says there are some (or did not say).
+            onMessageLine && lineWarn.over && (lineWarn.over.others == null || lineWarn.over.others > 0)
+              && lineKey(lineWarn.line) === lineKey(creds) && !isOutsideLine(lineWarn.line)
+              ? () => {
+                try { trackEvent('multi_screen_line_warning', 'player', { choice: 'message', over: true, device: lineWarn.device, layout }); } catch { /* ignore */ }
+                setLineWarn(null);
+                setPickerOpenForTile(null);
+                onMessageLine();
+              }
+              : undefined
+          }
+        />
+      )}
+
+      {/* 4 and 5 screens buffering hint */}
+      {showHint && (layout === '4' || layout === '5') && (
         <div className="absolute left-0 right-0 bottom-0 z-20 bg-black/85 border-t border-white/10 px-4 py-3 flex items-center gap-3">
           <div className="flex-1 text-sm text-white font-nunito">
-            {t('live.multi.bufferingHint')}
+            {layout === '5' ? t('live.multi.bufferingHint5') : t('live.multi.bufferingHint')}
           </div>
           <button
             onClick={dismissHint}

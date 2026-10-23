@@ -34,7 +34,7 @@ vi.mock('./livetv/LiveSection', () => ({ default: () => <div>live-section</div> 
 vi.mock('./livetv/GuideSection', () => ({ default: () => <div>guide-section</div> }));
 vi.mock('./livetv/BackupsSection', () => ({ default: () => <div>backups-section</div> }));
 vi.mock('./livetv/PlexSection', () => ({ default: () => <div>plex-section</div> }));
-vi.mock('./livetv/SettingsHub', () => ({ default: () => <div>settings-hub</div> }));
+vi.mock('./livetv/SettingsHub', () => ({ default: (p: Record<string, unknown>) => { (window as unknown as { __hubProps?: unknown }).__hubProps = p; return <div>settings-hub</div>; } }));
 vi.mock('./livetv/PlayerServerAlertDialog', () => ({ default: () => null }));
 vi.mock('./livetv/ExpirationNoticeDialog', () => ({ default: () => null }));
 vi.mock('./livetv/CredentialsForm', () => ({ default: () => <div>credentials-form</div> }));
@@ -43,8 +43,10 @@ vi.mock('./livetv/PlayerModeChooser', () => ({ default: () => <div>player-choose
 // the remote to the side menu and the header, as the real one does there.
 vi.mock('./livetv/MultiScreenSection', async () => {
   const { useEffect } = await import('react');
-  const MultiStub = ({ isActive, onExitLeft, onExitUp, onImmersiveChange }: { isActive: boolean; onExitLeft: () => void; onExitUp: () => void; onImmersiveChange?: (on: boolean) => void }) => {
+  const MultiStub = ({ isActive, onExitLeft, onExitUp, onImmersiveChange, onMessageLine }: { isActive: boolean; onExitLeft: () => void; onExitUp: () => void; onImmersiveChange?: (on: boolean) => void; onMessageLine?: () => void }) => {
     const playing = !!(window as unknown as { __msPlaying?: boolean }).__msPlaying;
+    // The line-limit warning's "Message the other TVs on this line".
+    (window as unknown as { __msMessage?: () => void }).__msMessage = onMessageLine;
     useEffect(() => { onImmersiveChange?.(isActive && playing); }, [isActive, playing, onImmersiveChange]);
     useEffect(() => () => onImmersiveChange?.(false), [onImmersiveChange]);
     useEffect(() => {
@@ -151,5 +153,24 @@ describe('Multi-Screen on a TV: the header and side menu step aside while screen
     // Even told so (the section itself never asks on touch: MultiScreenSection.wholeScreen).
     expect(header()).toBe(true);
     expect(rail()).toBe(true);
+  });
+});
+
+describe('Multi-Screen: "Message the other TVs on this line"', () => {
+  it('opens Settings on My Account › Devices on this line, for the line Live TV is signed into', async () => {
+    const view = await openMulti();
+    const w = window as unknown as { __msMessage?: () => void; __hubProps?: Record<string, unknown> };
+    expect(typeof w.__msMessage).toBe('function');
+    act(() => { w.__msMessage!(); });
+    await until(() => (document.body.textContent ?? '').includes('settings-hub'));
+    expect(w.__hubProps).toMatchObject({ initialView: 'devices', line: { host: 'http://h.test', username: 'u' } });
+    view.unmount();
+  });
+
+  it('not offered on a Kids profile (Settings is a grown-up\'s)', async () => {
+    setKidsLevel('little');
+    const view = await openMulti();
+    expect((window as unknown as { __msMessage?: () => void }).__msMessage).toBeUndefined();
+    view.unmount();
   });
 });
