@@ -692,7 +692,11 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
         </div>
         <div />
       </div>
-      <div className="max-w-6xl mx-auto pb-16">
+      {/* The width of the screen (inside the TV-safe margins): the 72rem cap
+          this had left a 1920-wide box a third of the screen empty at the
+          sides. The cap that is left only stops a desktop browser's very wide
+          window. */}
+      <div className="max-w-[120rem] mx-auto pb-16">
 
         {/* The tabs stand in a column on the left and the tab's content fills
             the right (on a phone the column sits above it). */}
@@ -775,16 +779,15 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
 
           <div className="flex-1 min-w-0">
           <TabsContent value="media" className="mt-0">
-            {/* The same quiet panel as the other tabs; Media Manager's own boxes carry the colour. */}
-            <section className="rounded-2xl bg-slate-800/55 border border-white/10 p-4">
-              <h2 className="text-lg font-semibold text-white mb-3">{t('settings.mediaManagerHeading')}</h2>
-              <MediaManager
-                onBack={handleMediaManagerBack}
-                onExitLeft={handleMediaManagerBack}
-                embedded={true}
-                isActive={mediaManagerActive}
-              />
-            </section>
+            {/* No panel around it and no second "Media Manager" title (the tab
+                says so): its own slim panels sit straight in the column, so
+                nothing is a box inside a box and it gets the whole width. */}
+            <MediaManager
+              onBack={handleMediaManagerBack}
+              onExitLeft={handleMediaManagerBack}
+              embedded={true}
+              isActive={mediaManagerActive}
+            />
           </TabsContent>
 
           <TabsContent value="ui" className="mt-0 space-y-4">

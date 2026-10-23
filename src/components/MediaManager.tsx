@@ -8,10 +8,8 @@ import { useTranslation } from 'react-i18next';
 const kidsBody = (): { kids_level?: string } => { const l = kidsLevel(); return l ? { kids_level: l } : {}; };
 import { Button } from '@/components/ui/button';
 import { isDemo, isHowtoCapture } from '@/lib/demoMode';
-import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,8 +22,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useNavigate } from 'react-router-dom';
 
-import { Switch } from '@/components/ui/switch';
-import { ArrowLeft, Upload, Trash2, Eye, EyeOff, Loader2, Monitor, ShieldCheck } from 'lucide-react';
+import { Upload, Trash2, Eye, EyeOff, Loader2, Monitor, ShieldCheck, Sparkles, ChevronsUpDown } from 'lucide-react';
 import { useMediaAssets, MediaAsset } from '@/hooks/useMediaAssets';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserProfile } from '@/hooks/useUserProfile';
@@ -88,6 +85,33 @@ const saveAnonGallery = (items: AnonImage[]) => {
 const loadAnonActiveId = (): string | null => { try { return localStorage.getItem(ANON_ACTIVE_KEY); } catch { return null; } };
 const saveAnonActiveId = (id: string | null) => { try { if (id) localStorage.setItem(ANON_ACTIVE_KEY, id); else localStorage.removeItem(ANON_ACTIVE_KEY); } catch { /* ignore */ } };
 
+/** A gallery card (`asset-3`), not the type picker (`asset-type`) nor a
+ *  card's buttons: "starts with asset-" took the type picker for a card, so
+ *  Left on it lost the highlight (asset-NaN) and Back went down, not up. */
+const isGalleryCard = (id: string): boolean => /^asset-\d+$/.test(id);
+
+/** The upload's type, in the order OK steps through them. */
+const ASSET_TYPES: MediaAsset['asset_type'][] = ['background', 'icon', 'logo', 'other'];
+
+// Gallery: as many columns as fit at about 150 px a card — four beside
+// Settings' tab column at 960x540, two on a phone, at most six on a wide
+// page. The remote's Up/Down step by the same count.
+const GALLERY_MIN_CARD = 140;
+const GALLERY_GAP = 12;
+const galleryColumnsFor = (width: number): number =>
+  Math.max(2, Math.min(6, Math.floor((width + GALLERY_GAP) / (GALLERY_MIN_CARD + GALLERY_GAP))));
+
+/** A 16:9 box. Chrome 66 has no aspect-ratio, so the padding trick; the
+ *  inner layer is placed inline (position, not a class) so no focus rule
+ *  can turn it back into a static box. */
+const Frame169 = ({ className = '', children }: { className?: string; children: React.ReactNode }) => (
+  <div className={`relative w-full overflow-hidden ${className}`} style={{ paddingBottom: '56.25%' }}>
+    <div className="flex items-center justify-center" style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}>
+      {children}
+    </div>
+  </div>
+);
+
 const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }: MediaManagerProps) => {
   const { assets, loading, uploadAsset, toggleAssetActive, deleteAsset, getAssetUrl } = useMediaAssets();
   const { user, session } = useAuth();
@@ -130,6 +154,13 @@ const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }:
   const promptInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  // Columns in the gallery (galleryColumnsFor); 3 until it has been measured.
+  const [gridCols, setGridCols] = useState(3);
+  const cycleAssetType = () => setUploadForm((f) => ({
+    ...f,
+    assetType: ASSET_TYPES[(ASSET_TYPES.indexOf(f.assetType) + 1) % ASSET_TYPES.length],
+  }));
 
   // Check if user is authenticated (prefer session over user state for reliability)
   const isAuthenticated = !!(session?.user || user);
@@ -245,7 +276,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }:
         }
 
         // Level 2: If in gallery grid, go back to file input (upload area)
-        if (focusedElement.startsWith('asset-')) {
+        if (isGalleryCard(focusedElement)) {
           setFocusedElement('file-input');
           return;
         }
@@ -284,9 +315,9 @@ const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }:
         event.preventDefault();
       }
 
-      // Calculate grid columns (3 columns)
-      const gridCols = 3;
-
+      // Down/Up walk every control in reading order (the prompt, then the
+      // buttons beside it; the type, then Choose File beside it); Left/Right
+      // move along a row. The gallery is gridCols across.
       switch (event.key) {
         case 'ArrowDown':
           if (focusedElement === 'back' && !embedded) {
@@ -311,7 +342,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }:
             const currentIndex = galleryItems.findIndex((g) => g.id === itemId);
             const nextIndex = currentIndex + gridCols;
             if (nextIndex < galleryItems.length) setFocusedElement(`asset-${nextIndex}`);
-          } else if (focusedElement.startsWith('asset-')) {
+          } else if (isGalleryCard(focusedElement)) {
             const currentIndex = parseInt(focusedElement.replace('asset-', ''));
             const nextIndex = currentIndex + gridCols;
             if (nextIndex < galleryItems.length) setFocusedElement(`asset-${nextIndex}`);
@@ -337,7 +368,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }:
             const itemId = focusedElement.replace('asset-toggle-', '');
             const currentIndex = galleryItems.findIndex((g) => g.id === itemId);
             if (currentIndex >= 0) setFocusedElement(`asset-${currentIndex}`);
-          } else if (focusedElement.startsWith('asset-')) {
+          } else if (isGalleryCard(focusedElement)) {
             const currentIndex = parseInt(focusedElement.replace('asset-', ''));
             const nextIndex = currentIndex - gridCols;
             if (nextIndex >= 0) setFocusedElement(`asset-${nextIndex}`);
@@ -356,10 +387,13 @@ const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }:
             setFocusedElement('compare-keep-premium');
           } else if (focusedElement === 'compare-keep-premium') {
             setFocusedElement('compare-close');
+          } else if (focusedElement === 'asset-type') {
+            // Choose File stands beside the type.
+            setFocusedElement('file-input');
           } else if (focusedElement.startsWith('asset-toggle-')) {
             const itemId = focusedElement.replace('asset-toggle-', '');
             setFocusedElement(`asset-delete-${itemId}`);
-          } else if (focusedElement.startsWith('asset-')) {
+          } else if (isGalleryCard(focusedElement)) {
             const currentIndex = parseInt(focusedElement.replace('asset-', ''));
             if ((currentIndex + 1) % gridCols !== 0 && currentIndex + 1 < galleryItems.length) {
               setFocusedElement(`asset-${currentIndex + 1}`);
@@ -378,14 +412,16 @@ const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }:
             setFocusedElement('compare-keep-free');
           } else if (focusedElement === 'compare-close') {
             setFocusedElement('compare-keep-premium');
+          } else if (focusedElement === 'file-input') {
+            setFocusedElement('asset-type');
           } else if (focusedElement.startsWith('asset-delete-')) {
             const itemId = focusedElement.replace('asset-delete-', '');
             setFocusedElement(`asset-toggle-${itemId}`);
-          } else if (focusedElement.startsWith('asset-')) {
+          } else if (isGalleryCard(focusedElement)) {
             const currentIndex = parseInt(focusedElement.replace('asset-', ''));
             if (currentIndex % gridCols !== 0) setFocusedElement(`asset-${currentIndex - 1}`);
             else if (embedded && onExitLeft) onExitLeft();
-          } else if (embedded && onExitLeft && (focusedElement === 'prompt-input' || focusedElement === 'asset-type' || focusedElement === 'file-input' || focusedElement === 'compare-keep-free')) {
+          } else if (embedded && onExitLeft && (focusedElement === 'prompt-input' || focusedElement === 'asset-type' || focusedElement === 'compare-keep-free')) {
             // The left edge of the panel: back to the column beside it.
             onExitLeft();
           }
@@ -410,6 +446,9 @@ const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }:
           } else if (focusedElement === 'compare-close') {
             setCompare(null);
             setFocusedElement('generate-btn');
+          } else if (focusedElement === 'asset-type') {
+            // OK steps to the next type (a drop-down list never opened from the remote).
+            cycleAssetType();
           } else if (focusedElement === 'file-input') {
             fileInputRef.current?.click();
           } else if (focusedElement.startsWith('asset-toggle-')) {
@@ -420,7 +459,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }:
             const itemId = focusedElement.replace('asset-delete-', '');
             const item = galleryItems.find((g) => g.id === itemId);
             if (item) handleDeleteItem(item);
-          } else if (focusedElement.startsWith('asset-')) {
+          } else if (isGalleryCard(focusedElement)) {
             const currentIndex = parseInt(focusedElement.replace('asset-', ''));
             const item = galleryItems[currentIndex];
             if (item) setFocusedElement(`asset-toggle-${item.id}`);
@@ -431,7 +470,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }:
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [focusedElement, galleryItems, onBack, onExitLeft, isActive]);
+  }, [focusedElement, galleryItems, gridCols, onBack, onExitLeft, isActive]);
 
 
   // Scroll focused element into view - always keep selector visible.
@@ -464,7 +503,17 @@ const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }:
     if (focusedElement !== 'prompt-input' && document.activeElement !== el) {
       try { el.focus({ preventScroll: true }); } catch { /* ignore */ }
     }
-  }, [focusedElement]);
+    // A gallery card (a plain box) and the prompt's wrapper take no focus:
+    // the button that had it lets go, or it keeps its ring ([data-focus-id]:focus)
+    // and two things look selected. The typed-in input itself is not touched.
+    // Only our own buttons, and only while the remote is here (not, say,
+    // Settings' Back button while this sits idle in its tab).
+    const active = document.activeElement as HTMLElement | null;
+    if (isActive && active && active !== el && active.hasAttribute('data-focus-id')
+      && rootRef.current?.contains(active) && typeof active.blur === 'function') {
+      active.blur();
+    }
+  }, [focusedElement]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const stored = saveAnonGallery(anonGallery);
@@ -474,6 +523,19 @@ const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }:
     }
   }, [anonGallery]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { saveAnonActiveId(activeAnonId); }, [activeAnonId]);
+
+  // The gallery's column count follows its width (the grid is drawn with it,
+  // and the remote's Up/Down step by it). Measured once the gallery is on
+  // screen, and again when the window changes size.
+  useEffect(() => {
+    const measure = () => {
+      const w = galleryRef.current ? galleryRef.current.clientWidth : 0;
+      if (w > 0) setGridCols(galleryColumnsFor(w)); // 0: not laid out (tests): keep the count
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [loading]);
 
   // Detect screen resolution and optimal image size
   useEffect(() => {
@@ -609,11 +671,11 @@ const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }:
         title: t('media.toast.deletedTitle'),
         description: t('media.toast.deletedDesc', { name }),
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[MediaManager] Delete failed:', error);
       toast({
         title: t('media.toast.deleteFailedTitle'),
-        description: error?.message || t('media.toast.deleteFailedDesc'),
+        description: (error instanceof Error && error.message) || t('media.toast.deleteFailedDesc'),
         variant: "destructive",
       });
     }
@@ -672,11 +734,11 @@ const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }:
       }
       if (wasActive) applyBackground(null);
       toast({ title: t('media.toast.deletedTitle'), description: item.name });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('[MediaManager] Delete failed:', error);
       toast({
         title: t('media.toast.deleteFailedTitle'),
-        description: error?.message || t('media.toast.tryAgainDesc'),
+        description: (error instanceof Error && error.message) || t('media.toast.tryAgainDesc'),
         variant: 'destructive',
       });
       // Safety: if the file we tried to delete WAS the background, revert it
@@ -1013,20 +1075,30 @@ const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }:
 
   if (loading) {
     return (
-      <div className="min-h-screen p-8 flex items-center justify-center">
+      <div className={`${embedded ? 'py-10' : 'min-h-screen p-8'} flex items-center justify-center`}>
         <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-blue-400 mx-auto mb-4" />
-          <p className="text-xl text-blue-200">{t('media.loading')}</p>
+          <Loader2 className="w-10 h-10 animate-spin text-blue-400 mx-auto mb-3" />
+          <p className="text-lg text-blue-200">{t('media.loading')}</p>
         </div>
       </div>
     );
   }
 
+  const costLine = effectiveTier === 'premium' && premiumTier
+    ? t('media.generate.premiumCost', { gems: premiumTier.gems, model: premiumTier.blurb ?? premiumTier.model })
+    : t('media.generate.cost', { gems: (imageConfig.credits * 0.01).toFixed(2), quality: t('media.generate.quality') });
+
+  // The page is slim on purpose (the owner: the old boxes were "thick" and
+  // "bulky"): each part is one low panel with no box inside a box, the
+  // controls sit beside each other instead of under their labels, and the
+  // gallery takes as many columns as the width allows. Spacing between
+  // pieces in a row is margins (m-1 on each, -m-1 on the row), not flex gap,
+  // which Chrome 66 lacks; the same on both sides, so Arabic needs nothing.
   return (
-    <div className={embedded ? '' : 'tv-scroll-container tv-safe bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white'}>
-      <div className={embedded ? '' : 'max-w-6xl mx-auto'}>
+    <div ref={rootRef} className={embedded ? '' : 'tv-scroll-container tv-safe bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white'}>
+      <div className="w-full">
         {!embedded && (
-          <div className="flex items-center mb-8">
+          <div className="flex items-center mb-4">
             <BackButton
               onClick={onBack}
               label={t('media.backToHome')}
@@ -1034,151 +1106,156 @@ const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }:
               className="mr-6"
             />
             <div>
-              <h1 className="text-4xl font-bold text-white mb-2">{t('media.title')}</h1>
-              <p className="text-xl text-blue-200">{t('media.subtitle')}</p>
+              <h1 className="text-3xl font-bold text-white">{t('media.title')}</h1>
+              <p className="text-base text-blue-200">{t('media.subtitle')}</p>
             </div>
           </div>
         )}
 
-        {/* AI Generation Section — hidden in the website demo (uploads stay).
-            The How-to pictures (developer build only) show it, as a box does. */}
+        {/* AI background: a title line (the balance on the right), the prompt
+            with its buttons beside it, one small line of cost and screen size.
+            The buttons drop under the box only where there is no room for
+            them (a phone, or the one-time comparison offer beside Settings'
+            column). Hidden in the website demo (uploads stay); the How-to
+            pictures (developer build only) show it, as a box does. */}
         {(!isDemo() || isHowtoCapture()) && (
-        <Card className="bg-gradient-to-br from-purple-600 to-purple-800 border-purple-500 p-6 mb-6" data-howto="set.wallpaper">
-          <h2 className="text-2xl font-bold text-white mb-4">{t('media.generate.title')}</h2>
+        <section
+          className="rounded-2xl border border-purple-400/40 bg-gradient-to-br from-purple-600/90 to-purple-900/90 px-4 py-3 mb-3"
+          data-howto="set.wallpaper"
+        >
+          {/* The balance goes under the title only where both don't fit (a phone). */}
+          <div className="flex flex-wrap items-center justify-between -my-0.5 mb-1.5">
+            <h2 className="my-0.5 flex items-center min-w-0 text-base lg:text-lg font-semibold text-white leading-tight">
+              <Sparkles className="w-4 h-4 mr-2 shrink-0 text-purple-200" />
+              <span className="truncate">{t('media.generate.title')}</span>
+            </h2>
+            <div className="w-3 shrink-0" />
+            {user && profile && (
+              <span className="my-0.5 shrink-0 rounded-full bg-black/25 px-2.5 py-0.5 text-xs text-purple-100 whitespace-nowrap">
+                {t('media.generate.balance', { gems: profile.credits.toFixed(2) })}
+              </span>
+            )}
+          </div>
           {kids && (
-            <div className="flex items-start rounded-lg bg-emerald-500/15 border border-emerald-300/40 p-3 mb-4">
-              <ShieldCheck className="w-5 h-5 text-emerald-300 mr-2 mt-0.5 shrink-0" />
-              <div>
-                <div className="font-semibold text-white">{kidsImageTitle()}</div>
-                <p className="text-sm text-emerald-100">{kidsImageNotice(kids)}</p>
-              </div>
+            <div className="flex items-start rounded-lg bg-emerald-500/15 border border-emerald-300/40 px-3 py-2 mb-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-300 mr-2 mt-0.5 shrink-0" />
+              <p className="text-xs text-emerald-100 leading-snug">
+                <span className="font-semibold text-white">{kidsImageTitle()}</span>{' '}
+                {kidsImageNotice(kids)}
+              </p>
             </div>
           )}
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <div className="text-white">
-                <div className="flex items-center gap-2 mb-2">
-                  <Monitor className="w-4 h-4" />
-                  <span className="text-sm text-purple-200">
-                    {t('media.generate.detected', { width: screenInfo.width, height: screenInfo.height, ratio: screenInfo.ratio })}
-                  </span>
-                </div>
-                <p className="text-sm text-purple-200">
-                  {effectiveTier === 'premium' && premiumTier
-                    ? t('media.generate.premiumCost', { gems: premiumTier.gems, model: premiumTier.blurb ?? premiumTier.model })
-                    : t('media.generate.cost', { gems: (imageConfig.credits * 0.01).toFixed(2), quality: t('media.generate.quality') })}
-                </p>
-                {user && profile && (
-                  <p className="text-sm text-purple-200">
-                    {t('media.generate.balance', { gems: profile.credits.toFixed(2) })}
-                  </p>
-                )}
-              </div>
-              {!isAuthenticated && (
-                <p className="text-sm text-purple-200 italic">{t('media.generate.signInToSave')}</p>
+          <div className="flex flex-wrap items-center -m-1">
+            <div data-focus-id="prompt-input" className="m-1 min-w-0" style={{ flex: '1 1 15rem' }}>
+              <Label htmlFor="generate-prompt" className="sr-only">{t('media.generate.promptLabel')}</Label>
+              <Input
+                id="generate-prompt"
+                ref={promptInputRef}
+                value={generatePrompt}
+                onChange={(e) => setGeneratePrompt(e.target.value)}
+                placeholder={t('media.generate.promptPlaceholder')}
+                className={`h-10 bg-white/10 border-white/20 text-white placeholder:text-white/60 transition-all ${hasUserNavigated && focusedElement === 'prompt-input' ? 'ring-4 ring-brand-ice' : ''}`}
+                disabled={generating}
+              />
+            </div>
+            <Button
+              onClick={() => handleGenerateImage()}
+              disabled={generating || comparing || !generatePrompt.trim() || (isAuthenticated && profile && profile.credits < tierCost)}
+              data-focus-id="generate-btn"
+              className={`m-1 h-10 shrink-0 bg-white/20 border-white/30 text-white hover:bg-white/30 transition-all ${getFocusClass('generate-btn')}`}
+            >
+              {generating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  {t('media.generate.generating')}
+                </>
+              ) : (
+                t('media.generate.generateBtn')
               )}
-            </div>
-            {/* The box gets its own line and the buttons sit under it: beside the
-                Settings column the page is narrower, and in one row the buttons
-                (which never shrink) squeezed the box to a sliver. */}
-            <div className="space-y-3">
-              <div data-focus-id="prompt-input">
-                <Label htmlFor="generate-prompt" className="text-white mb-2 block">{t('media.generate.promptLabel')}</Label>
-                <Input
-                  id="generate-prompt"
-                  ref={promptInputRef}
-                  value={generatePrompt}
-                  onChange={(e) => setGeneratePrompt(e.target.value)}
-                  placeholder={t('media.generate.promptPlaceholder')}
-                  className={`bg-white/10 border-white/20 text-white placeholder:text-white/60 transition-all ${hasUserNavigated && focusedElement === 'prompt-input' ? 'ring-4 ring-brand-ice' : ''}`}
-                  disabled={generating}
-                />
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <Button
-                  onClick={() => handleGenerateImage()}
-                  disabled={generating || comparing || !generatePrompt.trim() || (isAuthenticated && profile && profile.credits < tierCost)}
-                  data-focus-id="generate-btn"
-                  className={`bg-white/20 border-white/30 text-white hover:bg-white/30 transition-all ${getFocusClass('generate-btn')}`}
-                >
-                  {generating ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      {t('media.generate.generating')}
-                    </>
-                  ) : (
-                    t('media.generate.generateBtn')
-                  )}
-                </Button>
-                {premiumTier && (
-                  <Button
-                    type="button"
-                    onClick={toggleTier}
-                    disabled={generating || comparing}
-                    data-focus-id="tier-btn"
-                    title={t('media.generate.tierSwitchTitle')}
-                    className={`transition-all ${effectiveTier === 'premium'
-                      ? 'text-black border-0 [background:var(--gradient-gold)] hover:brightness-110'
-                      : 'bg-white/10 border border-white/30 text-white hover:bg-white/20'} ${getFocusClass('tier-btn')}`}
-                  >
-                    {effectiveTier === 'premium' ? t('media.generate.tierPremiumBtn', { gems: premiumTier.gems }) : t('media.generate.tierStandardBtn', { gems: (imageConfig.credits * 0.01).toFixed(0) })}
-                  </Button>
-                )}
-                {compareAvailable && (
-                  <Button
-                    type="button"
-                    onClick={() => void handleCompare()}
-                    disabled={generating || comparing || !generatePrompt.trim()}
-                    data-focus-id="compare-btn"
-                    className={`bg-brand-ice/20 border border-brand-ice/50 text-white hover:bg-brand-ice/30 transition-all ${getFocusClass('compare-btn')}`}
-                  >
-                    {comparing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                    {t('media.generate.compareBtn')}
-                  </Button>
-                )}
-              </div>
-            </div>
+            </Button>
+            {premiumTier && (
+              <Button
+                type="button"
+                onClick={toggleTier}
+                disabled={generating || comparing}
+                data-focus-id="tier-btn"
+                title={t('media.generate.tierSwitchTitle')}
+                className={`m-1 h-10 shrink-0 px-3 transition-all ${effectiveTier === 'premium'
+                  ? 'text-black border-0 [background:var(--gradient-gold)] hover:brightness-110'
+                  : 'bg-white/10 border border-white/30 text-white hover:bg-white/20'} ${getFocusClass('tier-btn')}`}
+              >
+                {effectiveTier === 'premium' ? t('media.generate.tierPremiumBtn', { gems: premiumTier.gems }) : t('media.generate.tierStandardBtn', { gems: (imageConfig.credits * 0.01).toFixed(0) })}
+              </Button>
+            )}
+            {compareAvailable && (
+              <Button
+                type="button"
+                onClick={() => void handleCompare()}
+                disabled={generating || comparing || !generatePrompt.trim()}
+                data-focus-id="compare-btn"
+                className={`m-1 h-10 shrink-0 px-3 bg-brand-ice/20 border border-brand-ice/50 text-white hover:bg-brand-ice/30 transition-all ${getFocusClass('compare-btn')}`}
+              >
+                {comparing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                {t('media.generate.compareBtn')}
+              </Button>
+            )}
           </div>
-        </Card>
+          <p className="mt-2 flex items-center min-w-0 text-xs text-purple-100/80">
+            <Monitor className="w-3.5 h-3.5 mr-1.5 shrink-0" />
+            <span className="truncate">
+              {costLine} · {t('media.generate.detected', { width: screenInfo.width, height: screenInfo.height, ratio: screenInfo.ratio })}
+              {!isAuthenticated && (
+                <> · <span className="italic">{t('media.generate.signInToSave')}</span></>
+              )}
+            </span>
+          </p>
+        </section>
         )}
 
         {/* Standard against Premium, same prompt, side by side. */}
         {compare && (
-          <Card className="bg-gradient-to-br from-brand-navy/85 via-[#12204a]/85 to-slate-950/90 border-brand-ice/20 shadow-xl rounded-3xl p-6 mb-6">
-            <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
-              <h2 className="text-2xl font-quicksand font-bold text-white">{t('media.compare.title')}</h2>
-              <p className="text-sm text-brand-ice/80 truncate max-w-full">"{compare.prompt}"</p>
+          <section className="rounded-2xl border border-brand-ice/20 bg-gradient-to-br from-brand-navy/85 via-[#12204a]/85 to-slate-950/90 shadow-xl px-4 py-3 mb-3">
+            <div className="flex items-baseline justify-between min-w-0 mb-2">
+              <h2 className="shrink-0 text-base lg:text-lg font-quicksand font-bold text-white">{t('media.compare.title')}</h2>
+              <div className="w-3 shrink-0" />
+              <p className="min-w-0 truncate text-xs text-brand-ice/80">"{compare.prompt}"</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2" style={{ gridGap: GALLERY_GAP }}>
               {(['free', 'premium'] as const).map((side) => {
                 const img = side === 'free' ? compare.free : compare.premium;
                 const err = side === 'free' ? compare.freeError : compare.premiumError;
                 const id = side === 'free' ? 'compare-keep-free' : 'compare-keep-premium';
                 const title = side === 'free' ? t('media.compare.standard') : t('media.compare.premium');
                 return (
-                  <div key={side} className={`rounded-2xl overflow-hidden border ${side === 'premium' ? 'border-brand-gold/60' : 'border-white/15'} bg-black/30`}>
-                    <div className="aspect-video bg-black/50 flex items-center justify-center">
+                  <div key={side} className={`rounded-xl overflow-hidden border ${side === 'premium' ? 'border-brand-gold/60' : 'border-white/15'} bg-black/30`}>
+                    <Frame169 className="bg-black/50">
                       {img ? (
-                        <img src={img} alt={t('media.compare.resultAlt', { tier: title })} className="w-full h-full object-cover" />
+                        <img
+                          src={img}
+                          alt={t('media.compare.resultAlt', { tier: title })}
+                          className="w-full h-full object-cover"
+                          style={{ position: 'absolute', top: 0, left: 0 }}
+                        />
                       ) : comparing ? (
                         <Loader2 className="w-8 h-8 animate-spin text-brand-gold" />
                       ) : (
                         <p className="text-sm text-white/60 px-4 text-center">{err}</p>
                       )}
-                    </div>
-                    <div className="p-4 flex items-center justify-between gap-3">
-                      <div>
-                        <p className={`font-quicksand font-bold ${side === 'premium' ? 'text-brand-gold' : 'text-white'}`}>{title}</p>
-                        <p className="text-xs text-white/60">
+                    </Frame169>
+                    <div className="px-3 py-2 flex items-center justify-between">
+                      <div className="min-w-0">
+                        <p className={`text-sm font-quicksand font-bold ${side === 'premium' ? 'text-brand-gold' : 'text-white'}`}>{title}</p>
+                        <p className="text-xs text-white/60 truncate">
                           {side === 'premium' && premiumTier ? t('media.compare.premiumAfter', { gems: premiumTier.gems }) : t('media.compare.standardPer', { gems: (imageConfig.credits * 0.01).toFixed(0) })}
                         </p>
                       </div>
+                      <div className="w-2 shrink-0" />
                       <Button
                         type="button"
                         onClick={() => void keepFromCompare(side)}
                         disabled={!img || comparing}
                         data-focus-id={id}
-                        className={`${side === 'premium'
+                        className={`h-9 shrink-0 px-3 ${side === 'premium'
                           ? 'text-black border-0 [background:var(--gradient-gold)] hover:brightness-110'
                           : 'bg-white/15 border border-white/30 text-white hover:bg-white/25'} ${getFocusClass(id)}`}
                       >
@@ -1189,162 +1266,168 @@ const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }:
                 );
               })}
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-3 mt-4">
-              <p className="text-sm text-brand-ice/80">
+            <div className="flex items-center justify-between mt-2">
+              <p className="min-w-0 text-xs text-brand-ice/80">
                 {compare.note ?? t('media.compare.defaultNote')}
               </p>
+              <div className="w-3 shrink-0" />
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => { setCompare(null); setFocusedElement('generate-btn'); }}
                 data-focus-id="compare-close"
-                className={`border-white/25 bg-white/5 text-white ${getFocusClass('compare-close')}`}
+                className={`h-9 shrink-0 border-white/25 bg-white/5 text-white ${getFocusClass('compare-close')}`}
               >
                 {t('common.close')}
               </Button>
             </div>
-          </Card>
+          </section>
         )}
 
-        {/* Upload Section */}
-        <Card className="bg-gradient-to-br from-blue-600 to-blue-800 border-blue-500 p-6 mb-8" data-howto="set.wallpaper">
-          <h2 className="text-2xl font-bold text-white mb-4">{t('media.upload.title')}</h2>
-          <div className="grid grid-cols-1 md:grid-cols-1 gap-4 mb-4">
-            <div data-focus-id="asset-type">
-              <Label htmlFor="asset-type" className="text-white mb-2 block">{t('media.upload.typeLabel')}</Label>
-              <Select value={uploadForm.assetType} onValueChange={(value) => setUploadForm({...uploadForm, assetType: value as MediaAsset['asset_type']})}>
-                <SelectTrigger className={`bg-white/10 border-white/20 text-white transition-all rounded-md ${focusedElement === 'asset-type' ? 'ring-4 ring-brand-ice scale-105' : ''}`}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-800 border-slate-600">
-                  <SelectItem value="background">{t('media.upload.types.background')}</SelectItem>
-                  <SelectItem value="icon">{t('media.upload.types.icon')}</SelectItem>
-                  <SelectItem value="logo">{t('media.upload.types.logo')}</SelectItem>
-                  <SelectItem value="other">{t('media.upload.types.other')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div data-focus-id="file-input">
+        {/* Upload: one row — the title, the type (OK steps through them: a
+            drop-down list never opened from the remote) and Choose File. */}
+        <section className="rounded-2xl bg-slate-800/55 border border-white/10 px-4 py-2 mb-4" data-howto="set.wallpaper">
+          <div className="flex flex-wrap items-center -m-1">
+            <h2 className="m-1 flex items-center min-w-0 text-base font-semibold text-white leading-tight">
+              <Upload className="w-4 h-4 mr-2 shrink-0 text-blue-300" />
+              <span className="truncate">{t('media.upload.title')}</span>
+            </h2>
+            <div className="flex-1" />
             <Button
               type="button"
+              data-focus-id="asset-type"
+              onClick={cycleAssetType}
+              className={`m-1 h-9 shrink-0 px-3 bg-white/10 border border-white/20 text-white hover:bg-white/20 transition-all rounded-md ${getFocusClass('asset-type')}`}
+            >
+              <span className="text-white/70 font-normal mr-1.5">{t('media.upload.typeLabel')}</span>
+              <span className="font-semibold">{t(`media.upload.types.${uploadForm.assetType}`)}</span>
+              <ChevronsUpDown className="w-4 h-4 ml-1.5 opacity-70" />
+            </Button>
+            <Button
+              type="button"
+              data-focus-id="file-input"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className={`bg-white/20 border-white/30 text-white hover:bg-white/30 transition-all rounded-md ${focusedElement === 'file-input' ? 'ring-4 ring-brand-ice scale-105' : ''}`}
+              className={`m-1 h-9 shrink-0 px-3 bg-blue-600 hover:bg-blue-500 border border-blue-400/50 text-white transition-all rounded-md ${getFocusClass('file-input')}`}
             >
               {uploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
               {t('media.upload.chooseFileBtn')}
             </Button>
-            {/* tabIndex=-1: keep the hidden file input out of native tab order.
-                Otherwise, when generate-btn becomes disabled after a successful
-                AI generation, Android WebView jumps focus to the next tabbable
-                element (this input). On Fire TV, focus on a type=file input
-                + the next D-pad OK auto-fires ACTION_GET_CONTENT and the
-                DocumentsUI picker NPE-crashes the app. */}
-            <Input
-              type="file"
-              ref={fileInputRef}
-              accept=".jpg,.jpeg,.png,.gif,.svg,.webp,.bmp,.tiff"
-              onChange={handleFileUpload}
-              disabled={uploading}
-              tabIndex={-1}
-              aria-hidden="true"
-              className="hidden"
-            />
           </div>
-        </Card>
+          {/* tabIndex=-1: keep the hidden file input out of native tab order.
+              Otherwise, when generate-btn becomes disabled after a successful
+              AI generation, Android WebView jumps focus to the next tabbable
+              element (this input). On Fire TV, focus on a type=file input
+              + the next D-pad OK auto-fires ACTION_GET_CONTENT and the
+              DocumentsUI picker NPE-crashes the app. */}
+          <Input
+            type="file"
+            ref={fileInputRef}
+            accept=".jpg,.jpeg,.png,.gif,.svg,.webp,.bmp,.tiff"
+            onChange={handleFileUpload}
+            disabled={uploading}
+            tabIndex={-1}
+            aria-hidden="true"
+            className="hidden"
+          />
+        </section>
 
-
-        {/* Gallery — medium thumbnails, 3 per row on a TV. Each card has its
+        {/* Gallery — gridCols across (galleryColumnsFor). Each card has its
             own ACTIVATE (set as background) + DELETE controls, both D-pad
             focusable with a bright brand-ice highlight ring. */}
-        <div ref={galleryRef} className="space-y-4">
-          <h3 className="text-2xl font-bold text-white mb-4">
-            {t('media.gallery.title')} {galleryItems.length > 0 && (
-              <span className="text-base font-normal text-blue-200">
+        <div ref={galleryRef}>
+          <h3 className="flex items-baseline text-base lg:text-lg font-semibold text-white mb-2">
+            {t('media.gallery.title')}
+            {galleryItems.length > 0 && (
+              <span className="ml-2 text-sm font-normal text-blue-200">
                 ({galleryItems.length})
               </span>
             )}
           </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 gap-4">
+          <div className="grid" style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`, gridGap: GALLERY_GAP }}>
             {galleryItems.map((item, index) => {
               const isFocused = focusedElement === `asset-${index}`;
               const isToggleFocused = focusedElement === `asset-toggle-${item.id}`;
               const isDeleteFocused = focusedElement === `asset-delete-${item.id}`;
               return (
-                <Card
+                <div
                   key={item.id}
                   data-focus-id={`asset-${index}`}
-                  className={`relative bg-gradient-to-br from-muted to-background border-border p-3 transition-all overflow-hidden ${
-                    item.isActive ? 'ring-2 ring-green-500' : ''
+                  className={`relative min-w-0 rounded-xl border bg-slate-900/70 p-1.5 transition-all ${
+                    item.isActive ? 'border-green-500/80 ring-2 ring-green-500' : 'border-white/10'
                   } ${isFocused ? 'ring-4 ring-brand-ice scale-105 z-10' : ''}`}
                 >
                   {/* Active indicator badge */}
                   {item.isActive && (
-                    <div className="absolute top-2 right-2 z-10 bg-green-500 text-white text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded shadow">
+                    <div
+                      className="z-10 bg-green-500 text-white text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded shadow"
+                      style={{ position: 'absolute', top: 10, right: 10 }}
+                    >
                       {t('media.gallery.backgroundBadge')}
                     </div>
                   )}
 
-                  {/* Medium-sized thumbnail — fixed aspect, contained */}
-                  <div className="aspect-video bg-muted rounded mb-2 overflow-hidden max-h-40">
+                  <Frame169 className="rounded-lg bg-black/40">
                     <img
                       src={item.url}
                       alt={item.name}
                       className="w-full h-full object-cover"
+                      style={{ position: 'absolute', top: 0, left: 0 }}
                       onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                     />
+                  </Frame169>
+
+                  <div className="px-0.5 pt-1.5 pb-1.5 min-w-0">
+                    <h4 className="text-sm font-semibold text-white truncate leading-tight">{item.name}</h4>
+                    <p className="text-[11px] text-white/55 truncate leading-tight mt-0.5">
+                      {item.kind === 'anon' ? t('media.gallery.sessionOnly') : `${t(`media.upload.types.${item.asset.asset_type}`, { defaultValue: item.asset.asset_type })} · ${item.asset.section}`}
+                    </p>
                   </div>
 
-                  <h4 className="text-sm font-semibold text-foreground mb-1 truncate">{item.name}</h4>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    {item.kind === 'anon' ? t('media.gallery.sessionOnly') : `${t(`media.upload.types.${item.asset.asset_type}`, { defaultValue: item.asset.asset_type })} · ${item.asset.section}`}
-                  </p>
-
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center">
                     <Button
                       size="sm"
                       type="button"
                       data-focus-id={`asset-toggle-${item.id}`}
                       onClick={() => handleActivateItem(item)}
-                      className={`flex-1 text-xs transition-all ${
+                      className={`flex-1 min-w-0 h-8 px-2 text-xs transition-all ${
                         item.isActive
                           ? 'bg-green-600 hover:bg-green-700 text-white'
                           : 'bg-brand-ice/20 hover:bg-brand-ice/30 text-white border border-brand-ice/40'
                       } ${isToggleFocused ? 'ring-4 ring-brand-ice scale-105' : ''}`}
                     >
                       {item.isActive ? (
-                        <><Eye className="w-3 h-3 mr-1" /> {t('media.gallery.activeBtn')}</>
+                        <><Eye className="w-3 h-3 mr-1" /> <span className="truncate">{t('media.gallery.activeBtn')}</span></>
                       ) : (
-                        <><EyeOff className="w-3 h-3 mr-1" /> {t('media.gallery.activateBtn')}</>
+                        <><EyeOff className="w-3 h-3 mr-1" /> <span className="truncate">{t('media.gallery.activateBtn')}</span></>
                       )}
                     </Button>
-
+                    <div className="w-1.5 shrink-0" />
                     <Button
                       size="sm"
                       type="button"
                       variant="destructive"
                       data-focus-id={`asset-delete-${item.id}`}
-                      className={`transition-all ${isDeleteFocused ? 'ring-4 ring-brand-ice scale-105' : ''}`}
+                      className={`h-8 w-8 p-0 shrink-0 transition-all ${isDeleteFocused ? 'ring-4 ring-brand-ice scale-105' : ''}`}
                       onClick={(e) => { e.stopPropagation(); handleDeleteItem(item); }}
                       aria-label={t('media.gallery.deleteAria', { name: item.name })}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
-                </Card>
+                </div>
               );
             })}
           </div>
         </div>
 
-
         {assets.length === 0 && anonGallery.length === 0 && (
-          <div className="text-center py-12">
-            <Upload className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-slate-300 mb-2">{t('media.gallery.emptyTitle')}</h3>
-            <p className="text-slate-400">{t('media.gallery.emptyText')}</p>
+          <div className="flex items-center rounded-2xl border border-dashed border-white/15 px-4 py-3">
+            <Upload className="w-8 h-8 text-slate-400 mr-3 shrink-0" />
+            <div className="min-w-0">
+              <h3 className="text-base font-semibold text-slate-200">{t('media.gallery.emptyTitle')}</h3>
+              <p className="text-sm text-slate-400">{t('media.gallery.emptyText')}</p>
+            </div>
           </div>
         )}
       </div>
