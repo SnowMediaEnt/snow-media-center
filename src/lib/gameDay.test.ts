@@ -300,6 +300,12 @@ describe('gameDay', () => {
       expect(ppvEvent('PPV EVENT 02: STSS Fonda 200 at Fonda (9.18 6:00 PM ET)', now)).toEqual({ title: 'STSS Fonda 200 at Fonda', start: Date.parse('2026-09-18T22:00:00Z') });
       expect(ppvEvent('PPV EVENT 01: PDRA Brian Olson Memorial World Finals (9.18 8:55 AM ET)', now)).toEqual({ title: 'PDRA Brian Olson Memorial World Finals', start: Date.parse('2026-09-18T12:55:00Z') });
       expect(ppvEvent('PPV EVENT 13: RAF 13 Covington vs. Muhammad (9.18 9:00 PM ET)', now)?.title).toBe('RAF 13 Covington vs. Muhammad');
+      // Placeholders (seen on a real line: "UFC 07: NO Scheduled Event HD"): nothing on.
+      for (const empty of ['UFC 07: NO Scheduled Event HD', 'PPV 2: No Events Scheduled', 'PPV EVENT 04: Nothing Scheduled FHD', 'BOXING 01: No Event']) {
+        expect(ppvEvent(empty, now)).toBeNull();
+      }
+      // A real title that ends in HD keeps it.
+      expect(ppvEvent('PPV 6: Canelo vs Crawford HD', now)?.title).toBe('Canelo vs Crawford HD');
       expect(ppvEvent('US| PPV 3 - Canelo vs Crawford 9/13 8:00 PM ET', now)).toEqual({ title: 'Canelo vs Crawford', start: Date.parse('2026-09-14T00:00:00Z') });
       // A time alone is today's.
       expect(ppvEvent('PAY-PER-VIEW 7: Cotton Pickin 100 Prelim Night @ 7:30 PM', now)).toEqual({ title: 'Cotton Pickin 100 Prelim Night', start: Date.parse('2026-09-18T23:30:00Z') });

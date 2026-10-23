@@ -1744,7 +1744,9 @@ const PPV_LABEL = /^(?:(?:ppv\s*\d{0,3}|pay[- ]?per[- ]?view|special|events?|ufc
 /** A wrestling or fight promotion's numbered label: "WWE 03: " → "WWE " (its
  *  name stays with the event's: "WWE Crown Jewel"). */
 const PROMO_LABEL = /^(wwe|aew|tna|njpw|pfl|bellator|bkfc|mma)\s*#?\s*\d{1,3}\s*[:|–—-]\s*/i;
-const NO_EVENT = /^(no events?|no games?|off ?air|offline|tba|tbd|coming soon|events?|ppv|n\/?a|none|closed|to be announced)$/i;
+const NO_EVENT = /^(no(?: scheduled| live| current| upcoming)? (?:events?|games?|programs?|programming|fights?)(?: scheduled| today| on)?|nothing (?:scheduled|on)|off ?air|offline|tba|tbd|coming soon|events?|ppv|n\/?a|none|closed|to be announced)$/i;
+/** A quality tag at the end of a channel name ("... HD"): not part of what's on. */
+const QUALITY_TAIL = /\s+(?:f?hd|sd|uhd|4k|hevc|h\.?26[45])$/i;
 /** A name that is only its label ("PPV EVENT 15", "WWE 05"): nothing on. */
 const LABEL_ONLY = /^(?:(?:ppv\s*\d{0,3}|pay[- ]?per[- ]?view|special|events?|ufc|boxing|wwe|aew|mma|wrestling|live|main|fight|card|channel|ch)\s*)+#?\s*\d{0,3}$/i;
 const TIME_TAIL = `\\d{1,2}(?::\\d{2})?\\s*(?:am|pm)\\s*(?:${Object.keys(ZONES).join('|')})?`;
@@ -1763,7 +1765,9 @@ export function ppvEvent(raw: string, now = Date.now()): { title: string; start:
   s = s.replace(new RegExp(`\\s*(?:[-|@\\u2013\\u2014]\\s*)?\\d{1,2}[./]\\d{1,2}(?:[./]\\d{2,4})?(?:\\s+${TIME_TAIL})?\\s*$`, 'i'), '');
   s = s.replace(new RegExp(`\\s*(?:[-|@\\u2013\\u2014]\\s*)?${TIME_TAIL}\\s*$`, 'i'), '');
   const title = s.replace(/\s+/g, ' ').replace(/[\s:|\u2013\u2014-]+$/, '').trim();
-  if (title.length < 3 || NO_EVENT.test(title) || LABEL_ONLY.test(title)) return null;
+  // "NO Scheduled Event HD": a placeholder, whatever its quality tag.
+  const core = title.replace(QUALITY_TAIL, '');
+  if (title.length < 3 || NO_EVENT.test(core) || LABEL_ONLY.test(core)) return null;
 
   const time = nameTimes(raw)[0];
   if (!time) return { title, start: null };
