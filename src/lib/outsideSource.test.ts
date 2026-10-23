@@ -3,7 +3,7 @@
 // model behind it: what the form accepts (an Xtream get.php link becomes an
 // Xtream login, ours are refused), where it is kept (never with the saved
 // accounts), and how the rest of the app recognises it.
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   MAX_OUTSIDE_SOURCES,
   OUTSIDE_SOURCES_EVENT,
@@ -156,6 +156,10 @@ describe('the gate: an active DreamStreams or Vibez line', () => {
 });
 
 describe('Live TV lines (buildLines)', () => {
+  // buildLines reads the clock (a check older than STALE_MS hides the service): the test's NOW, not today's.
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(NOW); });
+  afterEach(() => { vi.useRealTimers(); });
+
   const saved: SavedAccount[] = [{ id: 'v', serverLabel: 'Vibez', host: VIBEZ.host, username: VIBEZ.username, password: VIBEZ.password, output: 'm3u8', addedAt: 1 }];
 
   it('adds the outside service last, marked, only while the line is allowed', () => {
