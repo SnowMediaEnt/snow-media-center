@@ -185,7 +185,9 @@
       "recordingsSeparate": "التسجيلات منفصلة (البث المباشر › التسجيلات) ولا يحذفها الإرجاع أبدًا.",
       "networkRow": "التسجيلات على كمبيوتر",
       "networkRowDesc": "احفظ التسجيلات في مجلد مشترك على كمبيوتر أو NAS في شبكتك.",
-      "networkOffChip": "غير مُعدّ"
+      "networkOffChip": "غير مُعدّ",
+      "groupRewind": "الإرجاع",
+      "groupRecording": "التسجيل"
     },
     "network": {
       "title": "التسجيلات على كمبيوتر",

@@ -194,7 +194,15 @@
       "kindLine": "Línea de DreamStreams o Vibez",
       "kindLineHint": "Inicia sesión con otra línea. Luego cambia entre tus líneas aquí.",
       "kindOutsideHint": "Sus canales de TV en vivo se ven junto a los tuyos: un acceso Xtream o un enlace M3U.",
-      "outsideFull": "Ya tienes otro proveedor. Quítalo para agregar uno distinto."
+      "outsideFull": "Ya tienes otro proveedor. Quítalo para agregar uno distinto.",
+      "holdHint": "Mantén OK para eliminar",
+      "deleteLineNote": "La quita de este equipo. La línea sigue funcionando en tus otros dispositivos.",
+      "deleteCurrentNote": "Estás viendo esta línea: eliminarla cierra la sesión de TV en vivo en este equipo, igual que Cerrar sesión.",
+      "deleteOutsideNote": "Lo quita, con sus canales, de TV en vivo.",
+      "confirmLine": "Pulsa OK otra vez para eliminar {{name}} de este equipo.",
+      "confirmCurrent": "Pulsa OK otra vez para eliminar {{name}} y cerrar la sesión de TV en vivo en este equipo.",
+      "deletedTitle": "Eliminado",
+      "deletedLine": "{{name}} ya no está en este equipo."
     },
     "channels": {
       "hide": "Ocultar categorías",

@@ -83,7 +83,7 @@ import PlayerStatsPanel from './PlayerStatsPanel';
 import { isDemo, isHowtoCapture, demoDialogMsg } from '@/lib/demoMode';
 import { useLiveLayout, hasLiveLayoutChoice, DEFAULT_LIVE_LAYOUT, stripInitial, tvWallLayout, type LiveLayout } from '@/lib/liveLayout';
 import { useViewSize } from '@/lib/viewSize';
-import { SLIM_ROW_SLOT, useLiveRowSize } from '@/lib/liveRows';
+import { listRowSlot, useLiveRowSize } from '@/lib/liveRows';
 import { nameClasses } from '@/lib/channelName';
 import { peekIntent, clearIntent, type ReportIntent } from '@/lib/appActions';
 import { channelForName } from '@/lib/voiceCommands';
@@ -213,9 +213,10 @@ const ALL_ID = '__all__';
 const ALL_FAVS_ID = '__allfavs__';
 // Slot height per layout. The row inside must match (see ChannelRow): the
 // D-pad scroll math below is written against the slot, never measured.
-//   classic: the 80px row in an 84px slot · compact: 56px in 60px ·
-//   grid: a row of GRID_COLS tiles, 168px tall in a 176px slot.
-const rowHeightFor = (l: LiveLayout): number => (l === 'classic' ? 84 : l === 'grid' ? 176 : 60);
+//   classic / compact: lib/liveRows listRowSlot (Normal or Slim rows; a
+//   phone held upright keeps its finger-sized row) · grid: a row of
+//   GRID_COLS tiles, 168px tall in a 176px slot.
+const rowHeightFor = (l: LiveLayout, opts: { slim?: boolean; upright?: boolean } = {}): number => (l === 'grid' ? 176 : listRowSlot(l, opts));
 const GRID_COLS = 5;
 const CAT_ROW_HEIGHT = 48; // px — matches py-2.5 + text-sm + 4px vertical gap (space-y-1)
 const CAT_FOCUS_PAD = 8;   // px — breathing room so the focus ring is never flush to the pane edge
@@ -1379,7 +1380,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // and a phone held upright (rows sized for a finger) keep their own.
   const liveRowSize = useLiveRowSize();
   const slimRows = liveRowSize === 'slim' && !upright && (listLayout === 'classic' || listLayout === 'compact');
-  const rowHeight = tvWall ? tvWall.rowH : slimRows ? SLIM_ROW_SLOT : rowHeightFor(listLayout);
+  const rowHeight = tvWall ? tvWall.rowH : rowHeightFor(listLayout, { slim: slimRows, upright });
   const colsRef = useRef(cols); useEffect(() => { colsRef.current = cols; }, [cols]);
   // Compact on a TV (the remote, not a touch screen): with the highlight in
   // the tiles the categories pane folds to a strip and the tiles take its
@@ -4284,7 +4285,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   );
 
   // ── the channel list / grid, virtualized by row ────────────────────────
-  const rowVariant: 'classic' | 'compact' | 'tile' | 'slim' = listLayout === 'grid' ? 'tile' : slimRows ? 'slim' : listLayout === 'classic' ? 'classic' : 'compact';
+  const rowVariant: 'classic' | 'compact' | 'tile' | 'slim' | 'upright' = listLayout === 'grid' ? 'tile' : slimRows ? 'slim' : upright ? 'upright' : listLayout === 'classic' ? 'classic' : 'compact';
   const channelList = (
     <div ref={setScrollParent} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3" data-howto="live.channels">
       {channelsLoading && visibleChannels.length === 0 ? (

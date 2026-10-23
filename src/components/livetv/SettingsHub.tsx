@@ -154,7 +154,7 @@ const SettingsHub = memo(({
 
   const activate = useCallback((id: MenuId) => {
     // Demo: My Account / Services / Channels / Sign out are inert — the demo
-    // account is pre-loaded. Appearance, Recording & rewind, Player and Fix a
+    // account is pre-loaded. Appearance, Recording & Rewind, Player and Fix a
     // problem stay fully functional (per-box settings; nothing to protect).
     if (DEMO && !DEMO_OK.has(id)) { setPane('menu'); setSignOutAsk(false); demoNote(); return; }
     // A row without a page beside the menu leaves the remote on the menu
@@ -245,7 +245,8 @@ const SettingsHub = memo(({
       // Devices on this line asks the server for the line's devices: only once opened from the page.
       case 'account': return <AccountInfoScreen {...common} onChangeCredentials={onChangeCredentials} onSignOut={onSignOut} onOpenBilling={billingOn ? openBilling : undefined} initialFocus={billingFrom} devicesLine={line} />;
       // Reads only what is on the box (a line too long unchecked is checked with its panel).
-      case 'services': return <ServicesScreen active={inPage} onBack={toMenu} onPicked={onSwitchAccount} onAddAccount={onAddLine ?? onChangeCredentials} />;
+      // Deleting the line in use (hold OK on it) is Sign Out, as the row below.
+      case 'services': return <ServicesScreen active={inPage} onBack={toMenu} onPicked={onSwitchAccount} onAddAccount={onAddLine ?? onChangeCredentials} onSignOut={onSignOut} />;
       // Hide categories reads every line's categories from its server: only once opened from the page.
       case 'channels': return <ChannelsScreen active={inPage} onBack={toMenu} onUpdateChannels={onUpdateChannels} />;
       case 'appearance': return <AppearanceScreen {...common} onTryLayout={onTryLayout} />;

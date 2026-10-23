@@ -3,7 +3,7 @@
  * is a column on the left, the highlighted page sits on the right; OK / Right
  * move the remote into it, Back from the page returns to the menu.
  * Reorganized (owner, 2026-10-20): eight rows, each with its state under its
- * name: My Account, Services, Channels, Appearance, Recording & rewind,
+ * name: My Account, Services, Channels, Appearance, Recording & Rewind,
  * Player, Fix a problem, Sign out.
  */
 import { act, render, screen } from '@testing-library/react';
@@ -69,7 +69,7 @@ describe('Live TV Settings: the menu', () => {
   it('eight rows in the owner\'s order, each with its state in small text under its name', async () => {
     const { container } = renderHub();
     await settle();
-    expect(labels(container)).toEqual(['My Account', 'Services', 'Channels', 'Appearance', 'Recording & rewind', 'Player', 'Fix a problem', 'Sign Out']);
+    expect(labels(container)).toEqual(['My Account', 'Services', 'Channels', 'Appearance', 'Recording & Rewind', 'Player', 'Fix a problem', 'Sign Out']);
     const state = (id: string) => container.querySelector(`[data-hub-row="${id}"] [data-hub-state]`)?.textContent;
     expect(state('account')).toBe('Dreamstreams · expires Nov 19');
     expect(state('services')).toBe('2 services');

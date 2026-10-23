@@ -6,7 +6,7 @@ import type { XtreamLiveStream, EpgNowNext } from '@/lib/xtream';
 import { channelRowLabels, type ChannelRowLabels } from './channelRowLabels';
 import type { ChannelReport } from '@/lib/channelStatus';
 import { TV_WALL_NAME_H } from '@/lib/liveLayout';
-import { SLIM_ROW_H } from '@/lib/liveRows';
+import { CLASSIC_ROW_H, COMPACT_ROW_H, SLIM_ROW_H } from '@/lib/liveRows';
 import { nameClasses } from '@/lib/channelName';
 
 // Logos a Compact wall tile has shown. Folding or unfolding the categories
@@ -50,10 +50,11 @@ interface Props {
   onSelect: (index: number) => void;
   onActivate: (index: number) => void;
   onLongPress?: (index: number) => void;
-  /** classic: the tall 84px row · compact: the two-line 60px row · tile: a
-   *  logo tile for the grid layout, name underneath · slim: one line per
-   *  channel (lib/liveRows, either list layout). */
-  variant?: 'classic' | 'compact' | 'tile' | 'slim';
+  /** classic: the two-line row with times (CLASSIC_ROW_H) · compact: the
+   *  two-line row (COMPACT_ROW_H) · tile: a logo tile for the grid layout,
+   *  name underneath · slim: one line per channel (lib/liveRows, either list
+   *  layout) · upright: a phone held upright, the 56px row sized for a finger. */
+  variant?: 'classic' | 'compact' | 'tile' | 'slim' | 'upright';
   /** The row's words, translated once by the list (channelRowLabels) instead of once per row. */
   labels?: ChannelRowLabels;
   /** Which service the channel is on, in a list that mixes them (all-services Favorites). */
@@ -318,61 +319,118 @@ const ChannelRow = memo(({ channel, index, isFocused, isPlaying, isFavorite, isD
   }
 
   if (variant === 'classic') {
+    // Two lines in CLASSIC_ROW_H (a third thinner than the 80px row it
+    // was): the name and its markers; then what's on, how far into it, and
+    // its times. No flex gap (Chromium 66): margins.
     return (
       <div
         data-focused={isFocused ? 'true' : 'false'}
+        data-row-classic=""
         {...handlers}
+        style={{ height: CLASSIC_ROW_H }}
         className={`
-          tv-ring flex items-center gap-4 px-4 py-2 rounded-xl cursor-pointer min-w-0 w-full overflow-hidden
+          tv-ring flex items-center px-3 rounded-xl cursor-pointer min-w-0 w-full overflow-hidden
           ${isFocused
             ? 'bg-brand-gold/25 border border-transparent scale-[1.02] z-10'
             : isPlaying ? 'bg-brand-gold/10 border border-brand-gold/30' : 'bg-white/5 hover:bg-white/10 border border-transparent'}
         `}
       >
-        <span data-row-num="" className={`w-8 text-right font-quicksand font-bold tabular-nums whitespace-nowrap overflow-hidden flex-shrink-0 ${numSize(channel.num, 'sm')} ${isFocused ? 'text-brand-gold' : 'text-brand-ice/70'}`}>
+        <span data-row-num="" className={`w-8 mr-3 text-right font-quicksand font-bold tabular-nums whitespace-nowrap overflow-hidden flex-shrink-0 ${numSize(channel.num, 'sm')} ${isFocused ? 'text-brand-gold' : 'text-brand-ice/70'}`}>
           {channel.num ?? ''}
         </span>
-        {logo('w-14 h-14', 'w-7 h-7')}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            {flagged && <AlertTriangle className={`w-4 h-4 ${flagIcon} flex-shrink-0`} aria-label={flagLabel} data-report={flag} />}
-            <span className={`font-quicksand font-semibold truncate ${isFocused ? 'text-white' : 'text-brand-ice'}`}>
-              {channel.name}
-            </span>
-            {serviceTag && <span data-service-tag="" className="text-[10px] px-1.5 py-0.5 rounded-md bg-brand-gold/15 text-brand-gold font-quicksand font-bold uppercase tracking-wide flex-shrink-0 leading-3">{serviceTag}</span>}
-            {isPlaying && (
-              <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-brand-gold/30 text-brand-gold font-nunito font-semibold flex-shrink-0">
-                <Radio className="w-3 h-3 animate-pulse" /> {L.onAir}
+        {logo('w-10 h-10', 'w-5 h-5')}
+        <div className="flex-1 min-w-0 ml-3">
+          <div className="flex items-center min-w-0 h-5">
+            {flagged && <AlertTriangle className={`w-4 h-4 mr-1.5 ${flagIcon} flex-shrink-0`} aria-label={flagLabel} data-report={flag} />}
+            <div className="flex-1 min-w-0 flex items-center">
+              <span className={`min-w-0 font-quicksand font-semibold leading-5 truncate ${isFocused ? 'text-white' : 'text-brand-ice'}`}>
+                {channel.name}
               </span>
-            )}
+              {serviceTag && <span data-service-tag="" className="ml-2 text-[10px] px-1.5 py-0.5 rounded-md bg-brand-gold/15 text-brand-gold font-quicksand font-bold uppercase tracking-wide flex-shrink-0 leading-3">{serviceTag}</span>}
+              {isPlaying && (
+                <span className="ml-2 flex items-center text-xs leading-4 px-2 py-0.5 rounded-full bg-brand-gold/30 text-brand-gold font-nunito font-semibold flex-shrink-0">
+                  <Radio className="w-3 h-3 mr-1 animate-pulse" /> {L.onAir}
+                </span>
+              )}
+            </div>
             <Star
-              className={`w-4 h-4 ml-auto flex-shrink-0 transition-colors ${
+              className={`w-4 h-4 ml-2 flex-shrink-0 transition-colors ${
                 isFavorite ? 'text-brand-gold fill-brand-gold' : isFocused ? 'text-brand-ice/40' : 'text-transparent'
               }`}
             />
           </div>
           {flagged ? (
-            <p className={`text-xs ${flagText} truncate font-nunito mt-1`}>{flagNote}</p>
+            <p className={`text-xs leading-4 ${flagText} truncate font-nunito`}>{flagNote}</p>
           ) : now ? (
-            <>
-              <p className="text-xs text-brand-ice/70 truncate font-nunito mt-1">{now.title}</p>
-              <div className="mt-1 flex items-center gap-2">
-                <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
-                  <div className="h-full bg-brand-gold/80 rounded-full" style={{ width: `${progress}%` }} />
-                </div>
-                <span className="text-xs text-brand-ice/70 font-nunito tabular-nums flex-shrink-0">
-                  {clock(now.start)}–{clock(now.end)}
-                </span>
+            <div data-classic-now="" className="flex items-center min-w-0 h-4">
+              <span className="flex-1 min-w-0 text-xs leading-4 text-brand-ice/70 truncate font-nunito">{now.title}</span>
+              <div className="w-16 h-[3px] ml-3 bg-white/10 rounded-full overflow-hidden flex-shrink-0" aria-hidden="true">
+                <div className="h-full bg-brand-gold/80 rounded-full" style={{ width: `${progress}%` }} />
               </div>
-            </>
+              <span data-classic-time="" className="ml-2 text-xs leading-4 text-brand-ice/70 font-nunito tabular-nums flex-shrink-0">
+                {clock(now.start)}–{clock(now.end)}
+              </span>
+            </div>
           ) : (
-            <p className="text-xs text-brand-ice/60 truncate font-nunito mt-1 italic">{L.noInfo}</p>
+            <p className="text-xs leading-4 text-brand-ice/60 truncate font-nunito italic">{L.noInfo}</p>
           )}
         </div>
       </div>
     );
   }
 
+  if (variant === 'compact') {
+    // Two lines in COMPACT_ROW_H: the name and its markers, then what's on;
+    // how far into it beside them. No flex gap (Chromium 66): margins.
+    return (
+      <div
+        data-focused={isFocused ? 'true' : 'false'}
+        data-row-compact=""
+        {...handlers}
+        style={{ height: COMPACT_ROW_H }}
+        className={`
+          tv-ring flex items-center px-3 rounded-xl cursor-pointer min-w-0 w-full overflow-hidden
+          ${isFocused
+            ? 'bg-white/10'
+            : isPlaying ? 'bg-brand-gold/10' : 'hover:bg-white/5'}
+        `}
+      >
+        <span data-row-num="" className={`w-8 mr-2.5 text-right font-nunito tabular-nums whitespace-nowrap overflow-hidden flex-shrink-0 ${numSize(channel.num)} ${isFocused ? 'text-brand-gold' : 'text-white/45'}`}>
+          {channel.num ?? ''}
+        </span>
+
+        {logo('w-8 h-8', 'w-4 h-4')}
+
+        <div className="flex-1 min-w-0 ml-2.5">
+          <div className="flex items-center min-w-0 h-5">
+            {flagged && <AlertTriangle className={`w-4 h-4 mr-1.5 ${flagIcon} flex-shrink-0`} aria-label={flagLabel} data-report={flag} />}
+            <span className={`min-w-0 font-quicksand font-semibold text-base leading-5 truncate ${isFocused ? 'text-white' : 'text-white/90'}`}>
+              {channel.name}
+            </span>
+            {serviceTag && <span data-service-tag="" className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-md bg-brand-gold/15 text-brand-gold font-quicksand font-bold uppercase tracking-wide flex-shrink-0 leading-3">{serviceTag}</span>}
+            {isPlaying && (
+              <span className="ml-1.5 flex items-center text-xs px-1.5 rounded-md bg-brand-gold text-black font-nunito font-bold flex-shrink-0 leading-4">
+                <Radio className="w-3 h-3 mr-1" /> {L.live}
+              </span>
+            )}
+            {isFavorite && <Star className="ml-1.5 w-3.5 h-3.5 text-brand-gold fill-brand-gold flex-shrink-0" />}
+          </div>
+          <p className={`text-xs leading-4 font-nunito truncate ${flagged ? flagText : now ? 'text-brand-ice/75' : 'text-brand-ice/50 italic'}`}>
+            {flagged ? flagLabel : now ? now.title : L.noInfo}
+          </p>
+        </div>
+
+        {now ? (
+          <div className="w-14 h-[2px] ml-3 rounded-full bg-white/15 overflow-hidden flex-shrink-0" aria-hidden="true">
+            <div className="h-full bg-brand-gold" style={{ width: `${progress}%` }} />
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  // 'upright': a phone held upright, the 56px two-line row sized for a finger
+  // (the Compact row as it was before rows were thinned on a TV).
   return (
     <div
       data-focused={isFocused ? 'true' : 'false'}

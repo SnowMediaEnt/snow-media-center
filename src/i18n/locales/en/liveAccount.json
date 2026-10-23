@@ -6,7 +6,7 @@
       "services": "Services",
       "channels": "Channels",
       "appearance": "Appearance",
-      "rewind": "Recording & rewind",
+      "rewind": "Recording & Rewind",
       "player": "Player",
       "help": "Fix a problem",
       "signOut": "Sign Out",
@@ -186,7 +186,15 @@
       "kindLine": "DreamStreams or Vibez line",
       "kindLineHint": "Sign in with another line. Then switch between your lines here.",
       "kindOutsideHint": "Its Live TV channels show beside yours: an Xtream login or an M3U link.",
-      "outsideFull": "You already have one other provider. Remove it to add a different one."
+      "outsideFull": "You already have one other provider. Remove it to add a different one.",
+      "holdHint": "Hold OK to delete",
+      "deleteLineNote": "Takes it off this box. The line keeps working on your other devices.",
+      "deleteCurrentNote": "You're watching this line: deleting it signs this box out of Live TV, as Sign Out does.",
+      "deleteOutsideNote": "Takes it and its channels out of Live TV.",
+      "confirmLine": "Press OK again to delete {{name}} from this box.",
+      "confirmCurrent": "Press OK again to delete {{name}} and sign this box out of Live TV.",
+      "deletedTitle": "Deleted",
+      "deletedLine": "{{name}} is no longer on this box."
     },
     "channels": {
       "hide": "Hide categories",

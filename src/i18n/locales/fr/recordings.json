@@ -176,7 +176,9 @@
       "recordingsSeparate": "Les enregistrements sont séparés (TV en direct › Enregistrements) et ne sont jamais effacés par le rembobinage.",
       "networkRow": "Enregistrements sur un ordinateur",
       "networkRowDesc": "Enregistrez dans un dossier partagé d'un ordinateur ou d'un NAS de votre réseau.",
-      "networkOffChip": "Non configuré"
+      "networkOffChip": "Non configuré",
+      "groupRewind": "Rembobinage",
+      "groupRecording": "Enregistrement"
     },
     "network": {
       "title": "Enregistrements sur un ordinateur",

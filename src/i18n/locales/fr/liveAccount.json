@@ -194,7 +194,15 @@
       "kindLine": "Ligne DreamStreams ou Vibez",
       "kindLineHint": "Connectez-vous avec une autre ligne, puis passez de l'une à l'autre ici.",
       "kindOutsideHint": "Ses chaînes TV en direct s'affichent à côté des vôtres : identifiants Xtream ou lien M3U.",
-      "outsideFull": "Vous avez déjà un autre fournisseur. Supprimez-le pour en ajouter un différent."
+      "outsideFull": "Vous avez déjà un autre fournisseur. Supprimez-le pour en ajouter un différent.",
+      "holdHint": "Maintenez OK pour supprimer",
+      "deleteLineNote": "La retire de cet appareil. La ligne continue de fonctionner sur vos autres appareils.",
+      "deleteCurrentNote": "Vous regardez cette ligne : la supprimer déconnecte cet appareil de TV en direct, comme Se déconnecter.",
+      "deleteOutsideNote": "Le retire de TV en direct, avec ses chaînes.",
+      "confirmLine": "Appuyez de nouveau sur OK pour supprimer {{name}} de cet appareil.",
+      "confirmCurrent": "Appuyez de nouveau sur OK pour supprimer {{name}} et déconnecter cet appareil de TV en direct.",
+      "deletedTitle": "Supprimé",
+      "deletedLine": "{{name}} n'est plus sur cet appareil."
     },
     "channels": {
       "hide": "Masquer des catégories",

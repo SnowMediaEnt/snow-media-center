@@ -127,7 +127,7 @@ describe('Settings menu state lines', () => {
     expect(r.result.current.appearance).toBe('Vibez');
   });
 
-  it('Recording & rewind: rewind on/off, and where recordings go (this box, or the computer by name)', async () => {
+  it('Recording & Rewind: rewind on/off, and where recordings go (this box, or the computer by name)', async () => {
     const plain = await render();
     expect(plain.result.current.rewind).toBe('Rewind on'); // no recorder on this box: nothing about recordings
     act(() => { saveRewindSettings({ enabled: false, maxRewind: 'auto' }); });

@@ -8,7 +8,7 @@
  * when allowed and there is room. Back leaves one layer at a time. The
  * panels are mocked: nothing leaves the test.
  */
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
@@ -18,6 +18,8 @@ const h = vi.hoisted(() => ({
   /** authenticateRouted's answer (null: it throws). */
   auth: null as null | Record<string, unknown>,
   authCalls: [] as Array<[string, string]>,
+  removed: [] as string[],
+  events: [] as string[],
   toasts: [] as Array<{ title?: string; description?: string }>,
 }));
 vi.mock('@/lib/xtream', async (orig) => ({
@@ -33,14 +35,19 @@ vi.mock('@/lib/xtream', async (orig) => ({
   saveCreds: async () => {},
   savePlayerAccount: async () => {},
   upsertSavedAccount: async () => {},
+  removeSavedAccount: async (id: string) => {
+    h.removed.push(id);
+    h.savedAccounts = (h.savedAccounts as Array<{ id: string }>).filter((a) => a.id !== id);
+    window.dispatchEvent(new CustomEvent('savedAccountsRefresh'));
+  },
 }));
 vi.mock('@/lib/playerSigninCapture', () => ({ capturePlayerSignin: async () => {} }));
-vi.mock('@/lib/analytics', () => ({ trackEvent: () => {} }));
+vi.mock('@/lib/analytics', () => ({ trackEvent: (name: string) => { h.events.push(name); } }));
 vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: (x: { title?: string }) => { h.toasts.push(x); } }), toast: () => {} }));
 // The other provider's form never reaches a server here.
 vi.mock('@/lib/directHttp', () => ({ contentLength: async () => null, directGet: async () => { throw new Error('no requests in tests'); } }));
 
-import ServicesScreen from './ServicesScreen';
+import ServicesScreen, { SERVICE_HOLD_MS } from './ServicesScreen';
 import { __resetOutsideForTests } from '@/lib/outsideSource';
 
 const DS = { host: 'http://dstreams.xyz:8080', username: 'jsmith', password: 'pw', output: 'm3u8', serverLabel: 'Dreamstreams' };
@@ -50,9 +57,14 @@ const ACTIVE = { serverLabel: 'Dreamstreams', host: DS.host, username: 'jsmith',
 const OTHER = { id: 'x:other.tv|bob', kind: 'xtream', name: 'Sports Box', host: 'http://other.tv:8000', username: 'bob', password: 'hunter22', addedAt: 1 };
 const keepOutside = (owner: string) => localStorage.setItem('snow-livetv-outside-sources-v1', JSON.stringify([{ ...OTHER, owner }]));
 
-const key = (k: string) => act(() => {
-  window.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+const key = (k: string, repeat = false) => act(() => {
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true, repeat }));
 });
+const keyUp = (k: string) => act(() => {
+  window.dispatchEvent(new KeyboardEvent('keyup', { key: k, bubbles: true, cancelable: true }));
+});
+/** OK pressed and let go at once (a line or the outside service acts when OK is let go). */
+const press = (k = 'Enter') => { key(k); keyUp(k); };
 const settle = async (ms = 0) => { await act(async () => { await vi.advanceTimersByTimeAsync(ms); for (let i = 0; i < 10; i += 1) await Promise.resolve(); }); };
 const until = async (cond: () => boolean) => {
   await settle();
@@ -81,11 +93,13 @@ beforeEach(() => {
   h.auth = null;
   h.authCalls = [];
   h.toasts = [];
+  h.removed = [];
+  h.events = [];
 });
 afterEach(() => { vi.useRealTimers(); });
 
 const renderScreen = async (active = true) => {
-  const props = { onBack: vi.fn(), onPicked: vi.fn(), onAddAccount: vi.fn() };
+  const props = { onBack: vi.fn(), onPicked: vi.fn(), onAddAccount: vi.fn(), onSignOut: vi.fn() };
   let unmount = () => {};
   await act(async () => { ({ unmount } = render(<ServicesScreen {...props} active={active} />)); });
   await until(() => page() === 'list' && rows().length > 0);
@@ -118,7 +132,7 @@ describe('Services: your services', () => {
     const props = await renderScreen();
     goTo(VIBEZ_ROW);
     expect(row(VIBEZ_ROW).textContent).toContain('OK switches to it');
-    key('Enter');
+    press();
     await until(() => props.onPicked.mock.calls.length === 1);
     expect(h.authCalls).toEqual([['me@mail.com', 'x']]);
     expect(props.onPicked).toHaveBeenCalledWith(expect.objectContaining({ host: VIBEZ.host, username: 'me@mail.com' }));
@@ -129,7 +143,7 @@ describe('Services: your services', () => {
     h.auth = { ok: false, error: 'Login refused.' };
     const props = await renderScreen();
     goTo(VIBEZ_ROW);
-    key('Enter');
+    press();
     await until(() => h.toasts.length === 1);
     expect(h.toasts[0]).toMatchObject({ title: 'Could not switch account', description: 'Login refused.' });
     expect(props.onPicked).not.toHaveBeenCalled();
@@ -138,7 +152,7 @@ describe('Services: your services', () => {
   it('OK on the line in use hands it straight back (Settings closes), without signing in again', async () => {
     const props = await renderScreen();
     expect(focusedRow()).toBe(DS_ROW);
-    key('Enter');
+    press();
     await until(() => props.onPicked.mock.calls.length === 1);
     expect(props.onPicked).toHaveBeenCalledWith(expect.objectContaining({ host: DS.host, username: 'jsmith' }));
     expect(h.authCalls).toEqual([]);
@@ -148,7 +162,7 @@ describe('Services: your services', () => {
     keepOutside('dstreams.xyz|jsmith');
     const props = await renderScreen();
     goTo('outside');
-    key('Enter');
+    press();
     await until(() => !!document.querySelector('[data-outside-saved]') && focusedRow() === 'edit');
     expect(page()).toBeUndefined(); // the provider's own page, in place of the list
     expect(rows()).toEqual(['edit', 'remove']);
@@ -279,5 +293,146 @@ describe('Services: the remote', () => {
     expect(focusedRow()).toBe('add');
     key('ArrowLeft');
     expect(props.onBack).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Services: hold OK to delete (owner, 2026-10-23)', () => {
+  const menu = () => document.querySelector('[data-services-menu]');
+  const menuFocused = () => document.querySelector('[data-menu-row][data-focused="true"]')?.getAttribute('data-menu-row');
+  const confirmText = () => document.querySelector('[data-menu-confirm]')?.textContent;
+  /** OK held past the hold time: the remote repeats it, then lets go. */
+  const hold = async () => {
+    key('Enter');
+    await settle(SERVICE_HOLD_MS + 20);
+    key('Enter', true);
+    key('Enter', true);
+    keyUp('Enter');
+    await settle();
+  };
+
+  it('says so above the list; held OK on a line opens Delete / Cancel and switches nothing', async () => {
+    const props = await renderScreen();
+    expect(document.querySelector('[data-services-hold-hint]')?.textContent).toBe('Hold OK to delete');
+    goTo(VIBEZ_ROW);
+    await hold();
+    expect(menu()?.getAttribute('data-services-menu')).toBe(VIBEZ_ROW);
+    expect(menuFocused()).toBe('delete');
+    expect(menu()?.textContent).toContain('me@mail.com');
+    expect(document.querySelector('[data-menu-note]')?.textContent).toBe('Takes it off this box. The line keeps working on your other devices.');
+    // The held OK's repeats and its release answered nothing.
+    expect(confirmText()).toBeUndefined();
+    expect(h.authCalls).toEqual([]);
+    expect(props.onPicked).not.toHaveBeenCalled();
+  });
+
+  it('a saved line: Delete asks once, then it comes off the box and nothing is sent anywhere', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const props = await renderScreen();
+    goTo(VIBEZ_ROW);
+    await hold();
+    press();
+    expect(confirmText()).toBe('Press OK again to delete me@mail.com from this box.');
+    expect(h.removed).toEqual([]);
+    press();
+    await until(() => !menu() && !rows().includes(VIBEZ_ROW));
+    expect(h.removed).toEqual([`${VIBEZ.host}::me@mail.com`]);
+    expect(h.toasts.map((x) => [x.title, x.description])).toEqual([['Deleted', 'me@mail.com is no longer on this box.']]);
+    // One line left and nothing else: the page leads with Add, which has the highlight (the row after it).
+    expect(rows()).toEqual(['add', DS_ROW]);
+    expect(focusedRow()).toBe('add');
+    expect(props.onSignOut).not.toHaveBeenCalled();
+    expect(props.onPicked).not.toHaveBeenCalled();
+    expect(h.authCalls).toEqual([]);
+    expect(h.events).toEqual([]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it('the line in use: it says Delete signs this box out, and then does what Sign Out does', async () => {
+    const props = await renderScreen();
+    expect(focusedRow()).toBe(DS_ROW);
+    await hold();
+    expect(document.querySelector('[data-menu-note]')?.textContent).toBe("You're watching this line: deleting it signs this box out of Live TV, as Sign Out does.");
+    press();
+    expect(confirmText()).toBe('Press OK again to delete jsmith and sign this box out of Live TV.');
+    expect(props.onSignOut).not.toHaveBeenCalled();
+    press();
+    await until(() => props.onSignOut.mock.calls.length === 1);
+    expect(h.removed).toEqual([`${DS.host}::jsmith`]);
+    expect(props.onPicked).not.toHaveBeenCalled();
+    expect(h.authCalls).toEqual([]);
+  });
+
+  it('the outside service: Delete is its own Remove', async () => {
+    keepOutside('dstreams.xyz|jsmith');
+    await renderScreen();
+    goTo('outside');
+    await hold();
+    expect(menu()?.textContent).toContain('Sports Box');
+    expect(document.querySelector('[data-menu-note]')?.textContent).toBe('Takes it and its channels out of Live TV.');
+    press();
+    expect(confirmText()).toBe('Press OK again to remove Sports Box from Live TV.');
+    press();
+    await until(() => !menu() && !rows().includes('outside'));
+    expect(rows()).toEqual([DS_ROW, VIBEZ_ROW, 'add']);
+    expect(h.events).toEqual(['outside_source_removed']);
+    expect(h.toasts.map((x) => x.description)).toEqual(['Removed. Its channels are gone from Live TV.']);
+    expect(h.removed).toEqual([]);
+  });
+
+  it('Up / Down move between Delete and Cancel and take the question back; Cancel and Back close it on the same row', async () => {
+    const props = await renderScreen();
+    goTo(VIBEZ_ROW);
+    await hold();
+    press();
+    expect(confirmText()).toBeTruthy();
+    key('ArrowDown');
+    expect(menuFocused()).toBe('cancel');
+    key('ArrowUp');
+    expect(menuFocused()).toBe('delete');
+    expect(confirmText()).toBeUndefined();
+    key('ArrowDown');
+    press();
+    expect(menu()).toBeNull();
+    expect(focusedRow()).toBe(VIBEZ_ROW);
+    await hold();
+    expect(menu()).toBeTruthy();
+    key('Escape');
+    expect(menu()).toBeNull();
+    expect(focusedRow()).toBe(VIBEZ_ROW);
+    expect(props.onBack).not.toHaveBeenCalled();
+    expect(h.removed).toEqual([]);
+    expect(props.onPicked).not.toHaveBeenCalled();
+  });
+
+  it('Add another service has no menu: OK still opens it as it goes down', async () => {
+    await renderScreen();
+    goTo('add');
+    key('Enter');
+    await settle(SERVICE_HOLD_MS + 20);
+    expect(page()).toBe('kind');
+    expect(menu()).toBeNull();
+  });
+
+  it('a finger held on a service opens the same menu, and its lift is not a tap; a right click too', async () => {
+    const props = await renderScreen();
+    act(() => { fireEvent.touchStart(row(VIBEZ_ROW)); });
+    await settle(SERVICE_HOLD_MS + 20);
+    expect(menu()?.getAttribute('data-services-menu')).toBe(VIBEZ_ROW);
+    act(() => { fireEvent.touchEnd(row(VIBEZ_ROW)); fireEvent.click(row(VIBEZ_ROW)); });
+    expect(menu()).toBeTruthy();
+    expect(props.onPicked).not.toHaveBeenCalled();
+    // Then taps: Delete asks, Delete deletes.
+    await settle(800);
+    act(() => { fireEvent.click(document.querySelector('[data-menu-row="delete"]')!); });
+    expect(confirmText()).toBe('Press OK again to delete me@mail.com from this box.');
+    act(() => { fireEvent.click(document.querySelector('[data-menu-row="delete"]')!); });
+    await until(() => !menu() && h.removed.length === 1);
+
+    act(() => { fireEvent.contextMenu(row(DS_ROW)); });
+    expect(menu()?.getAttribute('data-services-menu')).toBe(DS_ROW);
+    act(() => { fireEvent.click(document.querySelector('[data-menu-row="cancel"]')!); });
+    expect(menu()).toBeNull();
+    expect(props.onSignOut).not.toHaveBeenCalled();
   });
 });

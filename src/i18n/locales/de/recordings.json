@@ -173,7 +173,9 @@
       "recordingsSeparate": "Aufnahmen sind getrennt (Live-TV › Aufnahmen) und werden nie vom Zurückspulen gelöscht.",
       "networkRow": "Aufnahmen auf einem Computer",
       "networkRowDesc": "Speichere Aufnahmen in einem freigegebenen Ordner auf einem Computer oder NAS in deinem Netzwerk.",
-      "networkOffChip": "Nicht eingerichtet"
+      "networkOffChip": "Nicht eingerichtet",
+      "groupRewind": "Zurückspulen",
+      "groupRecording": "Aufnahme"
     },
     "network": {
       "title": "Aufnahmen auf einem Computer",

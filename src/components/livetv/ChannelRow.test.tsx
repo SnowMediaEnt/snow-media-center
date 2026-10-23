@@ -2,11 +2,12 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import ChannelRow from './ChannelRow';
 import { formatTime } from '@/i18n/format';
+import { CLASSIC_ROW_H, COMPACT_ROW_H, SLIM_ROW_H } from '@/lib/liveRows';
 
 const ch = { stream_id: 1, name: 'US| ESPN', num: 5, stream_icon: '', category_id: '1' } as never;
 
 describe('ChannelRow', () => {
-  it.each(['classic', 'compact', 'tile', 'slim'] as const)('shows the down triangle in the %s layout', (variant) => {
+  it.each(['classic', 'compact', 'tile', 'slim', 'upright'] as const)('shows the down triangle in the %s layout', (variant) => {
     render(<ChannelRow channel={ch} index={0} isFocused={false} isPlaying={false} isFavorite={false} isDown onSelect={() => {}} onActivate={() => {}} variant={variant} />);
     expect(screen.getAllByLabelText('Reported down right now').length).toBeGreaterThan(0);
   });
@@ -79,3 +80,57 @@ describe('ChannelRow, the room each part gets', () => {
     expect(short.className).toContain(variant === 'classic' ? 'text-sm' : 'text-xs');
   });
 });
+
+describe('ChannelRow, Normal rows a third thinner (owner, 2026-10-23)', () => {
+  const at = Date.now();
+  const nn = { now: { title: 'Evening Report', start: at - 20 * 60_000, end: at + 40 * 60_000 } } as never;
+  const draw = (variant: 'classic' | 'compact' | 'upright', extra: Record<string, unknown> = {}) => render(
+    <ChannelRow channel={ch} index={0} isFocused={false} isPlaying={false} isFavorite={false} onSelect={() => {}} onActivate={() => {}} variant={variant} nowNext={nn} {...extra} />,
+  ).container;
+
+  it('Classic keeps the number, logo, name, what is on, its progress and its times, in 50px', () => {
+    const c = draw('classic', { isFavorite: true });
+    const row = c.querySelector('[data-row-classic]') as HTMLElement;
+    expect(row.style.height).toBe(`${CLASSIC_ROW_H}px`);
+    expect(CLASSIC_ROW_H).toBe(50);
+    expect(c.querySelector('[data-row-num]')?.textContent).toBe('5');
+    expect(row.textContent).toContain('US| ESPN');
+    const nowLine = c.querySelector('[data-classic-now]')!;
+    expect(nowLine.textContent).toContain('Evening Report');
+    expect(c.querySelector('[data-classic-time]')?.textContent).toBe(`${formatTime(at - 20 * 60_000)}–${formatTime(at + 40 * 60_000)}`);
+    const bar = nowLine.querySelector('[aria-hidden="true"] > div') as HTMLElement;
+    expect(parseFloat(bar.style.width)).toBeGreaterThan(30);
+    expect(parseFloat(bar.style.width)).toBeLessThan(37);
+    expect(c.querySelector('.fill-brand-gold')).not.toBeNull();
+  });
+
+  it('Classic still says when a channel is down, or has no listing', () => {
+    expect(draw('classic', { isDown: true }).querySelector('[data-classic-now]')).toBeNull();
+    expect(screenText(draw('classic', { nowNext: undefined }))).toContain('No information');
+  });
+
+  it('Compact keeps the name, what is on and its progress, in 42px; Slim stays thinner than both', () => {
+    const c = draw('compact');
+    const row = c.querySelector('[data-row-compact]') as HTMLElement;
+    expect(row.style.height).toBe(`${COMPACT_ROW_H}px`);
+    expect(row.textContent).toContain('US| ESPN');
+    expect(row.textContent).toContain('Evening Report');
+    expect(SLIM_ROW_H).toBeLessThan(COMPACT_ROW_H);
+    expect(COMPACT_ROW_H).toBeLessThan(CLASSIC_ROW_H);
+  });
+
+  it('a phone held upright keeps its finger-sized 56px row', () => {
+    const c = draw('upright');
+    expect(c.querySelector('[data-row-compact]')).toBeNull();
+    expect(c.querySelector('.h-14')).not.toBeNull();
+  });
+
+  it('no flex gap in the thinner rows (Chromium 66 ignores it)', () => {
+    for (const v of ['classic', 'compact'] as const) {
+      const html = draw(v, { isPlaying: true, isFavorite: true, serviceTag: 'VIBEZ' }).innerHTML;
+      expect(html).not.toMatch(/class="[^"]*\bgap-/);
+    }
+  });
+});
+
+const screenText = (c: HTMLElement) => c.textContent ?? '';

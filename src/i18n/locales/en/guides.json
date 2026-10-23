@@ -143,7 +143,7 @@
           "line2": "OK on one to play, rename or delete it."
         },
         "settings": {
-          "title": "Rewind & recording settings",
+          "title": "Recording & Rewind settings",
           "line2": "Max rewind, and start early / end late for shows you schedule."
         }
       },
@@ -436,7 +436,7 @@
         "report": "Report",
         "reportedDown": "⚠️ Reported down",
         "results": "Results",
-        "rewindSettings": "Recording & rewind",
+        "rewindSettings": "Recording & Rewind",
         "saveTo": "Where to save",
         "scanPhone": "Scan with your phone",
         "scanToPay": "Scan to pay",

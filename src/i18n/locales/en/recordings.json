@@ -152,7 +152,7 @@
       }
     },
     "rewindSettings": {
-      "title": "Rewind & recording",
+      "title": "Recording & Rewind",
       "rewindLive": "Rewind live TV",
       "rewindLiveDesc": "Pause and go back on live channels. Channels with catch-up use the provider's archive; others are kept on this box while you watch, and wiped when you leave the player.",
       "onChip": "On",
@@ -173,7 +173,9 @@
       "recordingsSeparate": "Recordings are separate (Live TV › Recordings) and are never wiped by rewind.",
       "networkRow": "Recordings on a computer",
       "networkRowDesc": "Save recordings to a shared folder on a computer or NAS on your network.",
-      "networkOffChip": "Not set up"
+      "networkOffChip": "Not set up",
+      "groupRewind": "Rewind",
+      "groupRecording": "Recording"
     },
     "network": {
       "title": "Recordings on a computer",

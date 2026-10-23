@@ -176,7 +176,9 @@
       "recordingsSeparate": "Las grabaciones son aparte (TV en vivo › Grabaciones) y el retroceso nunca las borra.",
       "networkRow": "Grabaciones en una computadora",
       "networkRowDesc": "Guarda las grabaciones en una carpeta compartida de una computadora o NAS de tu red.",
-      "networkOffChip": "Sin configurar"
+      "networkOffChip": "Sin configurar",
+      "groupRewind": "Retroceso",
+      "groupRecording": "Grabación"
     },
     "network": {
       "title": "Grabaciones en una computadora",

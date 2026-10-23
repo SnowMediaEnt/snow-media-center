@@ -1,4 +1,4 @@
-// Live TV › Settings › Rewind & recording (TRACKER 25): on/off, how far back
+// Live TV › Settings › Recording & Rewind (TRACKER 25): on/off, how far back
 // ("Max rewind"), what the buffer uses on this box, and how early a scheduled
 // recording starts and how late it ends ("Start early" / "End late"). The buffer only
 // exists while a channel plays full screen; it is wiped when the player is
@@ -13,6 +13,12 @@
 // "Recordings on a computer" (the last row) opens NetworkFolderScreen in this
 // page's place: the shared folder on a computer or NAS recordings can go to.
 // Back there comes back here, so one Back is one step.
+//
+// Laid out to be read at a glance (owner, 2026-10-23: "clunky"): two groups,
+// Rewind and Recording, one line per setting (its name, and its value or
+// choices beside it), and the highlighted row's explanation in a box under
+// the list, which stays put while the rows move (it used to be a tall card
+// per setting, two screens of them).
 //
 // D-pad: ▲▼ rows, ◀▶ or OK changes the focused row, Back closes.
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
@@ -142,7 +148,74 @@ const RewindSettingsScreen = memo(({ onBack, embedded = false, active = true }: 
     ? rewindBudgetBytes({ freeBytes: usage.freeBytes, totalBytes: usage.totalBytes, usedBytes: usage.usedBytes, hardCapBytes: HARD_CAP_BYTES })
     : null;
 
-  const row = (r: Row) => `tv-ring rounded-xl px-5 py-3 bg-slate-900/70 border border-white/10 ${focus === r ? 'scale-[1.02] z-10' : ''}`;
+  // One line per setting: its name, and beside it its value or its choices.
+  const row = (r: Row, extra = '') =>
+    `tv-ring flex items-center rounded-xl px-4 py-2 bg-slate-900/70 border border-white/10 cursor-pointer ${focus === r ? 'scale-[1.02] z-10' : ''} ${extra}`;
+  const name = 'flex-1 min-w-0 text-base leading-6 font-quicksand font-semibold';
+  const heading = 'text-sm font-quicksand font-semibold uppercase tracking-wide text-brand-ice/70 mb-1.5';
+  /** A choice beside a row's name: the saved one filled in (gold while the row has the remote). */
+  const chip = (selected: boolean, r: Row) => `inline-block ml-1 px-2.5 py-0.5 rounded-lg font-nunito text-sm leading-5 whitespace-nowrap ${
+    selected ? (focus === r ? 'bg-brand-gold text-brand-navy font-bold' : 'bg-white/25 font-semibold') : 'text-brand-ice/75'}`;
+  const note = 'text-[13px] leading-[18px] font-nunito';
+  /** Start early / End late: the row, its choices. */
+  const padRow = (r: 'before' | 'after') => {
+    const list = r === 'before' ? BEFORE_CHOICES : AFTER_CHOICES;
+    const value = r === 'before' ? pad.beforeMin : pad.afterMin;
+    return (
+      <div key={r} data-rewind-row={r} data-focused={focus === r ? 'true' : 'false'} className={row(r)} onClick={() => setFocus(r)}>
+        <p className={name}>{r === 'before' ? t('recordings.rewindSettings.startEarly') : t('recordings.rewindSettings.endLate')}</p>
+        <div className="ml-3 flex-shrink-0 whitespace-nowrap">
+          {list.map((n) => (
+            <span
+              key={n}
+              onClick={(e) => { e.stopPropagation(); setFocus(r); updatePad(r === 'before' ? { ...pad, beforeMin: n } : { ...pad, afterMin: n }); }}
+              className={chip(value === n, r)}
+            >
+              {t('recordings.rewindSettings.minutes', { n })}
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  /** What the highlighted row does, said once in the box under the list. */
+  const about = (() => {
+    if (focus === 'enabled' || focus === 'back') {
+      return (
+        <>
+          <p className={`${note} text-white/75`}>{t('recordings.rewindSettings.rewindLiveDesc')}</p>
+          <p data-rewind-extra-stream className={`${note} text-brand-gold mt-1 flex items-start`}>
+            <Info className="w-3.5 h-3.5 mr-1.5 mt-0.5 flex-shrink-0" /> {t('recordings.rewind.extraStream')}
+          </p>
+          {plan && <p data-rewind-plan className={`${note} text-amber-300 mt-1`}>{plan}</p>}
+        </>
+      );
+    }
+    if (focus === 'max') {
+      return (
+        <>
+          <p className={`${note} text-white/75`}>{t('recordings.rewindSettings.autoDesc', { cap: formatBytes(HARD_CAP_BYTES) })}</p>
+          {/* What the buffer uses on this box (the figure Auto works from). */}
+          <p data-rewind-usage className={`${note} text-brand-ice/70 mt-1`}>
+            <span className="font-semibold">{t('recordings.rewindSettings.onThisBox')}</span>{' · '}
+            {usage
+              ? (budget != null
+                ? t('recordings.rewindSettings.usageWithBudget', { used: formatBytes(usage.usedBytes), free: formatBytes(usage.freeBytes), budget: formatBytes(budget) })
+                : t('recordings.rewindSettings.usage', { used: formatBytes(usage.usedBytes), free: formatBytes(usage.freeBytes) }))
+              : t('recordings.rewindSettings.figuresInApp')}
+          </p>
+          {budget != null && budget < 256 * 1024 * 1024 && (
+            <p className={`${note} text-amber-300 mt-1`}>{t('recordings.rewindSettings.nearlyFull')}</p>
+          )}
+          <p className={`${note} text-white/55 mt-1`}>{t('recordings.rewindSettings.recordingsSeparate')}</p>
+        </>
+      );
+    }
+    if (focus === 'before') return <p className={`${note} text-white/75`}>{t('recordings.rewindSettings.startEarlyDesc')}</p>;
+    if (focus === 'after') return <p className={`${note} text-white/75`}>{t('recordings.rewindSettings.endLateDesc')}</p>;
+    return <p className={`${note} text-white/75`}>{t('recordings.rewindSettings.networkRowDesc')}</p>;
+  })();
 
   if (netOpen) return <NetworkFolderScreen embedded={embedded} active={active} onBack={closeNet} />;
 
@@ -155,103 +228,55 @@ const RewindSettingsScreen = memo(({ onBack, embedded = false, active = true }: 
           <h1 className="text-2xl font-quicksand font-bold">{t('recordings.rewindSettings.title')}</h1>
         </div>
       )}
-      <div className={embedded ? 'flex-1 overflow-auto p-1' : 'flex-1 overflow-auto p-6 flex items-start justify-center'}>
-        <div className="w-full max-w-xl space-y-3">
-          <div data-rewind-row="enabled" data-focused={focus === 'enabled' ? 'true' : 'false'} className={`${row('enabled')} flex items-center`}
-            onClick={() => update({ ...s, enabled: !s.enabled })}>
-            <div className="flex-1 min-w-0">
-              <p className="text-xl font-quicksand font-semibold">{t('recordings.rewindSettings.rewindLive')}</p>
-              <p className="text-sm font-nunito text-white/70 mt-1">
-                {t('recordings.rewindSettings.rewindLiveDesc')}
-              </p>
-              <p data-rewind-extra-stream className="text-sm font-nunito text-brand-gold mt-1 flex items-center">
-                <Info className="w-4 h-4 mr-1 flex-shrink-0" /> {t('recordings.rewind.extraStream')}
-              </p>
-              {plan && (
-                <p data-rewind-plan className="text-sm font-nunito text-amber-300 mt-1">{plan}</p>
-              )}
-            </div>
-            <span className={`ml-4 px-3 py-1 rounded-lg font-quicksand font-bold ${s.enabled ? 'bg-brand-gold text-brand-navy' : 'bg-white/10 text-white/70'}`}>
-              {s.enabled ? t('recordings.rewindSettings.onChip') : t('recordings.rewindSettings.offChip')}
-            </span>
-          </div>
-
-          <div data-rewind-row="max" data-focused={focus === 'max' ? 'true' : 'false'} className={row('max')}>
-            <p className="text-xl font-quicksand font-semibold">{t('recordings.rewindSettings.maxRewind')}</p>
-            <div className="mt-2">
-              {MAX_REWIND_CHOICES.map((c) => (
-                <span
-                  key={String(c.id)}
-                  onClick={() => update({ ...s, maxRewind: c.id })}
-                  className={`inline-block mr-2 px-3 py-1 rounded-lg font-nunito text-base ${
-                    s.maxRewind === c.id ? (focus === 'max' ? 'bg-brand-gold text-brand-navy font-bold' : 'bg-white/25 font-semibold') : 'text-brand-ice/80'}`}
-                >
-                  {c.id === 'auto' ? t('recordings.rewindSettings.auto') : t('recordings.rewindSettings.minutes', { n: c.id })}
+      <div className={embedded ? 'flex-1 min-h-0 flex flex-col' : 'flex-1 min-h-0 p-6 flex justify-center'}>
+        <div className="w-full max-w-2xl flex-1 min-h-0 flex flex-col">
+          {/* The rows (they scroll on a small screen); the explanation stays under them. */}
+          <div className="flex-1 min-h-0 overflow-auto p-1">
+            <h3 className={heading}>{t('recordings.rewindSettings.groupRewind')}</h3>
+            <div className="space-y-1.5">
+              <div data-rewind-row="enabled" data-focused={focus === 'enabled' ? 'true' : 'false'} className={row('enabled')}
+                onClick={() => { setFocus('enabled'); update({ ...s, enabled: !s.enabled }); }}>
+                <p className={name}>{t('recordings.rewindSettings.rewindLive')}</p>
+                <span className={`ml-3 px-3 py-0.5 rounded-full text-sm leading-5 font-quicksand font-bold flex-shrink-0 ${s.enabled ? 'bg-brand-gold text-brand-navy' : 'bg-white/10 text-white/70'}`}>
+                  {s.enabled ? t('recordings.rewindSettings.onChip') : t('recordings.rewindSettings.offChip')}
                 </span>
-              ))}
-            </div>
-            <p className="text-sm font-nunito text-white/70 mt-2">
-              {t('recordings.rewindSettings.autoDesc', { cap: formatBytes(HARD_CAP_BYTES) })}
-            </p>
-          </div>
-
-          {(['before', 'after'] as const).map((r) => {
-            const list = r === 'before' ? BEFORE_CHOICES : AFTER_CHOICES;
-            const value = r === 'before' ? pad.beforeMin : pad.afterMin;
-            return (
-              <div key={r} data-rewind-row={r} data-focused={focus === r ? 'true' : 'false'} className={row(r)}>
-                <p className="text-xl font-quicksand font-semibold">{r === 'before' ? t('recordings.rewindSettings.startEarly') : t('recordings.rewindSettings.endLate')}</p>
-                <div className="mt-2">
-                  {list.map((n) => (
+              </div>
+              <div data-rewind-row="max" data-focused={focus === 'max' ? 'true' : 'false'} className={row('max')} onClick={() => setFocus('max')}>
+                <p className={name}>{t('recordings.rewindSettings.maxRewind')}</p>
+                <div className="ml-3 flex-shrink-0 whitespace-nowrap">
+                  {MAX_REWIND_CHOICES.map((c) => (
                     <span
-                      key={n}
-                      onClick={() => updatePad(r === 'before' ? { ...pad, beforeMin: n } : { ...pad, afterMin: n })}
-                      className={`inline-block mr-2 px-3 py-1 rounded-lg font-nunito text-base ${
-                        value === n ? (focus === r ? 'bg-brand-gold text-brand-navy font-bold' : 'bg-white/25 font-semibold') : 'text-brand-ice/80'}`}
+                      key={String(c.id)}
+                      onClick={(e) => { e.stopPropagation(); setFocus('max'); update({ ...s, maxRewind: c.id }); }}
+                      className={chip(s.maxRewind === c.id, 'max')}
                     >
-                      {t('recordings.rewindSettings.minutes', { n })}
+                      {c.id === 'auto' ? t('recordings.rewindSettings.auto') : t('recordings.rewindSettings.minutes', { n: c.id })}
                     </span>
                   ))}
                 </div>
-                <p className="text-sm font-nunito text-white/70 mt-2">
-                  {r === 'before'
-                    ? t('recordings.rewindSettings.startEarlyDesc')
-                    : t('recordings.rewindSettings.endLateDesc')}
-                </p>
               </div>
-            );
-          })}
-
-          {netShown && (
-            <div data-rewind-row="net" data-focused={focus === 'net' ? 'true' : 'false'} className={`${row('net')} flex items-center`}
-              onClick={() => { setFocus('net'); setNetOpen(true); }}>
-              <Monitor className="w-6 h-6 mr-3 text-brand-gold flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-xl font-quicksand font-semibold">{t('recordings.rewindSettings.networkRow')}</p>
-                <p className="text-sm font-nunito text-white/70 mt-1">{t('recordings.rewindSettings.networkRowDesc')}</p>
-              </div>
-              <span data-rewind-net-value className={`ml-4 px-3 py-1 rounded-lg font-quicksand font-bold truncate ${net !== 'loading' && net.configured ? 'bg-brand-gold text-brand-navy' : 'bg-white/10 text-white/70'}`} style={{ maxWidth: '40%' }}>
-                {net === 'loading' ? '…' : net.configured ? (net.label || net.host) : t('recordings.rewindSettings.networkOffChip')}
-              </span>
-              <ChevronRight className="w-5 h-5 ml-2 text-white/60 flex-shrink-0" />
             </div>
-          )}
 
-          <div className="rounded-xl px-5 py-3 bg-black/30 border border-white/10">
-            <p className="text-base font-quicksand font-semibold">{t('recordings.rewindSettings.onThisBox')}</p>
-            <p className="text-sm font-nunito text-white/70 mt-1">
-              {usage
-                ? (budget != null
-                  ? t('recordings.rewindSettings.usageWithBudget', { used: formatBytes(usage.usedBytes), free: formatBytes(usage.freeBytes), budget: formatBytes(budget) })
-                  : t('recordings.rewindSettings.usage', { used: formatBytes(usage.usedBytes), free: formatBytes(usage.freeBytes) }))
-                : t('recordings.rewindSettings.figuresInApp')}
-            </p>
-            {budget != null && budget < 256 * 1024 * 1024 && (
-              <p className="text-sm font-nunito text-amber-300 mt-1">
-                {t('recordings.rewindSettings.nearlyFull')}
-              </p>
-            )}
-            <p className="text-sm font-nunito text-white/60 mt-1">{t('recordings.rewindSettings.recordingsSeparate')}</p>
+            <h3 className={`${heading} mt-4`}>{t('recordings.rewindSettings.groupRecording')}</h3>
+            <div className="space-y-1.5">
+              {padRow('before')}
+              {padRow('after')}
+              {netShown && (
+                <div data-rewind-row="net" data-focused={focus === 'net' ? 'true' : 'false'} className={row('net')}
+                  onClick={() => { setFocus('net'); setNetOpen(true); }}>
+                  <Monitor className="w-5 h-5 mr-2.5 text-brand-gold flex-shrink-0" />
+                  <p className={name}>{t('recordings.rewindSettings.networkRow')}</p>
+                  <span data-rewind-net-value className={`ml-3 px-3 py-0.5 rounded-lg text-sm leading-5 font-quicksand font-bold truncate ${net !== 'loading' && net.configured ? 'bg-brand-gold text-brand-navy' : 'bg-white/10 text-white/70'}`} style={{ maxWidth: '40%' }}>
+                    {net === 'loading' ? '…' : net.configured ? (net.label || net.host) : t('recordings.rewindSettings.networkOffChip')}
+                  </span>
+                  <ChevronRight className="w-5 h-5 ml-1.5 text-white/60 flex-shrink-0" />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div data-rewind-about={focus} className="flex-shrink-0 mt-2 mx-1 mb-1 rounded-xl px-4 py-2.5 bg-black/30 border border-white/10">
+            {about}
           </div>
         </div>
       </div>

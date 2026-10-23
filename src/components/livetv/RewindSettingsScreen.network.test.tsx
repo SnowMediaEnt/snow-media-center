@@ -1,5 +1,5 @@
 /**
- * Rewind & recording › Recordings on a computer: the row says "Not set up" or
+ * Recording & Rewind › Recordings on a computer: the row says "Not set up" or
  * the saved computer's name, OK (or Right) opens the computer's page in this
  * page's place, and Back there comes back here (one Back = one step). Only
  * where recording is: not on the web, not in the demo, not on an app whose
@@ -57,7 +57,7 @@ beforeEach(() => {
   h.recorder = true; h.demo = false; h.folder = { configured: false }; h.folderFails = false; h.asked = 0;
 });
 
-describe('Rewind & recording › Recordings on a computer', () => {
+describe('Recording & Rewind › Recordings on a computer', () => {
   it('the last row, "Not set up" until a computer is saved', async () => {
     await open();
     expect(netRow()?.textContent).toContain('Recordings on a computer');

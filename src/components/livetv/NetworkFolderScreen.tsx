@@ -1,4 +1,4 @@
-// Live TV › Settings › Rewind & recording › Recordings on a computer: the
+// Live TV › Settings › Recording & Rewind › Recordings on a computer: the
 // shared folder on a computer or NAS on the home network that recordings go
 // to (volume id 'net' on the native side). The box records as usual and
 // copies each recording over; when the computer is off, the file waits on the
@@ -15,7 +15,7 @@
 // The remote: Up / Down walk the rows; OK on a field asks for the keyboard,
 // whose Enter moves to the next field and, after Password, lands on Test and
 // save with the keyboard put away. Back puts the keyboard away first; then
-// Back (or Left) returns to Rewind & recording.
+// Back (or Left) returns to Recording & Rewind.
 // Chrome 66: margins and space-y, no flex gap.
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, FolderX, Info, Loader2, Monitor, Search } from 'lucide-react';
@@ -31,7 +31,7 @@ import { keepInView } from '@/utils/keepInView';
 
 interface Props {
   onBack: () => void;
-  /** Drawn beside the Settings menu: no header of its own, Back / Left return to Rewind & recording. */
+  /** Drawn beside the Settings menu: no header of its own, Back / Left return to Recording & Rewind. */
   embedded?: boolean;
   /** Embedded only: whether the remote is on this page (false while it is on the menu). */
   active?: boolean;
