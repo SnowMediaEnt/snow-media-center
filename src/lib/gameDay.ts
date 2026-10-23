@@ -34,7 +34,9 @@
 // PPV channels carry fights, festivals and small races, never a league's
 // games: they are only ever a fight card's. What is on them comes from their
 // own names ("PPV EVENT 02: STSS Fonda 200 at Fonda (9.18 6:00 PM ET)"), as
-// Game Day's PPV list (ppvGames).
+// Game Day's PPV list (ppvGames), with the boxing and wrestling events named
+// on the fight channels ("BOXING 01: Canelo vs Crawford", "WWE 03: Crown
+// Jewel"). The PPV chip has them all, and the UFC cards (chipOf).
 // Streaming services (Peacock, ESPN+, Prime Video …) are never a game's
 // channel by name alone. A line may carry them as numbered feeds ("US|
 // PEACOCK 02", "ESPN+ 07") whose names don't say what is on, but whose guide
@@ -263,11 +265,19 @@ const SOCCER_LEAGUES = [
   'mls', 'nwsl', 'ligamx', 'epl', 'laliga', 'seriea', 'bundesliga', 'ligue1', 'ucl', 'uel', ...INTERNATIONAL_LEAGUES, ...MORE_SOCCER_LEAGUES,
 ];
 
+/** The PPV chip: the events on the box's PPV channels, the fight cards (UFC)
+ *  and boxing and wrestling (from the fight channels' names: ppvGames). */
+export const PPV_CHIP = 'ppv';
+/** Leagues filed under PPV: never a chip of their own. */
+const PPV_CHIP_LEAGUES = ['ppv', 'ufc', 'mma', 'pfl', 'bellator', 'boxing', 'wrestling', 'wwe', 'aew'];
+
 /** The chip a league is filed under in Game Day. The big leagues have their
  *  own; national teams share "International" and the other soccer
- *  competitions "More Soccer", so the chip row stays short. `labelKey` is the
- *  translated name of a shared chip; a league of its own has its `label`. */
+ *  competitions "More Soccer", so the chip row stays short; the fights and
+ *  wrestling are PPV's. `labelKey` is the translated name of a shared chip; a
+ *  league of its own has its `label`. */
 export function chipOf(g: { league: string; leagueLabel: string }): { id: string; label: string; labelKey?: string } {
+  if (PPV_CHIP_LEAGUES.includes(g.league)) return { id: PPV_CHIP, label: 'PPV' };
   if (INTERNATIONAL_LEAGUES.includes(g.league)) return { id: 'chip:intl', label: 'International', labelKey: 'gameDay.chipIntl' };
   if (MORE_SOCCER_LEAGUES.includes(g.league)) return { id: 'chip:soccer', label: 'More Soccer', labelKey: 'gameDay.chipSoccer' };
   return { id: g.league, label: g.leagueLabel };
@@ -333,6 +343,12 @@ const EVENTS = /\b(ppv ?\d{0,3}|pay ?per ?view|events?)\b/;
 /** Pay-per-view: fights, festivals and small races, never a league's games.
  *  Numbered PPV categories too: "PPV1", "PPV 2", "PPV03". */
 const PPV = /\b(ppv ?\d{0,3}|pay ?per ?view)\b/;
+/** Fight sports and wrestling in a category's name ("BOXING", "US| WWE",
+ *  "UFC / MMA", "FIGHT SPORTS"): its event channels are PPV's (ppvGames). */
+const FIGHT_CAT = /\b(ufc|mma|boxing|fights?|fighting|wrestling|wwe|aew|tna|njpw|pfl|bellator|bkfc|bare knuckle)\b/;
+/** …and in a channel's own name ("EVENT 05: WWE Crown Jewel", "Boxing:
+ *  Canelo vs Crawford"): the promotions and boxing, never a bare "fight". */
+const FIGHT_NAME = /\b(ufc|mma|boxing|pro wrestling|wwe|aew|tna|njpw|pfl|bellator|bkfc|bare knuckle)\b/;
 
 /** Streaming services, by id: `head`, how its name starts (normalised
  *  words); `bare`, a name that is the service only right before a number
@@ -1725,9 +1741,12 @@ const zonedAt = (y: number, mo: number, d: number, mins: number, zone: string): 
 
 /** "PPV EVENT 01: ", "PAY-PER-VIEW 3 - ", "UFC EVENT 05 | " before the title. */
 const PPV_LABEL = /^(?:(?:ppv\s*\d{0,3}|pay[- ]?per[- ]?view|special|events?|ufc|boxing|live|main|fight|card|channel|ch)\s*)+#?\s*\d{0,3}\s*[:|\u2013\u2014-]\s*/i;
+/** A wrestling or fight promotion's numbered label: "WWE 03: " → "WWE " (its
+ *  name stays with the event's: "WWE Crown Jewel"). */
+const PROMO_LABEL = /^(wwe|aew|tna|njpw|pfl|bellator|bkfc|mma)\s*#?\s*\d{1,3}\s*[:|–—-]\s*/i;
 const NO_EVENT = /^(no events?|no games?|off ?air|offline|tba|tbd|coming soon|events?|ppv|n\/?a|none|closed|to be announced)$/i;
-/** A name that is only its label ("PPV EVENT 15"): nothing on. */
-const LABEL_ONLY = /^(?:(?:ppv\s*\d{0,3}|pay[- ]?per[- ]?view|special|events?|ufc|boxing|live|main|fight|card|channel|ch)\s*)+#?\s*\d{0,3}$/i;
+/** A name that is only its label ("PPV EVENT 15", "WWE 05"): nothing on. */
+const LABEL_ONLY = /^(?:(?:ppv\s*\d{0,3}|pay[- ]?per[- ]?view|special|events?|ufc|boxing|wwe|aew|mma|wrestling|live|main|fight|card|channel|ch)\s*)+#?\s*\d{0,3}$/i;
 const TIME_TAIL = `\\d{1,2}(?::\\d{2})?\\s*(?:am|pm)\\s*(?:${Object.keys(ZONES).join('|')})?`;
 
 /** The event in a PPV channel's name, and when it starts: "PPV EVENT 02: STSS
@@ -1737,7 +1756,7 @@ const TIME_TAIL = `\\d{1,2}(?::\\d{2})?\\s*(?:am|pm)\\s*(?:${Object.keys(ZONES).
  *  null when the name gives no time. */
 export function ppvEvent(raw: string, now = Date.now()): { title: string; start: number | null } | null {
   let s = String(raw ?? '').trim().replace(/^[a-z]{2,3}\s*[|:]\s*/i, '');
-  s = s.replace(PPV_LABEL, '');
+  s = s.replace(PPV_LABEL, '').replace(PROMO_LABEL, '$1 ');
   // The schedule at the end: "(9.18 6:00 PM ET)" (or cut short: "(9.18"),
   // "- 9/18 6:00 PM ET", "@ 7:00 PM".
   s = s.replace(/\s*[([][^)\]]*\d[^)\]]*[)\]]?\s*$/, '');
@@ -1769,18 +1788,35 @@ export function ppvEvent(raw: string, now = Date.now()): { title: string; start:
 /** A PPV fight ("Covington vs. Muhammad"): listed with the day's games. */
 export const isPpvFight = (g: Game): boolean => g.league === 'ppv' && /\bvs?\.?\s/i.test(g.name);
 
+/** A numbered label before an event's name: "WWE 03: ", "BOXING 01 | ". */
+const NUMBERED_LABEL = /^(?:[a-z]{2,3}\s*[|:]\s*)?[^:|–—]{0,30}?\b\d{1,3}\s*[:|–—-]\s*\S/i;
+const VERSUS = /\bvs?\.?\s/i;
+
+/** A fight or wrestling channel (its category's, or a promotion's in its own
+ *  name; never a streaming service's feed by its name alone), never a 24/7
+ *  one or a kids', music or film category's. */
+const fightChannel = (c: SportsChannel, raw: string): boolean =>
+  !LOOP.test(raw) && !NOT_SPORTS.test(c.cat) && (FIGHT_CAT.test(c.cat) || (!c.service && FIGHT_NAME.test(c.full)));
+
 /** Today's PPV events on this box, from its PPV channels' names (the
  *  "PPV", "PPV1", "PPV 2" … categories): the fights, cards, festivals and
- *  shows. One entry per event (the same event on two lines is one, with both
- *  channels); from its start until five hours after, or up to 30 hours
- *  ahead; a name with no time, as on now. `taken`: channels a listed game
- *  already has (a UFC card's). */
+ *  shows; and the fight and wrestling events on its other channels (a
+ *  "BOXING" or "WWE" category's, or "EVENT 05: WWE Crown Jewel") when the
+ *  name is an event's: a numbered label, a "vs" or a time ("WWE 03: Crown
+ *  Jewel", never "WWE Network" or "UFC Fight Pass"). One entry per event (the
+ *  same event on two lines is one, with both channels); from its start until
+ *  five hours after, or up to 30 hours ahead; a name with no time, as on now.
+ *  `taken`: channels a listed game already has (a UFC card's). */
 export function ppvGames(channels: SportsChannel[], taken: Set<string> = new Set(), now = Date.now()): Array<{ game: Game; links: GameChannel[] }> {
   const byEvent = new Map<string, { game: Game; links: GameChannel[] }>();
   for (const c of channels) {
-    if (!PPV.test(`${c.cat} ${c.full}`) || taken.has(linkKey(c))) continue;
-    const ev = ppvEvent(String(c.stream?.name ?? ''), now);
+    if (taken.has(linkKey(c))) continue;
+    const raw = String(c.stream?.name ?? '');
+    const ppv = PPV.test(`${c.cat} ${c.full}`);
+    if (!ppv && !fightChannel(c, raw)) continue;
+    const ev = ppvEvent(raw, now);
     if (!ev) continue;
+    if (!ppv && ev.start == null && !VERSUS.test(ev.title) && !NUMBERED_LABEL.test(raw)) continue;
     // A name with no time ("PPV1 02: UFC 310 Pantoja vs Asakura") is the
     // event on that channel now: listed as on now.
     const start = ev.start ?? now;

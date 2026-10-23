@@ -7,6 +7,7 @@
     "loading": "Cargando los partidos de hoy…",
     "loadError": "No se pudieron cargar los partidos. Revisa tu conexión a internet e inténtalo de nuevo en un minuto.",
     "empty": "No hay partidos importantes ahora — vuelve más tarde.",
+    "ppvEmpty": "Hoy no hay eventos PPV en tus canales — vuelve más tarde.",
     "liveDot": "● EN VIVO {{detail}}",
     "liveDetail": "EN VIVO {{detail}}",
     "findingChannels": "Buscando tus canales…",
