@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  LAYOUT_ORDER, LAYOUT_TILE_COUNT, MAIN_TILE, SMALL_MIN_SHARE,
-  layoutNeighbor, okSwapsIntoMain, soundTile, threeArrangement, threeHintPlace, threeScreenPx, tilesForLayout,
+  LAYOUT_ORDER, LAYOUT_TILE_COUNT, MAIN_TILE, MAX_TILES, SMALL_MIN_SHARE,
+  fiveScreenPx, hasBigScreen, layoutNeighbor, okSwapsIntoMain, smallArrangement, soundTile, swapHintPlace,
+  threeArrangement, threeHintPlace, threeScreenPx, tilesForLayout,
   type Layout,
 } from './multiScreenLayout';
 
@@ -45,8 +46,9 @@ const fits = (box: { width: number; height: number }, rects: R[]) => {
 };
 
 describe('Multi-Screen layouts', () => {
-  it('offers 2 side by side, 2 stacked, 3 (one big, two small) and 4', () => {
-    expect(LAYOUT_ORDER).toEqual(['2h', '2v', '3', '4']);
+  it('offers 2 side by side, 2 stacked, 3 (one big, two small), 4 and 5 (one big, four small)', () => {
+    expect(LAYOUT_ORDER).toEqual(['2h', '2v', '3', '4', '5']);
+    expect(MAX_TILES).toBe(Math.max(...LAYOUT_ORDER.map((l) => LAYOUT_TILE_COUNT[l])));
     for (const l of LAYOUT_ORDER) {
       expect(tilesForLayout(l)).toHaveLength(LAYOUT_TILE_COUNT[l]);
       expect(tilesForLayout(l, { width: 960, height: 540 })).toHaveLength(LAYOUT_TILE_COUNT[l]);
@@ -191,5 +193,138 @@ describe('3 screens: the swap hint', () => {
 
   it('none where there is no room for it', () => {
     expect(threeHintPlace({ width: 700, height: 700 })).toBeNull();
+  });
+});
+
+// 5 screens (owner, 2026-10-23: "i see there's space for like 2 more options
+// down there on the bottom"): the 3-screen layout's big screen, and four
+// small screens along the bottom where 3 has two.
+describe('5 screens: one big screen, four small ones', () => {
+  it('is the 3-screen layout\'s big screen with four small screens along the bottom, where 3 has two', () => {
+    const tv = { width: 960, height: 540 };
+    const round = (r: R) => [r.x, r.y, r.w, r.h].map(Math.round);
+    expect(px('5', tv).map(round)).toEqual([
+      [120, 0, 720, 405],
+      [0, 405, 240, 135], [240, 405, 240, 135], [480, 405, 240, 135], [720, 405, 240, 135],
+    ]);
+    // The same big screen as 3, and 3's two small ones are the middle two of the four.
+    expect(round(px('5', tv)[0])).toEqual(round(px('3', tv)[0]));
+    expect(px('5', tv).slice(2, 4).map(round)).toEqual(px('3', tv).slice(1).map(round));
+    expect(smallArrangement('5', tv)).toBe('below');
+    expect(new Set(tilesForLayout('5').map((t) => t.id))).toEqual(new Set(['ms1', 'ms2', 'ms3', 'ms4', 'ms5']));
+  });
+
+  it('a 1080p TV, whole screen: 1440x810 with four 480x270 under it, edge to edge', () => {
+    const [big, ...small] = px('5', { width: 1920, height: 1080 });
+    expect([big.x, big.y, big.w, big.h].map(Math.round)).toEqual([240, 0, 1440, 810]);
+    expect(small.map((r) => [r.x, r.y, r.w, r.h].map(Math.round))).toEqual([
+      [0, 810, 480, 270], [480, 810, 480, 270], [960, 810, 480, 270], [1440, 810, 480, 270],
+    ]);
+  });
+
+  for (const [name, box] of Object.entries(BOXES)) {
+    it(`${name}: inside, no overlap, 16:9; the small screens equal and in a row (or a column beside it)`, () => {
+      const five = px('5', box);
+      expect(five).toHaveLength(5);
+      fits(box, five);
+      const [big, ...small] = five;
+      for (const r of small) {
+        expect(Math.abs(r.w - small[0].w)).toBeLessThanOrEqual(1);
+        expect(r.w).toBeLessThan(big.w);
+      }
+      if (smallArrangement('5', box) === 'below') {
+        // Under the big screen, side by side, each a quarter of the width.
+        for (const r of small) expect(r.y).toBeCloseTo(big.y + big.h, 0);
+        for (let i = 1; i < 4; i++) expect(small[i].x).toBeCloseTo(small[i - 1].x + small[i - 1].w, 0);
+        expect(small[0].w).toBeGreaterThanOrEqual(SMALL_MIN_SHARE * box.width - 1);
+        // As large a big screen as 3 screens has.
+        expect(big.w).toBeCloseTo(px('3', box)[0].w, 0);
+      } else {
+        // A column on its right.
+        for (const r of small) expect(r.x).toBeCloseTo(big.x + big.w, 0);
+        for (let i = 1; i < 4; i++) expect(small[i].y).toBeCloseTo(small[i - 1].y + small[i - 1].h, 0);
+      }
+    });
+  }
+
+  it('the small ones in a column beside the big one where that makes it clearly bigger (a phone sideways); under it on a TV', () => {
+    for (const [W, H] of [[960, 540], [912, 483], [784, 483], [1920, 1080], [1104, 743], [940, 690]]) {
+      expect(fiveScreenPx(W, H).arrangement).toBe('below');
+    }
+    const phone = fiveScreenPx(752, 337);
+    expect(phone.arrangement).toBe('right');
+    const [big, ...small] = phone.rects;
+    expect(small).toHaveLength(4);
+    // Clearly bigger than the big screen with the four under it would be (411 px wide).
+    expect(big.w).toBeGreaterThan(411 * 1.15);
+    expect(small[3].y + small[3].h).toBeLessThanOrEqual(337 + 0.01);
+    expect(smallArrangement('5', { width: 752, height: 337 })).toBe('right');
+    expect(smallArrangement('5', undefined)).toBe('below');
+    expect(smallArrangement('4', { width: 752, height: 337 })).toBe('below');
+  });
+
+  it('without a size yet: laid out as on a 16:9 grid', () => {
+    expect(tilesForLayout('5')).toEqual(tilesForLayout('5', { width: 1600, height: 900 }));
+    expect(tilesForLayout('5', { width: 0, height: 0 })).toEqual(tilesForLayout('5'));
+  });
+
+  it('neighbours meet exactly along the bottom row', () => {
+    const t = tilesForLayout('5', { width: 912, height: 483 });
+    for (let i = 1; i < 4; i++) expect(pct(t[i].rect.left) + pct(t[i].rect.width)).toBeCloseTo(pct(t[i + 1].rect.left), 6);
+  });
+
+  it('the remote: ▼ from the big one to the first small one, ◀ ▶ along the row, ▲ back up; nothing past the ends', () => {
+    expect(layoutNeighbor('5', MAIN_TILE, 'down')).toBe(1);
+    expect(layoutNeighbor('5', MAIN_TILE, 'left')).toBeNull();
+    expect(layoutNeighbor('5', MAIN_TILE, 'right')).toBeNull();
+    expect(layoutNeighbor('5', MAIN_TILE, 'up')).toBeNull();
+    for (let i = 1; i <= 4; i++) {
+      expect(layoutNeighbor('5', i, 'up')).toBe(MAIN_TILE);
+      expect(layoutNeighbor('5', i, 'down')).toBeNull();
+      expect(layoutNeighbor('5', i, 'right')).toBe(i < 4 ? i + 1 : null);
+      expect(layoutNeighbor('5', i, 'left')).toBe(i > 1 ? i - 1 : null);
+    }
+  });
+
+  it('the remote with the small ones in a column on the right: ▶ to the top one, ▲ ▼ along it, ◀ back', () => {
+    expect(layoutNeighbor('5', MAIN_TILE, 'right', 'right')).toBe(1);
+    expect(layoutNeighbor('5', MAIN_TILE, 'down', 'right')).toBeNull();
+    for (let i = 1; i <= 4; i++) {
+      expect(layoutNeighbor('5', i, 'left', 'right')).toBe(MAIN_TILE);
+      expect(layoutNeighbor('5', i, 'right', 'right')).toBeNull();
+      expect(layoutNeighbor('5', i, 'down', 'right')).toBe(i < 4 ? i + 1 : null);
+      expect(layoutNeighbor('5', i, 'up', 'right')).toBe(i > 1 ? i - 1 : null);
+    }
+  });
+
+  it('the big screen keeps the sound; OK on any small one swaps it in, as in 3 screens', () => {
+    expect(hasBigScreen('5')).toBe(true);
+    expect(hasBigScreen('4')).toBe(false);
+    for (let i = 0; i < 5; i++) expect(soundTile('5', i)).toBe(MAIN_TILE);
+    expect(okSwapsIntoMain('5', MAIN_TILE)).toBe(false);
+    for (let i = 1; i <= 4; i++) expect(okSwapsIntoMain('5', i)).toBe(true);
+  });
+
+  it('the swap hint: in the free band left of the big screen, over no screen; none where there is no room', () => {
+    for (const box of [{ width: 960, height: 540 }, { width: 912, height: 483 }, { width: 1920, height: 1080 }]) {
+      const place = swapHintPlace('5', box);
+      expect(place).not.toBeNull();
+      const hint = toPx(box, place!);
+      for (const r of px('5', box)) expect(overlap(hint, r)).toBe(false);
+      expect(hint.w).toBeGreaterThanOrEqual(96);
+    }
+    const hint = toPx({ width: 960, height: 540 }, swapHintPlace('5', { width: 960, height: 540 })!);
+    expect([hint.x, hint.y, hint.w, hint.h].map(Math.round)).toEqual([0, 0, 120, 405]);
+    expect(swapHintPlace('5', { width: 752, height: 337 })).toBeNull();
+    // 3 screens keeps its own corner; the even layouts have none.
+    expect(swapHintPlace('3', { width: 960, height: 540 })).toEqual(threeHintPlace({ width: 960, height: 540 }));
+    expect(swapHintPlace('4', { width: 960, height: 540 })).toBeNull();
+  });
+
+  it('3 screens is unchanged by the 5-screen work', () => {
+    const tv = { width: 960, height: 540 };
+    expect(threeScreenPx(960, 540).rects).toHaveLength(3);
+    expect(threeArrangement(tv)).toBe(smallArrangement('3', tv));
+    expect(smallArrangement('3', { width: 752, height: 337 })).toBe('right');
   });
 });

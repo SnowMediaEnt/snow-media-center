@@ -41,6 +41,9 @@ interface Props {
    * returns here. Absent: not offered.
    */
   devicesLine?: { host: string; username: string } | null;
+  /** Open on Devices on this line (Multi-Screen's "Message the other TVs on
+   *  this line"); Back from it returns to this page, on its button. */
+  initialDevicesOpen?: boolean;
 }
 
 const fmtDate = (ms: number | null) => (ms ? formatDateTime(ms) : '—');
@@ -65,12 +68,13 @@ type ActionId = 'back' | 'showPwd' | 'change' | 'renew' | 'plans' | 'devices' | 
  */
 const AccountInfoScreen = memo(({
   onBack, onSignOut, onChangeCredentials, embedded = false, active = true, onOpenBilling, initialFocus, devicesLine = null,
+  initialDevicesOpen = false,
 }: Props) => {
   const { t } = useTranslation();
   const { account, state, days } = usePlayerAccount();
   const [showPwd, setShowPwd] = useState(false);
   const [showQR, setShowQR] = useState(false);
-  const [devicesOpen, setDevicesOpen] = useState(false);
+  const [devicesOpen, setDevicesOpen] = useState(() => initialDevicesOpen && !!devicesLine);
   const [confirmOut, setConfirmOut] = useState(false);
   /** Renew is finding out where it goes (the billing account's services). */
   const [renewBusy, setRenewBusy] = useState(false);
@@ -87,7 +91,7 @@ const AccountInfoScreen = memo(({
     ...(devicesLine ? ['devices' as const] : []),
     'signout',
   ], [embedded, showRenew, onOpenBilling, devicesLine]);
-  const [focus, setFocusRaw] = useState<ActionId>(initialFocus ?? 'showPwd');
+  const [focus, setFocusRaw] = useState<ActionId>(initialFocus ?? (initialDevicesOpen && devicesLine ? 'devices' : 'showPwd'));
   // Any move takes back Sign out's question.
   const setFocus = useCallback((id: ActionId) => { setFocusRaw(id); setConfirmOut(false); }, []);
   // A button that went away hands the highlight to the first one.

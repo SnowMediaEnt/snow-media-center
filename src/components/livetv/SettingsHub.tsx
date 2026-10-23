@@ -33,8 +33,9 @@ const BillingAccountScreen = lazy(() => import('@/components/billing/BillingAcco
 
 interface Props {
   onBack: () => void;
-  /** Open on a page instead of the menu (the assistant's "open Appearance"); 'billing' opens My Account's plans and renewals. */
-  initialView?: View;
+  /** Open on a page instead of the menu (the assistant's "open Appearance"); 'billing' opens My Account's plans and renewals;
+   *  'devices' opens My Account on Devices on this line (Multi-Screen's "Message the other TVs on this line"). */
+  initialView?: View | 'devices';
   onSignOut: () => void;
   onChangeCredentials: () => void;
   onSwitchAccount: (c: XtreamCreds) => void;
@@ -106,10 +107,14 @@ const SettingsHub = memo(({
   const billingOn = useBillingEnabled();
 
   // Opened on a page (the assistant's "open Appearance"): that page, with the remote in it.
-  const startEmbedded = !!initialView && initialView !== 'menu' && initialView !== 'billing';
-  const [view, setView] = useState<View>(initialView === 'billing' ? 'billing' : 'menu');
+  // Devices on this line is a level inside My Account: My Account, opened on it.
+  const openOn = initialView === 'devices' ? 'account' : initialView;
+  const startEmbedded = !!openOn && openOn !== 'menu' && openOn !== 'billing';
+  const [view, setView] = useState<View>(openOn === 'billing' ? 'billing' : 'menu');
   const [pane, setPane] = useState<'menu' | 'page'>(startEmbedded ? 'page' : 'menu');
-  const startIdx = startEmbedded ? Math.max(1, MENU.findIndex((m) => m.id === initialView) + 1) : 1;
+  const startIdx = startEmbedded ? Math.max(1, MENU.findIndex((m) => m.id === openOn) + 1) : 1;
+  // Only the first time My Account shows: back on the menu, it opens as usual again.
+  const [devicesFirst, setDevicesFirst] = useState(initialView === 'devices');
   const [menuIdx, setMenuIdx] = useState(startIdx); // 0 = Back; start on the first row
   const menuIdxRef = useRef(menuIdx);
   useEffect(() => { menuIdxRef.current = menuIdx; }, [menuIdx]);
@@ -117,6 +122,7 @@ const SettingsHub = memo(({
   const [shown, setShown] = useState<MenuId>(() => MENU[startIdx - 1]?.id ?? 'account');
   // Each row's state line; read again when the remote comes back to the menu.
   const states = useHubStates(`${view}:${pane}`);
+  useEffect(() => { if (devicesFirst && (pane === 'menu' || shown !== 'account')) setDevicesFirst(false); }, [devicesFirst, pane, shown]);
 
   // The page follows the highlight once it rests (Back keeps the last page).
   useEffect(() => {
@@ -243,7 +249,7 @@ const SettingsHub = memo(({
     if (DEMO && !DEMO_OK.has(shown)) return <PageHint text={t('liveAccount.hub.demoDesc')} />;
     switch (shown) {
       // Devices on this line asks the server for the line's devices: only once opened from the page.
-      case 'account': return <AccountInfoScreen {...common} onChangeCredentials={onChangeCredentials} onSignOut={onSignOut} onOpenBilling={billingOn ? openBilling : undefined} initialFocus={billingFrom} devicesLine={line} />;
+      case 'account': return <AccountInfoScreen {...common} onChangeCredentials={onChangeCredentials} onSignOut={onSignOut} onOpenBilling={billingOn ? openBilling : undefined} initialFocus={billingFrom} devicesLine={line} initialDevicesOpen={devicesFirst} />;
       // Reads only what is on the box (a line too long unchecked is checked with its panel).
       case 'services': return <ServicesScreen active={inPage} onBack={toMenu} onPicked={onSwitchAccount} onAddAccount={onAddLine ?? onChangeCredentials} />;
       // Hide categories reads every line's categories from its server: only once opened from the page.

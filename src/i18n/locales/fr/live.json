@@ -270,7 +270,7 @@
     },
     "multi": {
       "needsAppTitle": "Multi-écran nécessite l'appli Fire TV / Android",
-      "needsAppBody": "Multi-écran lance quatre lecteurs vidéo natifs en même temps, ce que l'aperçu web ne peut pas faire. Ouvrez l'appli installée sur votre Fire TV ou votre appareil Android.",
+      "needsAppBody": "Multi-écran lance jusqu'à cinq lecteurs vidéo natifs en même temps, ce que l'aperçu web ne peut pas faire. Ouvrez l'appli installée sur votre Fire TV ou votre appareil Android.",
       "pickLayout": "Choisissez une disposition Multi-écran",
       "screens2": "2 écrans",
       "screens4": "4 écrans",
@@ -293,7 +293,25 @@
       "bufferingHint": "Ça coupe ? Votre forfait n'a peut-être pas assez de connexions (4 écrans en demandent 4) ou votre appareil n'est pas assez puissant — essayez avec moins d'écrans.",
       "screens3": "3 écrans",
       "bigPlusTwo": "1 grand + 2 petits",
-      "swapHint": "OK sur un petit écran : le voir en grand. Maintenez OK : options."
+      "swapHint": "OK sur un petit écran : le voir en grand. Maintenez OK : options.",
+      "screens5": "5 écrans",
+      "bigPlusFour": "1 grand + 4 petits",
+      "bufferingHint5": "Ça coupe ? Votre forfait n'a peut-être pas assez de connexions (5 écrans en demandent 5) ou votre appareil n'est pas assez puissant — essayez avec moins d'écrans.",
+      "weakBoxNote": "Cinq à la fois, c'est beaucoup pour cet appareil — ça risque de couper.",
+      "lineFull": "Ligne pleine",
+      "lineOver": "Au-delà de la limite de la ligne",
+      "lineFullMark": "P",
+      "lineOverMark": "D",
+      "conn": {
+        "overTitle": "Au-delà de la limite de cette ligne",
+        "overBody": "Avec cet écran, la ligne aurait {{total}} flux en même temps, et elle en autorise {{max}}. Les écrans de cette ligne risquent de couper.",
+        "othersNote": "D'autres TV de la ligne en utilisent {{others}}.",
+        "deviceTitle": "Beaucoup pour cet appareil",
+        "deviceBody": "Cinq écrans à la fois, c'est peut-être plus que cet appareil ne peut lire sans à-coups : ils risquent de couper ou de rester noirs.",
+        "addAnywayBtn": "Ajouter quand même",
+        "dontAddBtn": "Ne pas ajouter",
+        "messageBtn": "Écrire aux autres TV de cette ligne"
+      }
     },
     "errors": {
       "invalidLogin": "Nom d'utilisateur ou mot de passe incorrect.",

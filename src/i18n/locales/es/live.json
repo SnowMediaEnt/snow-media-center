@@ -270,7 +270,7 @@
     },
     "multi": {
       "needsAppTitle": "Multipantalla requiere la app de Fire TV / Android",
-      "needsAppBody": "Multipantalla ejecuta cuatro reproductores de video nativos a la vez, algo que la vista previa web no puede hacer. Abre la app instalada en tu Fire TV o dispositivo Android.",
+      "needsAppBody": "Multipantalla ejecuta hasta cinco reproductores de video nativos a la vez, algo que la vista previa web no puede hacer. Abre la app instalada en tu Fire TV o dispositivo Android.",
       "pickLayout": "Elige un diseño de Multipantalla",
       "screens2": "2 pantallas",
       "screens4": "4 pantallas",
@@ -293,7 +293,25 @@
       "bufferingHint": "¿Se corta? Es posible que tu plan no tenga suficientes conexiones (4 pantallas necesitan 4) o que tu dispositivo no sea lo bastante potente: prueba con menos pantallas.",
       "screens3": "3 pantallas",
       "bigPlusTwo": "1 grande + 2 pequeñas",
-      "swapHint": "OK en una pantalla pequeña: verla en grande. Mantén OK: opciones."
+      "swapHint": "OK en una pantalla pequeña: verla en grande. Mantén OK: opciones.",
+      "screens5": "5 pantallas",
+      "bigPlusFour": "1 grande + 4 pequeñas",
+      "bufferingHint5": "¿Se corta? Es posible que tu plan no tenga suficientes conexiones (5 pantallas necesitan 5) o que tu dispositivo no sea lo bastante potente: prueba con menos pantallas.",
+      "weakBoxNote": "Cinco a la vez es mucho para este dispositivo: las pantallas podrían cortarse.",
+      "lineFull": "Línea llena",
+      "lineOver": "Por encima del límite de la línea",
+      "lineFullMark": "L",
+      "lineOverMark": "E",
+      "conn": {
+        "overTitle": "Por encima del límite de esta línea",
+        "overBody": "Con esta pantalla, la línea tendría {{total}} transmisiones a la vez y permite {{max}}. Es probable que las pantallas de esta línea se corten.",
+        "othersNote": "Otros televisores de la línea están usando {{others}}.",
+        "deviceTitle": "Mucho para este dispositivo",
+        "deviceBody": "Cinco pantallas a la vez pueden ser más de lo que este dispositivo reproduce con fluidez: podrían cortarse o quedarse en negro.",
+        "addAnywayBtn": "Agregar igual",
+        "dontAddBtn": "No agregar",
+        "messageBtn": "Avisar a los otros TV de esta línea"
+      }
     },
     "errors": {
       "invalidLogin": "Usuario o contraseña incorrectos.",

@@ -170,6 +170,19 @@ describe('Live TV Settings: menu on the left, the page on the right', () => {
     expect(focusedRow(container)).toBe('appearance');
   });
 
+  it('opened on "devices" (Multi-Screen\'s "Message the other TVs on this line"): My Account with the remote in it, on its devices; only the first time', async () => {
+    const line = { host: 'http://dstreams.xyz:8080', username: 'jsmith' };
+    const { container } = renderHub({ initialView: 'devices', line });
+    await settle();
+    expect(shownPage(container).getAttribute('data-settings-page')).toBe('account');
+    expect(pageProps.account).toMatchObject({ embedded: true, active: true, initialDevicesOpen: true, devicesLine: line });
+    // Back on the menu: My Account opens as usual from then on.
+    act(() => { pageProps.account.onBack!(); });
+    await settle();
+    expect(focusedRow(container)).toBe('account');
+    expect(pageProps.account.initialDevicesOpen).toBe(false);
+  });
+
   it('a tap on a row with no page beside the menu (Sign out) while the remote is in a page hands the remote back to the menu', async () => {
     const { container, props } = renderHub();
     await settle();
