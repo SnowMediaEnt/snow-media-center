@@ -47,7 +47,7 @@ import {
   availableSorts, findFilter, type LibraryFilterState, fallbackFilterKey,
 } from '@/lib/plexLibraryFilters';
 import {
-  libraryRowSpecs, tileCaption, resumeFraction,
+  libraryRowSpecs, tileCaption, resumeFraction, isWideRail, RAIL_ROW_H, WIDE_ROW_H,
   type LibraryRowSpec, type PlexSectionType,
 } from '@/lib/plexLibraryRows';
 
@@ -186,7 +186,8 @@ const PlexLibraryRows = memo(({
   const [gridCursor, setGridCursor] = useState(0);
 
   const filtering = hasAnyFilter(filters);
-  const GRID_COLS = 7;
+  // Six across, as the Apple TV app's library grid.
+  const GRID_COLS = 6;
   const PAGE = 120;
 
   // The section's own sort/filter vocabulary, fetched LAZILY the first time the
@@ -775,7 +776,9 @@ const PlexLibraryRows = memo(({
   return (
     <div ref={rootRef}>
       {/* CHIP BAR. gap-2 deliberately — it is in the html.no-flex-gap
-          emulation allowlist; gap-5/6/8 are not and collapse on Chromium 66. */}
+          emulation allowlist; gap-5/6/8 are not and collapse on Chromium 66.
+          The chips are the Apple TV app's menu buttons (plex.css .plex-chip):
+          a white face under the highlight, gold once they hold a choice. */}
       <div className="plex-bar flex flex-wrap items-center gap-2">
         {chips.map((chip, i) => {
           const focused = isActive && barHasFocus && i === chipIdx && !menu;
@@ -786,14 +789,8 @@ const PlexLibraryRows = memo(({
               ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }}
               onClick={() => { setZone('bar'); setChipId(chip.id); activateChip(chip.id); }}
               data-focused={focused ? 'true' : 'false'}
-              className={`tv-ring cursor-pointer rounded-full px-4 py-2 text-sm font-nunito font-semibold border ${
-                focused
-                  ? 'bg-brand-gold/25 text-white border-brand-gold scale-[1.04] z-10'
-                  : open
-                    ? 'bg-black/60 text-brand-gold border-brand-gold'
-                    : chip.set
-                      ? 'bg-white/10 text-brand-gold border-white/20'
-                      : 'bg-white/5 text-brand-ice/80 border-white/10'
+              className={`plex-chip tv-ring cursor-pointer font-nunito${
+                focused ? ' z-10' : open ? ' plex-chip--open' : chip.set ? ' plex-chip--set' : ''
               }`}
             >
               {chip.label}
@@ -868,7 +865,7 @@ const PlexLibraryRows = memo(({
               {t('plex.library.noMatch')}
             </div>
           ) : (
-            <div className="grid grid-cols-7 gap-x-3 gap-y-5">
+            <div className="grid grid-cols-6 gap-x-3 gap-y-5">
               {(results?.items ?? []).map((it, i) => (
                 <PlexPosterTile
                   // Index-suffixed: a server sort with ties is not stable
@@ -905,7 +902,7 @@ const PlexLibraryRows = memo(({
           return (
             <div key={r.spec.id} data-plex-row={r.spec.id} className="plex-rail">
               <div className="plex-rail-head font-quicksand">{t(r.spec.titleKey)}</div>
-              <div className="h-[212px]" aria-hidden="true" />
+              <div className="plex-rail-row" style={{ height: isWideRail(r.spec.id) ? WIDE_ROW_H : RAIL_ROW_H }} aria-hidden="true" />
             </div>
           );
         }
@@ -913,7 +910,7 @@ const PlexLibraryRows = memo(({
         return (
           <div key={r.spec.id} data-plex-row={r.spec.id} className="plex-rail">
             <div className="plex-rail-head font-quicksand">{t(r.spec.titleKey)}</div>
-            <div className="flex gap-3 overflow-x-auto py-2 px-2 -mx-2">
+            <div className="plex-rail-row flex gap-3 overflow-x-auto">
               {r.items.slice(0, railCount(ri)).map((it, ci) => (
                 <PlexPosterTile
                   key={it.ratingKey}
@@ -924,6 +921,7 @@ const PlexLibraryRows = memo(({
                   onSelect={railSelect(r.spec.id)}
                   eager={focused && ci > col && ci <= col + 3}
                   watched={plexItemWatched(it)}
+                  wide={isWideRail(r.spec.id)}
                 />
               ))}
             </div>

@@ -1,6 +1,26 @@
 /* ============================================================
    PLEX DESIGN SCALE — the one place the Plex browser's spacing, curves,
-   type and depth are defined. Tailwind aliases in tailwind.config.ts
+   type and depth are defined.
+
+   THE LOOK is the Apple TV app's Plex (Snow TV, tvOS PlexSection /
+   PlexLibrary / PlexExtras), which the owner asked for (2026-10-23). tvOS
+   draws a 1920×1080-point screen; this page is a 960×540 CSS one on the same
+   TVs, so its sizes are the tvOS points halved:
+     - Home: the highlighted title's art across the top 60 % of the screen,
+       fading to black downwards and from the left, its name (24, extra
+       bold), a facts line and three lines of summary over it (PlexHero);
+       Discover, the season and the libraries put their own name there.
+     - Rails: a white Montserrat heading (14 bold), 2:3 posters 110 × 165
+       with 8 px corners, 12 apart; Continue Watching is a row of wide 16:9
+       stills (200 × 112). Under each, the title (Montserrat 600) and a
+       quieter second line.
+     - Focus: the poster lifts 6 %, takes a 3 px gold ring and a soft gold
+       glow, a gold play disc sits in its middle, and its title turns gold.
+     - Title page: the poster on the left, a big extra-bold title, facts,
+       a gold ratings line, the summary, then gold (play) and white pill
+       buttons, as the tvOS DetailFrame does.
+     - Menu: Montserrat labels; the highlight a gold-tinted fill with the
+       gold ring, the open page a faint gold fill and a gold icon. Tailwind aliases in tailwind.config.ts
    (rounded-plex-*, text-plex-*) point at these variables; nothing else
    should hard-code a Plex radius or size.
 
@@ -68,6 +88,9 @@
   --plex-fs-section: 1.25rem;  /* 20   */
   --plex-fs-title: 1.5625rem;  /* 25   */
 
+  /* A poster's corner (tvOS: 14 pt at 1080p). */
+  --plex-r-art: 8px;
+
   /* Artwork resting tone: what a poster box shows before its image lands. */
   --plex-art-tone: #13203a;
   --plex-art-tone-hi: #1c2e4d;
@@ -80,13 +103,13 @@
 .plex-art {
   position: relative;
   overflow: hidden;
-  border-radius: var(--plex-r-md);
+  border-radius: var(--plex-r-art);
   /* A flat fill: it sits under a loaded poster, where a gradient would be
      shaded for nothing. The loading placeholder (.plex-ph) carries the
      gradient. */
   background-color: var(--plex-art-tone);
   /* Small, static contact shadow. Never transitioned. */
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
 }
 .plex-art--sm,
 .plex-art--sm .plex-sheen { border-radius: var(--plex-r-sm); }
@@ -113,7 +136,7 @@
      scroll at 4× CPU throttle went from ≈320 ms to ≈680 ms (the span then
      restyles with its parent, and the parent restyles on every frame of the
      focus scale transition). */
-  border-radius: var(--plex-r-md);
+  border-radius: var(--plex-r-art);
   pointer-events: none;
   /* A hairline all round, a touch brighter along the top edge — light from
      above. Zero-blur inset shadows. */
@@ -137,18 +160,21 @@
 .plex-art.tv-ring[data-focused="true"] {
   -webkit-transform: scale(1.06);
   transform: scale(1.06);
-  /* No outward glow: the rail scroller clips 8 px above the poster and a
-     glow was cut off there in a hard line. The lift shadow is pulled in
-     (negative spread) so it pools under the poster's foot and fades out
-     inside the caption gap instead of dimming the caption. */
+  /* The gold glow is the Apple TV app's. A rail row now has 16 px of room
+     above and below its posters (.plex-rail-row) so the glow fades out
+     before the row's edge instead of being cut there in a hard line. The
+     lift shadow is pulled in (negative spread) so it pools under the
+     poster's foot. Low-memory boxes drop all of it (index.css) and keep the
+     gold border. */
   box-shadow:
     0 0 0 3px hsl(var(--brand-gold)),
+    0 0 10px 1px hsl(var(--brand-gold) / 0.45),
     0 8px 16px -8px rgba(0, 0, 0, 0.85);
 }
 /* The lift is a constant few pixels, not a constant ratio: a grid or Search
    tile is two to three times a rail tile's height, so it scales less (and
    its caption sits 12 px down, not 8) — its ring still clears the caption.
-   Rail tile: 156 px × 3 % = 4.7 px + 3 px ring < 8 px gap.
+   Rail tile: 165 px × 3 % = 5 px + 3 px ring < 8 px gap.
    Grid tile at 1080p (≈ 360–430 px): × 2 % = 7–8.6 px + 3 px < 12 px gap.
    (Moving the caption with the lift instead — a transform or position
    toggled on the focused caption — was measured: gaining and dropping that
@@ -188,16 +214,16 @@
   letter-spacing: 0.02em;
 }
 /* Watched check (PlexWatchedBadge): a gold disc with a navy check, in the
-   chip's corner, 8 px in. 24 px reads from the sofa on a 104 px rail poster
-   (a quarter of its width) and is a fingertip on a phone; the title page's
-   176 px poster takes 28. The resolution chip steps down under it: 8 + 24 +
-   4. One static shadow, never transitioned, gone on a low-memory box. */
+   chip's corner, 8 px in. 22 px (the Apple TV app's 34 pt, a little more)
+   reads from the sofa on a 110 px rail poster and is a fingertip on a phone;
+   the title page's poster takes 28. The resolution chip steps down under it:
+   8 + 22 + 4. One static shadow, never transitioned, gone on a low-memory box. */
 .plex-watched {
   position: absolute;
   top: var(--plex-s-2);
   right: var(--plex-s-2);
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-radius: 9999px;
   background-color: hsl(var(--brand-gold));
   color: hsl(var(--brand-navy));
@@ -208,8 +234,8 @@
   pointer-events: none;
 }
 .plex-watched > svg {
-  width: 15px;
-  height: 15px;
+  width: 13px;
+  height: 13px;
 }
 .plex-watched--lg {
   width: 28px;
@@ -219,7 +245,7 @@
   width: 18px;
   height: 18px;
 }
-.plex-badge--under { top: 36px; }
+.plex-badge--under { top: 34px; }
 /* Recommenders (Discover's "Recommended by viewers"): the resolution chip's
    look in the opposite corner, top-left, so it never meets the watched check
    or the chip (top-right) or the resume bar (bottom). The icon's margin, not
@@ -254,8 +280,9 @@
   height: 4px;
   border-radius: 9999px;
   overflow: hidden;
-  background-color: rgba(0, 0, 0, 0.6);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+  /* The Apple TV app's track: a faint white line, gold where it has got to. */
+  background-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
 }
 .plex-progress > div {
   height: 100%;
@@ -263,20 +290,50 @@
   background-color: hsl(var(--brand-gold));
 }
 
-/* Caption under a poster: title, then a quieter second line. */
+/* Caption under a poster: title (Montserrat 600 in the markup), then a
+   quieter second line. Fixed line heights: the rail rows' height is worked
+   out from them (PlexPosterTile RAIL_ROW_H). */
 .plex-cap {
   margin-top: var(--plex-s-2);
   padding: 0 2px;
-  font-size: var(--plex-fs-cap);
-  line-height: 1rem;
+  font-size: 11.5px;
+  line-height: 14px;
 }
 
 .plex-sub {
   padding: 0 2px;
-  font-size: var(--plex-fs-cap);
-  line-height: 1rem;
+  font-size: 10.5px;
+  line-height: 13px;
 }
 .plex-tile--fill .plex-cap { margin-top: var(--plex-s-3); }
+
+/* Rail tiles: a 2:3 poster, or a 16:9 still for Continue Watching. */
+.plex-tile--rail { width: 110px; flex-shrink: 0; }
+.plex-tile--wide { width: 200px; flex-shrink: 0; }
+
+/* The play disc on the focused poster (tvOS PlexTile): gold, a navy
+   triangle, in the middle of the art. One element, on one tile, drawn only
+   while it is focused. Placed inline (position) in the markup. */
+.plex-play {
+  top: 50%;
+  left: 50%;
+  width: 36px;
+  height: 36px;
+  margin: -18px 0 0 -18px;
+  border-radius: 9999px;
+  background-color: hsl(var(--brand-gold));
+  color: hsl(var(--brand-navy));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+.plex-play > svg {
+  width: 15px;
+  height: 15px;
+  margin-left: 2px;
+}
 
 /* Loading / missing art: the resting tone, not flat grey. */
 .plex-ph {
@@ -294,11 +351,20 @@
 .plex-rail { margin-bottom: var(--plex-rail-gap); }
 .plex-rail-head {
   margin-bottom: var(--plex-head-gap);
-  font-size: var(--plex-fs-body);
-  line-height: 1.5rem;
-  font-weight: 600;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 700;
   letter-spacing: 0.005em;
-  color: rgba(255, 255, 255, 0.92);
+  color: #fff;
+}
+/* The rail's scrolling row: 16 px of room above and below the posters and
+   12 at the ends for the focused one's lift, ring and glow, taken back by
+   negative margins so the page's spacing is what it was (12 from heading to
+   posters, 20 rail to rail). A rail drawn as a blank (far from the
+   highlight) uses this class too, so it is exactly as tall. */
+.plex-rail-row {
+  padding: 16px 12px;
+  margin: -8px -12px;
 }
 /* The filter chip bar: 20 from the first rail heading, like rail to rail. */
 .plex-bar { margin-bottom: var(--plex-s-5); }
@@ -324,7 +390,9 @@
   background-image: none;
 }
 .native-low-memory .plex-progress,
-.native-low-memory .plex-watched { box-shadow: none; }
+.native-low-memory .plex-watched,
+.native-low-memory .plex-play,
+.native-low-memory .plex-pill { box-shadow: none; }
 
 /* ── Backdrop: the highlighted title's art behind the rails ──────────── */
 /* PlexBackdrop. Fixed behind the menu and the rails, in its own layer
@@ -334,7 +402,10 @@
    cross-fade on strong boxes); no filter, no blur. */
 .plex-backdrop {
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
+  /* The top 64 % of the Plex screen, as the Apple TV app draws it; the
+     rails below sit on the plain dark page. */
+  top: 0; left: 0; right: 0;
+  height: 64%;
   overflow: hidden;
   pointer-events: none;
   z-index: 0;
@@ -347,15 +418,154 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: 50% 20%;
+  object-position: 50% 25%;
 }
-/* Dark from the left (where the menu and the rails' headings are) and from
-   the foot, lighter top-right where the art is seen, as in the Plex app. The
-   posters and white headings stay readable over the brightest art. */
+/* tvOS: dark from the left (the hero's text and the menu are there) and
+   down to almost black at its foot, where the rails begin; the art shows
+   top-right. */
 .plex-backdrop-scrim {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
   background-image:
-    linear-gradient(to right, rgba(6, 10, 20, 0.92) 0%, rgba(6, 10, 20, 0.74) 38%, rgba(6, 10, 20, 0.5) 100%),
-    linear-gradient(to top, rgba(6, 10, 20, 0.9) 0%, rgba(6, 10, 20, 0.35) 55%, rgba(6, 10, 20, 0.2) 100%);
+    linear-gradient(to right, rgba(5, 8, 16, 0.9) 0%, rgba(5, 8, 16, 0.7) 32%, rgba(5, 8, 16, 0.18) 72%, rgba(5, 8, 16, 0.05) 100%),
+    linear-gradient(to bottom, rgba(5, 8, 16, 0.2) 0%, rgba(5, 8, 16, 0.45) 50%, rgba(5, 8, 16, 0.96) 100%);
+}
+
+/* ── The top of a rails page (PlexHero) ──────────────────────────────── */
+/* Home's hero: the highlighted title over its art. A fixed height, so a
+   shorter summary never moves the rails; the TV's overscan (3.5vh) above. */
+.plex-hero {
+  position: relative;
+  flex: 0 0 auto;
+  height: 122px;
+  padding: 3.5vh 24px 0;
+  overflow: hidden;
+}
+.plex-hero-title {
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 800;
+  color: #fff;
+}
+.plex-hero-meta {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  color: hsl(var(--brand-ice));
+}
+.plex-hero-sum {
+  margin-top: 4px;
+  max-width: 560px;
+  font-size: 11.5px;
+  line-height: 16px;
+  color: rgba(255, 255, 255, 0.8);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+/* Discover, the season, a library: the page's name, large. */
+.plex-page-title {
+  position: relative;
+  flex: 0 0 auto;
+  padding: 3.5vh 24px 4px;
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 800;
+  color: #fff;
+}
+/* A phone: the hero's room is the rails'. */
+html.is-upright .plex-hero { display: none; }
+html.is-sideways .plex-hero { height: 64px; padding-top: 8px; }
+html.is-sideways .plex-hero-sum { display: none; }
+html.is-upright .plex-page-title,
+html.is-sideways .plex-page-title { padding-top: 8px; font-size: 18px; line-height: 24px; }
+
+/* ── Side menu (tvOS PlayerShell rail) ───────────────────────────────── */
+.plex-menu-item {
+  height: 40px;
+  border-radius: var(--plex-r-sm);
+  font-size: 13px;
+  font-weight: 600;
+  color: hsl(var(--brand-ice) / 0.85);
+}
+.plex-menu-item--sel {
+  background-color: hsl(var(--brand-gold) / 0.1);
+  color: #fff;
+}
+.plex-menu-item[data-focused="true"] {
+  background-color: hsl(var(--brand-gold) / 0.25);
+  color: #fff;
+  -webkit-transform: scale(1.02);
+  transform: scale(1.02);
+}
+
+/* ── Pills and chips (title page buttons, library filters) ───────────── */
+/* tvOS PillButton: gold (Play, Resume, Browse) or white, 8 px corners,
+   lifted 5 % with a ring when focused (tv-ring: gold on white, white on
+   gold via tv-ring-contrast). */
+.plex-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: var(--plex-r-sm);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+.plex-pill--sm {
+  height: 32px;
+  padding: 0 14px;
+  font-size: 12.5px;
+}
+.plex-pill--gold {
+  background-image: linear-gradient(135deg, #e2c66c, #b8963f);
+  color: #fff;
+}
+.plex-pill--white {
+  background-image: linear-gradient(135deg, #fff, #f8f9fa);
+  color: #1f2937;
+}
+.plex-pill[data-focused="true"] {
+  -webkit-transform: scale(1.05);
+  transform: scale(1.05);
+}
+/* Filter and version chips: tvOS menu buttons. A white face when focused,
+   gold when it holds a choice. */
+.plex-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.85);
+}
+.plex-chip--set {
+  background-color: hsl(var(--brand-gold) / 0.85);
+  color: hsl(var(--brand-navy));
+}
+.plex-chip--open {
+  color: hsl(var(--brand-gold));
+  background-color: rgba(0, 0, 0, 0.6);
+}
+.plex-chip[data-focused="true"] {
+  background-color: #fff;
+  color: #0b1322;
+  -webkit-transform: scale(1.04);
+  transform: scale(1.04);
+}
+/* A tighter glow than tv-ring's 22 px: the library's chip bar sits 12 px
+   under the page title, where the scroller's top edge would cut a wide glow
+   in a hard line. */
+.plex-chip.tv-ring[data-focused="true"] {
+  box-shadow:
+    inset 0 0 0 3px hsl(var(--brand-gold)),
+    0 0 10px 1px hsl(var(--brand-gold) / 0.45);
 }

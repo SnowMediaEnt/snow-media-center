@@ -210,7 +210,7 @@ const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
                     <span className={`absolute top-2 right-2 px-2 py-0.5 rounded-plex-xs text-plex-micro font-nunito font-bold ${badge.cls}`}>{t(badge.labelKey)}</span>
                   )}
                 </div>
-                <div className={`plex-cap font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
+                <div className={`plex-cap font-montserrat font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white'}`}>{it.title}</div>
                 <div className="plex-sub font-nunito text-brand-ice/60">{it.year || ''} · {it.mediaType === 'tv' ? t('plex.request.typeShow') : t('plex.request.typeMovie')}</div>
               </div>
             );

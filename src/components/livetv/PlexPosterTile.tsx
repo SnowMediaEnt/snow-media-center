@@ -1,22 +1,29 @@
 // One poster in a Plex rail or grid: cover art, resolution chip, resume
 // progress, the watched check, and a one- or two-line caption UNDER the art
-// rather than over it.
+// rather than over it. Drawn as the Apple TV app draws its Plex tiles
+// (plex.css): a 2:3 poster, or for Continue Watching a wide 16:9 still;
+// focused, it lifts, rings in gold and shows a gold play disc.
 // Shared by the Home rails, the library rails and the filtered grid so the
 // three cannot drift apart again.
 // A finger held on it opens its menu (Recommend to others, plexRecommendHold);
 // on Discover's "Recommended by viewers" it shows how many viewers did.
 import { memo } from 'react';
-import { ThumbsUp } from 'lucide-react';
+import { Play, ThumbsUp } from 'lucide-react';
 import i18n from '@/i18n';
 import PlexImage from './PlexImage';
 import PlexWatchedBadge from './PlexWatchedBadge';
 import { tapIsHoldLift, tileHoldProps } from './plexRecommendHold';
 import { POSTER_TILE_H, POSTER_TILE_W, resolutionLabel, type PlexItem } from '@/lib/plex';
+import { tileCaption, resumeFraction } from '@/lib/plexLibraryRows';
+import { revealPlexTile } from '@/lib/plexReveal';
 
 const POSTER_GRID_W = 280;
 const POSTER_GRID_H = 420;
-import { tileCaption, resumeFraction } from '@/lib/plexLibraryRows';
-import { revealPlexTile } from '@/lib/plexReveal';
+// A wide still is drawn 200 × 112 (plex.css .plex-tile--wide); asked for at
+// twice that, a little less on a low-memory box.
+const LOW_MEMORY = typeof document !== 'undefined' && document.documentElement.classList.contains('native-low-memory');
+const WIDE_W = LOW_MEMORY ? 320 : 400;
+const WIDE_H = LOW_MEMORY ? 180 : 225;
 
 interface Props {
   item: PlexItem;
@@ -38,9 +45,11 @@ interface Props {
   /** This viewer watched it (plexProgress.plexItemWatched; a show: every
    *  episode). Worked out by the list, once for all its tiles. */
   watched?: boolean;
+  /** A wide 16:9 still (its art) instead of the poster: Continue Watching. */
+  wide?: boolean;
 }
 
-const PlexPosterTile = memo(({ item, base, token, focused, width = 'rail', onClick, onSelect, eager = false, scrollIntoView = true, watched = false }: Props) => {
+const PlexPosterTile = memo(({ item, base, token, focused, width = 'rail', onClick, onSelect, eager = false, scrollIntoView = true, watched = false, wide = false }: Props) => {
   const label = resolutionLabel(item.videoResolution);
   const cap = tileCaption(item);
   const progress = resumeFraction(item);
@@ -53,7 +62,7 @@ const PlexPosterTile = memo(({ item, base, token, focused, width = 'rail', onCli
       {...tileHoldProps(item)}
       // The lift of a finger whose hold just opened the menu is not a tap.
       onClick={() => { if (tapIsHoldLift()) return; if (onSelect) onSelect(item); else onClick?.(); }}
-      className={`plex-tile cursor-pointer ${width === 'rail' ? 'flex-shrink-0 w-[104px]' : 'plex-tile--fill w-full'}`}
+      className={`plex-tile cursor-pointer ${width === 'rail' ? (wide ? 'plex-tile--wide' : 'plex-tile--rail') : 'plex-tile--fill w-full'}`}
     >
       {/* The 2:3 box is drawn with padding-bottom, not aspect-ratio: `aspect-ratio`
           is Chrome 88, and on the Chromium 66 WebView of the older boxes a box
@@ -66,13 +75,15 @@ const PlexPosterTile = memo(({ item, base, token, focused, width = 'rail', onCli
       <div
         data-focused={focused ? 'true' : 'false'}
         className="plex-art tv-ring h-0"
-        style={{ paddingBottom: '150%' }}
+        style={{ paddingBottom: wide ? '56.25%' : '150%' }}
       >
         {/* Grid tiles are drawn about twice as wide as rail tiles; asking for
             the rail size there upscaled every poster into a blur. Rails keep
             POSTER_TILE_W/H, which the settle screen preloads. */}
-        <PlexImage base={base} path={item.thumb} token={token}
-          w={width === 'fill' ? POSTER_GRID_W : POSTER_TILE_W} h={width === 'fill' ? POSTER_GRID_H : POSTER_TILE_H}
+        {/* A wide still is the title's art (an episode's: its show's), as
+            on the Apple TV; with none, the poster cropped. */}
+        <PlexImage base={base} path={wide ? item.art || item.thumb : item.thumb} token={token}
+          w={wide ? WIDE_W : width === 'fill' ? POSTER_GRID_W : POSTER_TILE_W} h={wide ? WIDE_H : width === 'fill' ? POSTER_GRID_H : POSTER_TILE_H}
           eager={eager} className="absolute inset-0 w-full h-full object-cover" />
         <span className="plex-sheen" aria-hidden="true" />
         {watched ? <PlexWatchedBadge all={item.type === 'show'} /> : null}
@@ -95,8 +106,11 @@ const PlexPosterTile = memo(({ item, base, token, focused, width = 'rail', onCli
             <div style={{ width: `${Math.round(progress * 100)}%` }} />
           </div>
         )}
+        {/* The focused poster's play disc (a still has its progress bar and
+            its picture to say what OK does). */}
+        {focused && !wide ? <span className="plex-play" style={{ position: 'absolute' }} aria-hidden="true"><Play className="fill-current" /></span> : null}
       </div>
-      <div className={`plex-cap font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>
+      <div className={`plex-cap font-montserrat font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white'}`}>
         {cap.line1}
       </div>
       {cap.line2 ? (

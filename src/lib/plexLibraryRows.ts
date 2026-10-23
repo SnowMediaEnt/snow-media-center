@@ -139,3 +139,41 @@ export function resumeFraction(it: PlexItem): number | null {
   const f = it.viewOffset / it.duration;
   return f > 0.01 && f < 0.99 ? f : null;
 }
+
+// ── Tile geometry (plex.css, the Apple TV look) ──────────────────────────
+/** One tile along a rail, gap included: a 110 px poster or a 200 px wide
+ *  still, 12 apart. */
+export const RAIL_TILE_PX = 122;
+export const WIDE_TILE_PX = 212;
+export const RAIL_GAP_PX = 12;
+/** A rail's scrolling row as drawn (.plex-rail-row: 16 + art + 8 + 14 + 13
+ *  + 16, art 165 or 112): what a rail far from the highlight is drawn as. */
+export const RAIL_ROW_H = 232;
+export const WIDE_ROW_H = 180;
+/** Continue Watching is a row of wide 16:9 stills, as on the Apple TV. */
+export function isWideRail(id: string | undefined): boolean { return id === 'continue'; }
+
+/** "1h 38m" / "42m". */
+export function plexRuntime(ms: number | undefined): string {
+  if (!ms || ms <= 0) return '';
+  const total = Math.floor(ms / 60000);
+  if (total <= 0) return '';
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return h > 0 ? i18n.t('plex.detail.hoursMinutes', { h, m }) : i18n.t('plex.detail.minutes', { m });
+}
+
+/** The facts line under Home's hero title (PlexHero): what the episode is
+ *  (its code and name), else the year; the certificate; the runtime. */
+export function heroFacts(it: PlexItem): string[] {
+  const out: string[] = [];
+  if (it.type === 'episode') {
+    const code = tileCaption(it).line2;
+    if (code) out.push(code);
+    if (it.title && it.title !== it.grandparentTitle) out.push(it.title);
+  } else if (it.year) out.push(String(it.year));
+  if (it.contentRating) out.push(it.contentRating);
+  const rt = plexRuntime(it.duration);
+  if (rt) out.push(rt);
+  return out;
+}

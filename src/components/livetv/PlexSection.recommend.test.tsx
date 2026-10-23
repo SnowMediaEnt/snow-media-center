@@ -166,6 +166,8 @@ const openDiscover = async () => {
   key('ArrowRight', 39);
 };
 const recRow = () => document.querySelector('[data-plex-row="recommended"]');
+// Home's hero names its first title over the rails (PlexHero), so a title on
+// Home is on the page twice: wait for it with findAllByText.
 
 beforeEach(async () => {
   sessionStorage.clear();
@@ -267,7 +269,7 @@ describe('Discover — "Recommended by viewers"', { timeout: 30_000 }, () => {
     key('ArrowUp', 38);
     await wait(300);
     key('ArrowRight', 39);
-    await screen.findByText('New Film', undefined, T);
+    await screen.findAllByText('New Film', undefined, T);
     key('Enter', 13);
     await wait(700);
     await screen.findByRole('dialog', { name: 'Recommend New Film' }, T);
@@ -303,7 +305,7 @@ describe('hold OK on a Home poster', { timeout: 30_000 }, () => {
   });
   const intoHome = async () => {
     await renderPlex();
-    await screen.findByText('New Film', undefined, T);
+    await screen.findAllByText('New Film', undefined, T);
     key('ArrowRight', 39);
   };
 
@@ -433,7 +435,7 @@ describe('the menu when Plex loses the remote or the server', { timeout: 30_000 
   });
   const holdOnNewFilm = async () => {
     const r = await renderPlex();
-    await screen.findByText('New Film', undefined, T);
+    await screen.findAllByText('New Film', undefined, T);
     key('ArrowRight', 39);
     key('Enter', 13);
     await wait(700);

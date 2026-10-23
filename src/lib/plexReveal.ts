@@ -73,10 +73,13 @@ export function revealPlexTile(el: HTMLElement): void {
   if (rail && rail.scrollWidth > rail.clientWidth) {
     const r = rail.getBoundingClientRect();
     const b = el.getBoundingClientRect();
-    // 8 px of room each side for the focused poster's lift and ring (the
-    // rail's own px-2), so the first poster scrolls all the way back.
-    const left = r.left + rail.clientLeft + 8;
-    const right = r.left + rail.clientLeft + rail.clientWidth - 8;
+    // Room each side for the focused poster's lift, ring and glow: the
+    // rail's own side padding (12 px, .plex-rail-row), so the first poster
+    // scrolls all the way back. 8 if it has none.
+    let room = 8;
+    try { room = parseFloat(window.getComputedStyle(rail).paddingLeft) || 8; } catch { /* 8 then */ }
+    const left = r.left + rail.clientLeft + room;
+    const right = r.left + rail.clientLeft + rail.clientWidth - room;
     if (b.left < left) rail.scrollLeft += b.left - left;
     else if (b.right > right) rail.scrollLeft += Math.min(b.right - right, b.left - left);
   }

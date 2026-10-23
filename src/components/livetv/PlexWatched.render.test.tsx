@@ -104,17 +104,18 @@ describe('a show\'s page', () => {
     expect(within(tile('Season 1')).getByRole('img', { name: 'Every episode watched' })).toBeTruthy();
     expect(within(tile('Season 2')).queryByRole('img')).toBeNull();
 
-    // Season 2's episodes: the first watched, the second not.
+    // Season 2's episodes (the number is its own gold column): the first
+    // watched, the second not.
     press('ArrowRight');
     press('Enter');
-    await waitFor(() => expect(screen.getByText('1. Return')).toBeTruthy(), { timeout: 5000 });
+    await waitFor(() => expect(screen.getByText('Return')).toBeTruthy(), { timeout: 5000 });
     const row = (name: string) => screen.getByText(name).closest('[data-focused]') as HTMLElement;
-    expect(within(row('1. Return')).getByRole('img', { name: 'Watched' })).toBeTruthy();
-    expect(within(row('2. Harbor')).queryByRole('img')).toBeNull();
+    expect(within(row('Return')).getByRole('img', { name: 'Watched' })).toBeTruthy();
+    expect(within(row('Harbor')).queryByRole('img')).toBeNull();
 
     // The last one watched: the season and the show are checked.
     await act(async () => { await finish('e22', { kind: 'episode', showKey: 'show1', season: 2, index: 2 }); await tick(); });
-    await waitFor(() => expect(within(row('2. Harbor')).getByRole('img', { name: 'Watched' })).toBeTruthy());
+    await waitFor(() => expect(within(row('Harbor')).getByRole('img', { name: 'Watched' })).toBeTruthy());
     press('Escape');
     await waitFor(() => expect(within(tile('Season 2')).getByRole('img', { name: 'Every episode watched' })).toBeTruthy());
     press('Escape');

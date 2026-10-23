@@ -25,7 +25,32 @@ export function focusBackdrop(it: PlexItem | null): void {
   timer = window.setTimeout(() => {
     timer = null;
     listener?.(it);
+    // Home's hero text (PlexHero) changes with the art, not before it.
+    setPlexHero(it);
   }, BACKDROP_SETTLE_MS);
+}
+
+// The title Home's hero band describes (PlexHero.PlexHeroInfo, the Apple TV
+// app's look): the highlight once it has rested, or Home's first title before
+// the viewer has gone into the rails. Any number of listeners; nothing here
+// runs on a key press.
+const heroListeners = new Set<(it: PlexItem | null) => void>();
+let heroItem: PlexItem | null = null;
+
+/** Name the hero's title (null: none). Listeners hear only a change. */
+export function setPlexHero(it: PlexItem | null): void {
+  if (it === heroItem || (it && heroItem && it.ratingKey === heroItem.ratingKey)) return;
+  heroItem = it;
+  heroListeners.forEach((l) => l(it));
+}
+
+/** The hero's title now. */
+export function plexHeroItem(): PlexItem | null { return heroItem; }
+
+/** Hear the hero's title change. Returns the unsubscribe. */
+export function onPlexHero(cb: (it: PlexItem | null) => void): () => void {
+  heroListeners.add(cb);
+  return () => { heroListeners.delete(cb); };
 }
 
 /** The mounted backdrop listens here. Returns the unsubscribe. */
@@ -42,6 +67,7 @@ export function onBackdropFocus(cb: (it: PlexItem) => void): () => void {
 export function __resetBackdropForTests(): void {
   if (timer != null) window.clearTimeout(timer);
   timer = null; listener = null;
+  heroItem = null; heroListeners.clear();
 }
 
 /** The art to show for a title, best first: its own (a list payload's `art`;
