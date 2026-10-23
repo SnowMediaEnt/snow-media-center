@@ -14,7 +14,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
-import { Loader2, AlertTriangle, RotateCw, Search as SearchIcon, Home as HomeIcon, Compass, Settings as SettingsIcon, Eye, EyeOff, LogOut, MessageSquare, Tv, Film, Ghost } from 'lucide-react';
+import { Loader2, AlertTriangle, RotateCw, Search as SearchIcon, Home as HomeIcon, Compass, Settings as SettingsIcon, Eye, EyeOff, LogOut, MessageSquare, Tv, Film, Ghost, Play } from 'lucide-react';
 import { activeSeason, loadSeasonRows, loadSharedSeason, loadStoredSeason, storeSeasonRow, type Season, type SharedSeasonRow } from '@/lib/plexSeasonal';
 import { useVirtualizer } from '@tanstack/react-virtual';
 // The module-level toast, not the hook: the hook subscribes its caller to
@@ -70,7 +70,9 @@ import EpisodeAutoplay, { type NextEpisode } from './EpisodeAutoplay';
 import PlexProgressReporter from './PlexProgressReporter';
 import PlexTrailerControls from './PlexTrailerControls';
 import PlexBackdrop from './PlexBackdrop';
-import { focusBackdrop } from '@/lib/plexBackdrop';
+import { PlexHeroInfo, PlexPageTitle } from './PlexHero';
+import { focusBackdrop, setPlexHero } from '@/lib/plexBackdrop';
+import { isWideRail, RAIL_GAP_PX, RAIL_ROW_H, RAIL_TILE_PX, WIDE_ROW_H, WIDE_TILE_PX } from '@/lib/plexLibraryRows';
 import { revealPlexRail, unshiftAround } from '@/lib/plexReveal';
 import { continueWatching, initPlexProgress, mergeContinue, plexItemWatched, progressCount, progressDiag, pullProgressFromCloud, resumeSeconds, setPlexServerMarks, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
 import { upNextEpisodes } from '@/lib/plexUpNext';
@@ -526,9 +528,10 @@ interface RailBrowserProps {
    *  under it). Must be cheap: it runs once per move. */
   onFocusChange?: (row: number, item: PlexItem | null) => void;
 }
-// Tile geometry for the rail window: w-[104px] tiles, gap-3 (12px).
-const RAIL_TILE_PX = 116;
-const RAIL_GAP_PX = 12;
+// Tile geometry for the rail window (plexLibraryRows: RAIL_TILE_PX, a
+// 110 px poster + the 12 px gap; WIDE_TILE_PX, Continue Watching's 200 px
+// still + 12).
+const tilePx = (id: string | undefined) => (isWideRail(id) ? WIDE_TILE_PX : RAIL_TILE_PX);
 /** Tiles kept in the DOM behind and ahead of the highlight. Sixteen ahead
  *  is a full 1080p row and change; the rest of a 100-title rail is a spacer. */
 const NO_ITEMS: PlexItem[] = [];
@@ -547,8 +550,8 @@ const RAIL_ROWS_SPAN = (() => {
   const h = (typeof window !== 'undefined' && window.innerHeight) || 720;
   return Math.max(2, Math.ceil(h / 220));
 })();
-// The rail box as drawn: 8 + 156 poster + 8 + two 16 px caption lines + 8.
-const RAIL_H_FALLBACK = 212;
+// The rail row as drawn, before one has been measured (plexLibraryRows).
+const railHFallback = (id: string | undefined) => (isWideRail(id) ? WIDE_ROW_H : RAIL_ROW_H);
 
 const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, onFocusChange }: RailBrowserProps) => {
   const { t } = useTranslation();
@@ -563,6 +566,14 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, o
     // The art behind the rails: only restarts its timer (PlexBackdrop).
     focusBackdrop(isActive ? focusedItem : null);
   }, [row, focusedItem, isActive]);
+  // Home's hero names the first title until the viewer comes into the rails
+  // (then the highlight, through focusBackdrop). Text only: no art loads for it.
+  const enteredRef = useRef(false);
+  const firstItem = rows[0]?.items[0] ?? null;
+  useEffect(() => {
+    if (isActive) enteredRef.current = true;
+    else if (!enteredRef.current && firstItem) setPlexHero(firstItem);
+  }, [isActive, firstItem]);
 
   // The highlight follows its rail, not its index. After playback Continue
   // Watching can appear (or vanish) above the rail the viewer was on, and a
@@ -650,7 +661,7 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, o
   const [, setScrollTick] = useState(0);
   const onRailScroll = (id: string) => (e: React.UIEvent<HTMLDivElement>) => {
     if (!touch) return;
-    const at = Math.floor(e.currentTarget.scrollLeft / RAIL_TILE_PX);
+    const at = Math.floor(e.currentTarget.scrollLeft / tilePx(id));
     const was = scrollAtRef.current[id];
     if (was != null && Math.abs(at - was) < Math.max(4, Math.floor(railSpan / 3))) return;
     scrollAtRef.current[id] = at;
@@ -662,7 +673,7 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, o
     const scroller = railsRef.current?.closest<HTMLElement>('[data-plex-scroller]');
     if (!scroller) return;
     const on = () => {
-      const h = railHRef.current || RAIL_H_FALLBACK;
+      const h = railHRef.current.poster || RAIL_ROW_H;
       const r = Math.floor(scroller.scrollTop / h);
       setTopRail((prev) => (prev !== r ? r : prev));
     };
@@ -680,15 +691,20 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, o
     if (!el || placedRef.current.has(el)) return;
     placedRef.current.add(el);
     const a = anchorOf(ri);
-    if (a > 0) el.scrollLeft = Math.max(0, (a + 1) * RAIL_TILE_PX - el.clientWidth);
+    if (a > 0) el.scrollLeft = Math.max(0, (a + 1) * tilePx(rowsRef.current[ri]?.id) - el.clientWidth);
   };
 
   // Rails far above or below the highlight are drawn as a heading over a
   // blank of the same height. Discover has up to fifteen rails; mounting every
   // one of them put ~240 posters (each with its own observer and timer) on a
   // stick at once.
-  const railHRef = useRef(0);
-  const measureRail = (el: HTMLDivElement | null) => { if (el && !railHRef.current) railHRef.current = el.offsetHeight; };
+  // Measured once per kind: a poster rail, and Continue Watching's stills.
+  const railHRef = useRef<{ poster: number; wide: number }>({ poster: 0, wide: 0 });
+  const measureRail = (el: HTMLDivElement | null, id: string) => {
+    const kind = isWideRail(id) ? 'wide' : 'poster';
+    if (el && !railHRef.current[kind]) railHRef.current[kind] = el.offsetHeight;
+  };
+  const railH = (id: string) => railHRef.current[isWideRail(id) ? 'wide' : 'poster'] || railHFallback(id);
 
   // The focused tile scrolls itself into view, but only just: coming back up
   // to a rail left its heading above the top of the screen (the first rail's
@@ -749,18 +765,18 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, o
         <div key={r.id} data-plex-row={r.id} data-howto={r.id === 'continue' ? 'plex.continue' : r.id === 'added' ? 'plex.recent' : undefined} className="plex-rail" ref={(el) => { railBoxRefs.current[r.id] = el; }}>
           <div className="plex-rail-head font-quicksand">{r.titleKey ? t(r.titleKey, r.titleParams) : r.title}</div>
           {!railShown(ri) ? (
-            <div aria-hidden="true" style={{ height: railHRef.current || RAIL_H_FALLBACK }} />
+            <div aria-hidden="true" className="plex-rail-row" style={{ height: railH(r.id) }} />
           ) : (
           <div
             ref={(el) => {
-              measureRail(el);
+              measureRail(el, r.id);
               if (!el) return;
               // The rail that mounts under the highlight is placed by its
               // focused tile; mark it so leaving it later does not re-place it.
               if (ri === row) placedRef.current.add(el); else placeRail(el, ri);
             }}
             onScroll={touch ? onRailScroll(r.id) : undefined}
-            className="flex gap-3 overflow-x-auto py-2 px-2 -mx-2"
+            className="plex-rail-row flex gap-3 overflow-x-auto"
           >
             {(() => {
               // Only the tiles near the highlight are real; the rest of the
@@ -772,8 +788,10 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, o
               const at = Math.max(0, Math.min(fingerAt ?? (ri === row ? col : (lastColRef.current[r.id] ?? 0)), r.items.length - 1));
               const start = Math.max(0, at - railSpan);
               const end = Math.min(r.items.length, at + railSpan);
-              const before = start > 0 ? start * RAIL_TILE_PX - RAIL_GAP_PX : 0;
-              const after = end < r.items.length ? (r.items.length - end) * RAIL_TILE_PX - RAIL_GAP_PX : 0;
+              const px = tilePx(r.id);
+              const wide = isWideRail(r.id);
+              const before = start > 0 ? start * px - RAIL_GAP_PX : 0;
+              const after = end < r.items.length ? (r.items.length - end) * px - RAIL_GAP_PX : 0;
               return (
                 <>
                   {before > 0 && <div className="flex-shrink-0" style={{ width: before }} aria-hidden="true" />}
@@ -789,6 +807,7 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, o
                         onSelect={selectFor(ri)}
                         eager={ri === row && ci !== col && Math.abs(ci - col) <= 3}
                         watched={plexItemWatched(it)}
+                        wide={wide}
                       />
                     );
                   })}
@@ -1425,8 +1444,9 @@ const SearchTile = memo(({ item: it, base, token, focused, onSelect, watched = f
         <span className="plex-sheen" aria-hidden="true" />
         {watched ? <PlexWatchedBadge all={it.type === 'show'} /> : null}
         <ResChip label={label} under={watched} />
+        {focused ? <span className="plex-play" style={{ position: 'absolute' }} aria-hidden="true"><Play className="fill-current" /></span> : null}
       </div>
-      <div className={`plex-cap font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
+      <div className={`plex-cap font-montserrat font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white'}`}>{it.title}</div>
     </div>
   );
 });
@@ -1460,7 +1480,7 @@ const ChipTile = memo(({ chip, art, base, token, focused, onPick }: {
         )}
         <span className="plex-sheen" aria-hidden="true" />
       </div>
-      <div className={`plex-cap font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{chip.label}</div>
+      <div className={`plex-cap font-montserrat font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white'}`}>{chip.label}</div>
     </div>
   );
 });
@@ -2047,7 +2067,7 @@ const RequestTile = memo(({ item: it, sent, focused, onPick }: {
           {state ?? t('plex.search.plusRequestChip')}
         </span>
       </div>
-      <div className={`plex-cap font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>
+      <div className={`plex-cap font-montserrat font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white'}`}>
         {it.title}{it.year ? ` (${it.year})` : ''}
       </div>
     </div>
@@ -5004,6 +5024,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const menuCollapsed = zone !== 'tabs' && !touchUI;
   const railsPage = !!currentTab && (currentTab.type === 'home' || currentTab.type === 'discover' || currentTab.type === 'seasonal'
     || ((currentTab.type === 'movie' || currentTab.type === 'show') && !!currentTab.libKey && currentMode(currentTab.libKey) === 'rows'));
+  // Above the scroller: Home's hero, or a rails / library page's name. Not
+  // while a voice command's title is being found, nor behind a title opened
+  // straight from a link.
+  const headTitle = currentTab ? (currentTab.titleKey ? t(currentTab.titleKey) : currentTab.title) : '';
+  const pageHead = !conn || !currentTab || (deepLinked && detailItem) ? null
+    : currentTab.type === 'home' ? (voiceWait && zone === 'tabs' ? null : <PlexHeroInfo />)
+      : currentTab.type === 'discover' || currentTab.type === 'seasonal' || currentTab.type === 'movie' || currentTab.type === 'show'
+        ? <PlexPageTitle title={headTitle} /> : null;
   const menuIcon = (t: Tab) =>
     t.type === 'home' ? HomeIcon : t.type === 'discover' ? Compass : t.type === 'search' ? SearchIcon : t.type === 'seasonal' ? Ghost : t.type === 'manage' ? SettingsIcon
     : t.type === 'request' ? MessageSquare : t.type === 'show' ? Tv : Film;
@@ -5036,7 +5064,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         // first 2–4% of that. The server line was the thing being cut off.
         style={{ paddingTop: '3.5vh' }}
       >
-        <div className={`pb-1 text-xs font-nunito text-brand-ice/60 truncate ${menuCollapsed ? 'px-0 text-center' : 'px-5'}`}>{menuCollapsed ? 'Plex' : t('plex.section.serverLine', { name: conn?.name })}</div>
+        <div className={`pb-2 text-xs font-montserrat font-semibold text-brand-ice/60 truncate ${menuCollapsed ? 'px-0 text-center' : 'px-5'}`}>{menuCollapsed ? 'Plex' : t('plex.section.serverLine', { name: conn?.name })}</div>
         {menuEntries.map((m, i) => {
           const focused = isActive && !fullscreen && zone === 'tabs' && menuIdx === i;
           const tab = tabs[m.tabIdx];
@@ -5059,12 +5087,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
                 // `transparent` — a row of light pills with invisible text. The
                 // focused row escaped because its ring is a box-shadow, which
                 // turns the native theme off. So does appearance: none.
-                className={`tv-ring appearance-none relative w-full flex items-center gap-2.5 h-10 rounded-lg mx-2 font-nunito text-sm ${menuCollapsed ? 'justify-center px-0' : 'text-left px-3'} ${
-                  focused ? 'bg-white/10 text-white font-semibold' : selected ? 'text-white font-semibold' : 'text-brand-ice/85'}`}
+                // The Apple TV app's menu (plex.css .plex-menu-item): Montserrat,
+                // a gold-tinted highlight, the open page a faint gold fill (while
+                // the menu is open) and a gold icon.
+                className={`plex-menu-item tv-ring appearance-none relative w-full flex items-center gap-3 mx-2 font-montserrat ${menuCollapsed ? 'justify-center px-0' : 'text-left px-3'}${
+                  selected && !menuCollapsed ? ' plex-menu-item--sel' : ''}${selected ? ' text-white' : ''}`}
                 style={{ width: 'calc(100% - 1rem)' }}
               >
-                {selected && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-brand-gold" aria-hidden="true" />}
-                <Icon className={`w-4 h-4 flex-shrink-0 ${selected ? 'text-brand-gold opacity-100' : 'opacity-80'}`} />
+                <Icon className={`w-[18px] h-[18px] flex-shrink-0 ${selected ? 'text-brand-gold opacity-100' : 'opacity-80'}`} />
                 {!menuCollapsed && <span className="truncate">{m.titleKey ? t(m.titleKey) : m.title}</span>}
               </button>
             </div>
@@ -5074,7 +5104,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       </div>
 
       <div className="relative flex-1 min-w-0 flex flex-col overflow-hidden">
-        <div ref={attachScroll} data-plex-scroller="" className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 pb-4" style={{ paddingTop: '3.5vh' }}>
+        {/* The top of the page, fixed above the rails as on the Apple TV:
+            Home's hero (the highlighted title), else the page's own name. */}
+        {pageHead}
+        <div ref={attachScroll} data-plex-scroller="" className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-6 pb-4" style={{ paddingTop: pageHead ? 12 : '3.5vh' }}>
         {deepLinked && detailItem ? null : voiceWait && zone === 'tabs' && currentTab?.type === 'home' ? (
           // A voice command's title is being looked up. Home is not loaded
           // behind it (its hubs would compete with the search); entering the

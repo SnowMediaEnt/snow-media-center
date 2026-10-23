@@ -129,11 +129,13 @@ const EpisodeRow = memo(({ ep, base, token, focused, chips, note, watched = fals
   return (
     <div ref={ref}
       data-focused={focused ? 'true' : 'false'}
-      className={`tv-ring flex items-center gap-3 p-2 pr-3 rounded-plex-lg border border-white/10 transition-transform duration-150 ${focused ? 'bg-white/10 z-10' : 'bg-black/40'}`}>
+      className={`tv-ring flex items-center gap-3 p-2 pr-4 rounded-plex-md transition-transform duration-150 ${focused ? 'bg-white/10 z-10' : ''}`}>
+      {/* The Apple TV app's episode list: the number in gold, the still,
+          the name and two lines of summary, the length at the end. */}
+      <div className="w-7 flex-shrink-0 text-center font-montserrat font-extrabold text-[15px] text-brand-gold">{ep.index ?? ''}</div>
       {/* A fixed 72 px, not aspect-video: aspect-ratio is Chrome 88, and on
           the older boxes each row grew when its thumbnail landed, shifting
           the list under the highlight. */}
-      {/* 8 px inside a 16 px card: an 8 px radius keeps the corners concentric. */}
       <div className="plex-art plex-art--sm relative w-32 h-[72px] flex-shrink-0">
         <PlexImage base={base} path={ep.thumb} token={token} w={320} h={180} focusExempt className="w-full h-full object-cover" />
         <span className="plex-sheen" aria-hidden="true" />
@@ -147,16 +149,8 @@ const EpisodeRow = memo(({ ep, base, token, focused, chips, note, watched = fals
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="font-quicksand font-semibold text-sm truncate">
-          {ep.index != null ? `${ep.index}. ` : ''}{ep.title}
-        </div>
-        <div className="text-xs text-brand-ice/70 font-nunito">
-          {fmtRuntime(ep.duration)}
-          {resumePct != null && left > 0
-            ? ` · ${t('plex.detail.timeLeft', { time: fmtRuntime(left * 1000) })}`
-            : ''}
-        </div>
-        {ep.summary && <div className="text-xs text-brand-ice/70 font-nunito line-clamp-2 mt-1">{ep.summary}</div>}
+        <div className={`font-montserrat font-semibold text-sm truncate ${focused ? 'text-white' : 'text-white/95'}`}>{ep.title}</div>
+        {ep.summary && <div className="text-xs text-brand-ice/70 font-nunito line-clamp-2 mt-0.5">{ep.summary}</div>}
         {chips && (
           <div className="flex flex-wrap items-center gap-1 mt-1">
             {chips.split('|').map((c) => {
@@ -171,6 +165,13 @@ const EpisodeRow = memo(({ ep, base, token, focused, chips, note, watched = fals
             {note && <span className="text-plex-micro text-brand-ice/80 font-nunito ml-1">{note}</span>}
           </div>
         )}
+      </div>
+      {/* Its length at the end of the row, and what is left of it. */}
+      <div className="flex-shrink-0 ml-2 text-right text-xs text-brand-ice/60 font-nunito">
+        <div>{fmtRuntime(ep.duration)}</div>
+        {resumePct != null && left > 0
+          ? <div className="text-brand-gold/90">{t('plex.detail.timeLeft', { time: fmtRuntime(left * 1000) })}</div>
+          : null}
       </div>
     </div>
   );
@@ -854,7 +855,10 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
             className="w-full h-full object-cover opacity-40 blur-[2px]"
           />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-black/50" />
+        {/* The Apple TV app's veil: dark from the left, where the text is,
+            and down to black at the foot. */}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-black/40" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
       </div>
 
       <div className="relative z-10 h-full overflow-y-auto px-8 py-6" data-plex-detail-body="">
@@ -868,8 +872,9 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
         {isDetailStep && (
           <div className="max-w-6xl mx-auto flex" data-plex-detail-top="">
             {/* mr-6, not the row's gap-6: flex gap is 0 on Chromium < 84 and the
-                poster sat hard against the title there. */}
-            <div className="w-44 flex-shrink-0 mr-6">
+                poster sat hard against the title there. The Apple TV app's
+                proportions: a 150 px poster beside the text. */}
+            <div className="w-[150px] flex-shrink-0 mr-6">
               <div className="plex-art plex-art--hero h-0" style={{ paddingBottom: '150%' }}>
                 <PlexImage priority base={base} path={meta?.thumb || current.thumb} token={token} w={400} h={600} className="absolute inset-0 w-full h-full object-cover" />
                 <span className="plex-sheen" aria-hidden="true" />
@@ -881,42 +886,50 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
               </div>
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-2">
-                <h1 className="font-quicksand font-bold text-plex-title truncate flex-1 min-w-0">{meta?.title || current.title}</h1>
+              {/* The Apple TV app's title page: a big extra-bold title, a line
+                  of facts, the ratings in gold, genres and director, the
+                  summary, then the buttons. */}
+              <div className="flex items-center gap-2 mb-1">
+                <h1 className="font-montserrat font-extrabold text-[26px] leading-8 line-clamp-2 flex-1 min-w-0">{meta?.title || current.title}</h1>
                 {resLabel && <ResBadge label={resLabel} className="shrink-0" />}
               </div>
-              <div className="flex flex-wrap items-center gap-2 text-plex-cap text-brand-ice/80 font-nunito mb-2 min-h-[24px]">
+              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-brand-ice/80 font-nunito mb-1 min-h-[22px]">
                 {(meta?.year ?? current.year) && <span>{meta?.year ?? current.year}</span>}
                 {meta?.duration && <span>· {fmtRuntime(meta.duration)}</span>}
                 {meta?.contentRating && <span className="px-2 py-0.5 rounded-plex-xs border border-white/25 text-plex-micro font-bold">{meta.contentRating}</span>}
                 {tech && <span className="px-2 py-0.5 rounded-plex-xs bg-white/10 text-plex-micro font-bold">{tech}</span>}
                 {metaLoading && !meta && <span className="h-4 w-32 rounded bg-white/10 animate-pulse" />}
               </div>
-              <div className="flex flex-wrap items-center gap-4 mb-2 min-h-[26px]">
+              <div className="flex flex-wrap items-baseline gap-3 mb-1 min-h-[22px] font-nunito font-bold text-brand-gold">
                 {hasAudience && (
                   <div className="flex items-baseline gap-1">
-                    <span className="text-brand-gold text-base">★</span>
-                    <span className="font-quicksand font-bold text-base">{meta.audienceRating.toFixed(1)}</span>
-                    <span className="text-plex-cap text-brand-ice/70">{t('plex.detail.ratingOutOf')}</span>
+                    <span className="text-sm">★</span>
+                    <span className="text-sm">{meta.audienceRating.toFixed(1)}</span>
+                    <span className="text-xs text-brand-gold/80">{t('plex.detail.ratingOutOf')}</span>
                   </div>
                 )}
+                {hasAudience && hasCritics && <span className="text-xs text-brand-gold/60" aria-hidden="true">·</span>}
                 {hasCritics && (
-                  <div className="text-plex-cap text-brand-ice/70 font-nunito">{t('plex.detail.critics')} <span className="font-bold text-white">{meta.rating.toFixed(1)}</span></div>
+                  <div className="text-xs">{t('plex.detail.critics')} <span className="text-sm">{meta.rating.toFixed(1)}</span></div>
                 )}
                 {metaLoading && !meta && <span className="h-5 w-20 rounded bg-white/10 animate-pulse" />}
               </div>
-              {(meta?.genres.length ?? 0) > 0 && <p className="text-plex-cap text-brand-ice/80 font-nunito mb-2">{meta!.genres.join(' · ')}</p>}
-              {(meta?.summary || current.summary) && (
-                // Golden-section measure: the summary takes 61.8 % of the text
-                // column (≈ 70 characters a line), the rest is air.
-                <p className="text-white/80 font-nunito text-plex-body mb-3 line-clamp-4" style={{ maxWidth: '61.8%' }}>{meta?.summary || current.summary}</p>
+              {((meta?.genres.length ?? 0) > 0 || (meta?.directors.length ?? 0) > 0) && (
+                <p className="text-xs text-brand-ice/75 font-nunito mb-2 truncate">
+                  {meta!.genres.join(', ')}
+                  {(meta!.genres.length > 0 && meta!.directors.length > 0) ? '  ·  ' : ''}
+                  {meta!.directors.length > 0 && <><span className="text-brand-ice/60">{t('plex.detail.director')}</span> {meta!.directors.join(', ')}</>}
+                </p>
               )}
-              {(meta?.directors.length ?? 0) > 0 && (
-                <p className="text-plex-cap text-brand-ice/80 font-nunito mb-3"><span className="text-brand-ice/70">{t('plex.detail.director')}</span> {meta!.directors.join(', ')}</p>
+              {(meta?.summary || current.summary) && (
+                <p className="text-brand-ice/90 font-nunito text-[13px] leading-[19px] mb-3 line-clamp-4" style={{ maxWidth: 580 }}>{meta?.summary || current.summary}</p>
               )}
               <div className="flex flex-wrap gap-2">
                 {detailButtons.map((b, i) => {
                   const focused = isActive && zone === 'buttons' && btn === i;
+                  // The Apple TV app's pills: the way in (Resume when there is
+                  // one, else Play, or a show's episodes) gold, the rest white.
+                  const gold = canResume ? b.id === 'resume' : b.id === 'play' || b.id === 'browse';
                   return (
                     <button
                       key={b.id}
@@ -924,7 +937,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                       data-focused={focused ? 'true' : 'false'}
                       data-howto={DETAIL_HOWTO[b.id]}
                       onClick={() => { setZone('buttons'); setBtn(i); activateDetail(b.id); }}
-                      className={`tv-ring tv-ring-contrast inline-flex items-center gap-2 h-10 px-4 rounded-lg font-quicksand font-semibold text-sm border ${focused ? 'bg-brand-gold text-brand-navy border-transparent scale-105 z-10' : 'bg-white/10 text-white border-white/15'}`}>
+                      className={`plex-pill tv-ring ${gold ? 'plex-pill--gold tv-ring-contrast' : 'plex-pill--white'} gap-2 font-montserrat${focused ? ' z-10' : ''}`}>
                       {buttonIcon(b.id, listed, recommended)}
                       <span className="min-w-0 truncate">{b.label}</span>
                     </button>
@@ -935,12 +948,12 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                     type="button"
                     data-focused={isActive && zone === 'buttons' && btn === detailButtons.length ? 'true' : 'false'}
                     onClick={() => { void playCurrent(undefined); }}
-                    className="tv-ring tv-ring-contrast inline-flex items-center gap-2 h-10 px-4 rounded-lg font-quicksand font-semibold text-sm border border-transparent bg-brand-gold text-brand-navy">
+                    className="plex-pill plex-pill--gold tv-ring tv-ring-contrast gap-2 font-montserrat">
                     <Play className="w-4 h-4 fill-current" /> {t('plex.detail.play')}
                   </button>
                 )}
                 {metaLoading && detailButtons.length === 0 && (
-                  <div className="h-10 w-28 rounded-lg bg-white/10 animate-pulse" />
+                  <div className="h-[38px] w-28 rounded-lg bg-white/10 animate-pulse" />
                 )}
               </div>
 
@@ -948,14 +961,14 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
               {shownTrailer && (() => {
                 const focused = isActive && zone === 'trailer';
                 return (
-                  <div className="mt-2" data-plex-trailer-line="">
+                  <div className="mt-3" data-plex-trailer-line="">
                     <button
                       type="button"
                       data-plex-trailer={shownTrailer.online ? 'online' : 'library'}
                       data-focused={focused ? 'true' : 'false'}
                       aria-label={t('plex.trailer.watch')}
                       onClick={() => { setZone('trailer'); playTrailer(); }}
-                      className={`tv-ring tv-ring-contrast inline-flex items-center gap-2 h-10 px-4 rounded-lg font-quicksand font-semibold text-sm border ${focused ? 'bg-brand-gold text-brand-navy border-transparent scale-105 z-10' : 'bg-white/10 text-white border-white/15'}`}>
+                      className={`plex-pill plex-pill--sm plex-pill--white tv-ring gap-2 font-montserrat${focused ? ' z-10' : ''}`}>
                       <Clapperboard className="w-4 h-4" aria-hidden="true" />
                       <span>{t('plex.trailer.button')}</span>
                     </button>
@@ -978,7 +991,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                           type="button"
                           data-focused={focused ? 'true' : 'false'}
                           onClick={() => { setZone('versions'); setVerIdx(i); setChosenId(v.id); }}
-                          className={`tv-ring tv-ring-contrast inline-flex items-center gap-2 h-9 px-3 rounded-lg font-quicksand font-semibold text-sm border ${focused ? 'bg-brand-gold text-brand-navy border-transparent scale-105 z-10' : on ? 'bg-white/15 text-white border-brand-gold' : 'bg-white/5 text-white/80 border-white/15'}`}>
+                          className={`plex-chip tv-ring gap-2 font-nunito${focused ? ' z-10' : on ? ' plex-chip--set' : ''}`}>
                           {on && <Check className="w-4 h-4" />}
                           <span>{versionName(v, versions)}</span>
                           {v.bitrateKbps ? <span className="text-plex-micro opacity-70">{t('plex.detail.mbps', { value: Math.round(v.bitrateKbps / 100) / 10 })}</span> : null}
@@ -996,8 +1009,8 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
               )}
 
               {/* Cast row — horizontal, D-pad scrollable, focus zone 'cast'. */}
-              <div className="mt-6" data-howto="detail.cast">
-                <div className="plex-rail-head font-quicksand">{t('plex.detail.cast')}</div>
+              <div className="mt-5" data-howto="detail.cast">
+                <div className="plex-rail-head font-montserrat">{t('plex.detail.cast')}</div>
                 {metaLoading || !castReady ? (
                   <div className="flex gap-3 py-2 px-2 -mx-2">
                     {Array.from({ length: 6 }).map((_, i) => (
@@ -1025,7 +1038,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                             <PlexImage base={base} path={p.thumb} token={token} w={120} h={120} focusExempt className="w-full h-full object-cover" />
                             <span className="plex-sheen" aria-hidden="true" />
                           </div>
-                          <div className={`plex-cap text-center font-nunito truncate ${focused ? 'text-brand-gold font-semibold' : 'text-white/90'}`}>{p.tag}</div>
+                          <div className={`plex-cap text-center font-montserrat font-bold truncate ${focused ? 'text-brand-gold' : 'text-white'}`}>{p.tag}</div>
                           {p.role && <div className="plex-sub text-center font-nunito text-brand-ice/60 truncate">{p.role}</div>}
                         </div>
                       );
@@ -1039,15 +1052,15 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
 
         {isSeasonsStep && (
           <div className="max-w-6xl mx-auto">
-            <h2 className="font-quicksand font-bold text-plex-section mb-3">{t('plex.detail.seasonsTitle', { title: meta?.title || current.title })}</h2>
+            <h2 className="font-montserrat font-extrabold text-[22px] leading-7 mb-3">{t('plex.detail.seasonsTitle', { title: meta?.title || current.title })}</h2>
             {seasonsLoading ? (
               <div className="text-brand-ice/70 font-nunito flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> {t('common.loading')}</div>
             ) : seasons.length === 0 ? (
               <div className="text-brand-ice/70 font-nunito">{t('plex.detail.noSeasons')}</div>
             ) : (
-              // pt-2 px-2 -mx-2: room for the focused card's scale + ring so the
-              // shelf's overflow clip never cuts the highlight.
-              <div className="flex gap-3 overflow-x-auto pb-3 pt-2 px-2 -mx-2">
+              // plex-rail-row: room for the focused card's lift, ring and glow
+              // so the shelf's overflow clip never cuts the highlight.
+              <div className="plex-rail-row flex gap-3 overflow-x-auto">
                 {seasons.map((s, i) => {
                   const focused = isActive && seasonIdx === i;
                   // Every episode in it watched: its episodes when they are the
@@ -1061,7 +1074,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                       ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
                       className="plex-tile flex-shrink-0 w-[112px]">
                       <div data-focused={focused ? 'true' : 'false'} className="plex-art tv-ring h-0" style={{ paddingBottom: '150%' }}><PlexImage base={base} path={s.thumb} token={token} w={180} h={270} focusExempt className="absolute inset-0 w-full h-full object-cover" /><span className="plex-sheen" aria-hidden="true" />{done && <PlexWatchedBadge all />}</div>
-                      <div className={`plex-cap font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{s.title}</div>
+                      <div className={`plex-cap font-montserrat font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white'}`}>{s.title}</div>
                     </div>
                   );
                 })}
@@ -1073,7 +1086,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
 
         {isEpisodesStep && (
           <div className="max-w-4xl mx-auto">
-            <h2 className="font-quicksand font-bold text-plex-section mb-3">
+            <h2 className="font-montserrat font-extrabold text-[22px] leading-7 mb-3">
               {(meta?.title || current.title)}{seasons[seasonIdx] ? ` · ${seasons[seasonIdx].title}` : ''}
             </h2>
             {episodesLoading ? (
@@ -1081,7 +1094,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
             ) : episodes.length === 0 ? (
               <div className="text-brand-ice/70 font-nunito">{t('plex.detail.noEpisodes')}</div>
             ) : (
-              <div className="flex flex-col gap-2 px-1 py-1">
+              <div className="flex flex-col gap-1 px-1 py-1">
                 {episodes.map((ep, i) => {
                   const vs = ep.versions ?? [];
                   let chips: string | undefined;
@@ -1107,7 +1120,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
 
         {isActorStep && (
           <div className="max-w-6xl mx-auto">
-            <h2 className="font-quicksand font-bold text-plex-section mb-3">{t('plex.detail.actorTitles', { name: actorName })}</h2>
+            <h2 className="font-montserrat font-extrabold text-[22px] leading-7 mb-3">{t('plex.detail.actorTitles', { name: actorName })}</h2>
             {actorLoading ? (
               <div className="text-brand-ice/70 font-nunito flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> {t('common.loading')}</div>
             ) : actorItems.length === 0 ? (
@@ -1132,7 +1145,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                         {watched && <PlexWatchedBadge all={it.type === 'show'} />}
                         {label && <div className={`absolute right-2 ${watched ? 'top-9' : 'top-2'}`}><ResBadge label={label} /></div>}
                       </div>
-                      <div className={`plex-cap font-nunito font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white/90'}`}>{it.title}</div>
+                      <div className={`plex-cap font-montserrat font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white'}`}>{it.title}</div>
                     </div>
                   );
                 })}
