@@ -315,6 +315,7 @@
       "off": "Aus",
       "defaultOrder": "Standardreihenfolge",
       "barHint": "◀ ▶ wählen · OK öffnet · ▼ Liste",
+      "allHeading": "Alles in {{lib}}",
       "choose": "Auswählen",
       "menuHint": "▲▼ · OK · Zurück",
       "nothingToChoose": "Hier gibt es für diese Mediathek nichts auszuwählen.",

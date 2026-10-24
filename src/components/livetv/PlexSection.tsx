@@ -14,7 +14,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
-import { Loader2, AlertTriangle, RotateCw, Search as SearchIcon, Home as HomeIcon, Compass, Settings as SettingsIcon, Eye, EyeOff, LogOut, MessageSquare, Tv, Film, Ghost, Play } from 'lucide-react';
+import { Loader2, AlertTriangle, RotateCw, Search as SearchIcon, Home as HomeIcon, Compass, Settings as SettingsIcon, Eye, EyeOff, LogOut, MessageSquare, Tv, Film, MoonStar, Play } from 'lucide-react';
 import { activeSeason, loadSeasonRows, loadSharedSeason, loadStoredSeason, storeSeasonRow, type Season, type SharedSeasonRow } from '@/lib/plexSeasonal';
 import { useVirtualizer } from '@tanstack/react-virtual';
 // The module-level toast, not the hook: the hook subscribes its caller to
@@ -71,7 +71,7 @@ import PlexProgressReporter from './PlexProgressReporter';
 import PlexTrailerControls from './PlexTrailerControls';
 import PlexBackdrop from './PlexBackdrop';
 import { PlexHeroInfo, PlexPageTitle } from './PlexHero';
-import { focusBackdrop, setPlexHero } from '@/lib/plexBackdrop';
+import { focusBackdrop, previewPlex } from '@/lib/plexBackdrop';
 import { isWideRail, RAIL_GAP_PX, RAIL_ROW_H, RAIL_TILE_PX, WIDE_ROW_H, WIDE_TILE_PX } from '@/lib/plexLibraryRows';
 import { revealPlexRail, unshiftAround } from '@/lib/plexReveal';
 import { continueWatching, initPlexProgress, mergeContinue, plexItemWatched, progressCount, progressDiag, pullProgressFromCloud, resumeSeconds, setPlexServerMarks, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
@@ -566,13 +566,14 @@ const RailBrowser = memo(({ isActive, base, token, rows, onPlay, onExitToTabs, o
     // The art behind the rails: only restarts its timer (PlexBackdrop).
     focusBackdrop(isActive ? focusedItem : null);
   }, [row, focusedItem, isActive]);
-  // Home's hero names the first title until the viewer comes into the rails
-  // (then the highlight, through focusBackdrop). Text only: no art loads for it.
+  // Until the viewer comes into the rails the page shows its first title: its
+  // art behind the rails and, on Home, its name in the hero (then the
+  // highlight, through focusBackdrop).
   const enteredRef = useRef(false);
   const firstItem = rows[0]?.items[0] ?? null;
   useEffect(() => {
     if (isActive) enteredRef.current = true;
-    else if (!enteredRef.current && firstItem) setPlexHero(firstItem);
+    else if (!enteredRef.current && firstItem) previewPlex(firstItem);
   }, [isActive, firstItem]);
 
   // The highlight follows its rail, not its index. After playback Continue
@@ -5248,7 +5249,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       : currentTab.type === 'discover' || currentTab.type === 'seasonal' || currentTab.type === 'movie' || currentTab.type === 'show'
         ? <PlexPageTitle title={headTitle} /> : null;
   const menuIcon = (t: Tab) =>
-    t.type === 'home' ? HomeIcon : t.type === 'discover' ? Compass : t.type === 'search' ? SearchIcon : t.type === 'seasonal' ? Ghost : t.type === 'manage' ? SettingsIcon
+    t.type === 'home' ? HomeIcon : t.type === 'discover' ? Compass : t.type === 'search' ? SearchIcon : t.type === 'seasonal' ? MoonStar : t.type === 'manage' ? SettingsIcon
     : t.type === 'request' ? MessageSquare : t.type === 'show' ? Tv : Film;
   return (
     <>

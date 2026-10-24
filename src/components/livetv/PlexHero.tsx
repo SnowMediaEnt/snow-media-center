@@ -1,8 +1,8 @@
 // The top of a Plex rails page, drawn as the Apple TV app draws it (Snow TV
 // tvOS: PlexSection.heroInfo and the library / Discover page titles):
 //   PlexHeroInfo   Home: the highlighted title, large, a line of facts
-//                  (year · certificate · runtime, or the episode), and three
-//                  lines of its summary, over its art (PlexBackdrop).
+//                  (year · certificate · runtime, or the episode), and one
+//                  line of its summary, over its art (PlexBackdrop).
 //   PlexPageTitle  Discover, the season, a library: the page's own name.
 // Both sit above the Plex scroller, so the rails scroll under them and they
 // never move.
@@ -10,8 +10,7 @@
 // PlexHeroInfo follows the highlight through the backdrop's settle bus
 // (plexBackdrop.onPlexHero): a held D-pad re-renders nothing here until the
 // highlight rests, and then only these few lines of text. Its box has a fixed
-// height (plex.css), so a two-line summary after a three-line one never moves
-// the rails.
+// height (plex.css), so a title with no summary never moves the rails.
 import { memo, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { PlexItem } from '@/lib/plex';

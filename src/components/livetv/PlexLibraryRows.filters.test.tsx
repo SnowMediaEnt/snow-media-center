@@ -19,7 +19,7 @@ vi.mock('@/integrations/supabase/client', () => ({
 }));
 vi.mock('@/lib/plexReveal', () => ({ revealPlexRail: () => undefined, revealPlexTile: () => undefined }));
 vi.mock('@/lib/plexUpNext', () => ({ upNextEpisodes: async () => [] }));
-vi.mock('@/lib/plexBackdrop', () => ({ focusBackdrop: () => undefined }));
+vi.mock('@/lib/plexBackdrop', () => ({ focusBackdrop: () => undefined, previewPlex: () => undefined }));
 vi.mock('./PlexImage', () => ({ default: () => null }));
 vi.mock('@/lib/plex', async (orig) => ({
   ...(await orig<typeof import('@/lib/plex')>()),
@@ -52,7 +52,8 @@ async function openGenre(sectionType: 'movie' | 'show' = 'movie', libKey = '3') 
     </div>,
   );
   await flush(30);
-  key('ArrowUp'); // the chip bar (Sort first)
+  // Down past the last row: the chip bar under the rows (Sort first).
+  for (let i = 0; i < 8; i++) key('ArrowDown');
   await flush(10);
   key('ArrowRight'); // Genre
   await flush(10);
@@ -97,7 +98,7 @@ describe('PlexLibraryRows — the Genre / Year / Rated choices', () => {
     expect(screen.queryByText(/Loading…/)).not.toBeNull(); // open at once, filling in
     key('Escape'); // closes the chip's menu
     await flush(10);
-    key('ArrowDown'); // into the rows
+    key('ArrowUp'); // back into the rows
     await flush(10);
     await act(async () => { answer([{ key: '7', title: 'Comedy' }]); });
     await flush(30);

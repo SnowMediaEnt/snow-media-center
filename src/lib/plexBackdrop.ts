@@ -44,6 +44,15 @@ export function setPlexHero(it: PlexItem | null): void {
   heroListeners.forEach((l) => l(it));
 }
 
+/** A page's first title, before the viewer has gone into its rails: the hero
+ *  names it and its art goes up at once, as the Apple TV app opens Home, a
+ *  library or the season on their first title's art. One image, for the page
+ *  on screen; the highlight takes over from the first move. */
+export function previewPlex(it: PlexItem): void {
+  if (PLEX_BACKDROP) listener?.(it);
+  setPlexHero(it);
+}
+
 /** The hero's title now. */
 export function plexHeroItem(): PlexItem | null { return heroItem; }
 
