@@ -7,8 +7,8 @@
 // agree (the owner's photo: 14.3 of 15 Mb/s, "Pick 1080p · 8 Mbps").
 import { describe, expect, it } from 'vitest';
 import {
-  AutoQuality, RATE_TICK_MS, START_GRACE_MS, autoQualityNote, buildQualityLadder, deliveredKbps, floorPresetFor,
-  startDelivery, startPresetFor, startRescue, type RateReport,
+  AutoQuality, RATE_TICK_MS, START_GRACE_MS, _resetConversionRefusals, autoQualityNote, buildQualityLadder, deliveredKbps, floorPresetFor,
+  noteConversionRefused, serverRefusesConversion, startDelivery, startPresetFor, startRescue, type RateReport,
 } from './plexAutoQuality';
 
 const S = 1000;
@@ -103,13 +103,38 @@ describe('start-up rescue', () => {
       { t: load + 1 * S, kbps: 90000 }, // mostly the stream before
       { t: load + 4 * S, kbps: 1400, stalled: true },
       { t: load + 7 * S, kbps: 1600, stalled: true },
-      { t: load + 10 * S, kbps: 0, stalled: true }, // a pause is not a speed
       { t: load + 13 * S, kbps: 8000 }, // playing, topping up: not flat out
       { t: load + 16 * S, kbps: 1500, stalled: true },
     ];
     expect(startDelivery(rates, load, null, load + 20 * S)).toBe(Math.round((1400 + 1600 + 8000 + 1500) / 4));
-    expect(startDelivery(rates, load, load + 11 * S, load + 20 * S)).toBe(1500);
+    expect(startDelivery(rates, load, load + 11 * S, load + 20 * S)).toBe(Math.round((1400 + 1600 + 1500) / 3));
     expect(startDelivery(rates.slice(0, 2), load, null, load + 20 * S)).toBeNull();
+  });
+
+  it('a pause is no speed: the windows either side of it are part-filled, so nothing is told', () => {
+    const load = 1_000 * S;
+    // A fast line (a 4K file) whose server paused for a moment.
+    const rates: RateReport[] = [
+      { t: load + 4 * S, kbps: 9000, stalled: true }, { t: load + 7 * S, kbps: 0, stalled: true }, { t: load + 10 * S, kbps: 12000, stalled: true },
+    ];
+    expect(startDelivery(rates, load, null, load + 12 * S)).toBeNull();
+  });
+
+  it('windows within a seek\'s grace are the jump, not the line', () => {
+    const load = 1_000 * S;
+    const rates: RateReport[] = [
+      { t: load + 4 * S, kbps: 900, stalled: true }, { t: load + 7 * S, kbps: 60000, stalled: true }, { t: load + 10 * S, kbps: 60000, stalled: true },
+    ];
+    expect(startDelivery(rates, load, null, load + 12 * S, load + 1 * S)).toBe(60000);
+  });
+
+  it('a server that turned a conversion down is remembered for the session', () => {
+    _resetConversionRefusals();
+    expect(serverRefusesConversion('https://a.plex.direct')).toBe(false);
+    noteConversionRefused('https://a.plex.direct');
+    expect(serverRefusesConversion('https://a.plex.direct')).toBe(true);
+    expect(serverRefusesConversion('https://b.plex.direct')).toBe(false);
+    _resetConversionRefusals();
   });
 
   it('a 16 Mb/s file at 1.5: restarted at 480p · 2 Mbps; at 5: 720p · 3 Mbps', () => {

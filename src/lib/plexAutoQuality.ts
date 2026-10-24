@@ -817,18 +817,30 @@ export class AutoQuality {
 
 /**
  * What the server delivered while this stream's start was loading, kbps:
- * the mean of the windows with data since `loadAt` (the first, which may be
- * the stream before, left out) up to when it began to play (`playAt`), and
- * any taken while stalled after that. While the player fills its start it
- * pulls as fast as it is sent. Windows with nothing in them (a pause) don't
- * count as a speed. Null with fewer than EVIDENCE_REPORTS.
+ * the mean of the windows since `loadAt` (the first, which may be the
+ * stream before, left out) up to when it began to play (`playAt`), and any
+ * taken while stalled after that. While the player fills its start it
+ * pulls as fast as it is sent. A window with nothing in it is the server
+ * pausing: the windows either side of it are only part-filled, so there is
+ * no speed to tell at all (null), as with stallEvidence. Windows within a
+ * seek's grace (`lastSeekAt`) are the jump, not the line. Null with fewer
+ * than EVIDENCE_REPORTS.
  */
-export function startDelivery(rates: RateReport[], loadAt: number, playAt: number | null, now: number): number | null {
-  const data = rates
-    .filter((r) => r.kbps > 0 && r.t <= now && r.t >= loadAt + RATE_TICK_MS && (playAt == null || r.t <= playAt || r.stalled))
-    .map((r) => r.kbps);
-  return data.length >= EVIDENCE_REPORTS ? Math.round(mean(data)) : null;
+export function startDelivery(rates: RateReport[], loadAt: number, playAt: number | null, now: number, lastSeekAt = 0): number | null {
+  const range = rates.filter((r) => r.t <= now && r.t >= loadAt + RATE_TICK_MS && (playAt == null || r.t <= playAt || r.stalled)
+    && !inJumpGrace(r.t, lastSeekAt, 0));
+  if (range.some((r) => r.kbps <= 0)) return null;
+  return range.length >= EVIDENCE_REPORTS ? Math.round(mean(range.map((r) => r.kbps))) : null;
 }
+
+/** Plex servers (by address) that turned a conversion down this session:
+ *  nothing asks them for one again by itself (a start preset, a rescue,
+ *  an automatic step into a conversion). */
+const refusingServers = new Set<string>();
+export function noteConversionRefused(server: string | null | undefined): void { if (server) refusingServers.add(server); }
+export function serverRefusesConversion(server: string | null | undefined): boolean { return !!server && refusingServers.has(server); }
+/** Tests. */
+export function _resetConversionRefusals(): void { refusingServers.clear(); }
 
 export type StartRescue =
   | { step: QualityStep; kbps: number }

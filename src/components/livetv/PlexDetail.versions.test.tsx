@@ -86,7 +86,8 @@ describe('versions on the title page', () => {
 
   it('a line too slow for the 1080p file as well: it starts converted to what the line carries, and says so', async () => {
     // The owner's title page: "this TV measured ~1.7 Mb/s from the Plex server — starting in 1080p".
-    _setPlexSpeed(BASE, 1700);
+    // Measured on this title's own 4K file.
+    _setPlexSpeed(BASE, 1700, Date.now(), 1, '/library/parts/2/file.mkv');
     const onPlay = renderDetail({ ratingKey: '101', title: 'The Film', type: 'movie', videoResolution: '4k' });
     await waitFor(() => expect(screen.getAllByText(/starting in 480p · 2 Mbps\. Pick 4K to play it anyway\./).length).toBeGreaterThan(0), { timeout: 5000 });
     press('Enter');
@@ -103,5 +104,16 @@ describe('versions on the title page', () => {
     press('Enter');
     await waitFor(() => expect(onPlay).toHaveBeenCalledTimes(2), { timeout: 5000 });
     expect(onPlay.mock.calls[1][4].startPreset).toBeUndefined();
+    expect(onPlay.mock.calls[1][4].picked).toBe(true);
+  });
+
+  it("another title's old reading (the cache is per server) never converts this one", async () => {
+    _setPlexSpeed(BASE, 1700, Date.now(), 1, '/library/parts/999/other.mkv');
+    const onPlay = renderDetail({ ratingKey: '101', title: 'The Film', type: 'movie', videoResolution: '1080' });
+    await waitFor(() => expect(screen.getByText('Play 1080p')).toBeTruthy(), { timeout: 5000 });
+    press('Enter');
+    await waitFor(() => expect(onPlay).toHaveBeenCalledTimes(1), { timeout: 5000 });
+    expect(onPlay.mock.calls[0][4].startPreset).toBeUndefined();
+    expect(screen.queryByText(/starting in 480p/)).toBeNull();
   });
 });

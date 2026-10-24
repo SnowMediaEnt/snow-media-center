@@ -11,7 +11,7 @@ import i18n from '@/i18n';
 import { getPlexMetadata as _getPlexMetadata, getPlexSeasons as _getPlexSeasons,
   getPlexEpisodes as _getPlexEpisodes, getPlexActorItems as _getPlexActorItems, resolutionLabel, findPlexCopies, getPlexTrailer,
   type PlexMetadata, type PlexSeason, type PlexEpisode, type PlexItem, type PlexPerson, type PlexVersion, type PlexTrailer } from '@/lib/plex';
-import { cachedPlexSpeed, defaultVersion, is4k, measurePlexSpeed, sortVersions, speedVerdict, speedWarning, startVersion, versionName, type PlexPlaySource } from '@/lib/plexVersions';
+import { cachedPlexSpeed, cachedPlexSpeedPart, defaultVersion, is4k, measurePlexSpeed, sortVersions, speedVerdict, speedWarning, startVersion, versionName, type PlexPlaySource } from '@/lib/plexVersions';
 import { startPresetFor } from '@/lib/plexAutoQuality';
 import { isDemo, isHowtoCapture } from '@/lib/demoMode';
 import { demoGetMetadata, demoGetSeasons, demoGetEpisodes, demoGetActorItems } from '@/lib/plexDemo';
@@ -387,10 +387,19 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   // the Plex server too (a 4K default falling back to a 1080p file at
   // 1.7 Mb/s): it starts at a converted preset that rate carries instead
   // (startPresetFor), unless the viewer picked a version themselves.
+  // Only a reading taken for this title (one of its own files): the speed
+  // cache is per server, and another title's old reading is no reason to
+  // convert this one.
+  const ownSpeed = (kbps: number | null | undefined): number | null => {
+    if (!kbps) return null;
+    const part = cachedPlexSpeedPart(base, speedConnections);
+    return part && versions.some((v) => v.partKey === part) ? kbps : null;
+  };
   const startPreset = useMemo(() => {
-    if (chosenId != null || !effective || !speedKbps) return null;
-    return startPresetFor(speedKbps, effective.bitrateKbps);
-  }, [chosenId, effective, speedKbps]);
+    if (chosenId != null || !effective) return null;
+    return startPresetFor(ownSpeed(speedKbps), effective.bitrateKbps);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ownSpeed reads the cache for this title's versions
+  }, [chosenId, effective, speedKbps, versions, base, speedConnections]);
 
   // The same title in other libraries (a "4K Movies" section): once the
   // metadata is in, off the first paint.
@@ -601,10 +610,14 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
     }
     // Too slow for the file that starts as well: a converted preset that the
     // measured rate carries (startPreset above).
-    const sp = chosenId == null && version ? startPresetFor(measured, version.bitrateKbps) : null;
+    const own = ownSpeed(measured);
+    const sp = chosenId == null && version ? startPresetFor(own, version.bitrateKbps) : null;
     // Its Resume point is about to change: never reuse this metadata again.
     metaMemoRef.current.delete(current.ratingKey);
-    onPlay(current, resume, ctx, partKey, versions.length ? { version, versions, ...(sp && measured ? { startPreset: sp.key, measuredKbps: measured } : {}) } : undefined);
+    onPlay(current, resume, ctx, partKey, versions.length
+      ? { version, versions, ...(chosenId != null ? { picked: true } : {}), ...(sp && own ? { startPreset: sp.key, measuredKbps: own } : {}) }
+      : undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ownSpeed reads the cache for this title's versions
   }, [meta, current, onPlay, effective, multi, chosenId, baseChoice, versions, speedKbps]);
 
   // The trailer plays over this page in SMC's own player, and saves nothing:

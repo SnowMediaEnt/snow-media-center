@@ -23,7 +23,7 @@ type NativeState = {
   error: { code?: string; message: string; httpStatus?: number } | null; buffering: boolean; paused: boolean;
   audioWarning: { codecs: string; ffmpegAvailable: boolean } | null; controller: null;
   getPosition: () => Promise<{ position: number; duration: number; playing: boolean }>;
-  seekTo: () => Promise<void>; retry: () => void;
+  seekTo: () => Promise<void>; retry: () => void; loads?: number;
 };
 
 const h = vi.hoisted(() => {
@@ -43,6 +43,8 @@ const h = vi.hoisted(() => {
     urls: [] as string[],
     /** Whether each of them was to be read over several connections (rangeFetch). */
     rangeFetch: [] as boolean[],
+    /** Where each of them was to start (startPosition). */
+    starts: [] as Array<number | undefined>,
     native: null as unknown as NativeState,
     kick: null as null | (() => void),
     part: vi.fn(),
@@ -98,10 +100,10 @@ vi.mock('@/capacitor/SnowPlayer', async (orig) => {
 vi.mock('@/hooks/useNativePlayer', async () => {
   const React = await import('react');
   return {
-    useNativePlayer: ({ url, rangeFetch }: { url: string | null; rangeFetch?: boolean }) => {
+    useNativePlayer: ({ url, rangeFetch, startPosition }: { url: string | null; rangeFetch?: boolean; startPosition?: number }) => {
       const [, force] = React.useState(0);
       React.useEffect(() => { h.kick = () => force((n) => n + 1); return () => { h.kick = null; }; }, []);
-      if (url && h.urls[h.urls.length - 1] !== url) { h.urls.push(url); h.rangeFetch.push(!!rangeFetch); }
+      if (url && h.urls[h.urls.length - 1] !== url) { h.urls.push(url); h.rangeFetch.push(!!rangeFetch); h.starts.push(startPosition); }
       return h.native;
     },
   };
@@ -143,6 +145,11 @@ vi.mock('./PlexDetail', () => ({
         const v = { id: 'd1:0', ratingKey: item.ratingKey, mediaIndex: 0, label: '1080p', bitrateKbps: 16000, partKey: '/library/parts/7/file.mkv' };
         onPlay(item, undefined, undefined, undefined, { version: v, versions: [v], startPreset: '480-2', measuredKbps: 1700 });
       }}>PLAY:Measured</button>
+      {/* The viewer picked this version on the title page: it plays as it is. */}
+      <button onClick={() => {
+        const v = { id: 'd1:0', ratingKey: item.ratingKey, mediaIndex: 0, label: '1080p', bitrateKbps: 16000, partKey: '/library/parts/7/file.mkv' };
+        onPlay(item, undefined, undefined, undefined, { version: v, versions: [v], picked: true });
+      }}>PLAY:Picked</button>
     </div>
   ),
 }));
@@ -209,6 +216,8 @@ beforeEach(async () => {
   h.pos.position = 600; h.pos.duration = 7200; h.pos.playing = true;
   h.urls = [];
   h.rangeFetch = [];
+  h.starts = [];
+  (await import('@/lib/plexAutoQuality'))._resetConversionRefusals();
   h.native = {
     error: null, buffering: false, paused: false, audioWarning: null, controller: null,
     getPosition: async () => ({ ...h.pos }), seekTo: async () => undefined, retry: () => undefined,
@@ -1307,5 +1316,115 @@ describe("a Plex server that sends 1.5 Mb/s of a 16 Mb/s film (the owner's TV, 1
     expect(cap(h.urls[0])).toBe('2000');
     expect(h.urls.filter(isFile)).toEqual([]);
     expect(toastDescs()).toContain('This TV measured about 1.7 Mb/s from your Plex server, so this starts at 480p · 2 Mbps. Pick Original under Quality to play the file as it is.');
+  });
+});
+
+describe('the rescue, after review: a start only, one at a time, never against the viewer', () => {
+  beforeEach(() => {
+    h.part.mockImplementation(async () => ({ partKey: '/library/parts/7/file.mkv', bitrateKbps: 16000, versions: [] }));
+  });
+  const giveUp = () => act(() => {
+    h.native = { ...h.native, error: { code: 'RECONNECT_EXHAUSTED', message: 'The server stopped responding. Try again.' } };
+    h.kick?.();
+  });
+  const reload = () => act(() => { h.native = { ...h.native, loads: (h.native.loads ?? 0) + 1 }; h.kick?.(); });
+  async function loading(kbps: number, title = 'Dune') {
+    h.pos.playing = false; h.pos.position = 0; h.pos.duration = 0;
+    await openDune();
+    fireEvent.click(await screen.findByText(`PLAY:${title}`, undefined, { timeout: 3000 }));
+    await until(() => expect(h.urls.length).toBeGreaterThan(0));
+    act(() => { beginStream(lastUrl(), 'vod'); });
+    stallBoth();
+    await report(kbps, 3_500);
+    await report(kbps);
+  }
+
+  it('mid-film (past the start): an error is the network retry\'s, never a rescue', async () => {
+    const retry = vi.fn();
+    h.native = { ...h.native, retry };
+    await playingDune();
+    stallBoth();
+    await report(1500);
+    await report(1500);
+    giveUp();
+    await wait(10_000);
+    expect(h.urls).toHaveLength(1);
+    expect(retry).toHaveBeenCalled();
+  });
+
+  it('one problem, one drop: the reloads that follow a rescue are not a second one', async () => {
+    await loading(12000);
+    giveUp();
+    reload();
+    reload();
+    await until(() => expect(cap(lastUrl())).toBe('8000'));
+    reload();
+    await wait(9_000);
+    expect(h.urls.filter(isTranscode).map(cap)).toEqual(['8000']);
+    expect(toastTitles().filter((t) => t.indexOf('Switched') === 0)).toEqual(['Switched to 1080p · 8 Mbps']);
+  });
+
+  it('Original picked under Quality after a rescue: the file plays, and is not converted again', async () => {
+    await loading(1500);
+    giveUp();
+    await until(() => expect(cap(lastUrl())).toBe('2000'));
+    act(() => { h.native = { ...h.native, error: null }; h.kick?.(); });
+    act(() => { h.pickQuality?.('original', 0); });
+    await until(() => expect(isFile(lastUrl())).toBe(true));
+    const n = h.urls.length;
+    await report(1500, 3_500);
+    await report(1500);
+    await wait(10_000);
+    expect(h.urls).toHaveLength(n);
+  });
+
+  it('a version picked on the title page plays as it is, however slow its start', async () => {
+    await loading(1500, 'Picked');
+    await wait(10_000);
+    expect(h.urls).toHaveLength(1);
+    expect(isFile(lastUrl())).toBe(true);
+  });
+
+  it('on the Plex Relay (it starts at the lowest): network errors keep their retries', async () => {
+    h.conn.route = 'relay';
+    const retry = vi.fn();
+    h.native = { ...h.native, retry };
+    await loading(500);
+    giveUp();
+    await wait(10_000);
+    expect(retry).toHaveBeenCalled();
+    expect(screen.queryByText(/too little even for/)).toBeNull();
+  });
+
+  it('a restart after the player reads 0 (a reload) picks up where playback was last seen', async () => {
+    await openDune();
+    await play('Dune');
+    await started();
+    act(() => { beginStream(lastUrl(), 'vod'); markPlaybackStart(); });
+    await wait(5_500);
+    h.pos.position = 0;
+    stallBoth();
+    await report(1500);
+    await report(1500);
+    await wait(3_500);
+    await until(() => expect(cap(lastUrl())).toBe('2000'));
+    expect(h.starts[h.starts.length - 1]).toBe(600);
+  });
+
+  it('a server that turned a conversion down: not asked again by itself this session', async () => {
+    refuseDecisions();
+    await openDune();
+    fireEvent.click(await screen.findByText('PLAY:Measured', undefined, { timeout: 3000 }));
+    await until(() => expect(isFile(lastUrl())).toBe(true));
+    const asked = decisionsAll().length;
+    expect(asked).toBeGreaterThan(0);
+    act(() => { h.closePlayer?.(); });
+    await wait(20);
+    h.closePlayer = null;
+    h.urls = [];
+    fireEvent.click(await screen.findByText('PLAY:Measured', undefined, { timeout: 3000 }));
+    await until(() => expect(h.urls.length).toBeGreaterThan(0));
+    expect(isFile(h.urls[0])).toBe(true);
+    expect(decisionsAll()).toHaveLength(asked);
   });
 });

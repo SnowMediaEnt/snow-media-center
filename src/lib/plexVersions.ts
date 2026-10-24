@@ -22,6 +22,9 @@ export interface PlexPlaySource {
   versions?: PlexVersion[];
   startPreset?: string;
   measuredKbps?: number;
+  /** The viewer picked this version themselves: it plays as it is, and no
+   *  start-up rescue converts it. */
+  picked?: boolean;
 }
 
 const RES_RANK: Record<string, number> = { '4K': 2160, '2160p': 2160, '1440p': 1440, '1080p': 1080, '720p': 720, '576p': 576, '480p': 480, SD: 400 };
@@ -156,7 +159,7 @@ const PROBE_MAX_BYTES = 16 * 1024 * 1024;
 /** The first bytes carry the connection set-up; the rate is taken after. */
 const PROBE_SKIP_BYTES = 256 * 1024;
 
-const cache = new Map<string, { kbps: number; at: number }>();
+const cache = new Map<string, { kbps: number; at: number; part?: string }>();
 const inflight = new Map<string, Promise<number | null>>();
 
 /**
@@ -209,7 +212,14 @@ export function cachedPlexSpeed(base: string, connections = 1, now = Date.now())
 
 /** For tests. */
 export function _resetPlexSpeedCache(): void { cache.clear(); inflight.clear(); }
-export function _setPlexSpeed(base: string, kbps: number, at = Date.now(), connections = 1): void { cache.set(serverKey(base, connections), { kbps, at }); }
+export function _setPlexSpeed(base: string, kbps: number, at = Date.now(), connections = 1, part?: string): void { cache.set(serverKey(base, connections), { kbps, at, part }); }
+
+/** The file the cached speed for this server was read from (`part`), or
+ *  null: a reading taken for one title is no reason to convert another. */
+export function cachedPlexSpeedPart(base: string, connections = 1, now = Date.now()): string | null {
+  const c = cache.get(serverKey(base, connections));
+  return c && cachedPlexSpeed(base, connections, now) != null ? c.part ?? null : null;
+}
 
 /** The arrivals of several reads made at once, as one: the bytes in by each
  *  moment, over all of them (what the player gets when it reads the file
@@ -302,7 +312,7 @@ export function measurePlexSpeed(
     }
     if (all[0] == null) return null;
     const kbps = probeRateFromMarks(mergeMarks(all.filter((m): m is Array<{ t: number; bytes: number }> => m != null)), started, Date.now());
-    if (kbps != null && !fresh) cache.set(key, { kbps, at: Date.now() });
+    if (kbps != null && !fresh) cache.set(key, { kbps, at: Date.now(), part: partKey });
     return kbps;
   })();
   if (!fresh) inflight.set(key, p);
