@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import ChannelRow from './ChannelRow';
 import { formatTime } from '@/i18n/format';
-import { CLASSIC_ROW_H, COMPACT_ROW_H, SLIM_ROW_H } from '@/lib/liveRows';
+import { NORMAL_ROW_H, SLIM_ROW_H } from '@/lib/liveRows';
 
 const ch = { stream_id: 1, name: 'US| ESPN', num: 5, stream_icon: '', category_id: '1' } as never;
 
@@ -77,55 +77,97 @@ describe('ChannelRow, the room each part gets', () => {
     }
     expect(long.className).toContain('text-[10px]');
     expect(longer.className).toContain('text-[9px]');
-    expect(short.className).toContain(variant === 'classic' ? 'text-sm' : 'text-xs');
+    expect(short.className).toContain(variant === 'slim' ? 'text-xs' : 'text-sm');
   });
 });
 
-describe('ChannelRow, Normal rows a third thinner (owner, 2026-10-23)', () => {
+describe('ChannelRow, Normal rows drawn like the Tronix list, a little thicker (owner, 2026-10-24)', () => {
   const at = Date.now();
   const nn = { now: { title: 'Evening Report', start: at - 20 * 60_000, end: at + 40 * 60_000 } } as never;
   const draw = (variant: 'classic' | 'compact' | 'upright', extra: Record<string, unknown> = {}) => render(
     <ChannelRow channel={ch} index={0} isFocused={false} isPlaying={false} isFavorite={false} onSelect={() => {}} onActivate={() => {}} variant={variant} nowNext={nn} {...extra} />,
   ).container;
+  const range = `${formatTime(at - 20 * 60_000)}–${formatTime(at + 40 * 60_000)}`;
 
-  it('Classic keeps the number, logo, name, what is on, its progress and its times, in 50px', () => {
-    const c = draw('classic', { isFavorite: true });
-    const row = c.querySelector('[data-row-classic]') as HTMLElement;
-    expect(row.style.height).toBe(`${CLASSIC_ROW_H}px`);
-    expect(CLASSIC_ROW_H).toBe(50);
+  it.each(['classic', 'compact'] as const)('%s: 46px, the number, a round logo, the name with its star, what is on and the progress under the words', (variant) => {
+    const c = draw(variant, { isFavorite: true });
+    const row = c.querySelector('[data-row-normal]') as HTMLElement;
+    expect(row).not.toBeNull();
+    expect(row.hasAttribute(`data-row-${variant}`)).toBe(true);
+    expect(row.style.height).toBe(`${NORMAL_ROW_H}px`);
+    expect(NORMAL_ROW_H).toBe(46);
     expect(c.querySelector('[data-row-num]')?.textContent).toBe('5');
-    expect(row.textContent).toContain('US| ESPN');
-    const nowLine = c.querySelector('[data-classic-now]')!;
-    expect(nowLine.textContent).toContain('Evening Report');
-    expect(c.querySelector('[data-classic-time]')?.textContent).toBe(`${formatTime(at - 20 * 60_000)}–${formatTime(at + 40 * 60_000)}`);
-    const bar = nowLine.querySelector('[aria-hidden="true"] > div') as HTMLElement;
-    expect(parseFloat(bar.style.width)).toBeGreaterThan(30);
-    expect(parseFloat(bar.style.width)).toBeLessThan(37);
-    expect(c.querySelector('.fill-brand-gold')).not.toBeNull();
+    expect(c.querySelector('[data-row-logo]')?.className).toContain('rounded-full');
+    expect(c.querySelector('[data-row-name]')?.textContent).toBe('US| ESPN');
+    // The star right after the name, gold.
+    const star = c.querySelector('[data-row-fav]')!;
+    expect(star.previousElementSibling?.hasAttribute('data-row-name')).toBe(true);
+    expect(star.getAttribute('class')).toContain('text-brand-gold');
+    expect(c.querySelector('[data-row-now]')?.textContent).toBe('Evening Report');
+    // The progress line spans the words' width, a third of the way, in gold.
+    const bar = c.querySelector('[data-row-progress]') as HTMLElement;
+    expect(bar.parentElement?.hasAttribute('data-row-text')).toBe(true);
+    expect(bar.className).toContain('left-0');
+    expect(bar.className).toContain('right-0');
+    const fill = bar.firstElementChild as HTMLElement;
+    expect(fill.className).toContain('bg-brand-gold');
+    expect(parseFloat(fill.style.width)).toBeGreaterThan(30);
+    expect(parseFloat(fill.style.width)).toBeLessThan(37);
+    // A white ring when focused (index.css .tv-ring-row), not the gold one.
+    expect(row.className).toContain('tv-ring-row');
   });
 
-  it('Classic still says when a channel is down, or has no listing', () => {
-    expect(draw('classic', { isDown: true }).querySelector('[data-classic-now]')).toBeNull();
+  it('Classic has the times at the name line\'s end; Compact says when it ends after what is on', () => {
+    const classic = draw('classic');
+    const t = classic.querySelector('[data-row-time]')!;
+    expect(t.textContent).toBe(range);
+    expect(t.parentElement?.contains(classic.querySelector('[data-row-name]'))).toBe(true);
+    const compact = draw('compact');
+    const e = compact.querySelector('[data-row-time]')!;
+    expect(e.textContent).toBe(`–${formatTime(at + 40 * 60_000)}`);
+    expect(e.parentElement?.contains(compact.querySelector('[data-row-now]'))).toBe(true);
+  });
+
+  it('a logo-less channel gets a coloured initials circle; a logo goes over it once it has loaded', () => {
+    const c = draw('classic');
+    expect(c.querySelector('[data-row-initials]')?.textContent).toBe('ES');
+    expect((c.querySelector('[data-row-logo]') as HTMLElement).style.backgroundColor).toMatch(/^rgb/);
+    const withLogo = render(<ChannelRow channel={{ ...(ch as object), stream_icon: 'http://x.test/logo.png' } as never} index={0} isFocused={false} isPlaying={false} isFavorite={false} onSelect={() => {}} onActivate={() => {}} variant="compact" />).container;
+    expect(withLogo.querySelector('[data-row-logo] img')).not.toBeNull();
+    // Until it loads, the initials stay.
+    expect(withLogo.querySelector('[data-row-initials]')).not.toBeNull();
+  });
+
+  it('keeps the markers: down / off the air, the service, playing (ON AIR / LIVE)', () => {
+    const classic = draw('classic', { isPlaying: true, serviceTag: 'VIBEZ' });
+    expect(classic.querySelector('[data-row-live]')?.textContent).toBe('ON AIR');
+    expect(classic.querySelector('[data-service-tag]')?.textContent).toBe('VIBEZ');
+    expect(draw('compact', { isPlaying: true }).querySelector('[data-row-live]')?.textContent).toBe('LIVE');
+    const off = draw('classic', { report: 'offair' });
+    expect(off.querySelector('[data-report="offair"]')).not.toBeNull();
+    // Down: the note takes what's-on's place, and no times or progress.
+    expect(off.querySelector('[data-row-now]')?.textContent).toContain('Off the air');
+    expect(off.querySelector('[data-row-time]')).toBeNull();
+    expect(off.querySelector('[data-row-progress]')).toBeNull();
+    expect(draw('compact', { isDown: true }).querySelector('[data-row-now]')?.textContent).toBe('Reported down right now');
+  });
+
+  it('says when a channel has no listing', () => {
     expect(screenText(draw('classic', { nowNext: undefined }))).toContain('No information');
+    expect(screenText(draw('compact', { nowNext: undefined }))).toContain('No information');
   });
 
-  it('Compact keeps the name, what is on and its progress, in 42px; Slim stays thinner than both', () => {
-    const c = draw('compact');
-    const row = c.querySelector('[data-row-compact]') as HTMLElement;
-    expect(row.style.height).toBe(`${COMPACT_ROW_H}px`);
-    expect(row.textContent).toContain('US| ESPN');
-    expect(row.textContent).toContain('Evening Report');
-    expect(SLIM_ROW_H).toBeLessThan(COMPACT_ROW_H);
-    expect(COMPACT_ROW_H).toBeLessThan(CLASSIC_ROW_H);
+  it('Slim stays thinner', () => {
+    expect(SLIM_ROW_H).toBeLessThan(NORMAL_ROW_H);
   });
 
   it('a phone held upright keeps its finger-sized 56px row', () => {
     const c = draw('upright');
-    expect(c.querySelector('[data-row-compact]')).toBeNull();
+    expect(c.querySelector('[data-row-normal]')).toBeNull();
     expect(c.querySelector('.h-14')).not.toBeNull();
   });
 
-  it('no flex gap in the thinner rows (Chromium 66 ignores it)', () => {
+  it('no flex gap in the normal rows (Chromium 66 ignores it)', () => {
     for (const v of ['classic', 'compact'] as const) {
       const html = draw(v, { isPlaying: true, isFavorite: true, serviceTag: 'VIBEZ' }).innerHTML;
       expect(html).not.toMatch(/class="[^"]*\bgap-/);
