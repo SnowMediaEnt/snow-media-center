@@ -113,7 +113,9 @@
       "needs": "Necesita {{value}}",
       "internet": "Internet",
       "quickCheck": "(revisión rápida)",
-      "helpHint": "Presiona Ayuda para ver consejos"
+      "helpHint": "Presiona Ayuda para ver consejos",
+      "serverAvg": "Servidor Plex {{value}} prom.",
+      "lastWindow": "(últimos 3 s: {{value}})"
     },
     "diag": {
       "playingNormally": "Reproducción normal",
@@ -171,12 +173,14 @@
       "originalQuality": "calidad original",
       "originalDirect": "Original (directo)",
       "autoKeepsFile": "Calidad automática: mantiene el original, el servidor Plex lo ha enviado lo bastante rápido",
-      "autoHolds": "Calidad automática: solo baja si el servidor Plex envía menos de lo que necesita",
+      "autoHolds": "Calidad automática: baja sola si el servidor Plex envía menos de lo que necesita",
       "autoWillLower": "Calidad automática: bajará a {{step}} si sigue trabándose",
       "autoLowersStarved": "Calidad automática: bajando a {{step}}, el servidor Plex solo entrega {{speed}}",
       "autoOff": "Calidad automática desactivada para este título (elegiste {{pick}})",
       "autoLowest": "Calidad automática: ya está en el nivel más bajo",
-      "autoAtLowest": "Calidad automática: en el nivel más bajo (vuelve a {{step}} cuando la velocidad lo permita)"
+      "autoAtLowest": "Calidad automática: en el nivel más bajo (vuelve a {{step}} cuando la velocidad lo permita)",
+      "autoSwitched": "Calidad automática: cambió a {{step}}, el servidor Plex envió {{speed}} en promedio",
+      "autoWillLowerStarved": "Calidad automática: bajará a {{step}} si sigue trabándose, el servidor Plex envía {{speed}}"
     },
     "player": {
       "playNext": "Reproducir siguiente episodio",
@@ -488,7 +492,10 @@
         "backToTitle": "De vuelta a {{quality}}",
         "backToDesc": "Tu velocidad mejoró.",
         "hiddenTitle": "{{name}} oculta",
-        "hiddenDesc": "Vuelve a mostrarla cuando quieras en Ajustes."
+        "hiddenDesc": "Vuelve a mostrarla cuando quieras en Ajustes.",
+        "serverSwitchTitle": "Cambiado a {{quality}}",
+        "serverSwitchDesc": "Tu servidor Plex envía unos {{speed}}, así que se reproduce en {{quality}}. Sube sola cuando el servidor dé abasto.",
+        "serverStartDesc": "Esta TV midió unos {{speed}} desde tu servidor Plex, así que empieza en {{quality}}. Elige Original en Calidad para reproducir el archivo tal cual."
       },
       "sessionDirect": "Reproducción directa del archivo original",
       "sessionConvertTo": "Convirtiendo a {{quality}}",
@@ -507,7 +514,8 @@
       "transcoding": "convirtiendo",
       "route": "Ruta: {{route}}",
       "menuHint": "▶ a las filas · Mantén OK para ocultar una biblioteca · Atrás salir",
-      "finding": "Buscando “{{title}}” en Plex…"
+      "finding": "Buscando “{{title}}” en Plex…",
+      "serverTooSlow": "Tu servidor Plex envía solo unos {{speed}}, muy poco incluso para {{quality}}."
     },
     "provider": {
       "authFailed": "El panel rechazó tu inicio de sesión en TV en vivo. Vuelve a iniciar sesión en TV en vivo y regresa aquí.",
@@ -548,17 +556,18 @@
       "waitingDetail": "Sin datos del servidor desde hace {{seconds}} s.",
       "sendingEnough": "El servidor Plex envía {{speed}}, suficiente para este video.",
       "convertHeadline": "El servidor Plex no convierte esto lo bastante rápido",
-      "convertDetail": "Logra {{server}} al convertir; tu internet va bien (revisión rápida: {{speed}}).",
+      "convertDetail": "Logra {{server}} en promedio al convertir; tu internet va bien (revisión rápida: {{speed}}).",
       "tryLower": "Prueba una calidad menor u Original.",
       "sendHeadline": "El servidor Plex no envía esto lo bastante rápido",
-      "sendDetail": "Envía {{server}} como máximo y este video necesita unos {{need}}; tu internet va bien (revisión rápida: {{speed}}).",
+      "sendDetail": "Tu servidor Plex envía {{server}} en promedio; este video necesita unos {{need}}. Tu internet va bien (revisión rápida: {{speed}}).",
       "slowLineHeadline": "La conexión con el servidor Plex es demasiado lenta para este video",
-      "slowLineDetail": "Soporta {{server}} como máximo; este video necesita unos {{need}}.",
+      "slowLineDetail": "La conexión con tu servidor Plex lleva {{server}} en promedio; este video necesita unos {{need}}.",
       "quickHeadline": "Revisión rápida de internet: {{speed}}, menos de lo que necesita este video",
       "quickDetail": "Necesita unos {{need}}.",
       "convertingHeadline": "El servidor Plex está convirtiendo este video",
       "convertingDetail": "Puede tardar unos segundos en adelantarse.",
-      "checking": "Comprobando lo que envía el servidor Plex."
+      "checking": "Comprobando lo que envía el servidor Plex.",
+      "slowSpell": "Tu servidor Plex envía ahora {{server}} en promedio, pero ya envió {{best}} para este video: un bajón pasajero, para eso está el búfer."
     }
   }
 }

@@ -96,7 +96,7 @@ describe('stalls alone never leave the file for a conversion', () => {
     const q = aq.preview(film, 0);
     expect(q.next).toBeNull();
     expect(q.holds).toBe(true);
-    expect(autoQualityNote(film, 0, q)).toBe('Auto quality: lowers only if the Plex server delivers less than this needs');
+    expect(autoQualityNote(film, 0, q)).toBe('Auto quality: steps down by itself if the Plex server sends less than this needs');
   });
 });
 

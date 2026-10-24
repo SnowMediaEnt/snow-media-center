@@ -13,6 +13,17 @@ import { plexDirectUrl, resolutionLabel, type PlexVersion } from '@/lib/plex';
 
 export type { PlexVersion } from '@/lib/plex';
 
+/** What Play hands the player: the file to play (`version`) among the
+ *  title's `versions`; and, when the title page measured the Plex server too
+ *  slow for that file, the converted preset to start at (`startPreset`, a
+ *  preset key) with that rate (`measuredKbps`). */
+export interface PlexPlaySource {
+  version?: PlexVersion | null;
+  versions?: PlexVersion[];
+  startPreset?: string;
+  measuredKbps?: number;
+}
+
 const RES_RANK: Record<string, number> = { '4K': 2160, '2160p': 2160, '1440p': 1440, '1080p': 1080, '720p': 720, '576p': 576, '480p': 480, SD: 400 };
 
 /** Rough vertical resolution of a version, for ordering. */

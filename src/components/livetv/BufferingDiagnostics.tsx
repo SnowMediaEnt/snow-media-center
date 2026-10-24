@@ -48,7 +48,7 @@ interface BufferingDiagnosticsProps {
    *  the route) can replace the general verdict. null keeps it. `autoSaid`:
    *  its advice already says what automatic quality will do. `dropped`: the
    *  connection dropped, so the last internet number is not shown as now. */
-  explain?: (snap: DiagSnapshot) => (ClassifyResult & { autoSaid?: boolean; dropped?: boolean }) | null;
+  explain?: (snap: DiagSnapshot) => (ClassifyResult & { autoSaid?: boolean; dropped?: boolean; serverKbps?: number }) | null;
   /** One line on what automatic quality will do ("Auto quality: will lower
    *  to …"), read at each render so it follows the speed. Left out when the
    *  verdict's advice already says it. */
@@ -150,6 +150,7 @@ const BufferingDiagnostics = memo(({ buffering: bufferingProp, corner = 'top-rig
   const auto = told?.autoSaid ? null : autoNote?.(general) ?? null;
   // Dropped: the last check is from before, so it reads as a failed one.
   const netKbps = told?.dropped ? null : snap.probeKbps;
+  const serverKbps = told?.serverKbps != null && told.serverKbps > 0 ? told.serverKbps : null;
 
   return (
     <div
@@ -169,12 +170,22 @@ const BufferingDiagnostics = memo(({ buffering: bufferingProp, corner = 'top-rig
           {/* Inline, not flex: three numbers plus "Checking…" can outgrow the
               card, and inline spans wrap without a flex-gap fallback. */}
           <p className="mt-1 text-xs text-brand-ice/70 tabular-nums leading-snug">
-            <span className="mr-3 whitespace-nowrap">
-              {t('plex.buffering.now')} <span className="text-white/90">{speed(nowKbps)}</span>
-              {snap.streamEarlyKbps != null && (
-                <span className="text-brand-ice/70"> {t('plex.buffering.was', { value: (snap.streamEarlyKbps / 1000).toFixed(1) })}</span>
-              )}
-            </span>
+            {serverKbps != null ? (
+              // The verdict goes by the server's average over this stall: that
+              // number leads, the last 3 s window (a burst, or a lull) beside
+              // it, labelled as such.
+              <span className="mr-3 whitespace-nowrap" data-server-avg>
+                <span className="text-white/90">{t('plex.buffering.serverAvg', { value: formatMbps(serverKbps) })}</span>
+                {nowKbps != null && <span className="text-brand-ice/60"> {t('plex.buffering.lastWindow', { value: formatMbps(nowKbps) })}</span>}
+              </span>
+            ) : (
+              <span className="mr-3 whitespace-nowrap">
+                {t('plex.buffering.now')} <span className="text-white/90">{speed(nowKbps)}</span>
+                {snap.streamEarlyKbps != null && (
+                  <span className="text-brand-ice/70"> {t('plex.buffering.was', { value: (snap.streamEarlyKbps / 1000).toFixed(1) })}</span>
+                )}
+              </span>
+            )}
             {needKbps != null && <span className="mr-3 whitespace-nowrap">{t('plex.buffering.needs', { value: formatMbps(needKbps) })}</span>}
             <span className="whitespace-nowrap">{t('plex.buffering.internet')} {speed(netKbps, snap.probeFailed || !!told?.dropped)}{quickCheckLabel && netKbps != null && <span className="text-brand-ice/60"> {t('plex.buffering.quickCheck')}</span>}</span>
           </p>

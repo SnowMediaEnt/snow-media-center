@@ -11,7 +11,8 @@ import i18n from '@/i18n';
 import { getPlexMetadata as _getPlexMetadata, getPlexSeasons as _getPlexSeasons,
   getPlexEpisodes as _getPlexEpisodes, getPlexActorItems as _getPlexActorItems, resolutionLabel, findPlexCopies, getPlexTrailer,
   type PlexMetadata, type PlexSeason, type PlexEpisode, type PlexItem, type PlexPerson, type PlexVersion, type PlexTrailer } from '@/lib/plex';
-import { cachedPlexSpeed, defaultVersion, is4k, measurePlexSpeed, sortVersions, speedVerdict, speedWarning, startVersion, versionName } from '@/lib/plexVersions';
+import { cachedPlexSpeed, defaultVersion, is4k, measurePlexSpeed, sortVersions, speedVerdict, speedWarning, startVersion, versionName, type PlexPlaySource } from '@/lib/plexVersions';
+import { startPresetFor } from '@/lib/plexAutoQuality';
 import { isDemo, isHowtoCapture } from '@/lib/demoMode';
 import { demoGetMetadata, demoGetSeasons, demoGetEpisodes, demoGetActorItems } from '@/lib/plexDemo';
 import PlexImage from './PlexImage';
@@ -37,7 +38,7 @@ interface Props {
   /** partKey: the file this page already knows about, so Play need not ask
    *  the server for the same metadata again. `src`: the version to play (a 4K
    *  or a 1080p file) and every version the title has. */
-  onPlay: (item: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext, partKey?: string, src?: { version?: PlexVersion | null; versions?: PlexVersion[] }) => void;
+  onPlay: (item: PlexItem, resumeSec?: number, ctx?: SubtitleSearchContext, partKey?: string, src?: PlexPlaySource) => void;
   /** Play a specific episode (shows), optionally one of its versions. */
   onPlayEpisode: (ep: PlexEpisode, ctx?: SubtitleSearchContext, version?: PlexVersion | null) => void;
   onBack: () => void;
@@ -382,6 +383,14 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
     [versions, baseChoice, chosenId, speedKbps],
   );
   const fellBack = !!(effective && baseChoice && effective.id !== baseChoice.id);
+  // The file that would start is too much for what this TV measured from
+  // the Plex server too (a 4K default falling back to a 1080p file at
+  // 1.7 Mb/s): it starts at a converted preset that rate carries instead
+  // (startPresetFor), unless the viewer picked a version themselves.
+  const startPreset = useMemo(() => {
+    if (chosenId != null || !effective || !speedKbps) return null;
+    return startPresetFor(speedKbps, effective.bitrateKbps);
+  }, [chosenId, effective, speedKbps]);
 
   // The same title in other libraries (a "4K Movies" section): once the
   // metadata is in, off the first paint.
@@ -574,6 +583,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
     const ctx: SubtitleSearchContext = { title: meta?.title || current.title, year: meta?.year };
     const partKey = meta && meta.ratingKey === current.ratingKey ? meta.partKey : undefined;
     let version = effective;
+    let measured = speedKbps;
     // A 4K default whose speed check is still running: wait for it (a few
     // seconds at most) rather than start 4K on a line that can't carry it.
     if (multi && chosenId == null && is4k(baseChoice) && speedPromiseRef.current) {
@@ -586,11 +596,15 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
       startBusyRef.current = false;
       setStartWait(false);
       if (currentRef.current.ratingKey !== current.ratingKey) return;
-      version = startVersion(versions, baseChoice, false, kbps ?? speedKbps);
+      measured = kbps ?? speedKbps;
+      version = startVersion(versions, baseChoice, false, measured);
     }
+    // Too slow for the file that starts as well: a converted preset that the
+    // measured rate carries (startPreset above).
+    const sp = chosenId == null && version ? startPresetFor(measured, version.bitrateKbps) : null;
     // Its Resume point is about to change: never reuse this metadata again.
     metaMemoRef.current.delete(current.ratingKey);
-    onPlay(current, resume, ctx, partKey, versions.length ? { version, versions } : undefined);
+    onPlay(current, resume, ctx, partKey, versions.length ? { version, versions, ...(sp && measured ? { startPreset: sp.key, measuredKbps: measured } : {}) } : undefined);
   }, [meta, current, onPlay, effective, multi, chosenId, baseChoice, versions, speedKbps]);
 
   // The trailer plays over this page in SMC's own player, and saves nothing:
@@ -1000,9 +1014,9 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                       );
                     })}
                   </div>
-                  {fellBack && baseChoice && (
+                  {(fellBack || !!startPreset) && baseChoice && is4k(baseChoice) && (
                     <p className="text-plex-cap text-brand-ice/80 font-nunito mt-2">
-                      {t('plex.detail.fellBack', { note: speedNote(baseChoice), name: effective ? versionName(effective, versions) : t('plex.detail.lighterVersion'), pick: versionName(baseChoice, versions) })}
+                      {t('plex.detail.fellBack', { note: speedNote(baseChoice), name: startPreset ? startPreset.label : effective ? versionName(effective, versions) : t('plex.detail.lighterVersion'), pick: versionName(baseChoice, versions) })}
                     </p>
                   )}
                 </div>

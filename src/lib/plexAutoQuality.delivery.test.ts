@@ -168,13 +168,13 @@ describe('a server that pauses: no bytes is a pause, never a drop', () => {
     const aq = new AutoQuality(0);
     const t = 10 * MIN;
     const rates: RateReport[] = [
-      { t: t + 3 * S, kbps: 0, stalled: true }, { t: t + 6 * S, kbps: 11000, stalled: true }, { t: t + 9 * S, kbps: 11500, stalled: true }, { t: t + 12 * S, kbps: 12000, stalled: true },
+      { t: t + 3 * S, kbps: 0, stalled: true }, { t: t + 6 * S, kbps: 12000, stalled: true }, { t: t + 9 * S, kbps: 12500, stalled: true }, { t: t + 12 * S, kbps: 13000, stalled: true },
     ];
     // Judged on the stall under way: its 0 window makes it a pause.
     expect(aq.delivery(rates, t + 12 * S, { lastStartAt: 0 }, t, 12000)).toEqual({ kbps: null, windows: 3, paused: true });
     // A later stall judges the windows with data; healthy here.
     const d = aq.delivery(rates, t + 40 * S, { lastStartAt: 0 }, t + 30 * S, 12000);
-    expect(d.kbps).toBe(11500);
+    expect(d.kbps).toBe(12500);
     expect(aq.onDelivery(t + 40 * S, film, 0, d, 12000)).toBeNull();
   });
 });

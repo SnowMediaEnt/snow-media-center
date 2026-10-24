@@ -16,9 +16,28 @@
 //
 // One down rule (deliveredKbps, AutoQuality.onDelivery): what the server
 // delivered over a stall, or over the stalls of the last two minutes, is
-// short of what the stream needs (under 0.8x), and then it goes to the best
-// rung that rate carries with headroom, lighter files first. A stall in
-// which nothing arrives is the server pausing, never a reason to drop.
+// short of what the stream needs (under 1x: a file that averages 15 Mb/s
+// needs more than that in busy scenes, so 14.3 is too slow), and then it
+// goes to the best rung that rate carries with headroom, lighter files
+// first. It is the very verdict the buffering card gives ("the Plex server
+// can't send this fast enough"), so the card never recommends a step that
+// automatic quality then fails to take. A stall in which nothing arrives
+// is the server pausing, never a reason to drop.
+// Starved (deliveredKbps `early`): a file played as it is whose first
+// stall shows the server delivering under half of what it needs steps down
+// at once, without waiting out the start's grace (a film at 1.5 Mb/s of a
+// 16 Mb/s file will never catch up). Not a conversion (a converter warming
+// up is slow at first), not within a seek's grace, not while the server
+// pauses, not on a proven line.
+// Under the floor: when what the server delivers is under what the floor
+// preset needs (floorPresetFor's `lowKbps`), the ladder reaches
+// down to the relay-sized preset: a picture beats an error.
+// Start-up rescue (startRescue): a play whose start-up loading ends in an
+// error, or never finishes, while the server delivered short of what the
+// stream needs, restarts at the same place on the best converted preset
+// that delivery carries (down to the relay-sized one), once per level;
+// only when even the lowest can't start is the error shown, with the
+// server's number as its reason.
 // Stalls counted on their own (three in five minutes) may only move to a
 // lighter file — never into a conversion — and not off a 4K file whose
 // line is proven. A proven line is a sustained 15 s arrival rate of twice
@@ -65,8 +84,20 @@ export const PROVEN_FACTOR = 2;
 export const PROVEN_WINDOWS = 5;
 /** The stalls delivery is judged over: this long back, since the last change. */
 export const DELIVERY_WINDOW_MS = 2 * 60_000;
-/** Delivered under this share of what the stream needs: too little. */
-export const DELIVERY_FACTOR = 0.8;
+/** Delivered under this share of what the stream needs: too little. 1: a
+ *  file's bitrate is its average, busy scenes need more, so a server that
+ *  sends a shade under it (14.3 of 15) can't keep up either. */
+export const DELIVERY_FACTOR = 1;
+/** On a proven line (lineClearFor) a short slow spell is what the buffer is
+ *  there for: there it takes under this share, over the longer look. */
+export const DELIVERY_PROVEN_FACTOR = 0.8;
+/** Delivered under this share of what a file needs, on its first stall:
+ *  starved, it steps down at once (deliveredKbps `early`). */
+export const STARVED_FACTOR = 0.5;
+/** Windows with data a starved verdict takes (2 x 3 s). */
+export const STARVED_MIN_WINDOWS = 2;
+/** How long the card says what automatic quality just did. */
+export const SWITCH_NOTE_MS = 3 * 60_000;
 /** Windows with data, taken while stalled, it takes to judge delivery
  *  (3 x 3 s: one stall of 9 s, or two shorter ones within the window). */
 export const DELIVERY_MIN_WINDOWS = 3;
@@ -112,10 +143,58 @@ export function stepName(step: QualityStep): string {
 export const qualityPresetLabel = (p: { key: string; label: string }): string =>
   (p.key === 'original' ? i18n.t('plex.quality.originalDirect') : p.label);
 
-/** The lowest preset automatic quality goes to on this route. */
-export const floorPresetFor = (route?: PlexRoute | null): string => (route === 'relay' ? RELAY_PRESET : AUTO_FLOOR_PRESET);
-
 const presetKbps = (key: string): number | undefined => PLEX_QUALITY_PRESETS.find((p) => p.key === key)?.maxVideoBitrateKbps;
+
+/**
+ * The lowest preset automatic quality goes to on this route: the relay-sized
+ * one on the relay, or when what the server has been seen to deliver
+ * (`lowKbps`) is under what the usual floor needs; else the floor.
+ */
+export function floorPresetFor(route?: PlexRoute | null, lowKbps?: number | null): string {
+  if (route === 'relay') return RELAY_PRESET;
+  const floor = presetKbps(AUTO_FLOOR_PRESET) ?? 3000;
+  return lowKbps && lowKbps > 0 && lowKbps < floor ? RELAY_PRESET : AUTO_FLOOR_PRESET;
+}
+
+const presetStep = (key: string): QualityStep | null => {
+  const p = PLEX_QUALITY_PRESETS.find((x) => x.key === key);
+  return p && p.maxVideoBitrateKbps ? { key: p.key, presetKey: p.key, label: p.label, kbps: p.maxVideoBitrateKbps } : null;
+};
+
+/**
+ * The converted preset that `kbps` (what the server delivers) carries with
+ * headroom, best first, among those under `belowKbps` and down to the
+ * relay-sized one; the lowest of them when none fits. `exclude`: keys not to
+ * offer (failed, or already tried). Null when none is left.
+ */
+export function fittingPreset(kbps: number | null | undefined, belowKbps: number, exclude: Iterable<string> = []): QualityStep | null {
+  const skip = new Set(exclude);
+  const low = presetKbps(RELAY_PRESET) ?? 2000;
+  const steps = PLEX_QUALITY_PRESETS
+    .filter((p) => !!p.maxVideoBitrateKbps && p.key !== 'original' && (p.maxVideoBitrateKbps as number) < belowKbps && (p.maxVideoBitrateKbps as number) >= low && !skip.has(p.key))
+    .sort((a, b) => (b.maxVideoBitrateKbps as number) - (a.maxVideoBitrateKbps as number))
+    .map((p) => presetStep(p.key) as QualityStep);
+  if (!steps.length) return null;
+  if (kbps && kbps > 0) {
+    const fits = steps.find((st) => (st.kbps as number) * SPEED_HEADROOM <= kbps);
+    if (fits) return fits;
+  }
+  return steps[steps.length - 1];
+}
+
+/**
+ * Where to START a file the title page measured too slow for it (`kbps`
+ * from the Plex server, `fileKbps` the file's average): under the file's own
+ * average (DELIVERY_FACTOR, the rule automatic quality drops by) it can't
+ * carry it, so the converted preset that rate carries with headroom (a
+ * 16 Mb/s film at 1.7 Mb/s: 480p · 2 Mbps; at 14.3: 1080p · 8 Mbps). Null
+ * when the rate carries the file, or either is unknown.
+ */
+export function startPresetFor(kbps: number | null | undefined, fileKbps: number | null | undefined): QualityStep | null {
+  if (!kbps || kbps <= 0 || !fileKbps || fileKbps <= 0) return null;
+  if (kbps >= fileKbps * DELIVERY_FACTOR) return null;
+  return fittingPreset(kbps, fileKbps);
+}
 
 /**
  * What a stream needs, kbps: the smaller of the cap it is converted to
@@ -326,6 +405,18 @@ export interface Delivery {
   /** The stall under way saw a window with nothing in it, or has gone quiet:
    *  the server paused. Not a speed, never a drop. */
   paused: boolean;
+  /** Judged early, inside the start's grace: the file is starved (under
+   *  STARVED_FACTOR of what it needs). */
+  early?: boolean;
+  /** Judged on a proven line (the longer look, DELIVERY_PROVEN_FACTOR). */
+  proven?: boolean;
+}
+
+/** `delivery` is short of `needKbps`: under DELIVERY_FACTOR of it, or of
+ *  DELIVERY_PROVEN_FACTOR on a proven line. */
+export function deliveryShort(delivery: Delivery, needKbps: number | undefined): boolean {
+  if (!needKbps || delivery.paused || delivery.kbps == null || delivery.kbps <= 0) return false;
+  return delivery.kbps < needKbps * (delivery.proven ? DELIVERY_PROVEN_FACTOR : DELIVERY_FACTOR);
 }
 
 /**
@@ -340,7 +431,7 @@ export interface Delivery {
  */
 export function deliveredKbps(
   rates: RateReport[], now: number,
-  opts: { since?: number; lastStartAt?: number; lastSeekAt?: number; stallStart?: number; proven?: boolean } = {},
+  opts: { since?: number; lastStartAt?: number; lastSeekAt?: number; stallStart?: number; proven?: boolean; needKbps?: number; direct?: boolean } = {},
 ): Delivery {
   const from = Math.max(opts.since ?? 0, now - DELIVERY_WINDOW_MS);
   // A window from before playback last began is the load (or the seek)
@@ -349,12 +440,28 @@ export function deliveredKbps(
   const paused = opts.stallStart != null && stallEvidence(rates, opts.stallStart, now).paused;
   const data = rates.filter((r) => r.stalled && r.kbps > 0 && counts(r.t)).map((r) => r.kbps);
   const needed = opts.proven ? DELIVERY_PROVEN_WINDOWS : DELIVERY_MIN_WINDOWS;
-  if (paused || data.length < needed) return { kbps: null, windows: data.length, paused };
-  return { kbps: Math.round(mean(data)), windows: data.length, paused };
+  const proven = opts.proven ? { proven: true } : {};
+  if (paused) return { kbps: null, windows: data.length, paused, ...proven };
+  if (data.length >= needed) return { kbps: Math.round(mean(data)), windows: data.length, paused, ...proven };
+  // Starved: a file played as it is, inside the start's grace (never a
+  // seek's), delivered under half of what it needs — no amount of waiting
+  // fixes that. Never on a proven line, never for a conversion warming up.
+  if (opts.direct && !opts.proven && opts.needKbps && opts.needKbps > 0) {
+    const early = rates
+      .filter((r) => r.stalled && r.kbps > 0 && r.t > from && r.t <= now && r.t >= (opts.lastStartAt ?? 0) && !inJumpGrace(r.t, opts.lastSeekAt ?? 0, 0))
+      .map((r) => r.kbps);
+    if (early.length >= STARVED_MIN_WINDOWS) {
+      const k = Math.round(mean(early));
+      if (k < opts.needKbps * STARVED_FACTOR) return { kbps: k, windows: early.length, paused, early: true };
+    }
+  }
+  return { kbps: null, windows: data.length, paused, ...proven };
 }
 
-export type AutoReason = 'stalls' | 'undo-raise' | 'delivery' | 'speed';
-export type AutoMove = { step: QualityStep; direction: 'down' | 'up'; reason: AutoReason };
+export type AutoReason = 'stalls' | 'undo-raise' | 'delivery' | 'speed' | 'rescue';
+/** `kbps`: what the server delivered, for a move made on it (the toast and
+ *  the card say it). */
+export type AutoMove = { step: QualityStep; direction: 'down' | 'up'; reason: AutoReason; kbps?: number };
 
 /** What a stall is judged with, besides its time. */
 export interface StallContext {
@@ -373,6 +480,16 @@ export interface StallContext {
    *  when it is short of what the stream needs; null otherwise. The line is
    *  then not clear, whatever it once managed. */
   shortKbps?: number | null;
+  /** The card's evidence for the stall under way (stallEvidence's kbps),
+   *  with what the stream needs (`needKbps`) and when the stall began
+   *  (`stallAt`): short of the need, the card's verdict is the server, and
+   *  the preview names the step automatic quality takes for it. */
+  stallKbps?: number | null;
+  needKbps?: number;
+  stallAt?: number;
+  /** Played as it is (a starved file steps down without waiting out the
+   *  start's grace). */
+  direct?: boolean;
 }
 
 /**
@@ -414,8 +531,17 @@ export interface AutoPreview {
   holds?: boolean;
   /** The server delivers too little for the stream: the best rate it
    *  managed over the last stalls, kbps. The drop to `next` comes within
-   *  seconds. */
+   *  seconds (`soon`), or if it keeps stalling. */
   shortKbps?: number | null;
+  /** The drop to `next` comes within seconds. */
+  soon?: boolean;
+  /** What automatic quality did last on what the server delivered, while
+   *  it is fresh (SWITCH_NOTE_MS): the card says so. */
+  switched?: { step: QualityStep; kbps: number } | null;
+  /** The stall's evidence is short, but the line is proven (the server has
+   *  sustained this, kbps): a slow spell the buffer is there for, unless it
+   *  falls under DELIVERY_PROVEN_FACTOR. */
+  provenKbps?: number | null;
 }
 
 /**
@@ -429,7 +555,10 @@ export interface AutoPreview {
  */
 export function autoQualityNote(ladder: QualityStep[], index: number, preview: AutoPreview): string {
   if (preview.next && preview.shortKbps) {
-    return i18n.t('plex.quality.autoLowersStarved', { step: stepName(preview.next), speed: formatMbps(preview.shortKbps) });
+    return i18n.t(preview.soon === false ? 'plex.quality.autoWillLowerStarved' : 'plex.quality.autoLowersStarved', { step: stepName(preview.next), speed: formatMbps(preview.shortKbps) });
+  }
+  if (preview.switched) {
+    return i18n.t('plex.quality.autoSwitched', { step: stepName(preview.switched.step), speed: formatMbps(preview.switched.kbps) });
   }
   if (preview.keepsFile) return i18n.t('plex.quality.autoKeepsFile');
   if (preview.next) return i18n.t('plex.quality.autoWillLower', { step: stepName(preview.next) });
@@ -465,6 +594,11 @@ export class AutoQuality {
   /** When each stall of the stream playing now began: the one list every
    *  rule reads. */
   private stallTimes: number[] = [];
+  /** The lowest the server was seen to deliver short of a stream's need
+   *  this title, kbps (floorPresetFor). */
+  private lowKbps: number | null = null;
+  /** The last move made on what the server delivered (the card says it). */
+  private lastDeliveryMove: { step: QualityStep; kbps: number; at: number } | null = null;
 
   /** `failed`: converted steps that already failed to start for this title
    *  (a replay of it keeps them). */
@@ -555,7 +689,28 @@ export class AutoQuality {
    */
   delivery(rates: RateReport[], now: number, ctx: StallContext = {}, stallStart?: number, needKbps?: number): Delivery {
     const proven = lineClearFor(needKbps, { ...ctx, shortKbps: null });
-    return deliveredKbps(rates, now, { since: this.lastChangeAt, lastStartAt: ctx.lastStartAt, lastSeekAt: ctx.lastSeekAt, stallStart, proven });
+    const d = deliveredKbps(rates, now, { since: this.lastChangeAt, lastStartAt: ctx.lastStartAt, lastSeekAt: ctx.lastSeekAt, stallStart, proven, needKbps, direct: ctx.direct });
+    if (d.kbps != null && deliveryShort(d, needKbps)) this.noteLow(d.kbps);
+    return d;
+  }
+
+  /** The server was seen delivering `kbps`, short of a stream's need. */
+  noteLow(kbps: number): void {
+    if (kbps > 0 && (this.lowKbps == null || kbps < this.lowKbps)) this.lowKbps = kbps;
+  }
+
+  /** The lowest the server has been seen to deliver short of a need this
+   *  title, kbps (floorPresetFor), or null. */
+  lowDeliveryKbps(): number | null { return this.lowKbps; }
+
+  /**
+   * A start-up rescue at `at` (startRescue): the step is applied, raising
+   * waits as after a delivery drop, and the card says what was done.
+   */
+  rescued(step: QualityStep, kbps: number, at: number): void {
+    this.noteLow(kbps);
+    this.applied({ step, direction: 'down', reason: 'rescue', kbps }, at);
+    this.raiseBlockedUntil = Math.max(this.raiseBlockedUntil, at + RAISE_BACKOFF_MS);
   }
 
   /**
@@ -566,12 +721,11 @@ export class AutoQuality {
    * (RAISE_BACKOFF_MS): the rate that starved it was measured.
    */
   onDelivery(at: number, ladder: QualityStep[], index: number, delivery: Delivery, needKbps: number | undefined): AutoMove | null {
-    if (!needKbps || delivery.paused || delivery.kbps == null || delivery.kbps <= 0) return null;
-    if (delivery.kbps >= needKbps * DELIVERY_FACTOR) return null;
+    if (!deliveryShort(delivery, needKbps) || delivery.kbps == null) return null;
     const step = dropTarget(ladder, index, delivery.kbps);
     if (!step) return null;
     this.raiseBlockedUntil = Math.max(this.raiseBlockedUntil, at + RAISE_BACKOFF_MS);
-    return { step, direction: 'down', reason: 'delivery' };
+    return { step, direction: 'down', reason: 'delivery', kbps: delivery.kbps };
   }
 
   /** A converted step the server turned down or never fed: not tried again
@@ -588,12 +742,37 @@ export class AutoQuality {
 
   /** What would move from `index` now, and the viewer's pick. `ctx.shortKbps`
    *  set: the delivery drop is due, to what that rate carries. */
-  preview(ladder: QualityStep[], index: number, ctx: StallContext = {}): AutoPreview {
+  preview(ladder: QualityStep[], index: number, ctx: StallContext = {}, now: number = Date.now()): AutoPreview {
     const short = ctx.shortKbps && ctx.shortKbps > 0 ? ctx.shortKbps : null;
+    const last = this.lastDeliveryMove;
+    const switched = last && now - last.at < SWITCH_NOTE_MS && now - last.at >= 0 ? { step: last.step, kbps: last.kbps } : null;
     if (short) {
       const next = dropTarget(ladder, index, short);
-      return next ? { next, manualKey: this.manual, shortKbps: short } : { next: null, manualKey: this.manual };
+      return next ? { next, manualKey: this.manual, shortKbps: short, soon: true } : { next: null, manualKey: this.manual, switched };
     }
+    // The card's own evidence for this stall says the server can't keep up:
+    // the step it takes for that (the card never recommends one it won't
+    // take). Within seconds, once enough of the stall is in; inside the
+    // start's grace only a starved file goes at once.
+    const ev = ctx.stallKbps && ctx.stallKbps > 0 ? ctx.stallKbps : null;
+    let proven: number | null = null;
+    if (ev && ctx.needKbps && ev < ctx.needKbps * DELIVERY_FACTOR) {
+      const clear = lineClearFor(ctx.needKbps, ctx);
+      const next = !clear || ev < ctx.needKbps * DELIVERY_PROVEN_FACTOR ? dropTarget(ladder, index, ev) : null;
+      if (next) {
+        const graced = ctx.stallAt != null && inJumpGrace(ctx.stallAt, 0, ctx.lastStartAt ?? 0);
+        const starved = !clear && !!ctx.direct && ev < ctx.needKbps * STARVED_FACTOR;
+        return { next, manualKey: this.manual, shortKbps: ev, soon: !graced || starved };
+      }
+      if (clear) proven = ctx.sustainedKbps ?? null;
+    }
+    const rest = this.stallPreview(ladder, index, ctx);
+    const out = switched ? { ...rest, switched } : rest;
+    return proven ? { ...out, provenKbps: proven } : out;
+  }
+
+  /** What stalls alone would do from `index` (preview, without evidence). */
+  private stallPreview(ladder: QualityStep[], index: number, ctx: StallContext): AutoPreview {
     if (dropTarget(ladder, index) == null) return { next: null, manualKey: this.manual };
     if (keepsFileOnStalls(ladder, index, ctx)) return { next: null, manualKey: this.manual, keepsFile: true };
     const file = lighterFile(ladder, index);
@@ -630,7 +809,56 @@ export class AutoQuality {
     this.raisedAt = move.direction === 'up' ? at : 0;
     this.raisedKbps = move.direction === 'up' ? move.step.kbps : undefined;
     this.stallTimes = [];
+    this.lastDeliveryMove = move.direction === 'down' && move.kbps && move.kbps > 0 ? { step: move.step, kbps: move.kbps, at } : null;
   }
+}
+
+// ── a start that doesn't get going ──────────────────────────────────────────
+
+/**
+ * What the server delivered while this stream's start was loading, kbps:
+ * the mean of the windows with data since `loadAt` (the first, which may be
+ * the stream before, left out) up to when it began to play (`playAt`), and
+ * any taken while stalled after that. While the player fills its start it
+ * pulls as fast as it is sent. Windows with nothing in them (a pause) don't
+ * count as a speed. Null with fewer than EVIDENCE_REPORTS.
+ */
+export function startDelivery(rates: RateReport[], loadAt: number, playAt: number | null, now: number): number | null {
+  const data = rates
+    .filter((r) => r.kbps > 0 && r.t <= now && r.t >= loadAt + RATE_TICK_MS && (playAt == null || r.t <= playAt || r.stalled))
+    .map((r) => r.kbps);
+  return data.length >= EVIDENCE_REPORTS ? Math.round(mean(data)) : null;
+}
+
+export type StartRescue =
+  | { step: QualityStep; kbps: number }
+  | { exhausted: true; kbps: number; lowest: QualityStep };
+
+/**
+ * A start whose loading ended in an error, or did not finish: when what the
+ * server delivered meanwhile (`deliveredKbps`) is short of what the stream
+ * needs (`needKbps`), restart on the best converted preset that rate
+ * carries with headroom, lighter than the stream that failed
+ * (`currentKey`; for a file, clearly under it) and down to the relay-sized
+ * one: a picture beats an error. One rescue per level (`tried`, and the
+ * conversions that failed); none left: `exhausted`, and the error says the
+ * server's number. Null when this is not a speed problem (no evidence,
+ * enough delivered, a proven line): the usual error stands.
+ */
+export function startRescue(input: {
+  deliveredKbps: number | null; needKbps?: number; currentKey: string;
+  tried?: Iterable<string>; failed?: Iterable<string>; sustainedKbps?: number | null;
+}): StartRescue | null {
+  const kbps = input.deliveredKbps;
+  const need = input.needKbps;
+  if (!kbps || kbps <= 0 || !need || need <= 0) return null;
+  if (kbps >= need * DELIVERY_FACTOR) return null;
+  if ((input.sustainedKbps ?? 0) >= need * PROVEN_FACTOR) return null;
+  const cur = input.currentKey.indexOf('original') === 0 ? undefined : presetKbps(input.currentKey);
+  const below = cur ?? need * 0.8;
+  const step = fittingPreset(kbps, below, [...Array.from(input.tried ?? []), ...Array.from(input.failed ?? [])]);
+  if (step) return { step, kbps };
+  return { exhausted: true, kbps, lowest: presetStep(RELAY_PRESET) as QualityStep };
 }
 
 // ── a conversion that fails ─────────────────────────────────────────────────

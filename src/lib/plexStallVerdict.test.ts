@@ -149,3 +149,30 @@ describe('presetFor', () => {
   });
 });
 
+
+describe("the owner's photo: the Plex server sends 14.3 Mb/s, the film needs 15", () => {
+  const photo = snap({ probeKbps: 207600, nowKbps: 27500, streamEarlyKbps: 27500 });
+
+  it('the server leads, the internet comes second, and automatic quality takes the step it names', () => {
+    const r = explainPlexStall(photo, { transcoding: false, fileKbps: 15000, route: 'direct', serverKbps: 14300, autoNext: '1080p · 8 Mbps', autoSoon: true });
+    expect(r?.headline).toBe("The Plex server can't send this fast enough");
+    expect(r?.detail).toBe('Your Plex server is sending 14.3 Mb/s on average; this video needs about 15.0 Mb/s. Your internet is fine (quick check: 207.6 Mb/s). Lowering to 1080p · 8 Mbps in a few seconds.');
+    expect(r?.detail).not.toMatch(/Pick/);
+    expect(r?.autoSaid).toBe(true);
+    // The card shows the same number it judged by.
+    expect(r?.serverKbps).toBe(14300);
+  });
+
+  it('never tells the viewer their internet is the problem', () => {
+    const r = explainPlexStall(photo, { transcoding: false, fileKbps: 16000, route: 'direct', serverKbps: 1500, autoNext: '480p · 2 Mbps', autoSoon: true });
+    expect(r?.verdict).toBe('server');
+    expect(`${r?.headline} ${r?.detail}`).not.toMatch(/internet is slow|Try ethernet/);
+    expect(r?.detail).toMatch(/^Your Plex server is sending 1\.5 Mb\/s on average; this video needs about 16\.0 Mb\/s\./);
+  });
+
+  it('a line proven for the video: a slow spell, not "pick a lower quality"', () => {
+    const r = explainPlexStall(photo, { transcoding: false, fileKbps: 15000, route: 'direct', serverKbps: 14300, provenKbps: 40000 });
+    expect(r?.verdict).toBe('unknown');
+    expect(r?.detail).toBe('Your Plex server is sending 14.3 Mb/s on average right now, but it has sent 40.0 Mb/s for this video: a slow spell, which the buffer is there for.');
+  });
+});

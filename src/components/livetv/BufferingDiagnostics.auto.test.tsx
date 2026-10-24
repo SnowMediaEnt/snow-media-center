@@ -194,3 +194,29 @@ describe('buffering card: a connection that dropped', () => {
     expect(internetRow()).toMatch(/Internet \d+\.\d Mb\/s$/);
   });
 });
+
+describe("buffering card: the server's number and the last window agree", () => {
+  // The owner's photo: "Now 27.5 Mb/s" beside "It sends 14.3 Mb/s at most".
+  // One was the last 3 s window (a burst), the other the stall's average.
+  it('a verdict that goes by the server leads with its average, the last window labelled beside it', async () => {
+    const explain = () => ({
+      verdict: 'server' as const, headline: "The Plex server can't send this fast enough",
+      detail: 'Your Plex server is sending 14.3 Mb/s on average; this video needs about 15.0 Mb/s.', autoSaid: true, serverKbps: 14300,
+    });
+    render(<BufferingDiagnostics buffering explain={explain} needKbps={15000} quickCheckLabel />);
+    await stall();
+    act(() => { recordPlayerRate(27500); });
+    expect(screen.getByText('Plex server 14.3 Mb/s avg')).toBeTruthy();
+    expect(screen.getByText('(last 3 s: 27.5 Mb/s)')).toBeTruthy();
+    expect(screen.queryByText('Now')).toBeNull();
+    expect(screen.queryByText(/^was /)).toBeNull();
+  });
+
+  it('without such a verdict: Now, as before', async () => {
+    render(<BufferingDiagnostics buffering needKbps={15000} />);
+    await stall();
+    act(() => { recordPlayerRate(27500); });
+    expect(screen.queryByText('Plex server 14.3 Mb/s avg')).toBeNull();
+    expect(screen.getByText(/Now/)).toBeTruthy();
+  });
+});

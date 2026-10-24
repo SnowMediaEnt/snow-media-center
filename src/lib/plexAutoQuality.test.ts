@@ -149,7 +149,7 @@ describe('one measurement: what the server delivers', () => {
   it('a proven line takes a longer look: five windows instead of three', () => {
     const stall = now - 30_000;
     const rates = stalled(stall, [30000, 30000, 30000]);
-    expect(deliveredKbps(rates, now, { proven: true })).toEqual({ kbps: null, windows: 3, paused: false });
+    expect(deliveredKbps(rates, now, { proven: true })).toEqual({ kbps: null, windows: 3, paused: false, proven: true });
     expect(deliveredKbps([...rates, ...stalled(stall + 9_000, [30000, 30000])], now, { proven: true }).kbps).toBe(30000);
   });
 
@@ -189,21 +189,21 @@ describe('one measurement: what the server delivers', () => {
 describe('the one down rule', () => {
   const t0 = 10 * MIN;
 
-  it('delivered under 0.8x what the stream needs: to the best rung that rate carries', () => {
+  it('delivered under what the stream needs: to the best rung that rate carries', () => {
     const aq = new AutoQuality(0);
     // The customer's 12 Mb/s file at 4-6 Mb/s: 720p · 3 Mbps (3 × 1.3 ≤ 5; 720p · 4 needs 5.2).
     const d = aq.delivery(stalled(t0, [4000, 6000, 5000]), t0 + 12_000);
     expect(d.kbps).toBe(5000);
     const move = aq.onDelivery(t0 + 12_000, film12, 0, d, 12000);
-    expect(move).toEqual({ step: film12.find((s) => s.key === '720-3'), direction: 'down', reason: 'delivery' });
+    expect(move).toEqual({ step: film12.find((s) => s.key === '720-3'), direction: 'down', reason: 'delivery', kbps: 5000 });
     // A shade more carries 720p · 4 Mbps.
     const up = new AutoQuality(0);
     expect(up.onDelivery(t0, film12, 0, up.delivery(stalled(t0 - 12_000, [5500, 5500, 5500]), t0), 12000)?.step.key).toBe('720-4');
   });
 
-  it('delivered 0.8x or more of what it needs: no drop, whatever the stalls', () => {
+  it('delivered what it needs or more: no drop, whatever the stalls', () => {
     const aq = new AutoQuality(0);
-    expect(aq.onDelivery(t0, film12, 0, aq.delivery(stalled(t0 - 12_000, [10000, 9500, 10500]), t0), 12000)).toBeNull();
+    expect(aq.onDelivery(t0, film12, 0, aq.delivery(stalled(t0 - 12_000, [12000, 11500, 13000]), t0), 12000)).toBeNull();
     // Refilled flat out: no drop.
     expect(aq.onDelivery(t0, film12, 0, aq.delivery(stalled(t0 - 12_000, [9000, 30000, 42000]), t0), 12000)).toBeNull();
   });
@@ -220,8 +220,8 @@ describe('the one down rule', () => {
     const at = ladderIndex(film12, '1080-8');
     // 1080p · 8 Mbps of a 12 Mb/s file at 5 Mb/s: too little (needs 8).
     expect(aq.onDelivery(t0, film12, at, { kbps: 5000, windows: 3, paused: false }, needKbps(8000, 12000))?.step.key).toBe('720-3');
-    // At 7: enough (0.8 × 8 = 6.4).
-    expect(new AutoQuality(0).onDelivery(t0, film12, at, { kbps: 7000, windows: 3, paused: false }, needKbps(8000, 12000))).toBeNull();
+    // At 8.5: enough.
+    expect(new AutoQuality(0).onDelivery(t0, film12, at, { kbps: 8500, windows: 3, paused: false }, needKbps(8000, 12000))).toBeNull();
   });
 
   it('after a delivery drop, the way back up waits ten minutes, then needs the measured speed', () => {
@@ -524,10 +524,10 @@ describe("the buffering card's line on automatic quality", () => {
 
   it('a single file: lowers only when the server delivers too little, and says so when it does', () => {
     const aq = new AutoQuality(0);
-    expect(note(aq, 'original')).toBe('Auto quality: lowers only if the Plex server delivers less than this needs');
+    expect(note(aq, 'original')).toBe('Auto quality: steps down by itself if the Plex server sends less than this needs');
     expect(note(aq, 'original', { shortKbps: 4000 })).toBe('Auto quality: lowering to 720p · 3 Mbps — the Plex server is only delivering 4.0 Mb/s');
     aq.viewerPicked('720-4', 0);
-    expect(note(aq, '720-4')).toBe('Auto quality: lowers only if the Plex server delivers less than this needs');
+    expect(note(aq, '720-4')).toBe('Auto quality: steps down by itself if the Plex server sends less than this needs');
   });
 
   it('a film with a lighter file: will lower to it if it keeps stalling; not off a proven 4K line', () => {

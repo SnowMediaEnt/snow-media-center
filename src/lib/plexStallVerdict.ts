@@ -9,9 +9,13 @@
 //   • Nothing arriving from the server: it has paused (or is slow to
 //     answer). Said as that, never as a speed.
 //   • What the server delivered during the stall (stallEvidence: bytes as
-//     they arrived at the player) short of what the video needs: the
-//     server's upload, its converting, or the line to it is the bottleneck,
-//     and a lower quality helps.
+//     they arrived at the player, averaged over the stall) short of what the
+//     video needs — even a shade short: a file's bitrate is its average —
+//     the server's upload, its converting, or the line to it is the
+//     bottleneck, and a lower quality helps. Said with the server's number
+//     first and the internet check second, never as the viewer's internet;
+//     with automatic quality on, the step it takes (the same one it then
+//     takes), never "pick it yourself".
 //   • Internet quick check slower than the file needs: a lower quality can.
 // Only that delivered number is proof that the server or the line can't
 // keep up. The quick checks (256 KB from Cloudflare) read low on a fast
@@ -49,12 +53,19 @@ export interface PlexStallContext {
    *  stall's evidence shows the file played as it is too big for what the
    *  server sends, and the early drop for that is still to come. */
   autoSoon?: boolean;
+  /** The line is proven for this video (the server has sustained this,
+   *  kbps) and automatic quality keeps it: a short stall delivery is a slow
+   *  spell, not the server being unable to send it. */
+  provenKbps?: number | null;
 }
 
 /** A Plex reading of a stall; `autoSaid` when its advice already says what
  *  automatic quality will do, `dropped` when it is the general "connection
- *  dropped" (the last internet check is then not current). */
-export type PlexStallExplanation = ClassifyResult & { autoSaid?: boolean; dropped?: boolean };
+ *  dropped" (the last internet check is then not current), `serverKbps` the
+ *  server's average over the stall when the verdict goes by it (the card
+ *  then shows that number, labelled, instead of a lone 3 s window: "Now
+ *  27.5" beside "sends 14.3" read as a contradiction). */
+export type PlexStallExplanation = ClassifyResult & { autoSaid?: boolean; dropped?: boolean; serverKbps?: number };
 
 /**
  * The general verdict says the connection dropped: offline, or the internet
@@ -130,6 +141,17 @@ export function explainPlexStall(snap: DiagSnapshot, ctx: PlexStallContext): Ple
         verdict: 'unknown',
         headline: i18n.t('plex.buffering.headline'),
         detail: i18n.t('plex.stall.sendingEnough', { speed: formatMbps(server) }),
+        serverKbps: server,
+      };
+    }
+    // A line proven for it: the server's slow spell, which the buffer is
+    // there for (automatic quality keeps it unless it falls far short).
+    if (ctx.provenKbps && ctx.provenKbps > 0 && !auto) {
+      return {
+        verdict: 'unknown',
+        headline: i18n.t('plex.buffering.headline'),
+        detail: i18n.t('plex.stall.slowSpell', { server: formatMbps(server), best: formatMbps(ctx.provenKbps) }),
+        serverKbps: server,
       };
     }
     if (netFine) {
@@ -139,12 +161,14 @@ export function explainPlexStall(snap: DiagSnapshot, ctx: PlexStallContext): Ple
           headline: i18n.t('plex.stall.convertHeadline'),
           detail: `${i18n.t('plex.stall.convertDetail', { server: formatMbps(server), speed: formatMbps(net) })} ${auto ? advice('') : i18n.t('plex.stall.tryLower')}`,
           autoSaid: !!auto,
+          serverKbps: server,
         }
         : {
           verdict: 'server',
           headline: i18n.t('plex.stall.sendHeadline'),
           detail: `${i18n.t('plex.stall.sendDetail', { server: formatMbps(server), need: formatMbps(need), speed: formatMbps(net) })} ${advice(presetFor(server))}`,
           autoSaid: !!auto,
+          serverKbps: server,
         };
     }
     // Short, but whether of the server's upload or of the line is not known.
@@ -153,6 +177,7 @@ export function explainPlexStall(snap: DiagSnapshot, ctx: PlexStallContext): Ple
       headline: i18n.t('plex.stall.slowLineHeadline'),
       detail: `${i18n.t('plex.stall.slowLineDetail', { server: formatMbps(server), need: formatMbps(need) })} ${advice(presetFor(server))}`,
       autoSaid: !!auto,
+      serverKbps: server,
     };
   }
 

@@ -113,7 +113,9 @@
       "needs": "Requis {{value}}",
       "internet": "Internet",
       "quickCheck": "(test rapide)",
-      "helpHint": "Appuyez sur Aide pour des conseils"
+      "helpHint": "Appuyez sur Aide pour des conseils",
+      "serverAvg": "Serveur Plex {{value}} moy.",
+      "lastWindow": "(3 dernières s : {{value}})"
     },
     "diag": {
       "playingNormally": "Lecture normale",
@@ -171,12 +173,14 @@
       "originalQuality": "qualité d'origine",
       "originalDirect": "Original (direct)",
       "autoKeepsFile": "Qualité auto : garde l'original, le serveur Plex l'a envoyé assez vite",
-      "autoHolds": "Qualité auto : ne baisse que si le serveur Plex envoie moins que nécessaire",
+      "autoHolds": "Qualité auto : baisse d'elle-même si le serveur Plex envoie moins que nécessaire",
       "autoWillLower": "Qualité auto : passera à {{step}} si les coupures continuent",
       "autoLowersStarved": "Qualité auto : passe à {{step}}, le serveur Plex n'envoie que {{speed}}",
       "autoOff": "Qualité auto désactivée pour ce titre (vous avez choisi {{pick}})",
       "autoLowest": "Qualité auto : déjà au niveau le plus bas",
-      "autoAtLowest": "Qualité auto : au niveau le plus bas (remonte à {{step}} quand le débit le permet)"
+      "autoAtLowest": "Qualité auto : au niveau le plus bas (remonte à {{step}} quand le débit le permet)",
+      "autoSwitched": "Qualité auto : passée à {{step}}, le serveur Plex envoyait {{speed}} en moyenne",
+      "autoWillLowerStarved": "Qualité auto : passera à {{step}} si les coupures continuent, le serveur Plex envoie {{speed}}"
     },
     "player": {
       "playNext": "Lire l'épisode suivant",
@@ -488,7 +492,10 @@
         "backToTitle": "Retour à {{quality}}",
         "backToDesc": "Votre débit s'est amélioré.",
         "hiddenTitle": "{{name}} masquée",
-        "hiddenDesc": "Réaffichez-la à tout moment dans Paramètres."
+        "hiddenDesc": "Réaffichez-la à tout moment dans Paramètres.",
+        "serverSwitchTitle": "Passé à {{quality}}",
+        "serverSwitchDesc": "Votre serveur Plex envoie environ {{speed}}, donc la lecture se fait en {{quality}}. Elle remonte toute seule quand le serveur suit.",
+        "serverStartDesc": "Cette TV a mesuré environ {{speed}} depuis votre serveur Plex, donc la lecture démarre en {{quality}}. Choisissez Original dans Qualité pour lire le fichier tel quel."
       },
       "sessionDirect": "Lecture directe du fichier d'origine",
       "sessionConvertTo": "Conversion en {{quality}}",
@@ -507,7 +514,8 @@
       "transcoding": "conversion",
       "route": "Route : {{route}}",
       "menuHint": "▶ vers les lignes · Maintenez OK pour masquer une bibliothèque · Retour quitter",
-      "finding": "Recherche de « {{title}} » sur Plex…"
+      "finding": "Recherche de « {{title}} » sur Plex…",
+      "serverTooSlow": "Votre serveur Plex n'envoie qu'environ {{speed}}, trop peu même pour {{quality}}."
     },
     "provider": {
       "authFailed": "Le panneau a refusé votre connexion à TV en direct. Reconnectez-vous à TV en direct, puis revenez.",
@@ -548,17 +556,18 @@
       "waitingDetail": "Aucune donnée du serveur depuis {{seconds}} s.",
       "sendingEnough": "Le serveur Plex envoie {{speed}}, ce qui suffit pour cette vidéo.",
       "convertHeadline": "Le serveur Plex ne convertit pas assez vite",
-      "convertDetail": "Il atteint {{server}} en conversion ; votre internet est correct (test rapide : {{speed}}).",
+      "convertDetail": "Il atteint {{server}} en moyenne en conversion ; votre internet est correct (test rapide : {{speed}}).",
       "tryLower": "Essayez une qualité inférieure, ou Original.",
       "sendHeadline": "Le serveur Plex n'envoie pas assez vite",
-      "sendDetail": "Il envoie {{server}} au maximum et cette vidéo nécessite environ {{need}} ; votre internet est correct (test rapide : {{speed}}).",
+      "sendDetail": "Votre serveur Plex envoie {{server}} en moyenne ; cette vidéo nécessite environ {{need}}. Votre internet est correct (test rapide : {{speed}}).",
       "slowLineHeadline": "La connexion au serveur Plex est trop lente pour cette vidéo",
-      "slowLineDetail": "Elle supporte {{server}} au maximum ; cette vidéo nécessite environ {{need}}.",
+      "slowLineDetail": "La connexion à votre serveur Plex porte {{server}} en moyenne ; cette vidéo nécessite environ {{need}}.",
       "quickHeadline": "Test rapide d'internet : {{speed}}, plus lent que ce que la vidéo nécessite",
       "quickDetail": "Elle nécessite environ {{need}}.",
       "convertingHeadline": "Le serveur Plex convertit cette vidéo",
       "convertingDetail": "Cela peut prendre quelques secondes pour prendre de l'avance.",
-      "checking": "Vérification de ce qu'envoie le serveur Plex."
+      "checking": "Vérification de ce qu'envoie le serveur Plex.",
+      "slowSpell": "Votre serveur Plex envoie en ce moment {{server}} en moyenne, mais il a déjà envoyé {{best}} pour cette vidéo : un passage à vide, la mémoire tampon est là pour ça."
     }
   }
 }

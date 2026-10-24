@@ -134,10 +134,15 @@ vi.mock('@/lib/plexProvider', async (orig) => ({
 vi.mock('./PlexImage', () => ({ default: () => null }));
 // The title page: Play, and Play on another title.
 vi.mock('./PlexDetail', () => ({
-  default: ({ item, onPlay }: { item: PlexItem; onPlay: (it: PlexItem) => void }) => (
+  default: ({ item, onPlay }: { item: PlexItem; onPlay: (it: PlexItem, resume?: number, ctx?: undefined, partKey?: string, src?: unknown) => void }) => (
     <div>
       <button onClick={() => onPlay(item)}>PLAY:{item.title}</button>
       <button onClick={() => onPlay({ ...item, ratingKey: 'o1', title: 'Other' })}>PLAY:Other</button>
+      {/* The title page measured the server at 1.7 Mb/s, too slow for the 16 Mb/s file. */}
+      <button onClick={() => {
+        const v = { id: 'd1:0', ratingKey: item.ratingKey, mediaIndex: 0, label: '1080p', bitrateKbps: 16000, partKey: '/library/parts/7/file.mkv' };
+        onPlay(item, undefined, undefined, undefined, { version: v, versions: [v], startPreset: '480-2', measuredKbps: 1700 });
+      }}>PLAY:Measured</button>
     </div>
   ),
 }));
@@ -328,7 +333,7 @@ describe('the one down rule through the player', () => {
     await wait(15_000);
     expect(h.urls).toHaveLength(1);
     expect(isTranscode(lastUrl())).toBe(false);
-    expect(toastTitles().filter((t) => t.indexOf('Lowered') === 0)).toEqual([]);
+    expect(toastTitles().filter((t) => t.indexOf('Lowered') === 0 || t.indexOf('Switched') === 0)).toEqual([]);
   });
 
   it('a line too slow for the file (9 s of the stall at 4 Mb/s): dropped to what that carries', async () => {
@@ -336,7 +341,9 @@ describe('the one down rule through the player', () => {
     for (let i = 0; i < 10; i += 1) await report(4000);
     await deliverInStall([4000, 4000, 4000]);
     await until(() => expect(cap(lastUrl())).toBe('3000'));
-    expect(toastTitles()).toContain('Lowered to 720p · 3 Mbps for your speed');
+    expect(toastTitles()).toContain('Switched to 720p · 3 Mbps');
+    // The server's number leads: it is the server, not the viewer's internet.
+    expect(toastDescs()).toContain('Your Plex server is sending about 4.0 Mb/s, so this plays at 720p · 3 Mbps. It goes back up by itself when the server keeps up.');
   });
 
   it('a stall the server refills flat out is not a slow line', async () => {
@@ -355,7 +362,7 @@ describe('the one down rule through the player', () => {
     for (let i = 0; i < 6; i += 1) await stall();
     await wait(2_000);
     expect(h.urls).toHaveLength(1);
-    expect(toastTitles().filter((t) => t.indexOf('Lowered') === 0)).toEqual([]);
+    expect(toastTitles().filter((t) => t.indexOf('Lowered') === 0 || t.indexOf('Switched') === 0)).toEqual([]);
   });
 
   it('lowers below a quality the viewer picked, when the server delivers too little for it', async () => {
@@ -369,7 +376,7 @@ describe('the one down rule through the player', () => {
     await wait(31_000);
     await deliverInStall([4000, 4000, 4000]);
     await until(() => expect(cap(lastUrl())).toBe('3000'));
-    expect(toastTitles()).toContain('Lowered to 720p · 3 Mbps for your speed');
+    expect(toastTitles()).toContain('Switched to 720p · 3 Mbps');
   });
 
   it("a pick on one title does not switch automatic quality off for the next", async () => {
@@ -418,7 +425,7 @@ describe("a customer's box: the quick check fast, the Plex server slow (automati
     await until(() => expect(isTranscode(lastUrl())).toBe(true));
     // 4.7 Mb/s on average: 720p · 3 Mbps (720p · 4 needs 5.2).
     expect(cap(lastUrl())).toBe('3000');
-    expect(toastTitles()).toContain('Lowered to 720p · 3 Mbps for your speed');
+    expect(toastTitles()).toContain('Switched to 720p · 3 Mbps');
     expect(screen.queryByText(/fast enough/)).toBeNull();
     const settled = lastUrl();
     // Ten minutes on at 4-6 Mb/s: no oscillation.
@@ -523,7 +530,7 @@ describe('a 4K film (bugs/plex-4k.md): the start is not a reason to leave it, no
     await report(30000);
     await wait(3_500);
     await until(() => expect(on1080()).toBe(true));
-    expect(toastTitles()).toContain('Lowered to 1080p for your speed');
+    expect(toastTitles()).toContain('Switched to 1080p');
   });
 
   it('a line that never carried twice the file: stalls still lower it to the 1080p file, as in 1.7.9', async () => {
@@ -599,7 +606,7 @@ describe('the buffering card: what automatic quality will do', () => {
     act(() => { beginStream(lastUrl(), 'vod'); });
     stallBoth();
     await wait(2_500);
-    expect(screen.getByText('Auto quality: lowers only if the Plex server delivers less than this needs')).toBeTruthy();
+    expect(screen.getByText('Auto quality: steps down by itself if the Plex server sends less than this needs')).toBeTruthy();
     expect(screen.queryByText(/Lowering to .* in a few seconds/)).toBeNull();
   });
 
@@ -617,6 +624,12 @@ describe('the buffering card: what automatic quality will do', () => {
     await deliverInStall([3500, 3500, 3500]);
     await until(() => expect(cap(lastUrl())).toBe('3000'));
     await started();
+    setBuffering(true);
+    await wait(2_500);
+    // First it says what it just did, with the server's number.
+    expect(screen.getByText('Auto quality: switched to 720p · 3 Mbps — the Plex server sent 3.5 Mb/s on average')).toBeTruthy();
+    setBuffering(false);
+    await wait(3 * 60_000);
     setBuffering(true);
     await wait(2_500);
     expect(screen.getByText('Auto quality: at its lowest step (goes back up to 1080p · 8 Mbps when the speed allows)')).toBeTruthy();
@@ -1188,5 +1201,111 @@ describe('a quality the viewer picks (customers on 1.8.0: "changing of quality �
     act(() => { h.closePlayer?.(); });
     await wait(1700);
     expect(stops()).toEqual([]);
+  });
+});
+
+describe("a Plex server that sends 1.5 Mb/s of a 16 Mb/s film (the owner's TV, 1.9.6)", () => {
+  beforeEach(() => {
+    h.part.mockImplementation(async () => ({ partKey: '/library/parts/7/file.mkv', bitrateKbps: 16000, versions: [] }));
+  });
+  const SWITCH_DESC = 'Your Plex server is sending about 1.5 Mb/s, so this plays at 480p · 2 Mbps. It goes back up by itself when the server keeps up.';
+  const giveUp = () => act(() => {
+    h.native = { ...h.native, error: { code: 'RECONNECT_EXHAUSTED', message: 'The server stopped responding. Try again.' } };
+    h.kick?.();
+  });
+  const cleared = () => act(() => { h.native = { ...h.native, error: null }; h.kick?.(); });
+  /** Played, then the start never got going: no picture, the server sending `kbps`. */
+  async function loadingAt(kbps: number) {
+    h.pos.playing = false; h.pos.position = 0; h.pos.duration = 0;
+    await openDune();
+    await play('Dune');
+    act(() => { beginStream(lastUrl(), 'vod'); });
+    stallBoth();
+    await report(kbps, 3_500);
+    await report(kbps);
+  }
+
+  it("its first stall shows it starved: straight down to what 1.5 carries, without waiting out the start's grace", async () => {
+    await openDune();
+    await play('Dune');
+    await started();
+    act(() => { beginStream(lastUrl(), 'vod'); markPlaybackStart(); });
+    await wait(4_000);
+    stallBoth();
+    await report(1500);
+    await report(1500);
+    await wait(3_500);
+    await until(() => expect(cap(lastUrl())).toBe('2000'));
+    expect(isTranscode(lastUrl())).toBe(true);
+    expect(toastTitles()).toContain('Switched to 480p · 2 Mbps');
+    expect(toastDescs()).toContain(SWITCH_DESC);
+  });
+
+  it("short, but not starved, inside the start's grace: it waits (the start may be the server getting going)", async () => {
+    await openDune();
+    await play('Dune');
+    await started();
+    act(() => { beginStream(lastUrl(), 'vod'); markPlaybackStart(); });
+    await wait(4_000);
+    stallBoth();
+    for (let i = 0; i < 4; i += 1) await report(10000);
+    await wait(1_000);
+    expect(h.urls).toHaveLength(1);
+  });
+
+  it('the start-up loading ends in an error: restarted at the same place at 480p · 2 Mbps, never the error', async () => {
+    const retry = vi.fn();
+    h.native = { ...h.native, retry };
+    await loadingAt(1500);
+    giveUp();
+    await until(() => expect(cap(lastUrl())).toBe('2000'));
+    expect(toastDescs()).toContain(SWITCH_DESC);
+    // The same stream again is no way out: the network retry leaves it.
+    await wait(10_000);
+    expect(retry).not.toHaveBeenCalled();
+  });
+
+  it('even 480p · 2 Mbps cannot start: then the error, with the server\'s number as its reason (no loop)', async () => {
+    const retry = vi.fn();
+    h.native = { ...h.native, retry };
+    await loadingAt(1500);
+    giveUp();
+    await until(() => expect(cap(lastUrl())).toBe('2000'));
+    cleared();
+    const rescued = h.urls.length;
+    await report(500, 3_500);
+    await report(500);
+    giveUp();
+    await until(() => expect(screen.getByText('Your Plex server is sending only about 0.5 Mb/s, too little even for 480p · 2 Mbps.')).toBeTruthy());
+    await wait(10_000);
+    expect(h.urls).toHaveLength(rescued);
+    expect(retry).not.toHaveBeenCalled();
+  });
+
+  it('the start-up loading never finishes: rescued instead of "Still preparing…"', async () => {
+    await loadingAt(1500);
+    await wait(3_000);
+    await until(() => expect(cap(lastUrl())).toBe('2000'));
+    expect(screen.queryByText('Still preparing…')).toBeNull();
+  });
+
+  it('a server that sent enough meanwhile: the usual error and retries, no rescue', async () => {
+    const retry = vi.fn();
+    h.native = { ...h.native, retry };
+    await loadingAt(30000);
+    giveUp();
+    await wait(10_000);
+    expect(h.urls).toHaveLength(1);
+    expect(retry).toHaveBeenCalled();
+  });
+
+  it('the title page measured 1.7 Mb/s: it starts at 480p · 2 Mbps, not the 1080p file, and says why', async () => {
+    await openDune();
+    fireEvent.click(await screen.findByText('PLAY:Measured', undefined, { timeout: 3000 }));
+    await until(() => expect(h.urls.length).toBeGreaterThan(0));
+    expect(isTranscode(h.urls[0])).toBe(true);
+    expect(cap(h.urls[0])).toBe('2000');
+    expect(h.urls.filter(isFile)).toEqual([]);
+    expect(toastDescs()).toContain('This TV measured about 1.7 Mb/s from your Plex server, so this starts at 480p · 2 Mbps. Pick Original under Quality to play the file as it is.');
   });
 });
