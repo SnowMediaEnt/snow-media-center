@@ -43,4 +43,13 @@ describe('Live TV sign-in: username case', () => {
     expect(r.ok).toBe(false);
     expect(h.get).toHaveBeenCalledTimes(1);
   });
+
+  it('a line whose service is known (a PIN\'s line) goes to that server, whatever the name looks like', async () => {
+    h.get.mockResolvedValue(ok);
+    const vibez = { label: 'Vibez', host: 'https://strmz.xyz' };
+    const r = await authenticateRouted('plainname', 'pw', undefined, vibez);
+    expect(r.ok).toBe(true);
+    expect(r.server).toBe(vibez);
+    expect(String((h.get.mock.calls[0][0] as { url: string }).url)).toContain('strmz.xyz');
+  });
 });

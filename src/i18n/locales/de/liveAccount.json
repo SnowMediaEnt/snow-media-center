@@ -296,7 +296,20 @@
       "connectedDesc": "Bei {{server}} angemeldet.",
       "connectedYourService": "Bei deinem Dienst angemeldet.",
       "connectFailedTitle": "Verbindung fehlgeschlagen",
-      "connectFailedDesc": "Prüfe deine Zugangsdaten und versuche es erneut."
+      "connectFailedDesc": "Prüfe deine Zugangsdaten und versuche es erneut.",
+      "pin": {
+        "signInWithPin": "Mit PIN anmelden",
+        "subtitle": "Nutze die 10-stellige PIN deiner Leitung",
+        "label": "PIN",
+        "back": "Benutzername und Passwort verwenden",
+        "note": "Deine PIN steht in deiner Willkommens-E-Mail, oder frag den Support.",
+        "invalidPin": "Eine PIN hat 10 Ziffern",
+        "notFound": "Diese PIN stimmt nicht",
+        "expired": "Diese Leitung ist abgelaufen — verlängere sie, um weiterzuschauen",
+        "rateLimited": "Zu viele Versuche — warte ein paar Minuten",
+        "error": "Die PIN konnte nicht geprüft werden. Bitte versuche es erneut.",
+        "passwordChanged": "Melde dich einmal mit Benutzername und Passwort an; deine PIN funktioniert weiter"
+      }
     },
     "claim": {
       "title": "Schließe dein Snow-Media-Konto ab",

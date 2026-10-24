@@ -46,7 +46,7 @@ const setup = async () => {
   const user = screen.getByLabelText('Username') as HTMLInputElement;
   const pass = screen.getByLabelText('Password') as HTMLInputElement;
   const reveal = document.querySelector('[data-tv-focus-id="cf-pass-show"]') as HTMLButtonElement;
-  const signIn = screen.getByRole('button', { name: /sign in/i }) as HTMLButtonElement;
+  const signIn = screen.getByRole('button', { name: /^sign in$/i }) as HTMLButtonElement;
   return { user, pass, reveal, signIn };
 };
 const press = async (el: Element, key: string, keyCode: number) => {

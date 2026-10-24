@@ -654,16 +654,20 @@ export interface AuthProbeResult {
 // capitals. Sign in with the lowercase name first; only if the panel says no
 // and the typed name had capitals, try it exactly as typed, so a line whose
 // name really has capitals still gets in.
+// `server`: a line whose service is already known (a PIN sign-in, where the
+// server said which panel the line is on) goes there instead of being routed
+// by the username's shape.
 export async function authenticateRouted(
   username: string,
   password: string,
   onProgress?: (server: XtreamServer) => void,
+  server?: XtreamServer,
 ): Promise<AuthProbeResult> {
   const typed = username.trim();
   const lower = typed.toLowerCase();
-  const first = await authenticateRoutedExact(lower, password, onProgress);
+  const first = await authenticateRoutedExact(lower, password, onProgress, server);
   if (first.ok || first.authedButBlocked || lower === typed || !first.invalidLogin) return first;
-  const second = await authenticateRoutedExact(typed, password, onProgress);
+  const second = await authenticateRoutedExact(typed, password, onProgress, server);
   return second.ok || second.authedButBlocked ? second : first;
 }
 
@@ -671,6 +675,7 @@ async function authenticateRoutedExact(
   username: string,
   password: string,
   onProgress?: (server: XtreamServer) => void,
+  fixedServer?: XtreamServer,
 ): Promise<AuthProbeResult> {
   const u = username.trim();
   const p = password.trim();
@@ -679,7 +684,7 @@ async function authenticateRoutedExact(
   // surface is inert by design, so this is unreachable in practice.
   if (isDemo()) return { ok: false, error: i18n.t('live.errors.demoSignIn') };
 
-  const server = pickServerForUsername(u);
+  const server = fixedServer ?? pickServerForUsername(u);
   onProgress?.(server);
 
   const creds = normalizeCreds({

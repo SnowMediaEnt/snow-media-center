@@ -44,7 +44,7 @@ const setup = async () => {
   await raf();
   const user = screen.getByLabelText('Username') as HTMLInputElement;
   const pass = screen.getByLabelText('Password') as HTMLInputElement;
-  const signIn = screen.getByRole('button', { name: /sign in/i }) as HTMLButtonElement;
+  const signIn = screen.getByRole('button', { name: /^sign in$/i }) as HTMLButtonElement;
   return { user, pass, signIn };
 };
 const later = async () => { await act(async () => { vi.advanceTimersByTime(1000); }); };
