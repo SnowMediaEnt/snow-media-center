@@ -51,7 +51,10 @@ import { useTranslation } from 'react-i18next';
 import { keepInView } from '@/utils/keepInView';
 
 interface Props {
+  /** Back or ◀ from the list: to the far-left menu (LiveTV's onExitLeft). */
   onClose: () => void;
+  /** ▲ from the top row: to the Player's header, as from any section. */
+  onExitUp?: () => void;
   /** This section has the remote. False: the screen stays as it is and takes no keys. */
   active?: boolean;
 }
@@ -290,7 +293,7 @@ const RenameDialog = ({ item, onSave, onCancel }: { item: RecordingItem; onSave:
   );
 };
 
-const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
+const RecordingsScreen = memo(({ onClose, onExitUp, active = true }: Props) => {
   const { t } = useTranslation();
   const [items, setItems] = useState<RecordingItem[] | null>(null);
   const [volumes, setVolumes] = useState<RecordVolume[]>([]);
@@ -438,6 +441,8 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
   }, []);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const onExitUpRef = useRef(onExitUp);
+  onExitUpRef.current = onExitUp;
 
   // The list and its menus (the player and the rename box have their own keys).
   const stateRef = useRef({ rows, safeFocus, menu, doAction, remove, dropSchedule, openAlarmSettings });
@@ -477,7 +482,10 @@ const RecordingsScreen = memo(({ onClose, active = true }: Props) => {
         return;
       }
       if (e.key === 'ArrowDown') setFocus(Math.min(Math.max(0, st.rows.length - 1), st.safeFocus + 1));
-      else if (e.key === 'ArrowUp') setFocus(Math.max(0, st.safeFocus - 1));
+      else if (e.key === 'ArrowUp') {
+        if (st.safeFocus === 0 && onExitUpRef.current) onExitUpRef.current();
+        else setFocus(Math.max(0, st.safeFocus - 1));
+      }
       else if (e.key === 'ArrowLeft') onCloseRef.current();
       else if (isOkKey(e)) {
         const row = st.rows[st.safeFocus];

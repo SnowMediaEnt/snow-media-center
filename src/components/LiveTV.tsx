@@ -4,7 +4,7 @@ import { peekIntent, takeIntent, INTENT_KEYS, PLAYER_INTENT_EVENT, handLiveDeepl
 import { App as CapApp } from '@capacitor/app';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Tv, Film, ListVideo, LayoutGrid, Grid2X2, Loader2, RefreshCw, Settings as SettingsIcon, LifeBuoy, Trophy, Snowflake } from 'lucide-react';
+import { ArrowLeft, Tv, Film, ListVideo, LayoutGrid, Grid2X2, Loader2, RefreshCw, Settings as SettingsIcon, LifeBuoy, Trophy, Snowflake, CircleDot } from 'lucide-react';
 import { kidsLevel } from '@/lib/kidsFilter';
 // The module-level toast, not the hook: the hook subscribes its caller to
 // every toast state change, which only <Toaster> needs.
@@ -46,6 +46,7 @@ import PlexBlockedScreen from './livetv/PlexBlockedScreen';
 import KidsAskGrownUp from './livetv/KidsAskGrownUp';
 
 import LiveSection from './livetv/LiveSection';
+import { useRecordingsEntry } from './livetv/useRecordingsEntry';
 const GuideSection = lazy(() => import('./livetv/GuideSection'));
 /** What Live TV's list (LiveSection) is handed to act on (lib/appActions,
  *  applyIntent below), and the events that say one is there. */
@@ -56,6 +57,7 @@ const GameDaySection = lazy(() => import('./livetv/GameDaySection'));
 const MoviesSection = lazy(() => import('./livetv/MoviesSection'));
 const SeriesSection = lazy(() => import('./livetv/SeriesSection'));
 const VodSection = lazy(() => import('./livetv/VodSection'));
+const RecordingsScreen = lazy(() => import('./livetv/RecordingsScreen'));
 const PlexSection = lazy(() => import('./livetv/PlexSection'));
 const CredentialsForm = lazy(() => import('./livetv/CredentialsForm'));
 
@@ -106,7 +108,7 @@ interface Props {
   onNavigate?: (view: string) => void;
 }
 
-type SectionId = 'live' | 'guide' | 'gameday' | 'originals' | 'vod' | 'movies' | 'series' | 'plex' | 'multi' | 'backups';
+type SectionId = 'live' | 'guide' | 'gameday' | 'recordings' | 'originals' | 'vod' | 'movies' | 'series' | 'plex' | 'multi' | 'backups';
 
 const Player = memo(({ onBack, onNavigate }: Props) => {
   const { t } = useTranslation();
@@ -471,6 +473,11 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     setPane('header');
   }, []);
 
+  // Recordings, in the menu once there is something to list (see
+  // useRecordingsEntry); kept while it is the open section, so deleting the
+  // last recording there does not pull the screen away.
+  const recordings = useRecordingsEntry(mode === 'live');
+  const showRecordings = recordings.show || section === 'recordings';
   const sections = useMemo<{ id: SectionId; labelKey: string; icon: typeof Tv }[]>(() => {
     if (mode === 'live') return [
       { id: 'live',  labelKey: 'live.sections.liveLabel', icon: Tv },
@@ -478,6 +485,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       // Today's big games and the channel each is on. Not on a Kids profile
       // (its channels are the kids ones); a Teens profile has it.
       ...(kidsLevel() === 'little' || kidsLevel() === 'kids' ? [] : [{ id: 'gameday' as SectionId, labelKey: 'live.sections.gameDayLabel', icon: Trophy }]),
+      // What this box recorded and has scheduled (not on a Kids profile, the
+      // demo, or a build without the recorder).
+      ...(showRecordings ? [{ id: 'recordings' as SectionId, labelKey: 'live.list.recordingsBtn', icon: CircleDot }] : []),
       // The line's movies. Plex has its own Home card, so it is not in here.
       { id: 'vod',   labelKey: 'live.sections.vodLabel', icon: Film },
       { id: 'multi', labelKey: 'live.sections.multiLabel', icon: Grid2X2 },
@@ -498,7 +508,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       ] : []),
     ];
     return [];
-  }, [mode, creds]);
+  }, [mode, creds, showRecordings]);
   const sectionsRef = useRef(sections);
   useEffect(() => { sectionsRef.current = sections; }, [sections]);
 
@@ -581,11 +591,15 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // report and the Plex title are handed on through sessionStorage (read by
   // LiveSection / PlexSection when they mount) and an event (for when they
   // are already on screen).
+  const recordingsCapableRef = useRef(recordings.capable);
+  recordingsCapableRef.current = recordings.capable;
   const applyIntent = useCallback((intent: PlayerIntent) => {
     let sec = intent.section ?? 'live';
     // Game Day is not on a Little or Kids profile (see sections): Live TV
     // instead, rather than drawing it for a render before falling back.
     if (sec === 'gameday' && (kidsLevel() === 'little' || kidsLevel() === 'kids')) sec = 'live';
+    // Recordings only on a box that records, never a Kids profile (useRecordingsEntry).
+    if (sec === 'recordings' && !recordingsCapableRef.current) sec = 'live';
     // A content-bar link left over from earlier (a Plex title or a channel
     // that was never opened) must not win over, or later hijack, the section
     // asked for now.
@@ -600,7 +614,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       // the Guide (a channel or report handed over sets it again below).
       if (sec === 'live' && !intent.play && !intent.deeplink && !intent.report) setLiveWatching(false);
       enterMode('live');
-      if (sec === 'guide' || sec === 'multi' || sec === 'gameday') { setSection(sec); setPane('content'); }
+      if (sec === 'guide' || sec === 'multi' || sec === 'gameday' || sec === 'recordings') { setSection(sec); setPane('content'); }
     }
     const hand = (key: string, event: string, value: unknown) => {
       try { sessionStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
@@ -910,6 +924,10 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     setSection(id);
     setPane('content');
   }, []);
+  // Something is recording right now: a red dot on Recordings in the menu.
+  const recNowDot = recordings.recordingNow
+    ? <span data-recording-now="" className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-red-500" aria-label={t('live.list.recordingNow')} />
+    : null;
   const phoneTabs = useMemo(() => (upright
     ? <PlayerPhoneTabs tabs={sections.map((s) => ({ id: s.id, label: t(s.labelKey), icon: s.icon }))} active={section} onPick={(id) => pickSection(id as SectionId)} />
     : null), [upright, sections, section, pickSection, t]);
@@ -1479,6 +1497,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             const isFocused = pane === 'sections' && sectionIdx === i;
             const isActive = section === s.id;
             const collapsed = !touchUI && pane !== 'sections';
+            const dot = s.id === 'recordings' ? recNowDot : null;
             if (sideways) {
               return (
                 <div
@@ -1486,10 +1505,12 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
                   data-section-i={i}
                   data-player-section={s.id}
                   data-active={isActive ? 'true' : 'false'}
+                  data-howto={s.id === 'recordings' ? 'live.recordingsBtn' : undefined}
                   onClick={(e) => { e.stopPropagation(); pickSection(s.id); }}
                   className={`relative flex flex-col items-center justify-center py-2 rounded-xl cursor-pointer ${isActive ? 'bg-brand-gold/20' : ''}`}
                 >
                   <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-brand-gold' : 'text-brand-ice'}`} />
+                  {dot}
                   <span className={`mt-1 w-full px-0.5 text-center text-[11px] leading-tight font-quicksand font-semibold line-clamp-2 break-words ${isActive ? 'text-white' : 'text-brand-ice/80'}`}>{t(s.labelKey)}</span>
                 </div>
               );
@@ -1498,7 +1519,9 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               <div
                 key={s.id}
                 data-section-i={i}
+                data-player-section={s.id}
                 data-focused={isFocused ? 'true' : 'false'}
+                data-howto={s.id === 'recordings' ? 'live.recordingsBtn' : undefined}
                 onClick={(e) => { if (collapsed) return; e.stopPropagation(); if (s.id === 'live') setLiveWatching(false); setSectionIdx(i); setSection(s.id); setPane('content'); }}
                 className={`
                   tv-ring relative flex items-center gap-3 ${collapsed ? 'px-1 py-3 justify-center' : 'px-3 py-3'} rounded-xl cursor-pointer
@@ -1507,6 +1530,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
                 title={collapsed ? t(s.labelKey) : undefined}
               >
                 <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-brand-gold' : 'text-brand-ice'}`} />
+                {dot}
                 {!collapsed && <ScrollText text={t(s.labelKey)} active={isFocused} className="font-quicksand font-semibold" />}
               </div>
             );
@@ -1559,6 +1583,18 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
               onExitUp={onExitUp}
               onWatch={onGameDayWatch}
               onNavigate={navigateViaRef}
+            />
+          </Suspense>
+        )}
+
+        {/* Recordings (the far-left menu, between Game Day and VOD): Back or
+            ◀ from its list goes back to the menu, as from any section. */}
+        {inSection('recordings') && (
+          <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
+            <RecordingsScreen
+              active={pane === 'content' && !claimOpen}
+              onClose={onExitLeft}
+              onExitUp={onExitUp}
             />
           </Suspense>
         )}
