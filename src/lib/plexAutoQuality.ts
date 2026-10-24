@@ -29,15 +29,16 @@
 // 16 Mb/s file will never catch up). Not a conversion (a converter warming
 // up is slow at first), not within a seek's grace, not while the server
 // pauses, not on a proven line.
-// Under the floor: when what the server delivers is under what the floor
-// preset needs (floorPresetFor's `lowKbps`), the ladder reaches
-// down to the relay-sized preset: a picture beats an error.
+// Never under the floor, whatever the server delivers (the owner: "at least
+// a 720"): off the relay every automatic step — a delivery drop, a starved
+// drop, a start-up rescue, a title-page start — stops at 720p · 3 Mbps. The
+// viewer can still pick 480p in the Quality menu.
 // Start-up rescue (startRescue): a play whose start-up loading ends in an
 // error, or never finishes, while the server delivered short of what the
 // stream needs, restarts at the same place on the best converted preset
-// that delivery carries (down to the relay-sized one), once per level;
-// only when even the lowest can't start is the error shown, with the
-// server's number as its reason.
+// that delivery carries (down to the floor), once per level; only when
+// even the floor can't start is the error shown, with the server's number
+// as its reason.
 // Stalls counted on their own (three in five minutes) may only move to a
 // lighter file — never into a conversion — and not off a 4K file whose
 // line is proven. A proven line is a sustained 15 s arrival rate of twice
@@ -46,9 +47,11 @@
 // file's bitrate (needKbps).
 // Up: once the steady speed has held comfortably above the next step up for
 // a minute and a half without a stall, one step at a time, never above what
-// the viewer started with, at most every 2 minutes. A raise that stalls
-// within 2 minutes goes straight back down (unless the line is proven for
-// it) and raising waits (10 min, then longer). What the viewer picks in the
+// the viewer started with, at most every 2 minutes — after a drop or a
+// rescue too (720p · 3 → 720p · 4 → 1080p · 8 → … → the file, as a steady
+// signal allows). A raise that stalls within 2 minutes goes straight back
+// down (unless the line is proven for it) and raising waits (10 min, then
+// longer): no ping-pong. What the viewer picks in the
 // Quality menu is a ceiling for that title, not an off switch: lowering
 // still happens below it, raising never goes above it. Picking Original
 // sets no ceiling at all. Every title starts afresh.
@@ -112,8 +115,9 @@ export const RAISE_SUSTAIN_MS = 90_000;
 export const MIN_CHANGE_GAP_MS = 2 * 60_000;
 /** A stall this soon after a raise undoes it. */
 export const RAISE_PROBATION_MS = 2 * 60_000;
-/** Raising waits this long after an undone raise or a delivery drop,
- *  doubling each time a raise is undone. */
+/** Raising waits this long after an undone raise, doubling each time a
+ *  raise is undone. (After a drop or a rescue it waits only
+ *  MIN_CHANGE_GAP_MS, plus RAISE_SUSTAIN_MS of steady speed.) */
 export const RAISE_BACKOFF_MS = 10 * 60_000;
 const RAISE_BACKOFF_MAX_MS = 40 * 60_000;
 
@@ -145,16 +149,10 @@ export const qualityPresetLabel = (p: { key: string; label: string }): string =>
 
 const presetKbps = (key: string): number | undefined => PLEX_QUALITY_PRESETS.find((p) => p.key === key)?.maxVideoBitrateKbps;
 
-/**
- * The lowest preset automatic quality goes to on this route: the relay-sized
- * one on the relay, or when what the server has been seen to deliver
- * (`lowKbps`) is under what the usual floor needs; else the floor.
- */
-export function floorPresetFor(route?: PlexRoute | null, lowKbps?: number | null): string {
-  if (route === 'relay') return RELAY_PRESET;
-  const floor = presetKbps(AUTO_FLOOR_PRESET) ?? 3000;
-  return lowKbps && lowKbps > 0 && lowKbps < floor ? RELAY_PRESET : AUTO_FLOOR_PRESET;
-}
+/** The lowest preset automatic quality goes to on this route: the
+ *  relay-sized one on the relay, else the floor (720p · 3 Mbps) whatever
+ *  the server delivers. */
+export const floorPresetFor = (route?: PlexRoute | null): string => (route === 'relay' ? RELAY_PRESET : AUTO_FLOOR_PRESET);
 
 const presetStep = (key: string): QualityStep | null => {
   const p = PLEX_QUALITY_PRESETS.find((x) => x.key === key);
@@ -164,12 +162,12 @@ const presetStep = (key: string): QualityStep | null => {
 /**
  * The converted preset that `kbps` (what the server delivers) carries with
  * headroom, best first, among those under `belowKbps` and down to the
- * relay-sized one; the lowest of them when none fits. `exclude`: keys not to
+ * floor (AUTO_FLOOR_PRESET); the floor when none fits. `exclude`: keys not to
  * offer (failed, or already tried). Null when none is left.
  */
 export function fittingPreset(kbps: number | null | undefined, belowKbps: number, exclude: Iterable<string> = []): QualityStep | null {
   const skip = new Set(exclude);
-  const low = presetKbps(RELAY_PRESET) ?? 2000;
+  const low = presetKbps(AUTO_FLOOR_PRESET) ?? 3000;
   const steps = PLEX_QUALITY_PRESETS
     .filter((p) => !!p.maxVideoBitrateKbps && p.key !== 'original' && (p.maxVideoBitrateKbps as number) < belowKbps && (p.maxVideoBitrateKbps as number) >= low && !skip.has(p.key))
     .sort((a, b) => (b.maxVideoBitrateKbps as number) - (a.maxVideoBitrateKbps as number))
@@ -187,7 +185,7 @@ export function fittingPreset(kbps: number | null | undefined, belowKbps: number
  * from the Plex server, `fileKbps` the file's average): under the file's own
  * average (DELIVERY_FACTOR, the rule automatic quality drops by) it can't
  * carry it, so the converted preset that rate carries with headroom (a
- * 16 Mb/s film at 1.7 Mb/s: 480p · 2 Mbps; at 14.3: 1080p · 8 Mbps). Null
+ * 16 Mb/s film at 1.7 Mb/s: the floor, 720p · 3 Mbps; at 14.3: 1080p · 8 Mbps). Null
  * when the rate carries the file, or either is unknown.
  */
 export function startPresetFor(kbps: number | null | undefined, fileKbps: number | null | undefined): QualityStep | null {
@@ -594,9 +592,6 @@ export class AutoQuality {
   /** When each stall of the stream playing now began: the one list every
    *  rule reads. */
   private stallTimes: number[] = [];
-  /** The lowest the server was seen to deliver short of a stream's need
-   *  this title, kbps (floorPresetFor). */
-  private lowKbps: number | null = null;
   /** The last move made on what the server delivered (the card says it). */
   private lastDeliveryMove: { step: QualityStep; kbps: number; at: number } | null = null;
 
@@ -689,42 +684,30 @@ export class AutoQuality {
    */
   delivery(rates: RateReport[], now: number, ctx: StallContext = {}, stallStart?: number, needKbps?: number): Delivery {
     const proven = lineClearFor(needKbps, { ...ctx, shortKbps: null });
-    const d = deliveredKbps(rates, now, { since: this.lastChangeAt, lastStartAt: ctx.lastStartAt, lastSeekAt: ctx.lastSeekAt, stallStart, proven, needKbps, direct: ctx.direct });
-    if (d.kbps != null && deliveryShort(d, needKbps)) this.noteLow(d.kbps);
-    return d;
+    return deliveredKbps(rates, now, { since: this.lastChangeAt, lastStartAt: ctx.lastStartAt, lastSeekAt: ctx.lastSeekAt, stallStart, proven, needKbps, direct: ctx.direct });
   }
-
-  /** The server was seen delivering `kbps`, short of a stream's need. */
-  noteLow(kbps: number): void {
-    if (kbps > 0 && (this.lowKbps == null || kbps < this.lowKbps)) this.lowKbps = kbps;
-  }
-
-  /** The lowest the server has been seen to deliver short of a need this
-   *  title, kbps (floorPresetFor), or null. */
-  lowDeliveryKbps(): number | null { return this.lowKbps; }
 
   /**
-   * A start-up rescue at `at` (startRescue): the step is applied, raising
-   * waits as after a delivery drop, and the card says what was done.
+   * A start-up rescue at `at` (startRescue): the step is applied (raising
+   * waits MIN_CHANGE_GAP_MS, as after any change), and the card says what
+   * was done.
    */
   rescued(step: QualityStep, kbps: number, at: number): void {
-    this.noteLow(kbps);
     this.applied({ step, direction: 'down', reason: 'rescue', kbps }, at);
-    this.raiseBlockedUntil = Math.max(this.raiseBlockedUntil, at + RAISE_BACKOFF_MS);
   }
 
   /**
    * The one down rule: `delivery` (see delivery) is short of what the stream
    * needs (`needKbps`, under DELIVERY_FACTOR of it): drop now to the best
    * rung that rate carries with headroom, lighter files first. A pause, or
-   * too little evidence, is never a drop. Raising then waits
-   * (RAISE_BACKOFF_MS): the rate that starved it was measured.
+   * too little evidence, is never a drop. Raising then waits as after any
+   * change (MIN_CHANGE_GAP_MS), and for a steady signal: a server that
+   * recovers gets its quality back within minutes.
    */
   onDelivery(at: number, ladder: QualityStep[], index: number, delivery: Delivery, needKbps: number | undefined): AutoMove | null {
     if (!deliveryShort(delivery, needKbps) || delivery.kbps == null) return null;
     const step = dropTarget(ladder, index, delivery.kbps);
     if (!step) return null;
-    this.raiseBlockedUntil = Math.max(this.raiseBlockedUntil, at + RAISE_BACKOFF_MS);
     return { step, direction: 'down', reason: 'delivery', kbps: delivery.kbps };
   }
 
@@ -851,8 +834,8 @@ export type StartRescue =
  * server delivered meanwhile (`deliveredKbps`) is short of what the stream
  * needs (`needKbps`), restart on the best converted preset that rate
  * carries with headroom, lighter than the stream that failed
- * (`currentKey`; for a file, clearly under it) and down to the relay-sized
- * one: a picture beats an error. One rescue per level (`tried`, and the
+ * (`currentKey`; for a file, clearly under it) and down to the floor,
+ * 720p · 3 Mbps. One rescue per level (`tried`, and the
  * conversions that failed); none left: `exhausted`, and the error says the
  * server's number. Null when this is not a speed problem (no evidence,
  * enough delivered, a proven line): the usual error stands.
@@ -867,10 +850,12 @@ export function startRescue(input: {
   if (kbps >= need * DELIVERY_FACTOR) return null;
   if ((input.sustainedKbps ?? 0) >= need * PROVEN_FACTOR) return null;
   const cur = input.currentKey.indexOf('original') === 0 ? undefined : presetKbps(input.currentKey);
-  const below = cur ?? need * 0.8;
+  // Never back to (or above) a level already tried for this title.
+  const tried = Array.from(input.tried ?? []).map((k) => presetKbps(k)).filter((k): k is number => !!k);
+  const below = Math.min(cur ?? need * 0.8, ...tried);
   const step = fittingPreset(kbps, below, [...Array.from(input.tried ?? []), ...Array.from(input.failed ?? [])]);
   if (step) return { step, kbps };
-  return { exhausted: true, kbps, lowest: presetStep(RELAY_PRESET) as QualityStep };
+  return { exhausted: true, kbps, lowest: presetStep(AUTO_FLOOR_PRESET) as QualityStep };
 }
 
 // ── a conversion that fails ─────────────────────────────────────────────────

@@ -89,12 +89,12 @@ describe('versions on the title page', () => {
     // Measured on this title's own 4K file.
     _setPlexSpeed(BASE, 1700, Date.now(), 1, '/library/parts/2/file.mkv');
     const onPlay = renderDetail({ ratingKey: '101', title: 'The Film', type: 'movie', videoResolution: '4k' });
-    await waitFor(() => expect(screen.getAllByText(/starting in 480p · 2 Mbps\. Pick 4K to play it anyway\./).length).toBeGreaterThan(0), { timeout: 5000 });
+    await waitFor(() => expect(screen.getAllByText(/starting in 720p · 3 Mbps\. Pick 4K to play it anyway\./).length).toBeGreaterThan(0), { timeout: 5000 });
     press('Enter');
     await waitFor(() => expect(onPlay).toHaveBeenCalledTimes(1), { timeout: 5000 });
     const src = onPlay.mock.calls[0][4];
     expect(src.version.id).toBe('101:0');
-    expect(src.startPreset).toBe('480-2');
+    expect(src.startPreset).toBe('720-3');
     expect(src.measuredKbps).toBe(1700);
     // Picking a version is playing it anyway: no conversion.
     press('ArrowDown');
@@ -114,6 +114,6 @@ describe('versions on the title page', () => {
     press('Enter');
     await waitFor(() => expect(onPlay).toHaveBeenCalledTimes(1), { timeout: 5000 });
     expect(onPlay.mock.calls[0][4].startPreset).toBeUndefined();
-    expect(screen.queryByText(/starting in 480p/)).toBeNull();
+    expect(screen.queryByText(/starting in 720p/)).toBeNull();
   });
 });

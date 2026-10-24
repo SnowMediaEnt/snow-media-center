@@ -224,14 +224,14 @@ describe('the one down rule', () => {
     expect(new AutoQuality(0).onDelivery(t0, film12, at, { kbps: 8500, windows: 3, paused: false }, needKbps(8000, 12000))).toBeNull();
   });
 
-  it('after a delivery drop, the way back up waits ten minutes, then needs the measured speed', () => {
+  it('after a delivery drop, the way back up waits two minutes, then needs the measured speed', () => {
     const aq = new AutoQuality(0);
     const move = aq.onDelivery(t0, film12, 0, { kbps: 5000, windows: 3, paused: false }, 12000)!;
     aq.applied(move, t0);
     const at = film12.findIndex((s) => s.key === '720-3');
-    expect(aq.maybeRaise(t0 + 3 * MIN, film12, at, 0, 50000)).toBeNull();
-    expect(aq.maybeRaise(t0 + RAISE_BACKOFF_MS + 1000, film12, at, 0, 5000)).toBeNull();
-    expect(aq.maybeRaise(t0 + RAISE_BACKOFF_MS + 1000, film12, at, 0, 50000)?.step.key).toBe('720-4');
+    expect(aq.maybeRaise(t0 + MIN, film12, at, 0, 50000)).toBeNull();
+    expect(aq.maybeRaise(t0 + MIN_CHANGE_GAP_MS + 1000, film12, at, 0, 5000)).toBeNull();
+    expect(aq.maybeRaise(t0 + MIN_CHANGE_GAP_MS + 1000, film12, at, 0, 50000)?.step.key).toBe('720-4');
   });
 
   it('judged since the last change: the new stream stands on its own', () => {
@@ -297,11 +297,10 @@ describe('stepping back up', () => {
     expect(down.step.key).toBe('720-3');
     aq.applied(down, 1 * MIN);
     const idx = ladderIndex(film, '720-3');
-    // Too soon after the change, then the backoff a delivery drop sets.
+    // Too soon after the change.
     expect(aq.maybeRaise(1 * MIN + 30_000, film, idx, 0, 50000)).toBeNull();
-    expect(aq.maybeRaise(1 * MIN + MIN_CHANGE_GAP_MS, film, idx, 0, 50000)).toBeNull();
-    // Later, speed carries 720p · 4 Mbps with headroom: one step only.
-    const up = aq.maybeRaise(1 * MIN + RAISE_BACKOFF_MS + 1, film, idx, 0, 50000);
+    // Two minutes on, speed carries 720p · 4 Mbps with headroom: one step only.
+    const up = aq.maybeRaise(1 * MIN + MIN_CHANGE_GAP_MS, film, idx, 0, 50000);
     expect(up?.direction).toBe('up');
     expect(up?.step.key).toBe('720-4');
   });

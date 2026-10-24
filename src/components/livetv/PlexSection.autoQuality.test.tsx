@@ -143,7 +143,7 @@ vi.mock('./PlexDetail', () => ({
       {/* The title page measured the server at 1.7 Mb/s, too slow for the 16 Mb/s file. */}
       <button onClick={() => {
         const v = { id: 'd1:0', ratingKey: item.ratingKey, mediaIndex: 0, label: '1080p', bitrateKbps: 16000, partKey: '/library/parts/7/file.mkv' };
-        onPlay(item, undefined, undefined, undefined, { version: v, versions: [v], startPreset: '480-2', measuredKbps: 1700 });
+        onPlay(item, undefined, undefined, undefined, { version: v, versions: [v], startPreset: '720-3', measuredKbps: 1700 });
       }}>PLAY:Measured</button>
       {/* The viewer picked this version on the title page: it plays as it is. */}
       <button onClick={() => {
@@ -785,10 +785,11 @@ describe('raising the quality back up: the read of the file', () => {
     await deliverInStall([4000, 4000, 4000]);
     await until(() => expect(cap(lastUrl())).toBe('3000'));
     await started();
-    // Raising waits ten minutes after a delivery drop; then the read.
-    await wait(5 * 60_000);
+    // Raising waits two minutes after a delivery drop (and a minute and a
+    // half without a stall); then the read.
+    await wait(60_000);
     expect(probeReads()).toEqual([]);
-    await wait(5.5 * 60_000);
+    await wait(75_000);
     // Next up is 720p · 4 Mbps, another conversion: one stretch of 6 MB.
     expect(probeReads()).toEqual(['bytes=0-6291455']);
   });
@@ -800,7 +801,7 @@ describe('raising the quality back up: the read of the file', () => {
     await deliverInStall([5500, 5500, 5500]);
     await until(() => expect(cap(lastUrl())).toBe('4000'));
     await started();
-    await wait(10.5 * 60_000);
+    await wait(2.5 * 60_000);
     // Next up is the file, read over four: four stretches of 1.5 MB each.
     expect(probeReads()).toEqual(['bytes=0-1572863', 'bytes=1572864-3145727', 'bytes=3145728-4718591', 'bytes=4718592-6291455']);
   });
@@ -1217,7 +1218,7 @@ describe("a Plex server that sends 1.5 Mb/s of a 16 Mb/s film (the owner's TV, 1
   beforeEach(() => {
     h.part.mockImplementation(async () => ({ partKey: '/library/parts/7/file.mkv', bitrateKbps: 16000, versions: [] }));
   });
-  const SWITCH_DESC = 'Your Plex server is sending about 1.5 Mb/s, so this plays at 480p · 2 Mbps. It goes back up by itself when the server keeps up.';
+  const SWITCH_DESC = 'Your Plex server is sending about 1.5 Mb/s, so this plays at 720p · 3 Mbps. It goes back up by itself when the server keeps up.';
   const giveUp = () => act(() => {
     h.native = { ...h.native, error: { code: 'RECONNECT_EXHAUSTED', message: 'The server stopped responding. Try again.' } };
     h.kick?.();
@@ -1244,9 +1245,9 @@ describe("a Plex server that sends 1.5 Mb/s of a 16 Mb/s film (the owner's TV, 1
     await report(1500);
     await report(1500);
     await wait(3_500);
-    await until(() => expect(cap(lastUrl())).toBe('2000'));
+    await until(() => expect(cap(lastUrl())).toBe('3000'));
     expect(isTranscode(lastUrl())).toBe(true);
-    expect(toastTitles()).toContain('Switched to 480p · 2 Mbps');
+    expect(toastTitles()).toContain('Switched to 720p · 3 Mbps');
     expect(toastDescs()).toContain(SWITCH_DESC);
   });
 
@@ -1262,39 +1263,56 @@ describe("a Plex server that sends 1.5 Mb/s of a 16 Mb/s film (the owner's TV, 1
     expect(h.urls).toHaveLength(1);
   });
 
-  it('the start-up loading ends in an error: restarted at the same place at 480p · 2 Mbps, never the error', async () => {
+  it('the start-up loading ends in an error: restarted at the same place at 720p · 3 Mbps, never the error', async () => {
     const retry = vi.fn();
     h.native = { ...h.native, retry };
     await loadingAt(1500);
     giveUp();
-    await until(() => expect(cap(lastUrl())).toBe('2000'));
+    await until(() => expect(cap(lastUrl())).toBe('3000'));
     expect(toastDescs()).toContain(SWITCH_DESC);
     // The same stream again is no way out: the network retry leaves it.
     await wait(10_000);
     expect(retry).not.toHaveBeenCalled();
   });
 
-  it('even 480p · 2 Mbps cannot start: then the error, with the server\'s number as its reason (no loop)', async () => {
+  it('even 720p · 3 Mbps cannot start: then the error, with the server\'s number as its reason (no loop)', async () => {
     const retry = vi.fn();
     h.native = { ...h.native, retry };
     await loadingAt(1500);
     giveUp();
-    await until(() => expect(cap(lastUrl())).toBe('2000'));
+    await until(() => expect(cap(lastUrl())).toBe('3000'));
     cleared();
     const rescued = h.urls.length;
     await report(500, 3_500);
     await report(500);
     giveUp();
-    await until(() => expect(screen.getByText('Your Plex server is sending only about 0.5 Mb/s, too little even for 480p · 2 Mbps.')).toBeTruthy());
+    await until(() => expect(screen.getByText('Your Plex server is sending only about 0.5 Mb/s, too little even for 720p · 3 Mbps.')).toBeTruthy());
     await wait(10_000);
     expect(h.urls).toHaveLength(rescued);
     expect(retry).not.toHaveBeenCalled();
   });
 
+  it('rescued to 720p · 3 Mbps, it climbs back on a steady signal: 720p · 4 two minutes on, never 480', async () => {
+    await loadingAt(1500);
+    giveUp();
+    await until(() => expect(cap(lastUrl())).toBe('3000'));
+    act(() => { h.native = { ...h.native, error: null }; h.kick?.(); });
+    // The conversion plays, and the server keeps up at a steady 8 Mb/s.
+    h.pos.playing = true; h.pos.position = 600; h.pos.duration = 7200;
+    playOn();
+    await started();
+    act(() => { beginStream(lastUrl(), 'vod'); markPlaybackStart(); });
+    for (let i = 0; i < 30; i += 1) await report(8000);
+    expect(cap(lastUrl())).toBe('3000');
+    for (let i = 0; i < 20 && cap(lastUrl()) === '3000'; i += 1) await report(8000);
+    await until(() => expect(cap(lastUrl())).toBe('4000'));
+    expect(h.urls.map(cap).filter((c) => c === '2000')).toEqual([]);
+  });
+
   it('the start-up loading never finishes: rescued instead of "Still preparing…"', async () => {
     await loadingAt(1500);
     await wait(3_000);
-    await until(() => expect(cap(lastUrl())).toBe('2000'));
+    await until(() => expect(cap(lastUrl())).toBe('3000'));
     expect(screen.queryByText('Still preparing…')).toBeNull();
   });
 
@@ -1308,14 +1326,14 @@ describe("a Plex server that sends 1.5 Mb/s of a 16 Mb/s film (the owner's TV, 1
     expect(retry).toHaveBeenCalled();
   });
 
-  it('the title page measured 1.7 Mb/s: it starts at 480p · 2 Mbps, not the 1080p file, and says why', async () => {
+  it('the title page measured 1.7 Mb/s: it starts at 720p · 3 Mbps, not the 1080p file, and says why', async () => {
     await openDune();
     fireEvent.click(await screen.findByText('PLAY:Measured', undefined, { timeout: 3000 }));
     await until(() => expect(h.urls.length).toBeGreaterThan(0));
     expect(isTranscode(h.urls[0])).toBe(true);
-    expect(cap(h.urls[0])).toBe('2000');
+    expect(cap(h.urls[0])).toBe('3000');
     expect(h.urls.filter(isFile)).toEqual([]);
-    expect(toastDescs()).toContain('This TV measured about 1.7 Mb/s from your Plex server, so this starts at 480p · 2 Mbps. Pick Original under Quality to play the file as it is.');
+    expect(toastDescs()).toContain('This TV measured about 1.7 Mb/s from your Plex server, so this starts at 720p · 3 Mbps. Pick Original under Quality to play the file as it is.');
   });
 });
 
@@ -1367,7 +1385,7 @@ describe('the rescue, after review: a start only, one at a time, never against t
   it('Original picked under Quality after a rescue: the file plays, and is not converted again', async () => {
     await loading(1500);
     giveUp();
-    await until(() => expect(cap(lastUrl())).toBe('2000'));
+    await until(() => expect(cap(lastUrl())).toBe('3000'));
     act(() => { h.native = { ...h.native, error: null }; h.kick?.(); });
     act(() => { h.pickQuality?.('original', 0); });
     await until(() => expect(isFile(lastUrl())).toBe(true));
@@ -1407,7 +1425,7 @@ describe('the rescue, after review: a start only, one at a time, never against t
     await report(1500);
     await report(1500);
     await wait(3_500);
-    await until(() => expect(cap(lastUrl())).toBe('2000'));
+    await until(() => expect(cap(lastUrl())).toBe('3000'));
     expect(h.starts[h.starts.length - 1]).toBe(600);
   });
 

@@ -97,7 +97,7 @@ import { formatMbps, getPlayerRates, type DiagSnapshot } from '@/lib/bufferDiagn
 import {
   AutoQuality, autoQualityNote, buildQualityLadder, convertRecoveryStep, fileAlternative, floorPresetFor, freshConvertRecovery, ladderIndex, lighterConversion, needKbps, noteConversionRefused, serverRefusesConversion, stallEvidence, startDelivery, startRescue, steadyKbps, stepName, sustainedKbps,
   pingPlexTranscode, stopPlexTranscode, stopPlexTranscodeAndWait, transcodeStopUrl, type ConvertRecovery,
-  CONVERT_RECOVERY_MAX, deliveryShort, RAISE_SUSTAIN_MS, RATE_TICK_MS, RELAY_PRESET, SPEED_HEADROOM, START_GRACE_MS, TRANSCODE_PING_MS, type AutoMove, type QualityStep, type RateReport, type StallContext, type StartRescue,
+  AUTO_FLOOR_PRESET, CONVERT_RECOVERY_MAX, deliveryShort, RAISE_SUSTAIN_MS, RATE_TICK_MS, RELAY_PRESET, SPEED_HEADROOM, START_GRACE_MS, TRANSCODE_PING_MS, type AutoMove, type QualityStep, type RateReport, type StallContext, type StartRescue,
 } from '@/lib/plexAutoQuality';
 import { lastPlaybackStartAt, lastSeekAt } from '@/lib/playerSeek';
 import { is4k, measurePlexSpeed, transcodeSource, type PlexPlaySource, type PlexVersion } from '@/lib/plexVersions';
@@ -2636,9 +2636,6 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const autoQRef = useRef<{ key: string | null; aq: AutoQuality; probeAt: number; probeKbps: number | null; sustainedKbps: number | null }>(
     { key: null, aq: new AutoQuality(0), probeAt: 0, probeKbps: null, sustainedKbps: null },
   );
-  // A start the title page measured too slow for its file (playRatingKey's
-  // `startPreset`): that rate, for the title's automatic quality.
-  const startLowRef = useRef<{ key: string; kbps: number } | null>(null);
   // Start-up rescue (startRescue), per title: the presets already tried, so
   // it never loops; and the error's reason when even the lowest can't start.
   const rescueRef = useRef<{ key: string | null; tried: Set<string> }>({ key: null, tried: new Set() });
@@ -3517,9 +3514,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     forcedTranscodeRef.current = false;
     // Automatic quality starts over with every start (a replay too), knowing
     // what the title page measured when that is too little for the file.
-    const startPreset = !opts?.trailer && conn.route !== 'relay' && src?.startPreset && src.measuredKbps && !src.picked && !serverRefusesConversion(conn.base)
+    // Never under the floor (720p · 3 Mbps), whatever was asked for.
+    const floorKbps = PLEX_QUALITY_PRESETS.find((p) => p.key === AUTO_FLOOR_PRESET)?.maxVideoBitrateKbps ?? 3000;
+    const askedPreset = !opts?.trailer && conn.route !== 'relay' && src?.startPreset && src.measuredKbps && !src.picked && !serverRefusesConversion(conn.base)
       ? PLEX_QUALITY_PRESETS.find((p) => p.key === src.startPreset && !!p.maxVideoBitrateKbps) : undefined;
-    startLowRef.current = startPreset && src?.measuredKbps ? { key: ratingKey, kbps: src.measuredKbps } : null;
+    const startPreset = askedPreset && (askedPreset.maxVideoBitrateKbps ?? 0) < floorKbps
+      ? PLEX_QUALITY_PRESETS.find((p) => p.key === AUTO_FLOOR_PRESET) : askedPreset;
     viewerPickRef.current = !!src?.picked;
     lastKnownPosRef.current = 0;
     setPlaySeq((n) => n + 1);
@@ -4107,10 +4107,6 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // A replay of the same title keeps the conversions that failed on it.
     const failed = prev.key && prev.key === key ? prev.aq.failedKeys() : [];
     const aq = new AutoQuality(Date.now(), failed);
-    // A start the title page measured too slow for its file (startLowRef):
-    // that rate sizes the ladder's floor from the first stall on.
-    const low = startLowRef.current;
-    if (low && low.key === key) aq.noteLow(low.kbps);
     autoQRef.current = { key, aq, probeAt: 0, probeKbps: null, sustainedKbps: null };
     arrivalRef.current = { samples: [], native: null };
   }, [playing?.ratingKey, playSeq]);
@@ -4169,10 +4165,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // after the start), where playback is on it, and the highest it may go.
   const autoLadder = useCallback((): { ladder: QualityStep[]; index: number; ceiling: number } => {
     const st = autoQRef.current;
-    // On the Plex Relay the floor is the quality the relay carries; so it is
-    // when the server has been seen delivering too little for the usual
-    // floor (a picture beats an error).
-    let ladder = buildQualityLadder(playVersionsRef.current, fileKbpsRef.current, floorPresetFor(connRef.current?.route, st.aq.lowDeliveryKbps()));
+    // On the Plex Relay the floor is the quality the relay carries; anywhere
+    // else 720p · 3 Mbps, whatever the server delivers.
+    let ladder = buildQualityLadder(playVersionsRef.current, fileKbpsRef.current, floorPresetFor(connRef.current?.route));
     const curId = playVersionRef.current?.id;
     if (forcedTranscodeRef.current) {
       // Audio (or the codec) can't be played as it is here: no file as-is
@@ -4303,7 +4298,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       if (done || autoQRef.current !== st || st.key !== playingKeyRef.current) return;
       const need = needNowRef.current();
       const d = st.aq.delivery(rates(), Date.now(), stallCtx(at), at, need);
-      // After the delivery is in: too little for the usual floor lowers it.
+      // To the best rung that delivery carries, never under the floor.
       const now = autoLadder();
       const m = st.aq.onDelivery(Date.now(), now.ladder, now.index, d, need);
       if (m) { done = true; void applyAutoMove(m); return; }
@@ -4547,8 +4542,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // server delivered short of what the stream needs (startDelivery: the
   // windows while the start loaded, and any stalled ones since), restarts
   // at the same place at the best converted preset that rate carries with
-  // headroom — under the usual floor too, down to 480p · 2 Mbps: a picture
-  // beats an error. Said on screen with the server's number. Once per level
+  // headroom, down to the floor (720p · 3 Mbps; the owner: "at least a
+  // 720"), and back up by itself on a steady signal. Said on screen with the server's number. Once per level
   // for the title; when even the lowest can't start, the error, with that
   // number as its reason. Never a trailer; never when the server simply
   // delivered enough (the usual error and retries stand).

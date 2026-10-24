@@ -3,11 +3,12 @@
 // internet check read 30-38). The start-up loading ended in an error before
 // automatic quality ever acted. Now: a starved file steps down at once, a
 // start that ends in an error is rescued at a preset that rate carries
-// (under the usual floor too), and the card's verdict and automatic quality
+// (never under 720p · 3 Mbps: "at least a 720"; back up on a steady
+// signal), and the card's verdict and automatic quality
 // agree (the owner's photo: 14.3 of 15 Mb/s, "Pick 1080p · 8 Mbps").
 import { describe, expect, it } from 'vitest';
 import {
-  AutoQuality, RATE_TICK_MS, START_GRACE_MS, _resetConversionRefusals, autoQualityNote, buildQualityLadder, deliveredKbps, floorPresetFor,
+  AutoQuality, MIN_CHANGE_GAP_MS, RAISE_BACKOFF_MS, RATE_TICK_MS, START_GRACE_MS, _resetConversionRefusals, ladderIndex, type QualityStep, autoQualityNote, buildQualityLadder, deliveredKbps, floorPresetFor,
   noteConversionRefused, serverRefusesConversion, startDelivery, startPresetFor, startRescue, type RateReport,
 } from './plexAutoQuality';
 
@@ -36,22 +37,20 @@ describe('a starved file steps down at once', () => {
     expect(deliveredKbps(stalled(began + 4 * S, [10000, 10000]), now, { lastStartAt: began, needKbps: 16000, direct: true }).kbps).toBeNull();
   });
 
-  it('down to 480p · 2 Mbps, under the usual floor: that is all 1.5 Mb/s carries', () => {
+  it('down to 720p · 3 Mbps, the floor, however little arrives ("at least a 720")', () => {
     const aq = new AutoQuality(began);
     const d = aq.delivery(rates, now, { lastStartAt: began, direct: true }, began + 4 * S, 16000);
-    expect(aq.lowDeliveryKbps()).toBe(1500);
-    const ladder = buildQualityLadder([], 16000, floorPresetFor('direct', aq.lowDeliveryKbps()));
-    expect(keys(ladder)).toEqual(['original', '1080-12', '1080-8', '720-4', '720-3', '480-2']);
+    const ladder = buildQualityLadder([], 16000, floorPresetFor('direct'));
+    expect(keys(ladder)).toEqual(['original', '1080-12', '1080-8', '720-4', '720-3']);
     const move = aq.onDelivery(now, ladder, 0, d, 16000);
     expect(move).toMatchObject({ direction: 'down', reason: 'delivery', kbps: 1500 });
-    expect(move?.step.key).toBe('480-2');
+    expect(move?.step.key).toBe('720-3');
   });
 
-  it('the floor stays put when the server carries it', () => {
-    expect(floorPresetFor('direct', 3500)).toBe('720-3');
-    expect(floorPresetFor('direct', 2900)).toBe('480-2');
-    expect(floorPresetFor('direct', null)).toBe('720-3');
-    expect(floorPresetFor('relay', 50000)).toBe('480-2');
+  it('the floor is 720p · 3 Mbps off the relay, 480p · 2 Mbps on it', () => {
+    expect(floorPresetFor('direct')).toBe('720-3');
+    expect(floorPresetFor('lan')).toBe('720-3');
+    expect(floorPresetFor('relay')).toBe('480-2');
   });
 });
 
@@ -137,17 +136,19 @@ describe('start-up rescue', () => {
     _resetConversionRefusals();
   });
 
-  it('a 16 Mb/s file at 1.5: restarted at 480p · 2 Mbps; at 5: 720p · 3 Mbps', () => {
-    expect(startRescue({ deliveredKbps: 1500, needKbps: 16000, currentKey: 'original' })).toMatchObject({ step: { key: '480-2' }, kbps: 1500 });
+  it('a 16 Mb/s file at 1.5: restarted at 720p · 3 Mbps, never under it; at 5 too; at 12: 1080p · 8', () => {
+    expect(startRescue({ deliveredKbps: 1500, needKbps: 16000, currentKey: 'original' })).toMatchObject({ step: { key: '720-3' }, kbps: 1500 });
     expect(startRescue({ deliveredKbps: 5000, needKbps: 16000, currentKey: 'original' })).toMatchObject({ step: { key: '720-3' } });
     expect(startRescue({ deliveredKbps: 12000, needKbps: 16000, currentKey: 'original' })).toMatchObject({ step: { key: '1080-8' } });
   });
 
   it('once per level, never a loop: then the error, with the reason', () => {
-    expect(startRescue({ deliveredKbps: 1500, needKbps: 16000, currentKey: 'original', tried: ['480-2'] })).toMatchObject({ step: { key: '720-3' } });
-    expect(startRescue({ deliveredKbps: 500, needKbps: 2000, currentKey: '480-2', tried: ['480-2'] })).toEqual({ exhausted: true, kbps: 500, lowest: expect.objectContaining({ key: '480-2' }) });
+    expect(startRescue({ deliveredKbps: 9000, needKbps: 16000, currentKey: 'original', tried: ['1080-8'] })).toMatchObject({ step: { key: '720-4' } });
+    expect(startRescue({ deliveredKbps: 1500, needKbps: 16000, currentKey: 'original', tried: ['720-3'] })).toEqual({ exhausted: true, kbps: 1500, lowest: expect.objectContaining({ key: '720-3' }) });
+    // Never under the floor: from 720p · 3 Mbps there is nowhere to go.
+    expect(startRescue({ deliveredKbps: 500, needKbps: 3000, currentKey: '720-3' })).toMatchObject({ exhausted: true });
     // A conversion that failed is not offered again.
-    expect(startRescue({ deliveredKbps: 1500, needKbps: 3000, currentKey: '720-3', failed: ['480-2'] })).toMatchObject({ exhausted: true });
+    expect(startRescue({ deliveredKbps: 1500, needKbps: 4000, currentKey: '720-4', failed: ['720-3'] })).toMatchObject({ exhausted: true });
   });
 
   it('not a speed problem: no rescue (the usual error and retries stand)', () => {
@@ -157,21 +158,62 @@ describe('start-up rescue', () => {
     expect(startRescue({ deliveredKbps: 1500, needKbps: 16000, currentKey: 'original', sustainedKbps: 40000 })).toBeNull();
   });
 
-  it('a rescue counts as a change: nothing raised for ten minutes, and the card says it', () => {
+  it('the owner: 1.5 Mb/s → 720p · 3 Mbps; a steady 8 Mb/s for 90 s raises it to 720p · 4 after 2 min, then on up', () => {
+    const MIN = 60 * S;
     const aq = new AutoQuality(0);
-    const step = startRescue({ deliveredKbps: 1500, needKbps: 16000, currentKey: 'original' }) as { step: never; kbps: number };
-    aq.rescued(step.step, step.kbps, 0);
-    const ladder = buildQualityLadder([], 16000, floorPresetFor('direct', aq.lowDeliveryKbps()));
-    const at = ladder.findIndex((s) => s.key === '480-2');
-    expect(aq.maybeRaise(5 * 60 * S, ladder, at, 0, 50000)).toBeNull();
-    expect(autoQualityNote(ladder, at, aq.preview(ladder, at, {}, 10 * S))).toBe('Auto quality: switched to 480p · 2 Mbps — the Plex server sent 1.5 Mb/s on average');
+    const plan = startRescue({ deliveredKbps: 1500, needKbps: 16000, currentKey: 'original' }) as { step: QualityStep; kbps: number };
+    expect(plan.step.key).toBe('720-3');
+    aq.rescued(plan.step, plan.kbps, 0);
+    const ladder = buildQualityLadder([], 16000, floorPresetFor('direct'));
+    const idx = (key: string) => ladderIndex(ladder, key);
+    expect(autoQualityNote(ladder, idx('720-3'), aq.preview(ladder, idx('720-3'), {}, 10 * S))).toBe('Auto quality: switched to 720p · 3 Mbps — the Plex server sent 1.5 Mb/s on average');
+    // A steady 8 Mb/s: not before two minutes...
+    expect(aq.maybeRaise(MIN_CHANGE_GAP_MS - S, ladder, idx('720-3'), 0, 8000)).toBeNull();
+    // ...then one step, to 720p · 4 (4 × 1.3 ≤ 8), not to 1080p · 8 (8 × 1.3 > 8).
+    const up1 = aq.maybeRaise(MIN_CHANGE_GAP_MS, ladder, idx('720-3'), 0, 8000)!;
+    expect(up1).toMatchObject({ direction: 'up', reason: 'speed', step: { key: '720-4' } });
+    aq.applied(up1, MIN_CHANGE_GAP_MS);
+    expect(aq.maybeRaise(MIN_CHANGE_GAP_MS + 3 * MIN, ladder, idx('720-4'), 0, 8000)).toBeNull();
+    // The server keeps up at 12: on up, one step every two minutes or more, to the file.
+    let at = MIN_CHANGE_GAP_MS;
+    let key = '720-4';
+    const climbed: string[] = [];
+    for (const speed of [12000, 18000, 30000]) {
+      at += MIN_CHANGE_GAP_MS;
+      const up = aq.maybeRaise(at, ladder, idx(key), 0, speed)!;
+      aq.applied(up, at);
+      key = up.step.key;
+      climbed.push(key);
+    }
+    expect(climbed).toEqual(['1080-8', '1080-12', 'original']);
+  });
+
+  it('a raise that stalls goes back down and raising backs off: no ping-pong', () => {
+    const aq = new AutoQuality(0);
+    const ladder = buildQualityLadder([], 16000, floorPresetFor('direct'));
+    aq.rescued(ladder[ladder.length - 1], 1500, 0);
+    const up = aq.maybeRaise(MIN_CHANGE_GAP_MS, ladder, ladder.length - 1, 0, 8000)!;
+    aq.applied(up, MIN_CHANGE_GAP_MS);
+    const back = aq.onStall(MIN_CHANGE_GAP_MS + 30 * S, ladder, ladder.length - 2, {});
+    expect(back).toMatchObject({ direction: 'down', reason: 'undo-raise', step: { key: '720-3' } });
+    aq.applied(back!, MIN_CHANGE_GAP_MS + 30 * S);
+    expect(aq.maybeRaise(MIN_CHANGE_GAP_MS + 30 * S + 5 * 60 * S, ladder, ladder.length - 1, 0, 8000)).toBeNull();
+    expect(aq.maybeRaise(MIN_CHANGE_GAP_MS + 30 * S + RAISE_BACKOFF_MS + S, ladder, ladder.length - 1, 0, 8000)?.step.key).toBe('720-4');
     expect(START_GRACE_MS).toBe(30_000);
+  });
+
+  it('never above the viewer\'s ceiling', () => {
+    const aq = new AutoQuality(0);
+    const ladder = buildQualityLadder([], 16000, floorPresetFor('direct'));
+    aq.viewerPicked('720-4', 0);
+    const ceiling = aq.ceiling(ladder, 0);
+    expect(aq.maybeRaise(MIN_CHANGE_GAP_MS, ladder, ladderIndex(ladder, '720-4'), ceiling, 50000)).toBeNull();
   });
 });
 
 describe('the title page measured the server too slow for the file', () => {
   it('starts at the converted preset that rate carries', () => {
-    expect(startPresetFor(1700, 16000)?.key).toBe('480-2');
+    expect(startPresetFor(1700, 16000)?.key).toBe('720-3');
     expect(startPresetFor(6000, 16000)?.key).toBe('720-4');
     expect(startPresetFor(14300, 15000)?.key).toBe('1080-8');
   });
