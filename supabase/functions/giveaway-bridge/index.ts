@@ -23,12 +23,13 @@
 //   line-created   (internal) {host?, username, password?, line_id?, name?, email?, phone?, expires_at?,
 //                             max_connections?, is_trial?, source} -> customer (found or made) +
 //                             customer_services row with expiry, panel id and password + the line's
-//                             sign-in PIN (`pin`: made if it has none; a renewal sent here keeps it)
+//                             sign-in PIN, made if it has none (a renewal keeps it): `pin` only from the
+//                             call that made it, else pin null + has_pin true
 //   support-session-paid (internal) {ref, order_number, total, email}
 //   site-provision (website key) {order_number, line_index, email, name, months, connections, amount,
 //                             paypal_txn, paid_at, dry_run?} -> a paid NEW DreamStreams order line becomes a
 //                             panel line via billing admin.php order.provision; CRM filed; Discord told;
-//                             the line's sign-in PIN in `pin`
+//                             the line's sign-in PIN in `pin` (only when this call made it; has_pin)
 //   gems-order     (internal) {ref} -> what a Snow Gems QR is for: package, credits, price, status,
 //                             so the private page on snowmediaent.com can show it before charging
 //   gems-paid      (internal) {ref, order_number, total, paypal_transaction_id?, email?} -> flips the
@@ -162,21 +163,23 @@ Deno.serve(async (req) => {
     if (!secretOk) return json({ error: 'unauthorized' }, 401);
 
     // A line's sign-in PIN (signin_pins; made if it has none, so a renewal or a
-    // replay keeps the same digits). Never fails the action: null when it
-    // can't be made (no key, the migration not run, not a DreamStreams/Vibez line,
-    // or the hub deleted the line's PIN).
-    const linePin = async (host: string, username: string, customerId: string | null, source: PinSource): Promise<string | null> => {
+    // replay keeps the same digits). The digits come back ONLY from the call
+    // that made them: these secrets must not be a way to read any line's
+    // existing PIN (pin-signin turns a PIN into the line's password). Never
+    // fails the action: pin null when it can't be made (no key, the migration
+    // not run, not a DreamStreams/Vibez line, or the hub deleted the PIN).
+    const linePin = async (host: string, username: string, customerId: string | null, source: PinSource): Promise<{ pin: string | null; has_pin: boolean }> => {
       try {
         const r = await ensureLinePin(admin, { host, username, customerId, source });
         if (!r.ok) {
           // 'deleted': the hub deleted this line's PIN on purpose.
           if (r.reason !== 'deleted') console.warn('[giveaway-bridge] sign-in PIN not made:', r.reason);
-          return null;
+          return { pin: null, has_pin: false };
         }
-        return r.row.disabled_at ? null : r.pin;
+        return { pin: r.created ? r.pin : null, has_pin: true };
       } catch (e) {
         console.warn('[giveaway-bridge] sign-in PIN threw:', e instanceof Error ? e.name : 'error');
-        return null;
+        return { pin: null, has_pin: false };
       }
     };
 
@@ -928,8 +931,8 @@ Deno.serve(async (req) => {
         }
         if (Object.keys(patch).length) await admin.from('customer_services').update(patch).eq('id', row.id);
       }
-      const pin = await linePin(host, username, customer.id, 'line-created');
-      return json({ ok: true, customer_id: customer.id, created, how, service_id: row?.id ?? null, pin });
+      const signinPin = await linePin(host, username, customer.id, 'line-created');
+      return json({ ok: true, customer_id: customer.id, created, how, service_id: row?.id ?? null, ...signinPin });
     }
 
     if (action === 'support-session-paid') {
@@ -1130,7 +1133,7 @@ Deno.serve(async (req) => {
         crm = `error: ${e instanceof Error ? e.message : String(e)}`;
       }
 
-      const pin = username ? await linePin(host, username, crmCustomerId, 'site-provision') : null;
+      const signinPin = username ? await linePin(host, username, crmCustomerId, 'site-provision') : { pin: null, has_pin: false };
 
       if (!r.replayed) {
         const before = r.creditsBefore != null ? Number(r.creditsBefore) : null;
@@ -1140,7 +1143,7 @@ Deno.serve(async (req) => {
                     (left != null ? `\nPanel credits left ≈ ${left}${left < 20 ? ' ⚠️ LOW — top up soon' : ''}` : ''));
       }
       return json({ ok: true, replayed: !!r.replayed, username, password, host, expires,
-                    serviceId: r.serviceId, lineId, crm, whmcsEmailed: r.whmcsEmailed === true, pin });
+                    serviceId: r.serviceId, lineId, crm, whmcsEmailed: r.whmcsEmailed === true, ...signinPin });
     }
 
     if (action === 'gems-order') {

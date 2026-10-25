@@ -9,15 +9,17 @@
 //                        username, password } }
 // 200 { ok:false, reason } with reason one of:
 //   invalid_pin   not 10 digits (spaces and dashes are dropped first);
-//   not_found     no such PIN, or it is switched off or deleted (one answer
-//                 for every miss: nothing about a PIN leaks);
+//   not_found     no such PIN, it is switched off or deleted, or its line has
+//                 no password on file we can read (one answer for every miss:
+//                 nothing about a PIN leaks);
 //   expired       the PIN is right but its line is over (only ever after a
 //                 match);
-//   rate_limited  too many wrong PINs from this address (5 per 10 minutes),
-//                 or from everyone together (300 per 10 minutes: PIN sign-in
-//                 pauses for everyone until the window ends; Discord is told);
-//   error         our side failed (no key, the database, a password on file
-//                 that can't be read).
+//   rate_limited  too many wrong PINs from this address (5 per 10 minutes; an
+//                 IPv6 address counts by its /48), or from everyone together
+//                 (300 per 10 minutes, or 3,000 per 24 hours: PIN sign-in
+//                 pauses for everyone until the window ends; Discord is told,
+//                 at most once an hour);
+//   error         our side failed (no key, the database).
 //
 // The limits count WRONG PINs only: every attempt is counted first (one
 // atomic statement, so parallel guesses can't all slip under), and a PIN
@@ -26,10 +28,16 @@
 //
 // Expiry: a line whose latest stored expiry is still ahead signs in without
 // asking anyone. When it has passed (or is today, or is not known), its
-// panel is asked once, at most once per line per 15 minutes, and a later
-// expiry it gives is stored. No grace period.
+// panel is asked ONCE (one address, one request): at most once per line per
+// 15 minutes and 5 times per panel per 10 minutes. The verdict is kept: a
+// later expiry goes onto the stored rows, and a line the panel called over
+// is marked on its PIN row (panel_over_at) until a recheck finds it working.
+// When the panel can't be asked, a line last called over stays over, a day
+// already gone is over, and otherwise the line signs in (the panel stays
+// the real gate). No grace period.
 //
-// Never logged: the PIN, its HMAC, the username, the password.
+// Never logged: the PIN, its HMAC, the username, the password. Throttle keys
+// carry no username (the line part is hashed).
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
@@ -37,19 +45,25 @@ import { decryptMaybe } from '../_shared/panelcrypto.ts';
 import { clientIp, hashIp, throttle, type ThrottleDb } from '../_shared/requestGuard.ts';
 import { normalizePin, pinHmac } from '../_shared/signinPin.ts';
 import { PIN_PANELS, recordLineExpiry, type PinHostname } from '../_shared/signinPinLines.ts';
-import { PANEL_HOSTS, bareHost, panelExpiryMs, panelSaysOver, verifyPanelLine } from '../_shared/panelLine.ts';
+import { checkPanelOnce, panelExpiryMs, panelSaysOver } from '../_shared/panelLine.ts';
 
 const MAX_BODY_BYTES = 1024;
 
-// Wrong PINs: 5 per 10 minutes per address; 300 per 10 minutes from everyone
-// together pauses PIN sign-in for all.
+// Wrong PINs: 5 per 10 minutes per address; from everyone together, 300 per
+// 10 minutes and 3,000 per 24 hours pause PIN sign-in for all.
 const PIN_WINDOW_MS = 10 * 60 * 1000;
 const PIN_MAX_PER_IP = 5;
 const PIN_MAX_GLOBAL = 300;
 const PIN_GLOBAL_KEY = 'pin:all';
+const PIN_DAY_MS = 24 * 60 * 60 * 1000;
+const PIN_MAX_DAY = 3000;
+const PIN_DAY_KEY = 'pin:all:day';
 const PIN_ALERT_KEY = 'pin:alert';
-// The panel is asked about one line at most once per 15 minutes.
-const RECHECK_WINDOW_MS = 15 * 60 * 1000;
+const PIN_ALERT_MS = 60 * 60 * 1000;
+// The panel: at most once per line per 15 minutes, 5 times per panel per 10.
+const RECHECK_LINE_MS = 15 * 60 * 1000;
+const RECHECK_PANEL_MS = 10 * 60 * 1000;
+const RECHECK_PANEL_MAX = 5;
 
 const jsonResponse = (payload: unknown, status = 200): Response =>
   new Response(JSON.stringify(payload), {
@@ -62,7 +76,7 @@ const no = (reason: 'invalid_pin' | 'not_found' | 'expired' | 'rate_limited' | '
 
 type PinMatch = {
   id: string; line_key: string; panel_hostname: PinHostname; panel_username: string;
-  disabled_at: string | null; deleted_at: string | null;
+  disabled_at: string | null; deleted_at: string | null; panel_over_at: string | null;
 };
 type LineRow = { expiration_date: string | null; panel_password: string | null; panel_host: string | null };
 
@@ -72,17 +86,25 @@ const inBackground = (p: Promise<unknown>) => {
   if (rt?.waitUntil) rt.waitUntil(p); else p.catch(() => {});
 };
 
-/** Discord, once per window, when everyone together hit the limit. Never blocks. */
-async function alertGlobalLimit(db: ThrottleDb): Promise<void> {
+/** The per-address bucket: as requestGuard gives it, but an IPv6 /64 widened to its /48. */
+export function pinBucket(ip: string | null): string | null {
+  if (!ip) return null;
+  const v6 = /^([0-9a-f]+):([0-9a-f]+):([0-9a-f]+):[0-9a-f]+::\/64$/i.exec(ip);
+  return v6 ? `${v6[1]}:${v6[2]}:${v6[3]}::/48` : ip;
+}
+
+/** Discord, at most once an hour, when everyone together hit a limit. Never blocks. */
+async function alertGlobalLimit(db: ThrottleDb, which: '10min' | 'day'): Promise<void> {
   try {
-    if (!(await throttle(db, PIN_ALERT_KEY, 1, PIN_WINDOW_MS, 'deny'))) return;
+    if (!(await throttle(db, PIN_ALERT_KEY, 1, PIN_ALERT_MS, 'deny'))) return;
     const hook = Deno.env.get('DISCORD_WEBHOOK_URL');
     if (!hook) return;
+    const what = which === 'day' ? `${PIN_MAX_DAY} wrong PINs in 24 hours` : `${PIN_MAX_GLOBAL} wrong PINs in 10 minutes`;
     await fetch(hook, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        content: `🔒 PIN SIGN-IN PAUSED — more than ${PIN_MAX_GLOBAL} wrong PINs in 10 minutes from everyone together. ` +
+        content: `🔒 PIN SIGN-IN PAUSED: more than ${what} from everyone together. ` +
           'Sign-in with a PIN is refused for everyone until the window ends (username + password still work).',
       }),
     });
@@ -105,9 +127,9 @@ Deno.serve(async (req) => {
     );
     const db = admin as unknown as ThrottleDb;
 
-    // 1. Throttle first: this address, then everyone together. No address at
-    //    all shares one allowance, never none.
-    const ipHash = await hashIp(clientIp(req.headers)).catch(() => null);
+    // 1. Throttle first: this address, then everyone together (10 minutes,
+    //    then the day). No address at all shares one allowance, never none.
+    const ipHash = await hashIp(pinBucket(clientIp(req.headers))).catch(() => null);
     const ipKey = `pin:${ipHash ?? 'ip:unknown'}`;
     if (!(await throttle(db, ipKey, PIN_MAX_PER_IP, PIN_WINDOW_MS, 'deny'))) return no('rate_limited');
     const refund = async (keys: string[]) => {
@@ -123,9 +145,15 @@ Deno.serve(async (req) => {
     if (!(await throttle(db, PIN_GLOBAL_KEY, PIN_MAX_GLOBAL, PIN_WINDOW_MS, 'deny'))) {
       // Paused for everyone: this address didn't get to try a PIN.
       await refund([ipKey]);
-      inBackground(alertGlobalLimit(db));
+      inBackground(alertGlobalLimit(db, '10min'));
       return no('rate_limited');
     }
+    if (!(await throttle(db, PIN_DAY_KEY, PIN_MAX_DAY, PIN_DAY_MS, 'deny'))) {
+      await refund([ipKey, PIN_GLOBAL_KEY]);
+      inBackground(alertGlobalLimit(db, 'day'));
+      return no('rate_limited');
+    }
+    const counted = [ipKey, PIN_GLOBAL_KEY, PIN_DAY_KEY];
 
     // 2. The PIN.
     const raw = await req.text();
@@ -138,7 +166,7 @@ Deno.serve(async (req) => {
     if (!pin) return no('invalid_pin');
     const hmac = await pinHmac(pin);
     if (!hmac) {
-      await refund([ipKey, PIN_GLOBAL_KEY]);
+      await refund(counted);
       console.error('[pin-signin] PANEL_CRED_KEY missing or unusable: no PIN can be checked');
       return no('error');
     }
@@ -146,12 +174,12 @@ Deno.serve(async (req) => {
     // 3. One read, the same for every miss.
     const { data, error: readErr } = await admin
       .from('signin_pins')
-      .select('id, line_key, panel_hostname, panel_username, disabled_at, deleted_at')
+      .select('id, line_key, panel_hostname, panel_username, disabled_at, deleted_at, panel_over_at')
       .eq('pin_hmac', hmac)
       .maybeSingle();
     if (readErr) {
       // Not a wrong PIN: our side failed (the migration not run, the database down).
-      await refund([ipKey, PIN_GLOBAL_KEY]);
+      await refund(counted);
       console.error('[pin-signin] PIN read failed:', (readErr as { code?: string }).code ?? 'error');
       return no('error');
     }
@@ -160,7 +188,7 @@ Deno.serve(async (req) => {
     if (!row || row.disabled_at || row.deleted_at || !panel) return no('not_found');
 
     // A match: not one of the wrong PINs the limits count.
-    await refund([ipKey, PIN_GLOBAL_KEY]);
+    await refund(counted);
 
     // 4. The line: its latest expiry and newest password on file.
     const { data: lineData, error: lineErr } = await admin.rpc('signin_pin_line', { p_line_key: row.line_key });
@@ -176,8 +204,9 @@ Deno.serve(async (req) => {
       password = null;
     }
     if (!password) {
-      console.error('[pin-signin] no readable password on file for a PIN line');
-      return no('error');
+      // The same answer as a wrong PIN: this must not tell a real PIN apart.
+      console.warn('[pin-signin] refused: no_password');
+      return no('not_found');
     }
     const username = row.panel_username;
 
@@ -185,12 +214,12 @@ Deno.serve(async (req) => {
     const today = todayUtc();
     const exp = typeof line?.expiration_date === 'string' ? line.expiration_date.slice(0, 10) : null;
     if (!exp || exp <= today) {
-      const mayAsk = await throttle(db, `pin-recheck:${row.line_key}`, 1, RECHECK_WINDOW_MS, 'deny');
+      const lineHash = (await hashIp(row.line_key).catch(() => null)) ?? 'unknown';
+      const mayAsk = await throttle(db, `pin-recheck:line:${lineHash}`, 1, RECHECK_LINE_MS, 'deny')
+        && await throttle(db, `pin-recheck:${row.panel_hostname}`, RECHECK_PANEL_MAX, RECHECK_PANEL_MS, 'deny');
       let decided: 'ok' | 'expired' | null = null;
       if (mayAsk) {
-        const stored = bareHost(line?.panel_host);
-        const host = PANEL_HOSTS.has(stored) && stored.startsWith(row.panel_hostname) ? stored : panel.panelHost;
-        const verdict = await verifyPanelLine(host, username, password, 'pin-signin');
+        const verdict = await checkPanelOnce(panel.host, username, password);
         if (verdict.kind === 'auth_failed') {
           decided = 'expired';
         } else if (verdict.kind === 'ok') {
@@ -199,11 +228,15 @@ Deno.serve(async (req) => {
           const newExp = ms !== null ? new Date(ms).toISOString().slice(0, 10) : null;
           if (newExp && (!exp || newExp > exp)) await recordLineExpiry(admin, row.panel_hostname, username, newExp);
         }
+        // Keep the verdict, so a retry within the next 15 minutes gets the same answer.
+        if (decided === 'expired' && !row.panel_over_at) {
+          await admin.from('signin_pins').update({ panel_over_at: new Date().toISOString() }).eq('id', row.id);
+        } else if (decided === 'ok' && row.panel_over_at) {
+          await admin.from('signin_pins').update({ panel_over_at: null }).eq('id', row.id);
+        }
       }
-      // Not asked (asked in the last 15 minutes) or no answer: the stored
-      // expiry decides. A day already gone is over; the last day, or none
-      // known, is not (the panel stays the real gate).
-      if (decided === null) decided = exp && exp < today ? 'expired' : 'ok';
+      // Not asked, or no answer: the last verdict, then the stored expiry.
+      if (decided === null) decided = row.panel_over_at || (exp && exp < today) ? 'expired' : 'ok';
       if (decided === 'expired') return no('expired');
     }
 

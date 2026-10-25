@@ -19,6 +19,7 @@ export type StoredPin = {
   updated_at: string;
   disabled_at: string | null;
   deleted_at: string | null;
+  panel_over_at?: string | null;
   last_used_at: string | null;
   use_count: number;
 };
@@ -50,7 +51,7 @@ export function pinStore() {
       const v = ins.args[0] as Partial<StoredPin>;
       const row: StoredPin = {
         id: newId(), customer_id: null, created_by: null, created_at: now, updated_at: now,
-        disabled_at: null, deleted_at: null, last_used_at: null, use_count: 0, ...v,
+        disabled_at: null, deleted_at: null, panel_over_at: null, last_used_at: null, use_count: 0, ...v,
         line_key: `${v.panel_hostname}:${String(v.panel_username).toLowerCase()}`,
       } as StoredPin;
       if (clash(row)) return dup;
@@ -81,6 +82,12 @@ export function pinStore() {
   }
 
   return { rows, answer };
+}
+
+/** sha256 hex, as requestGuard.hashIp keys a throttle counter. */
+export async function sha256Hex(text: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 /** A base64 32-byte PANEL_CRED_KEY for tests. */

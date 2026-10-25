@@ -3,18 +3,19 @@
 // through giveaway-bridge keeps the digits, new_pin changes the hash, and a
 // delete is soft (nothing makes the line a PIN again but the hub).
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { loadEdgeFunction, opArg, userToken, type FakeHandlers, type QueryCall } from './fakeSupabase';
+import { loadEdgeFunction, opArg, userToken, type FakeHandlers, type QueryCall, type RpcCall } from './fakeSupabase';
 import { TEST_PANEL_KEY, loadShared, pinStore } from './fakePinStore';
 
 type PinMod = { pinHmac: (pin: string) => Promise<string | null> };
 
-const state = vi.hoisted(() => ({ handlers: {} as FakeHandlers, queries: [] as QueryCall[] }));
+const state = vi.hoisted(() => ({ handlers: {} as FakeHandlers, queries: [] as QueryCall[], rpcs: [] as RpcCall[] }));
 vi.mock('@supabase/supabase-js', async () => {
   const { fakeSupabase } = await import('./fakeSupabase');
   return {
     createClient: () => fakeSupabase({
       ...state.handlers,
       onQuery: (q) => { state.queries.push(q); return state.handlers.onQuery?.(q); },
+      onRpc: (c) => { state.rpcs.push(c); return state.handlers.onRpc?.(c); },
     }).client,
   };
 });
@@ -24,7 +25,10 @@ const MEMBER = { id: '55555555-5555-4555-8555-555555555555' };
 const CUSTOMER = '66666666-6666-4666-8666-666666666666';
 const SERVICE = '77777777-7777-4777-8777-777777777777';
 const SECRET = 'internal-secret-123';
-const ENV = { PANEL_CRED_KEY: TEST_PANEL_KEY, INTERNAL_FN_SECRET: SECRET, SMC_HUB_SECRET: 'hub-secret' };
+const ENV = {
+  PANEL_CRED_KEY: TEST_PANEL_KEY, INTERNAL_FN_SECRET: SECRET, SMC_HUB_SECRET: 'hub-secret',
+  SITE_PROVISION_SECRET: 'site-secret', SMC_ADMIN_KEY: 'admin-key',
+};
 
 const fetchMock = vi.fn();
 let pinsFn: (req: Request) => Promise<Response> | Response;
@@ -44,6 +48,7 @@ beforeEach(() => {
   fetchMock.mockReset();
   fetchMock.mockImplementation(async () => new Response('{}'));
   state.queries.length = 0;
+  state.rpcs.length = 0;
   store = pinStore();
   extra = () => undefined;
   state.handlers = {
@@ -115,11 +120,14 @@ describe('signin-pins: who may call', () => {
 });
 
 describe('signin-pins: ensure', () => {
-  it('is idempotent: a line that has a PIN keeps it', async () => {
+  it('is idempotent: a line that has a PIN keeps it, and only the call that made it sees the digits', async () => {
     const a = await ensure('http://dstreams.xyz:8080', 'Line42', { customer_id: CUSTOMER, source: 'capture' });
-    expect(a.body).toMatchObject({ ok: true, created: true, pin: expect.stringMatching(/^\d{10}$/) });
+    expect(a.body).toEqual({ ok: true, created: true, has_pin: true, pin: expect.stringMatching(/^\d{10}$/) });
+    const hmac = store.rows[0].pin_hmac;
+    // Any later caller with the internal secret learns only that a PIN exists.
     const b = await ensure('dstreams.xyz:2083', 'line42');
-    expect(b.body).toMatchObject({ ok: true, created: false, pin: a.body.pin });
+    expect(b.body).toEqual({ ok: true, created: false, has_pin: true, pin: null });
+    expect(store.rows[0].pin_hmac).toBe(hmac);
     expect(store.rows).toHaveLength(1);
     expect(store.rows[0]).toMatchObject({ panel_hostname: 'dstreams.xyz', line_key: 'dstreams.xyz:line42', customer_id: CUSTOMER, source: 'capture' });
     // Stored as a lookup key and ciphertext only.
@@ -136,7 +144,9 @@ describe('signin-pins: ensure', () => {
   it('keeps one PIN when the same line is ensured twice at once', async () => {
     const [a, b] = await Promise.all([ensure('strmz.xyz', 'twin'), ensure('strmz.xyz', 'twin')]);
     expect(store.rows).toHaveLength(1);
-    expect(a.body.pin).toBe(b.body.pin);
+    const handedOut = [a.body.pin, b.body.pin].filter((p) => p !== null);
+    expect(handedOut).toHaveLength(1);
+    expect(store.rows[0].pin_hmac).toBe(await pins.pinHmac(String(handedOut[0])));
   });
 });
 
@@ -149,7 +159,7 @@ describe('giveaway-bridge line-created', () => {
     return (await res.json()) as Out;
   };
 
-  it('returns the line PIN, and a renewal keeps the same PIN', async () => {
+  it('returns the PIN it made; a renewal keeps that PIN and never hands its digits out again', async () => {
     extra = (q) => {
       if (q.table === 'customer_services' && q.ops.some((o) => o.op === 'order')) {
         return { data: [{ customer_id: CUSTOMER, panel_username: 'renew77', panel_host: 'dstreams.xyz:8080' }] };
@@ -160,8 +170,12 @@ describe('giveaway-bridge line-created', () => {
     };
     const first = await lineCreated('2026-11-24');
     expect(first).toMatchObject({ ok: true, customer_id: CUSTOMER, pin: expect.stringMatching(/^\d{10}$/) });
+    expect(first.has_pin).toBe(true);
+    const hmac = store.rows[0].pin_hmac;
+    expect(hmac).toBe(await pins.pinHmac(String(first.pin)));
     const renewed = await lineCreated('2026-12-24');
-    expect(renewed.pin).toBe(first.pin);
+    expect(renewed).toMatchObject({ ok: true, pin: null, has_pin: true });
+    expect(store.rows[0].pin_hmac).toBe(hmac);
     expect(store.rows).toHaveLength(1);
     expect(store.rows[0]).toMatchObject({ line_key: 'dstreams.xyz:renew77', panel_username: 'Renew77', source: 'line-created', customer_id: CUSTOMER });
   });
@@ -177,10 +191,36 @@ describe('giveaway-bridge line-created', () => {
     };
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {
-      expect(await lineCreated('2026-11-24')).toMatchObject({ ok: true, customer_id: CUSTOMER, pin: null });
+      expect(await lineCreated('2026-11-24')).toMatchObject({ ok: true, customer_id: CUSTOMER, pin: null, has_pin: false });
     } finally {
       warn.mockRestore();
     }
+  });
+});
+
+describe('giveaway-bridge site-provision', () => {
+  const provision = async () => {
+    const res = await bridgeFn(new Request('http://fn.test/giveaway-bridge', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-internal-secret': 'site-secret' },
+      body: JSON.stringify({ action: 'site-provision', order_number: 'SNW-12345', line_index: 0, email: 'buyer@example.com',
+        months: 1, connections: 1, amount: 15, paypal_txn: 'ABCDEFGHIJKLMNOPQ' }),
+    }));
+    return (await res.json()) as Out;
+  };
+
+  it("hands out the new line's PIN once; a replayed order gets has_pin only", async () => {
+    let replayed = false;
+    fetchMock.mockImplementation(async () => {
+      const reply = { ok: true, username: 'Site9', password: 'p', host: 'http://dstreams.xyz:8080', expires: '2026-12-01', serviceId: 5, replayed };
+      replayed = true;
+      return new Response(JSON.stringify(reply));
+    });
+    const first = await provision();
+    expect(first).toMatchObject({ ok: true, has_pin: true, pin: expect.stringMatching(/^\d{10}$/) });
+    const again = await provision();
+    expect(again).toMatchObject({ ok: true, replayed: true, has_pin: true, pin: null });
+    expect(store.rows).toHaveLength(1);
+    expect(store.rows[0]).toMatchObject({ line_key: 'dstreams.xyz:site9', source: 'site-provision' });
   });
 });
 
@@ -213,15 +253,16 @@ describe('signin-pins: the hub', () => {
     expect(store.rows[0].pin_hmac).not.toBe(oldHmac);
     expect(store.rows[0].pin_hmac).toBe(await pins.pinHmac(fresh));
     expect(store.rows.some((r) => r.pin_hmac === oldHmac)).toBe(false);
-    // And ensure now hands out the new one.
-    expect((await ensure('strmz.xyz', 'viewer2')).body.pin).toBe(fresh);
+    // ensure keeps the new one, and doesn't hand it out.
+    expect((await ensure('strmz.xyz', 'viewer2')).body).toEqual({ ok: true, pin: null, created: false, has_pin: true });
+    expect(store.rows[0].pin_hmac).toBe(await pins.pinHmac(fresh));
   });
 
   it('switches a PIN off and on, and deletes it', async () => {
     await ensure('strmz.xyz', 'viewer3');
     const id = store.rows[0].id;
     expect((await call({ action: 'set_disabled', id, disabled: true })).body.pin).toMatchObject({ status: 'off' });
-    expect((await ensure('strmz.xyz', 'viewer3')).body).toEqual({ ok: true, pin: null, created: false });
+    expect((await ensure('strmz.xyz', 'viewer3')).body).toEqual({ ok: true, pin: null, created: false, has_pin: true });
     expect((await call({ action: 'set_disabled', id, disabled: false })).body.pin).toMatchObject({ status: 'working' });
     expect((await call({ action: 'delete', id })).body).toEqual({ ok: true });
     expect(store.rows[0].deleted_at).toEqual(expect.any(String));
@@ -242,7 +283,7 @@ describe('signin-pins: the hub', () => {
     };
     expect((await call({ action: 'list' })).body).toEqual({ ok: true, pins: [] });
     expect((await call({ action: 'get', serviceId: SERVICE })).body).toEqual({ ok: true, pin: null });
-    expect((await ensure('dstreams.xyz:8080', 'Line42', { source: 'capture' })).body).toEqual({ ok: true, pin: null, created: false });
+    expect((await ensure('dstreams.xyz:8080', 'Line42', { source: 'capture' })).body).toEqual({ ok: true, pin: null, created: false, has_pin: false });
     expect((await call({ action: 'ensure_missing' })).body).toEqual({ ok: true, created: 0, more: false });
     expect(store.rows).toHaveLength(1);
     expect(store.rows[0].deleted_at).toEqual(expect.any(String));
@@ -285,6 +326,10 @@ describe('signin-pins: the hub', () => {
     const rec = state.queries.find((q) => q.table === 'player_signins' && q.ops.some((o) => o.op === 'upsert'))!;
     expect(opArg(rec, 'upsert')).toMatchObject({ panel_host: 'strmz.xyz', panel_username: 'typed1', panel_password: 'right-pass', expiration_date: '2027-01-15' });
     expect(JSON.stringify(store.rows)).not.toContain('right-pass');
+    // The line's limit is keyed by a hash, never the username.
+    const keys = state.rpcs.filter((c) => c.name === 'throttle_hit').map((c) => String(c.args.p_key).toLowerCase());
+    expect(keys.some((k) => /^signin-pins:line:[0-9a-f]{64}$/.test(k))).toBe(true);
+    for (const k of keys) expect(k).not.toContain('typed1');
   });
 
   it('ensure_missing makes PINs for lines not over that have none', async () => {

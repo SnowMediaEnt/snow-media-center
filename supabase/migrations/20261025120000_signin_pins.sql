@@ -29,7 +29,9 @@
 --        disabled_at (switched off when set), deleted_at (deleted in the hub:
 --        a soft delete, so the row keeps its line_key and no hook or backfill
 --        gives the line a PIN again; only a hub create / new PIN brings it
---        back, with new digits), last_used_at, use_count.
+--        back, with new digits), panel_over_at (pin-signin's recheck: when
+--        the panel last called the line over; cleared when a recheck finds
+--        it working, so a retry gets the same answer), last_used_at, use_count.
 --      There is NO password on this row: pin-signin reads the line's newest
 --      password from customer_services / player_signins (signin_pin_line).
 --      Row-level security on, no policies, nothing granted to anon or
@@ -79,12 +81,14 @@ CREATE TABLE IF NOT EXISTS public.signin_pins (
   updated_at timestamptz NOT NULL DEFAULT now(),
   disabled_at timestamptz,
   deleted_at timestamptz,
+  panel_over_at timestamptz,
   last_used_at timestamptz,
   use_count integer NOT NULL DEFAULT 0
 );
 
 -- A run of an earlier draft of this file has no deleted_at yet.
 ALTER TABLE public.signin_pins ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+ALTER TABLE public.signin_pins ADD COLUMN IF NOT EXISTS panel_over_at timestamptz;
 
 -- Dropped and added again on every run, so every row is checked again.
 ALTER TABLE public.signin_pins
@@ -117,7 +121,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS signin_pins_pin_hmac_key ON public.signin_pins
 CREATE INDEX IF NOT EXISTS signin_pins_customer_idx ON public.signin_pins (customer_id);
 CREATE INDEX IF NOT EXISTS signin_pins_created_idx ON public.signin_pins (created_at DESC);
 
--- updated_at: a change (the PIN, on/off, deleted, the customer), never a sign-in.
+-- updated_at: a change (the PIN, on/off, deleted, the customer), never a
+-- sign-in or a recheck (last_used_at, use_count, panel_over_at).
 -- created_at and created_by stay as they were (created_by may only become
 -- NULL: the login that made it was removed).
 CREATE OR REPLACE FUNCTION public.signin_pins_touch()
@@ -382,8 +387,10 @@ BEGIN
   END IF;
 
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns
-                  WHERE table_schema = 'public' AND table_name = 'signin_pins' AND column_name = 'deleted_at') THEN
-    RAISE EXCEPTION 'signin_pins check failed: no deleted_at column';
+                  WHERE table_schema = 'public' AND table_name = 'signin_pins' AND column_name = 'deleted_at')
+     OR NOT EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_schema = 'public' AND table_name = 'signin_pins' AND column_name = 'panel_over_at') THEN
+    RAISE EXCEPTION 'signin_pins check failed: deleted_at or panel_over_at is missing';
   END IF;
 
   -- signin_pin_line on a line nobody has: one row, all empty.

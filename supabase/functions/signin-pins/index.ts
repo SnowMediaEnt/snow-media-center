@@ -25,8 +25,12 @@
 //                                                over that has none ("Create missing PINs")
 // Internal (x-internal-secret = INTERNAL_FN_SECRET; capture-player-signin):
 //   { action:'ensure', host, username, customer_id?, source? }
-//                                             -> { ok:true, pin, created }  idempotent: a line that
-//                                                has a PIN keeps it; pin null when it is off or deleted
+//                                             -> { ok:true, pin, created, has_pin }  idempotent: a line
+//                                                that has a PIN keeps it. The digits come back ONLY
+//                                                from the call that made them: for a line that already
+//                                                has one it is { pin:null, has_pin:true } (no secret but
+//                                                the hub's admin session can read an existing PIN);
+//                                                a deleted one is { pin:null, has_pin:false }
 // Refusals: { ok:false, reason } (HTTP 401 for a caller who may not). reason:
 //   unauthorized | invalid | not_found | not_a_line | no_key | bad_key |
 //   not_set_up | rate_limited | line_refused | panel_unreachable | error
@@ -40,7 +44,7 @@
 
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
-import { internalSecretOk, throttle, type ThrottleDb } from '../_shared/requestGuard.ts';
+import { hashIp, internalSecretOk, throttle, type ThrottleDb } from '../_shared/requestGuard.ts';
 import { decPin, pinHmacKey } from '../_shared/signinPin.ts';
 import {
   PIN_COLUMNS, PIN_PANELS, cleanUsername, ensureLinePin, ensureMissingPins, lineExpiries, lineExpiry, lineKeyOf,
@@ -60,7 +64,8 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const CONTROL_CHARS = /[\u0000-\u001F\u007F]/;
 const MAX_BODY_BYTES = 8192;
 // A line typed in the hub asks its panel: 30 per 10 minutes per hub login,
-// and the line's own limit (player-login's key and numbers).
+// and the line's own limit (player-login's numbers; the key carries a hash
+// of the line, never its username).
 const CREATE_WINDOW_MS = 10 * 60 * 1000;
 const CREATE_MAX = 30;
 const LINE_WINDOW_MS = 5 * 60 * 1000;
@@ -204,7 +209,8 @@ async function create(admin: SupabaseClient, uid: string, body: Record<string, u
   const panel = PIN_PANELS[hostname!];
   const db = admin as unknown as ThrottleDb;
   if (!(await throttle(db, `signin-pins:${uid}`, CREATE_MAX, CREATE_WINDOW_MS, 'deny'))) refuse('rate_limited');
-  if (!(await throttle(db, `line:${panel.panelHost}:${username!.toLowerCase()}`, LINE_MAX, LINE_WINDOW_MS, 'deny'))) {
+  const lineHash = (await hashIp(`${panel.panelHost}:${username!.toLowerCase()}`).catch(() => null)) ?? 'unknown';
+  if (!(await throttle(db, `signin-pins:line:${lineHash}`, LINE_MAX, LINE_WINDOW_MS, 'deny'))) {
     refuse('rate_limited');
   }
   const verdict = await verifyPanelLine(panel.panelHost, username!, password, 'signin-pins');
@@ -277,8 +283,9 @@ async function ensureInternal(admin: SupabaseClient, body: Record<string, unknow
   const customerId = typeof body.customer_id === 'string' && UUID_RE.test(body.customer_id) ? body.customer_id : null;
   const r = await ensureLinePin(admin, { host: body.host, username: body.username, customerId, source });
   // A line whose PIN was deleted in the hub stays without one.
-  if (!r.ok) return r.reason === 'deleted' ? { ok: true, pin: null, created: false } : { ok: false, reason: r.reason };
-  return { ok: true, pin: r.row.disabled_at ? null : r.pin, created: r.created };
+  if (!r.ok) return r.reason === 'deleted' ? { ok: true, pin: null, created: false, has_pin: false } : { ok: false, reason: r.reason };
+  // Only the call that made the PIN hands out its digits.
+  return { ok: true, pin: r.created ? r.pin : null, created: r.created, has_pin: true };
 }
 
 Deno.serve(async (req) => {

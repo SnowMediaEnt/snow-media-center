@@ -1,10 +1,12 @@
 // pin-signin: a box sends only the PIN. Wrong PINs are limited per address
-// and for everyone (fail closed); a match gets its counts back; 'expired' is
-// only ever said after a match, with at most one panel recheck per line per
-// 15 minutes; nothing sensitive reaches the logs.
+// (IPv6 by /48) and for everyone, per 10 minutes and per day (fail closed); a
+// match gets its counts back; 'expired' is only ever said after a match, with
+// at most one panel request per line per 15 minutes and 5 per panel per 10;
+// the panel's verdict is kept; nothing sensitive reaches the logs or the
+// throttle keys.
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { eqValue, loadEdgeFunction, opArg, type FakeHandlers, type QueryCall, type RpcCall } from './fakeSupabase';
-import { TEST_PANEL_KEY, loadShared, pinStore } from './fakePinStore';
+import { TEST_PANEL_KEY, loadShared, pinStore, sha256Hex } from './fakePinStore';
 
 type PinMod = { pinHmac: (pin: string) => Promise<string | null>; encPin: (pin: string) => Promise<string | null> };
 
@@ -57,7 +59,7 @@ beforeEach(async () => {
     id: '11111111-1111-4111-8111-111111111111', panel_hostname: 'strmz.xyz', panel_username: USER,
     line_key: `strmz.xyz:${USER.toLowerCase()}`, customer_id: null, pin_hmac: (await pins.pinHmac(PIN))!,
     pin_enc: (await pins.encPin(PIN))!, source: 'capture', created_by: null, created_at: '', updated_at: '',
-    disabled_at: null, deleted_at: null, last_used_at: null, use_count: 0,
+    disabled_at: null, deleted_at: null, panel_over_at: null, last_used_at: null, use_count: 0,
   });
   line = { expiration_date: day(30), panel_password: await (await loadShared<{ encryptForStorage: (s: string) => Promise<string> }>('panelcrypto.ts')).encryptForStorage(PASSWORD), panel_host: 'strmz.xyz' };
   state.handlers = {
@@ -99,7 +101,10 @@ const panelSays = (userInfo: Record<string, unknown>) =>
   fetchMock.mockImplementation(async (url: string) =>
     String(url).includes('player_api.php') ? new Response(JSON.stringify({ user_info: userInfo })) : new Response('{}'));
 const panelCalls = () => fetchMock.mock.calls.filter((c) => String(c[0]).includes('player_api.php'));
-const ipKey = () => [...counts.keys()].find((k) => k.startsWith('pin:') && k !== 'pin:all' && k !== 'pin:alert')!;
+const GLOBAL_KEYS = new Set(['pin:all', 'pin:all:day', 'pin:alert']);
+const ipKey = () => [...counts.keys()].find((k) => k.startsWith('pin:') && !GLOBAL_KEYS.has(k))!;
+const lineRecheckKey = async () => `pin-recheck:line:${await sha256Hex(`strmz.xyz:${USER.toLowerCase()}`)}`;
+const discordCalls = () => fetchMock.mock.calls.filter((c) => String(c[0]).startsWith('https://discord.test'));
 const pinReads = () => state.queries.filter((q) => q.table === 'signin_pins' && q.ops.some((o) => o.op === 'select'));
 
 describe('pin-signin', () => {
@@ -129,6 +134,7 @@ describe('pin-signin', () => {
     for (let i = 0; i < 10; i++) expect((await signIn(PIN)).ok).toBe(true);
     expect(counts.get(ipKey())).toBe(4);
     expect(counts.get('pin:all')).toBe(4);
+    expect(counts.get('pin:all:day')).toBe(4);
     expect((await signIn('4071953863')).reason).toBe('not_found'); // the 5th wrong one is still allowed
     expect((await signIn(PIN)).reason).toBe('rate_limited'); // the 6th attempt of any kind is not
   });
@@ -162,9 +168,28 @@ describe('pin-signin', () => {
     expect(counts.get(ipKey())).toBe(0);
     expect(pinReads()).toHaveLength(0);
     await signIn(PIN, '198.51.100.3');
-    await vi.waitFor(() => expect(fetchMock.mock.calls.filter((c) => String(c[0]).startsWith('https://discord.test')).length).toBe(1));
+    await vi.waitFor(() => expect(discordCalls().length).toBe(1));
     await new Promise((r) => setTimeout(r, 20));
-    expect(fetchMock.mock.calls.filter((c) => String(c[0]).startsWith('https://discord.test'))).toHaveLength(1);
+    expect(discordCalls()).toHaveLength(1);
+    const alert = state.rpcs.find((c) => c.name === 'throttle_hit' && c.args.p_key === 'pin:alert');
+    expect(alert?.args.p_window_ms).toBe(60 * 60 * 1000); // at most once an hour
+  });
+
+  it('pauses for everyone past 3,000 wrong PINs in 24 hours, gives the other counts back, and tells Discord', async () => {
+    counts.set('pin:all:day', 3000);
+    expect(await signIn(PIN)).toEqual({ ok: false, reason: 'rate_limited' });
+    expect(counts.get(ipKey())).toBe(0);
+    expect(counts.get('pin:all')).toBe(0);
+    expect(pinReads()).toHaveLength(0);
+    expect(state.rpcs.find((c) => c.name === 'throttle_hit' && c.args.p_key === 'pin:all:day')?.args.p_window_ms).toBe(24 * 60 * 60 * 1000);
+    await vi.waitFor(() => expect(discordCalls()).toHaveLength(1));
+    expect(String((discordCalls()[0][1] as RequestInit).body)).toContain('24 hours');
+  });
+
+  it('counts an IPv6 address by its /48', async () => {
+    for (let i = 0; i < 5; i++) await signIn('4071953863', `2001:db8:aa:${i + 1}::1`);
+    expect((await signIn(PIN, '2001:db8:aa:ff:1:2:3:4')).reason).toBe('rate_limited');
+    expect((await signIn(PIN, '2001:db8:ab:1::1')).ok).toBe(true);
   });
 
   it('fails closed when the limit counter is down', async () => {
@@ -196,8 +221,42 @@ describe('pin-signin', () => {
     expect((await signIn(PIN)).reason).toBe('expired');
     expect((await signIn(PIN, '198.51.100.3')).reason).toBe('expired');
     expect(panelCalls().length).toBe(asked);
-    const recheck = state.rpcs.find((c) => c.name === 'throttle_hit' && String(c.args.p_key).startsWith('pin-recheck:'));
+    const lineKey = await lineRecheckKey();
+    const recheck = state.rpcs.find((c) => c.name === 'throttle_hit' && c.args.p_key === lineKey);
     expect(recheck?.args.p_window_ms).toBe(15 * 60 * 1000);
+  });
+
+  it('makes ONE request per recheck, whatever the panel answers', async () => {
+    line.expiration_date = day(-1);
+    fetchMock.mockImplementation(async () => new Response('<html>404 Not Found</html>', { status: 404 }));
+    expect((await signIn(PIN)).reason).toBe('expired'); // no answer: the stored day already gone decides
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).toMatch(/^http:\/\/strmz\.xyz\/player_api\.php\?/);
+  });
+
+  it('asks one panel at most 5 times in 10 minutes, then decides without it', async () => {
+    counts.set('pin-recheck:strmz.xyz', 5);
+    line.expiration_date = null;
+    panelSays({ auth: 1, status: 'Expired' });
+    expect((await signIn(PIN)).ok).toBe(true); // no verdict known, no expiry known: the panel stays the gate
+    expect(panelCalls()).toHaveLength(0);
+    expect(state.rpcs.find((c) => c.name === 'throttle_hit' && c.args.p_key === 'pin-recheck:strmz.xyz')?.args.p_window_ms)
+      .toBe(10 * 60 * 1000);
+  });
+
+  it("keeps the panel's 'over' verdict, so a retry within 15 minutes is still expired", async () => {
+    line.expiration_date = null;
+    panelSays({ auth: 1, status: 'Expired' });
+    expect((await signIn(PIN)).reason).toBe('expired');
+    expect(store.rows[0].panel_over_at).toEqual(expect.any(String));
+    const asked = panelCalls().length;
+    expect((await signIn(PIN)).reason).toBe('expired'); // not asked again, the verdict stands
+    expect(panelCalls().length).toBe(asked);
+    // 15 minutes on, the line renewed: the next recheck clears the mark.
+    counts.delete(await lineRecheckKey());
+    panelSays({ auth: 1, status: 'Active' });
+    expect((await signIn(PIN)).ok).toBe(true);
+    expect(store.rows[0].panel_over_at).toBeNull();
   });
 
   it('signs a renewed line in and stores the later expiry the panel gives', async () => {
@@ -215,6 +274,7 @@ describe('pin-signin', () => {
     };
     const out = await signIn(PIN);
     expect(out.ok).toBe(true);
+    expect(panelCalls()).toHaveLength(1);
     const newExp = new Date(later * 1000).toISOString().slice(0, 10);
     const updates = state.queries.filter((q) => q.ops.some((o) => o.op === 'update') && q.table !== 'signin_pins');
     expect(updates.map((q) => [q.table, eqValue(q, 'id'), opArg(q, 'update')])).toEqual([
@@ -233,14 +293,30 @@ describe('pin-signin', () => {
 
   it("lets the line's last day through when the panel can't be asked again", async () => {
     line.expiration_date = day(0);
-    counts.set(`pin-recheck:strmz.xyz:${USER.toLowerCase()}`, 1);
+    counts.set(await lineRecheckKey(), 1);
     expect((await signIn(PIN)).ok).toBe(true);
     expect(panelCalls()).toHaveLength(0);
   });
 
-  it('answers error, not the line, when no password on file can be read', async () => {
+  it('answers not_found, as for a wrong PIN, when no password on file can be read', async () => {
     line.panel_password = null;
-    expect(await signIn(PIN)).toEqual({ ok: false, reason: 'error' });
+    expect(await signIn(PIN)).toEqual({ ok: false, reason: 'not_found' });
+    expect(logs).toEqual(['[pin-signin] refused: no_password']);
+    line.panel_password = 'enc:v1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+    expect(await signIn(PIN)).toEqual({ ok: false, reason: 'not_found' });
+  });
+
+  it('keeps usernames out of every throttle key', async () => {
+    line.expiration_date = day(-1);
+    panelSays({ auth: 1, status: 'Expired' });
+    await signIn(PIN);
+    await signIn('4071953863');
+    const keys = state.rpcs.filter((c) => c.name.startsWith('throttle_')).map((c) => String(c.args.p_key).toLowerCase());
+    expect(keys.some((k) => k.startsWith('pin-recheck:line:'))).toBe(true);
+    for (const k of keys) {
+      expect(k).not.toContain(USER.toLowerCase());
+      expect(k).not.toContain('viewer');
+    }
   });
 
   it('never logs the PIN, its hash, the username or the password', async () => {
@@ -251,7 +327,7 @@ describe('pin-signin', () => {
     panelSays({ auth: 1, status: 'Expired' });
     await signIn(PIN);
     fetchMock.mockImplementation(async () => new Response('<html>blocked</html>', { status: 401 }));
-    counts.delete(`pin-recheck:strmz.xyz:${USER.toLowerCase()}`);
+    counts.delete(await lineRecheckKey());
     await signIn(PIN);
     state.handlers.onRpc = (c) => (c.name === 'throttle_hit' ? { data: 1 } : c.name === 'signin_pin_line' ? { error: { code: 'XX000', message: `boom ${USER}` } } : undefined);
     await signIn(PIN);

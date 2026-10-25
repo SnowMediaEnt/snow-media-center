@@ -110,3 +110,33 @@ export function panelSaysOver(userInfo: Record<string, unknown>, now = Date.now(
   const exp = panelExpiryMs(userInfo.exp_date);
   return exp !== null && exp <= now;
 }
+
+/**
+ * ONE request to a panel, for pin-signin's recheck: one base (the address
+ * the app itself uses, e.g. 'http://strmz.xyz'), one agent, and the first
+ * HTTP answer of any kind decides. A panel that bans an address after a
+ * burst must never see more than this per recheck. Anything but JSON with
+ * user_info (a 404, a ban page, no answer) is 'unreachable'.
+ */
+export async function checkPanelOnce(base: string, username: string, password: string): Promise<PanelVerdict> {
+  const b = base.trim().replace(/\/+$/, '');
+  if (!/^https?:\/\//i.test(b) || !PANEL_HOSTS.has(bareHost(b))) return { kind: 'unreachable' };
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${b}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`, {
+      signal: ctrl.signal,
+      headers: { 'User-Agent': PANEL_AGENTS[0], Accept: 'application/json' },
+    });
+    const text = (await res.text()).trim();
+    if (!text.startsWith('{')) return { kind: 'unreachable' };
+    const ui = (JSON.parse(text) as { user_info?: Record<string, unknown> } | null)?.user_info;
+    if (!ui || typeof ui !== 'object') return { kind: 'unreachable' };
+    const auth = ui.auth;
+    return auth === 1 || auth === '1' || auth === true ? { kind: 'ok', userInfo: ui } : { kind: 'auth_failed' };
+  } catch {
+    return { kind: 'unreachable' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
