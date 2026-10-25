@@ -69,6 +69,13 @@ interface UseNativePlayerArgs {
    * useLiveRewind (TRACKER 25), not to a plain seek.
    */
   skipKeys?: boolean;
+  /**
+   * The viewer's seeks and playing on after a pause are jumps (playerSeek
+   * markJump, which Plex's automatic quality and buffering card grace until
+   * playback picks up again). Plex only; everyone else (Live TV, catch-up,
+   * VodPlayer, Recordings) keeps the plain seek mark and no mark on unpause.
+   */
+  jumpGrace?: boolean;
 }
 
 export interface NativeRect { x: number; y: number; width: number; height: number }
@@ -137,7 +144,7 @@ async function positionNow(): Promise<number> {
   } catch { return 0; }
 }
 
-export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, engine = 'exo', rangeFetch = false, frameRate, maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded, onReload, rect, background = true, skipKeys = true }: UseNativePlayerArgs): NativePlayerState {
+export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, engine = 'exo', rangeFetch = false, frameRate, maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded, onReload, rect, background = true, skipKeys = true, jumpGrace = false }: UseNativePlayerArgs): NativePlayerState {
   // While a stream is up, re-check memory every few minutes (apps opened
   // from the remote, or the box's own services, fill it up again).
   useEffect(() => {
@@ -200,8 +207,10 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   // session lapse meanwhile, and the stall while it starts again is that,
   // never the server being too slow for the film.
   const pausedNowRef = useRef(false);
+  const jumpGraceRef = useRef(jumpGrace);
+  jumpGraceRef.current = jumpGrace;
   const onPausedChange = useCallback((p: boolean) => {
-    if (!p && pausedNowRef.current && !liveRef.current) { markJump(); startPendingRef.current = true; }
+    if (!p && pausedNowRef.current && !liveRef.current && jumpGraceRef.current) { markJump(); startPendingRef.current = true; }
     pausedNowRef.current = p;
     setPaused(p);
   }, []);
@@ -619,9 +628,9 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   }, [active]);
 
   const seekTo = useCallback(async (seconds: number) => {
-    // The viewer's jump (a film only: Live TV's catch-up seeks keep the
+    // The viewer's jump (Plex only, jumpGrace: everyone else keeps the
     // plain seek mark).
-    if (liveRef.current) markSeek(); else markJump();
+    if (jumpGraceRef.current && !liveRef.current) markJump(); else markSeek();
     jumped();
     try { await SnowPlayer.seekTo({ position: Math.max(0, seconds) }); } catch { /* ignore */ }
   }, []);
@@ -649,7 +658,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
             const p = await SnowPlayer.getPosition();
             const to = k === 'ff' ? p.position + 30 : p.position - 10;
             const max = p.duration > 0 ? Math.max(0, p.duration - 1) : Number.MAX_SAFE_INTEGER;
-            markJump();
+            if (jumpGraceRef.current) markJump(); else markSeek();
             jumped();
             await SnowPlayer.seekTo({ position: Math.min(max, Math.max(0, to)) });
           } catch { /* ignore */ }

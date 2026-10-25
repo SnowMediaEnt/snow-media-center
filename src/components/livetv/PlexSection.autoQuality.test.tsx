@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlexItem, PlexLibrary } from '@/lib/plex';
 import { beginStream, endStream, recordPlayerRate, setBuffering as diagSetBuffering } from '@/lib/bufferDiagnostics';
 import { emptyPlayerStats } from '@/capacitor/SnowPlayer';
-import { markJump, markPlaybackStart, markSeek } from '@/lib/playerSeek';
+import { lastJumpAt, markJump, markPlaybackStart, markSeek } from '@/lib/playerSeek';
 
 // Slow under a loaded full run (renders the whole screen); the default 5 s flakes.
 vi.setConfig({ testTimeout: 20_000 });
@@ -159,6 +159,11 @@ vi.mock('./PlexDetail', () => ({
         const v = { id: 'd1:0', ratingKey: item.ratingKey, mediaIndex: 0, label: '1080p', bitrateKbps: 16000, partKey: '/library/parts/7/file.mkv' };
         onPlay(item, 1800, undefined, undefined, { version: v, versions: [v], startPreset: '720-3', measuredKbps: 1700 });
       }}>PLAY:MeasuredResume</button>
+      {/* The same, the title's length known (2 h). */}
+      <button onClick={() => {
+        const v = { id: 'd1:0', ratingKey: item.ratingKey, mediaIndex: 0, label: '1080p', bitrateKbps: 16000, partKey: '/library/parts/7/file.mkv' };
+        onPlay({ ...item, type: 'movie', duration: 7_200_000 }, 1800, undefined, undefined, { version: v, versions: [v], startPreset: '720-3', measuredKbps: 1700 });
+      }}>PLAY:MeasuredResumeLen</button>
       {/* The viewer picked this version on the title page: it plays as it is. */}
       <button onClick={() => {
         const v = { id: 'd1:0', ratingKey: item.ratingKey, mediaIndex: 0, label: '1080p', bitrateKbps: 16000, partKey: '/library/parts/7/file.mkv' };
@@ -1822,5 +1827,109 @@ describe('a subtitle file beside a conversion started part-way', () => {
     await wait(900);
     expect(h.urls).toHaveLength(before + 1);
     expect(h.nativeSeeks).toEqual([3600]);
+  });
+});
+
+// Review of 8d73ad74: a press during a restart, a subtitle on a session
+// started part-way, a server that ignored the offset, a quiet loader that
+// outlasted its cap, and a jump leaking into the next title.
+describe('jumps, after review', () => {
+  const offsetOf = (u: string) => /[?&]offset=(\d+)/.exec(u)?.[1] ?? null;
+  const cardShown = () => !!screen.queryByText(/Buffering · \d+s/);
+  const press = async (to: number, gap = 200) => { act(() => { void h.seekTo?.(to); }); await wait(gap); };
+  /** A conversion of Dune at 1080p · 8 Mbps, started at 10:00 and playing. */
+  async function converting() {
+    await openDune();
+    await play('Dune');
+    await started();
+    act(() => { h.pickQuality?.('1080-8', 600); });
+    await until(() => expect(offsetOf(lastUrl())).toBe('600'));
+    await started();
+    act(() => { beginStream(lastUrl(), 'vod'); markPlaybackStart(); });
+  }
+
+  it('a press while a restart is on its way is another restart (the last one wins), never a jump in the stream that is leaving', async () => {
+    await converting();
+    h.pos.position = 30;
+    h.stats.mockImplementation(async () => ({ ...emptyPlayerStats(), bufferedAheadSec: 20 }));
+    // The new session will not have played by the next press.
+    h.pos.playing = false;
+    const n = h.urls.length;
+    await press(2400, 800);
+    await until(() => expect(offsetOf(lastUrl())).toBe('2400'));
+    h.pos.position = 0;
+    // 0.8 s later, ◀ ▶ again: inside what that new session would hold.
+    await press(2410, 800);
+    await until(() => expect(offsetOf(lastUrl())).toBe('2410'));
+    expect(h.urls).toHaveLength(n + 2);
+    expect(h.nativeSeeks).toEqual([]);
+    expect((await h.getPos!()).position).toBe(2410);
+  });
+
+  it("a subtitle on a session started part-way: the old session's error on its way out is no failure (no toast, no other stream)", async () => {
+    await converting();
+    h.fetch.mockImplementation(async (u: unknown) => (String(u).includes('/transcode/universal/stop')
+      ? h.later(1500, new Response('', { status: 200 }))
+      : new Response('', { status: 200 })));
+    const n = h.urls.length;
+    const toasts = toastTitles().length;
+    act(() => { h.loadSub?.({ url: 'https://subs.test/a.srt', lang: 'en' }, 720); });
+    await wait(300);
+    // The stopped session answers the player with an error status.
+    act(() => { h.native = { ...h.native, error: { code: 'PLEX_TRANSCODE_HTTP', message: 'gone', httpStatus: 404 } }; h.kick?.(); });
+    await wait(3_000);
+    await until(() => expect(h.urls.length).toBe(n + 1));
+    await wait(3_000);
+    expect(h.urls).toHaveLength(n + 1);
+    expect(offsetOf(lastUrl())).toBeNull();
+    expect(h.starts[h.starts.length - 1]).toBe(720);
+    expect(toastTitles().slice(toasts)).toEqual([]);
+  });
+
+  it('a server that ignored the offset: read as where it was to start until the jump there is made, never ~0:02', async () => {
+    h.pos.position = 2; h.pos.duration = 7200;
+    await openDune();
+    fireEvent.click(await screen.findByText('PLAY:MeasuredResumeLen', undefined, { timeout: 3000 }));
+    await until(() => expect(offsetOf(lastUrl())).toBe('1800'));
+    // The player's jump takes a second to land.
+    act(() => {
+      h.native = { ...h.native, seekTo: async (sec?: number) => { h.nativeSeeks.push(sec ?? -1); await h.later(1000, 0); h.pos.position = sec ?? 0; } };
+      h.kick?.();
+    });
+    await until(() => expect(h.nativeSeeks).toEqual([1800]), );
+    expect((await h.getPos!()).position).toBe(1800);
+    await wait(300);
+    expect((await h.getPos!()).position).toBe(1800);
+    await wait(1_200);
+    expect((await h.getPos!()).position).toBe(1800);
+  });
+
+  it("a jump marked by the player itself (its unpause) mid-stall: quiet for the jump's grace, then the card", async () => {
+    await playingDune();
+    stallBoth();
+    await wait(2_500);
+    expect(cardShown()).toBe(true);
+    act(() => { markJump(); h.kick?.(); });
+    await wait(200);
+    expect(cardShown()).toBe(false);
+    await wait(59_000);
+    expect(cardShown()).toBe(false);
+    // The grace (60 s from the jump) runs out with the stall still going.
+    await wait(1_500);
+    await wait(3_000);
+    expect(cardShown()).toBe(true);
+    playOn();
+  });
+
+  it("the last title's jump is no part of the next one started from the beginning", async () => {
+    await openDune();
+    fireEvent.click(await screen.findByText('PLAY:Resume', undefined, { timeout: 3000 }));
+    await until(() => expect(h.urls.length).toBeGreaterThan(0));
+    expect(lastJumpAt()).toBeGreaterThan(0);
+    act(() => { h.closePlayer?.(); });
+    await wait(20);
+    h.closePlayer = null;
+    await play('Other');
+    expect(lastJumpAt()).toBe(0);
   });
 });

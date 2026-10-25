@@ -100,7 +100,7 @@ import {
   AUTO_FLOOR_PRESET, CONVERT_RECOVERY_MAX, deliveryShort, RAISE_SUSTAIN_MS, RATE_TICK_MS, RELAY_PRESET, SPEED_HEADROOM, START_GRACE_MS, TRANSCODE_PING_MS, type AutoMove, type QualityStep, type RateReport, type StallContext, type StartRescue,
   afterJump, jumpGraceEnd, JUMP_PENDING_MAX_MS,
 } from '@/lib/plexAutoQuality';
-import { lastJumpAt, lastPlaybackStartAt, lastSeekAt, markJump } from '@/lib/playerSeek';
+import { clearJump, lastJumpAt, lastPlaybackStartAt, lastSeekAt, markJump } from '@/lib/playerSeek';
 import { convertSeekPlan, createSeekBurst, offsetTimeline, transcodeOffsetOf, type SeekBurst } from '@/lib/plexSeek';
 import { createSeekSkipper } from '@/lib/skipQueue';
 import { onMediaKey } from '@/lib/mediaKeys';
@@ -2701,6 +2701,19 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // The stream request (streamGenRef) a conversion's restart at a jump made:
   // that stream is the jump going on, never a start to rescue.
   const seekRestartGenRef = useRef(-1);
+  // That restart's new stream has not played yet (`from`: the stream it
+  // left): every jump meanwhile is another restart (the last one wins),
+  // never a jump in a stream on its way out.
+  const restartUnplayedRef = useRef(false);
+  const restartFromRef = useRef<string | null>(null);
+  // seekRestart (below), for the subtitle loader declared before it.
+  const seekRestartRef = useRef<(to: number, why: 'seek' | 'pause' | 'subtitle') => Promise<void>>(async () => undefined);
+  // A restart's new stream began to play: the jump has landed.
+  const restartPlayed = (url: string | null): void => {
+    if (!restartUnplayedRef.current || !url || url === restartFromRef.current) return;
+    restartUnplayedRef.current = false;
+    if (seekPendingRef.current?.from !== undefined) seekPendingRef.current = null;
+  };
   // Filled in below, with automatic quality: a start-up rescue, if the
   // server's delivery calls for one ('rescued'), or the reason the error
   // stands ('exhausted'), or nothing to do (null).
@@ -3582,7 +3595,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // no starved verdict, no "server can't send" card; plexAutoQuality
     // afterJump). The start-up rescue still stands for a start that never
     // gets going.
-    if (resumeSec && resumeSec > 0 && !opts?.trailer) markJump();
+    // A start from the beginning: the last title's jump is no part of it.
+    if (resumeSec && resumeSec > 0 && !opts?.trailer) markJump(); else clearJump();
+    restartUnplayedRef.current = false;
     setPlaySeq((n) => n + 1);
     // Which file: the version picked on the title page, else the item's
     // first (what Plex itself plays). A copy in another library streams from
@@ -3794,16 +3809,15 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // A conversion started part-way runs on its own clock: the subtitle's
     // lines would be out by its offset. A new session from 0:00 instead,
     // picked up at the viewer's place.
-    const c = connRef.current;
-    const key = playingKeyRef.current;
-    if (c && key && useTranscodeRef.current && transcodeOffsetOf(streamUrlRef.current) > 0) {
-      const preset = PLEX_QUALITY_PRESETS.find((p) => p.key === qualityKeyRef.current && p.key !== 'original');
-      void startConversionRef.current(c, key, preset, resumeSec, newStreamRequest());
+    // Quietly, as a restart at a jump: the session it leaves fails on its
+    // way out, and that is no failure to recover from.
+    if (useTranscodeRef.current && transcodeOffsetOf(streamUrlRef.current) > 0) {
+      void seekRestartRef.current(resumeSec, 'subtitle');
       return;
     }
     setStartPos(resumeSec);
     setStreamUrl((prev) => { if (prev) window.setTimeout(() => setStreamUrl(prev), 60); return null; });
-  }, [newStreamRequest]);
+  }, []);
 
   // Switch quality on the fly: rebuilds the stream URL for the currently
   // playing ratingKey, preserving any downloaded subtitle sidecars and the
@@ -3944,8 +3958,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     if (!paused) {
       // A jump that lands as a new stream (seekRestart) is over once that
       // stream plays.
-      const pend = seekPendingRef.current;
-      if (pend && pend.from !== undefined && streamUrlRef.current && streamUrlRef.current !== pend.from) seekPendingRef.current = null;
+      restartPlayed(streamUrlRef.current);
       stillLoadingRef.current = false;
       if (streamPlayAtRef.current == null) streamPlayAtRef.current = Date.now();
       if (streamFirstPlayAtRef.current == null) streamFirstPlayAtRef.current = Date.now();
@@ -3982,6 +3995,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // to the player): frame-rate matching's first source.
     frameRate: playVersion?.frameRate,
     startPosition: nativeStart,
+    // Its seeks and unpauses are the viewer's jumps (plexAutoQuality afterJump).
+    jumpGrace: true,
     // Fast-forward / Rewind go through plexSeekTo here (a conversion may
     // need a new session at the new place), not straight to the player.
     skipKeys: false,
@@ -4218,8 +4233,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         const advanced = p.duration > 0 && lastPos !== null && p.position > lastPos + 0.1;
         lastPos = p.position;
         if (p.playing || advanced) {
-          const pend = seekPendingRef.current;
-          if (pend && pend.from !== undefined && streamUrlRef.current && streamUrlRef.current !== pend.from) seekPendingRef.current = null;
+          restartPlayed(streamUrlRef.current);
           stillLoadingRef.current = false;
           if (streamPlayAtRef.current == null) streamPlayAtRef.current = Date.now();
           if (streamFirstPlayAtRef.current == null) streamFirstPlayAtRef.current = Date.now();
@@ -4708,14 +4722,21 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // a step of the failure machine. Only a refused one goes on to the failure
   // machine. `why`: a jump past what the session has converted, or playing
   // on after a pause the session did not survive.
-  const seekRestart = useCallback(async (to: number, why: 'seek' | 'pause'): Promise<void> => {
+  const [jumpTick, setJumpTick] = useState(0);
+  const seekRestart = useCallback(async (to: number, why: 'seek' | 'pause' | 'subtitle'): Promise<void> => {
     const c = connRef.current;
     const key = playingKeyRef.current;
     if (!c || !key) { seekPendingRef.current = null; return; }
     const gen = newStreamRequest();
     seekRestartGenRef.current = gen;
     markJump();
-    seekPendingRef.current = { to, until: Date.now() + JUMP_PENDING_MAX_MS, from: streamUrlRef.current };
+    // Left from the stream on screen, or (a restart overtaking one whose
+    // stream has not played) still from the one the first restart left.
+    const from = restartUnplayedRef.current ? restartFromRef.current : streamUrlRef.current;
+    restartFromRef.current = from;
+    restartUnplayedRef.current = true;
+    seekPendingRef.current = { to, until: Date.now() + JUMP_PENDING_MAX_MS, from };
+    setJumpTick((n) => n + 1);
     lastKnownPosRef.current = to;
     setRecovering(true);
     try { trackEvent('plex_seek_restart', 'player', { why, preset: qualityKeyRef.current }); } catch { /* ignore */ }
@@ -4723,10 +4744,18 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     const r = await startConversionRef.current(c, key, preset, to, gen);
     if (r === 'refused' && stillCurrent(gen)) await recoverConversionRef.current('refused', qualityKeyRef.current);
   }, [newStreamRequest, stillCurrent, setRecovering]);
+  useEffect(() => { seekRestartRef.current = seekRestart; }, [seekRestart]);
   // A burst's jump landing at `to`: a file jumps in place; a conversion
   // jumps in place when its session has that part (convertSeekPlan), else
   // starts again there (seekRestart).
   const landSeek = useCallback(async (to: number): Promise<void> => {
+    // A restart still on its way (its stream has not played): this jump is
+    // another one, which makes the first stale — never a jump in the stream
+    // that is leaving, nor lost while there is no stream at all.
+    if (restartUnplayedRef.current && seekRestartGenRef.current === streamGenRef.current) {
+      await seekRestart(to, 'seek');
+      return;
+    }
     const off = streamOffsetRef.current;
     const url = streamUrlRef.current;
     if (!url) { seekPendingRef.current = null; return; }
@@ -4750,12 +4779,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // Intro), in the title's time: marked at once as the viewer's jump (its
   // stall is the jump, its loader quiet), shown at once where it goes, and
   // sent once the presses stop (a burst adds up to one jump).
-  const [jumpTick, setJumpTick] = useState(0);
   const plexSeekTo = useCallback(async (sec: number): Promise<void> => {
     const to = Math.max(0, sec);
     markJump();
     lastKnownPosRef.current = to;
-    seekPendingRef.current = { to, until: Date.now() + JUMP_PENDING_MAX_MS };
+    // During a restart still on its way it stays that restart's (`from`).
+    seekPendingRef.current = restartUnplayedRef.current
+      ? { to, until: Date.now() + JUMP_PENDING_MAX_MS, from: restartFromRef.current }
+      : { to, until: Date.now() + JUMP_PENDING_MAX_MS };
     setJumpTick((n) => n + 1);
     seekBurstRef.current?.push(to);
   }, []);
@@ -4800,9 +4831,16 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         window.clearInterval(id);
         if (v !== 'title') return;
         try { trackEvent('plex_offset_ignored', 'player', { offset: Math.round(off) }); } catch { /* ignore */ }
-        setOffsetIgnoredFor(url);
         const to = startPosRef.current ?? off;
-        if (p.position < to - 5) void nativeSeek(to);
+        // Read as where it was to start until the jump there is made (the
+        // offset is 0 from now on, the player still near 0:00): progress
+        // and Back never save that.
+        const hold = { to, until: Date.now() + JUMP_PENDING_MAX_MS };
+        if (p.position < to - 5) seekPendingRef.current = hold;
+        setOffsetIgnoredFor(url);
+        if (p.position < to - 5) {
+          void nativeSeek(to).finally(() => { if (seekPendingRef.current === hold) seekPendingRef.current = null; });
+        }
       }).catch(() => { /* ignore */ });
     }, 2_000);
     return () => { alive = false; window.clearInterval(id); };
@@ -4827,7 +4865,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // "Loading…", never the buffering card with its verdict on the server.
   // Read at render; `graceTick` re-renders when the grace runs out under a
   // stall that is still going (the card then takes over).
-  const [, setGraceTick] = useState(0);
+  const [graceTick, setGraceTick] = useState(0);
+  const jumpMark = lastJumpAt();
   useEffect(() => {
     if (!(nativeActive && native.buffering)) return;
     const now = Date.now();
@@ -4835,7 +4874,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     const end = jumpGraceEnd(now, lastJumpAt(), lastPlaybackStartAt());
     const id = window.setTimeout(() => setGraceTick((n) => n + 1), Math.max(0, end - now) + 50);
     return () => window.clearTimeout(id);
-  }, [native.buffering, nativeActive, native.paused, jumpTick]);
+    // A new jump from anywhere (the player's unpause, a restart) or the last
+    // timer: looked at again, so the quiet loader never outlasts its grace.
+  }, [native.buffering, nativeActive, native.paused, jumpTick, jumpMark, graceTick]);
   const quietStall = nativeActive && native.buffering && afterJump(Date.now(), lastJumpAt(), lastPlaybackStartAt());
 
   // Start-up rescue (plexAutoQuality.startRescue). A play whose start-up

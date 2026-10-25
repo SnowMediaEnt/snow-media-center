@@ -29,3 +29,5 @@ let lastJump = 0;
 
 export function markJump(at: number = Date.now()): void { lastJump = at; lastSeek = at; }
 export function lastJumpAt(): number { return lastJump; }
+/** A fresh start from the beginning: the last title's jump is no part of it. */
+export function clearJump(): void { lastJump = 0; }

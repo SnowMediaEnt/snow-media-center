@@ -45,7 +45,7 @@ import { lastJumpAt, lastPlaybackStartAt, lastSeekAt, markJump, markPlaybackStar
 const FILM = 'https://srv.plex.direct:32400/library/parts/42/1700000000/file.mkv';
 const CHANNEL = 'http://iptv.example/live/1.ts';
 
-const mount = (url: string, live: boolean) => renderHook(() => useNativePlayer({ active: true, url, volume: 1, live }));
+const mount = (url: string, live: boolean, jumpGrace = !live) => renderHook(() => useNativePlayer({ active: true, url, volume: 1, live, jumpGrace }));
 const fire = (ev: string, data: Record<string, unknown>) => act(() => { (listeners.get(ev) ?? []).forEach((cb) => cb(data)); });
 
 beforeEach(() => {
@@ -109,6 +109,24 @@ describe('Live TV', () => {
     expect(lastJumpAt()).toBe(0);
     act(() => { ctl.onPausedChange?.(true); });
     act(() => { ctl.onPausedChange?.(false); });
+    expect(lastJumpAt()).toBe(0);
+  });
+});
+
+describe('players that did not ask for it (jumpGrace off: catch-up, VodPlayer, Recordings)', () => {
+  it("a film's unpause marks nothing, and its seek keeps the plain seek mark (\"Still buffering?\" works as before)", async () => {
+    const { result } = mount(FILM, false, false);
+    await waitFor(() => expect(ctl.onPausedChange).not.toBeNull());
+    fire('playerState', { playing: true });
+    const started = lastPlaybackStartAt();
+    act(() => { ctl.onPausedChange?.(true); });
+    vi.setSystemTime(new Date('2026-10-25T10:20:00Z'));
+    act(() => { ctl.onPausedChange?.(false); });
+    fire('playerState', { playing: true });
+    expect(lastJumpAt()).toBe(0);
+    expect(lastPlaybackStartAt()).toBe(started);
+    await act(async () => { await result.current.seekTo(1800); });
+    expect(lastSeekAt()).toBe(Date.now());
     expect(lastJumpAt()).toBe(0);
   });
 });
