@@ -304,7 +304,20 @@
       "connectedDesc": "Sesión iniciada en {{server}}.",
       "connectedYourService": "Sesión iniciada en tu servicio.",
       "connectFailedTitle": "No se pudo conectar",
-      "connectFailedDesc": "Revisa tus credenciales e inténtalo de nuevo."
+      "connectFailedDesc": "Revisa tus credenciales e inténtalo de nuevo.",
+      "pin": {
+        "signInWithPin": "Iniciar sesión con un PIN",
+        "subtitle": "Usa el PIN de 10 dígitos de tu línea",
+        "label": "PIN",
+        "back": "Usar usuario y contraseña",
+        "note": "Tu PIN está en tu correo de bienvenida, o pídeselo a soporte.",
+        "invalidPin": "Un PIN tiene 10 dígitos",
+        "notFound": "Ese PIN no es correcto",
+        "expired": "Esta línea ha vencido — renuévala para seguir viendo",
+        "rateLimited": "Demasiados intentos — espera unos minutos",
+        "error": "No se pudo comprobar el PIN. Inténtalo de nuevo.",
+        "passwordChanged": "Inicia sesión una vez con tu usuario y contraseña; tu PIN sigue funcionando"
+      }
     },
     "claim": {
       "title": "Termina tu cuenta de Snow Media",

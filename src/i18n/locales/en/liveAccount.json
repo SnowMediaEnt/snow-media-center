@@ -296,7 +296,20 @@
       "connectedDesc": "Signed in to {{server}}.",
       "connectedYourService": "Signed in to your service.",
       "connectFailedTitle": "Could not connect",
-      "connectFailedDesc": "Please check your credentials and try again."
+      "connectFailedDesc": "Please check your credentials and try again.",
+      "pin": {
+        "signInWithPin": "Sign in with a PIN",
+        "subtitle": "Use the 10-digit PIN for your line",
+        "label": "PIN",
+        "back": "Use username and password",
+        "note": "Your PIN is in your welcome email, or ask support for it.",
+        "invalidPin": "A PIN is 10 digits",
+        "notFound": "That PIN isn't right",
+        "expired": "This line has expired — renew it to keep watching",
+        "rateLimited": "Too many tries — wait a few minutes",
+        "error": "Couldn't check the PIN. Please try again.",
+        "passwordChanged": "Sign in once with your username and password; your PIN keeps working"
+      }
     },
     "claim": {
       "title": "Finish your Snow Media account",
