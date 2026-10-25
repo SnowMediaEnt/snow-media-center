@@ -502,6 +502,43 @@ html.is-sideways .plex-page-title { padding-top: 8px; font-size: 18px; line-heig
   -webkit-transform: scale(1.02);
   transform: scale(1.02);
 }
+/* Each entry set apart, so the list is not flat (owner, 2026-10-24): a soft
+   light from the left on every entry, a little more under a finger or the
+   mouse, and a faint inset line between entries of a group. The focused pill
+   is as it was. Painted once; nothing here animates. */
+.plex-menu-item {
+  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.045) 0%, rgba(255, 255, 255, 0) 85%);
+}
+.plex-menu-item:hover {
+  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0) 85%);
+}
+.plex-menu-item[data-focused="true"] {
+  background-image: none;
+}
+.plex-menu-sep::before {
+  content: '';
+  display: block;
+  height: 1px;
+  margin: 0 16px;
+  background-color: rgba(255, 255, 255, 0.07);
+}
+html.is-upright .plex-menu-sep::before { display: none; }
+/* The server line: the TV's overscan above it (3.5vh), never shrunk, and
+   held at the top while the entries scroll under it. Its own background
+   appears only once they have (PlexSection toggles .is-scrolled). */
+.plex-menu-head {
+  position: -webkit-sticky;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  flex-shrink: 0;
+  padding-top: 3.5vh;
+}
+.plex-menu-head.is-scrolled {
+  background-color: rgb(6, 9, 18);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08), 0 6px 10px -4px rgba(0, 0, 0, 0.6);
+}
+html.is-sideways .plex-menu-head { padding-top: 0; }
 
 /* ── Pills and chips (title page buttons, library filters) ───────────── */
 /* tvOS PillButton: gold (Play, Resume, Browse) or white, 8 px corners,

@@ -4825,10 +4825,29 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // every render: an inline scroll callback ran (with a forced layout) each
   // time anything re-rendered Plex while the menu was open.
   const menuBtnRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  // The server line stays at the top of the menu while the entries scroll
+  // under it (plex.css .plex-menu-head): an entry brought into view must
+  // land below it, not behind it. Plain scrollTop: Chromium 66 has no
+  // scroll-margin.
+  const menuHeadRef = useRef<HTMLDivElement | null>(null);
   useLayoutEffect(() => {
     if (!isActive || fullscreen || zone !== 'tabs') return;
-    menuBtnRefs.current[menuIdx]?.scrollIntoView({ block: 'nearest' });
+    const btn = menuBtnRefs.current[menuIdx];
+    if (!btn) return;
+    btn.scrollIntoView({ block: 'nearest' });
+    const head = menuHeadRef.current;
+    const menu = head?.parentElement;
+    if (!head || !menu) return;
+    const under = head.getBoundingClientRect().bottom - btn.getBoundingClientRect().top;
+    if (under > 0) menu.scrollTop -= under + 4;
   }, [menuIdx, zone, isActive, fullscreen]);
+  // Its own background only once the entries have scrolled under it.
+  const onMenuScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const head = menuHeadRef.current;
+    if (!head) return;
+    const on = e.currentTarget.scrollTop > 0;
+    if (head.classList.contains('is-scrolled') !== on) head.classList.toggle('is-scrolled', on);
+  }, []);
   const libIdxRef = useRef(libIdx); const itemsRef = useRef(items);
   const tabsRef = useRef(tabs); const fullscreenRef = useRef(fullscreen);
   // detailRef declared earlier (near openDetail); ref-sync effect below.
@@ -5272,15 +5291,21 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           again with the highlight on the open entry (exitToMenu). */}
       <div
         onClick={() => { if (menuCollapsed) exitToMenu(); }}
+        onScroll={onMenuScroll}
         data-howto="plex.menu"
         data-plex-menu=""
         className={`relative flex-shrink-0 border-r border-white/10 bg-black/40 flex flex-col pb-2 overflow-y-auto overflow-x-hidden ${menuCollapsed ? 'w-14 cursor-pointer' : 'w-56'}`}
         // Plex fills the screen with no header above it, so the top of this
         // column is the top of the panel — and a TV's overscan takes the
-        // first 2–4% of that. The server line was the thing being cut off.
-        style={{ paddingTop: '3.5vh' }}
+        // first 2–4% of that. The server line was the thing being cut off;
+        // that room is now the server line's own (.plex-menu-head), so the
+        // line sits at the top while the entries scroll under it.
       >
-        <div className={`pb-2 text-xs font-montserrat font-semibold text-brand-ice/60 truncate ${menuCollapsed ? 'px-0 text-center' : 'px-5'}`}>{menuCollapsed ? 'Plex' : t('plex.section.serverLine', { name: conn?.name })}</div>
+        {/* The server line. It was a flex item with overflow hidden in a
+            column that scrolls: such an item may shrink to nothing, so once a
+            server's libraries filled the menu it was squeezed under Home.
+            Now it never shrinks, and stays put (sticky) over the entries. */}
+        <div ref={menuHeadRef} className={`plex-menu-head pb-2 text-xs font-montserrat font-semibold text-brand-ice/60 truncate ${menuCollapsed ? 'px-0 text-center' : 'px-5'}`}>{menuCollapsed ? 'Plex' : t('plex.section.serverLine', { name: conn?.name })}</div>
         {menuEntries.map((m, i) => {
           const focused = isActive && !fullscreen && zone === 'tabs' && menuIdx === i;
           const tab = tabs[m.tabIdx];
@@ -5288,7 +5313,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           const first = i === 0 || menuEntries[i - 1].group !== m.group;
           const Icon = menuIcon(tab);
           return (
-            <div key={m.key}>
+            <div key={m.key} className={`flex-shrink-0${first ? '' : ' plex-menu-sep'}`}>
               {/* A hairline between groups instead of HOME / LIBRARIES / MORE
                   headings — the icons already say what each row is, and the
                   headings only pushed the libraries further down the rail. */}
@@ -5316,7 +5341,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             </div>
           );
         })}
-        {!menuCollapsed && <div data-remote-hint="" className="mt-auto px-5 pt-4 pb-2 text-xs font-nunito text-brand-ice/50">{t('plex.section.menuHint')}</div>}
+        {!menuCollapsed && <div data-remote-hint="" className="flex-shrink-0 mt-auto px-5 pt-4 pb-2 text-xs font-nunito text-brand-ice/50">{t('plex.section.menuHint')}</div>}
       </div>
 
       <div className="relative flex-1 min-w-0 flex flex-col overflow-hidden">
