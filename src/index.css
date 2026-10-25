@@ -575,14 +575,13 @@
 .tv-ring-contrast:focus-visible {
   outline: none;
 }
-/* Live TV's normal channel rows (ChannelRow): a white ring, no glow (the
-   Tronix list the owner likes), so the gold stays for the progress and the
-   playing row, and nothing bleeds into the rows 4px above and below. */
+/* Live TV's normal channel rows (ChannelRow): a gold ring like the rest of
+   SMC, no glow, so nothing bleeds into the rows 4px above and below. */
 .tv-ring.tv-ring-row[data-focused="true"] {
-  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.95);
+  box-shadow: inset 0 0 0 3px hsl(var(--brand-gold) / 0.95);
 }
 .native-low-memory .tv-ring.tv-ring-row[data-focused="true"]::after {
-  border: 3px solid #fff;
+  border: 3px solid hsl(var(--brand-gold));
 }
 
 
