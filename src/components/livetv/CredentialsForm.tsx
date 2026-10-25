@@ -309,18 +309,18 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
   }
 
   return (
-    <div ref={containerRef} className="min-h-screen flex items-center justify-center px-6 py-12">
+    <div ref={containerRef} className="min-h-screen flex items-center justify-center px-6 py-3">
       <form
         onSubmit={pinMode ? submitPin : submit}
         // A tapped button keeps the typing box's focus (phones: the keyboard
         // stays up and the form doesn't jump from under the finger).
         onMouseDown={keepTypingFocus}
         data-creds-form
-        className="w-full max-w-xl rounded-3xl p-8 [background:var(--gradient-navy)] shadow-2xl border border-white/10"
+        className="w-full max-w-xl rounded-3xl px-8 py-6 [background:var(--gradient-navy)] shadow-2xl border border-white/10"
       >
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-14 h-14 rounded-2xl bg-brand-gold/20 flex items-center justify-center">
-            <Tv className="w-8 h-8 text-brand-gold" />
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-12 h-12 rounded-2xl bg-brand-gold/20 flex items-center justify-center">
+            <Tv className="w-7 h-7 text-brand-gold" />
           </div>
           <div>
             <h2 className="text-2xl font-quicksand font-bold text-white">{t('liveAccount.credentials.title')}</h2>
@@ -331,7 +331,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
         </div>
 
         {pinMode ? (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="lt-pin" className="text-brand-ice font-nunito">{t('liveAccount.credentials.pin.label')}</Label>
             {/* Show / Hide comes BEFORE the field, as on the password: the
                 keyboard's Done after the PIN lands on Sign in. */}
@@ -364,8 +364,8 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
-            <div className="space-y-2" data-howto="signin.username">
+          <div className="space-y-3">
+            <div className="space-y-1.5" data-howto="signin.username">
               <Label htmlFor="lt-user" className="text-brand-ice font-nunito">{t('liveAccount.credentials.username')}</Label>
               <Input
                 id="lt-user"
@@ -383,7 +383,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
                 disabled={testing}
               />
             </div>
-            <div className="space-y-2" data-howto="signin.password">
+            <div className="space-y-1.5" data-howto="signin.password">
               <Label htmlFor="lt-pass" className="text-brand-ice font-nunito">{t('liveAccount.credentials.password')}</Label>
               {/* Show / Hide comes BEFORE the field: the keyboard's Done after the
                   password lands on the next control in DOM order, Sign in. */}
@@ -431,7 +431,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
               variant="gold"
               {...focusProps('cf-pin-submit')}
               disabled={testing}
-              className="w-full mt-8 rounded-xl h-12 transition-transform duration-150 ease-out"
+              className="w-full mt-5 rounded-xl h-12 transition-transform duration-150 ease-out"
             >
               {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               <span className="min-w-0 truncate">{testing ? t('liveAccount.credentials.signingIn') : t('liveAccount.credentials.signIn')}</span>
@@ -442,14 +442,14 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
               onClick={leavePinMode}
               {...focusProps('cf-pin-back')}
               disabled={testing}
-              className="w-full mt-3 rounded-xl min-h-12 h-auto py-2 whitespace-normal text-brand-ice underline underline-offset-4 hover:bg-white/10 hover:text-white"
+              className="w-full mt-2.5 rounded-xl min-h-12 h-auto py-2 whitespace-normal text-brand-ice underline underline-offset-4 hover:bg-white/10 hover:text-white"
             >
               <span className="min-w-0 text-center leading-snug">{t('liveAccount.credentials.pin.back')}</span>
             </Button>
           </>
         ) : (
           <>
-          <div className="flex gap-3 mt-8">
+          <div className="flex gap-3 mt-5">
             <Button
               type="submit"
               variant="gold"
@@ -482,7 +482,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
               onClick={() => { setShowPassword(false); setShowPin(false); setPin(''); setPinMode(true); }}
               {...focusProps('cf-pin')}
               disabled={testing}
-              className="w-full mt-3 rounded-xl min-h-12 h-auto py-2 whitespace-normal transition-transform duration-150 ease-out"
+              className="w-full mt-2.5 rounded-xl min-h-12 h-auto py-2 whitespace-normal transition-transform duration-150 ease-out"
             >
               <KeyRound className="w-4 h-4 mr-2 shrink-0 text-brand-gold" />
               <span className="min-w-0 text-center leading-snug">{t('liveAccount.credentials.pin.signInWithPin')}</span>
@@ -498,7 +498,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
               disabled={testing}
               // The way in for someone with no login yet: the whole line shows,
               // wrapping on a narrow screen rather than cut off.
-              className="w-full mt-3 rounded-xl min-h-12 h-auto py-2 whitespace-normal transition-transform duration-150 ease-out"
+              className="w-full mt-2.5 rounded-xl min-h-12 h-auto py-2 whitespace-normal transition-transform duration-150 ease-out"
             >
               <Sparkles className="w-4 h-4 mr-2 shrink-0 text-brand-gold" />
               <span className="min-w-0 text-center leading-snug">{pending ? t('liveAccount.credentials.finishSetup', { label: pending.label }) : t('liveAccount.credentials.getStarted')}</span>
@@ -507,7 +507,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
           </>
         )}
 
-        <p className="text-brand-ice/60 text-xs font-nunito mt-4" data-howto="signin.note">
+        <p className="text-brand-ice/60 text-xs leading-snug font-nunito mt-3" data-howto="signin.note">
           {pinMode ? t('liveAccount.credentials.pin.note') : t('liveAccount.credentials.note')}
         </p>
       </form>
