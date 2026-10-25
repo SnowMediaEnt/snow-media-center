@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense, type PointerEvent as ReactPointerEvent } from 'react';
 import ScrollText from '@/components/ScrollText';
-import { peekIntent, takeIntent, INTENT_KEYS, PLAYER_INTENT_EVENT, handLiveDeeplink, type PlayerIntent } from '@/lib/appActions';
+import { peekIntent, takeIntent, INTENT_KEYS, PLAYER_INTENT_EVENT, LIVE_OPEN_KEY, LIVE_OPEN_EVENT, handLiveDeeplink, type PlayerIntent } from '@/lib/appActions';
 import { App as CapApp } from '@capacitor/app';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
@@ -50,8 +50,10 @@ import { useRecordingsEntry } from './livetv/useRecordingsEntry';
 const GuideSection = lazy(() => import('./livetv/GuideSection'));
 /** What Live TV's list (LiveSection) is handed to act on (lib/appActions,
  *  applyIntent below), and the events that say one is there. */
-const LIVE_HANDOVER_KEYS = ['smc-live-deeplink', 'smc-live-play', 'smc-live-report'];
-const LIVE_HANDOVER_EVENTS = ['smc:live-deeplink', 'smc:live-play', 'smc:live-report'];
+// (A Home tile's Favorites or Recordings is one too: in the Guide layout,
+// Live TV's own list is what it opens.)
+const LIVE_HANDOVER_KEYS = ['smc-live-deeplink', 'smc-live-play', 'smc-live-report', LIVE_OPEN_KEY];
+const LIVE_HANDOVER_EVENTS = ['smc:live-deeplink', 'smc:live-play', 'smc:live-report', LIVE_OPEN_EVENT];
 import type { GuidePlace } from './livetv/GuideSection';
 const GameDaySection = lazy(() => import('./livetv/GameDaySection'));
 const MoviesSection = lazy(() => import('./livetv/MoviesSection'));
@@ -603,16 +605,20 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     // A content-bar link left over from earlier (a Plex title or a channel
     // that was never opened) must not win over, or later hijack, the section
     // asked for now.
+    const vod = sec === 'vod-movies' || sec === 'vod-series';
     try {
-      if (sec === 'movies') sessionStorage.removeItem('smc-live-deeplink');
+      if (sec === 'movies' || vod) sessionStorage.removeItem('smc-live-deeplink');
       else clearPlexDeeplink();
     } catch { /* ignore */ }
     if (sec === 'movies') { enterMode('movies'); if (intent.plex) setPane('content'); }
+    // The line's own Movies or Series (a Home tile). With no line signed in
+    // they are not in the list, and the Player shows Plex instead.
+    else if (vod) { enterMode('movies'); setSection(sec === 'vod-movies' ? 'movies' : 'series'); setPane('content'); }
     else if (sec === 'backups') enterMode('backups');
     else {
       // "Open Live TV" with nothing to play or report: in the Guide layout,
       // the Guide (a channel or report handed over sets it again below).
-      if (sec === 'live' && !intent.play && !intent.deeplink && !intent.report) setLiveWatching(false);
+      if (sec === 'live' && !intent.play && !intent.deeplink && !intent.report && !intent.open) setLiveWatching(false);
       enterMode('live');
       if (sec === 'guide' || sec === 'multi' || sec === 'gameday' || sec === 'recordings') { setSection(sec); setPane('content'); }
     }
@@ -624,6 +630,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     if (intent.play) hand('smc-live-play', 'smc:live-play', intent.play);
     if (intent.plex) hand('smc-plex-voice', 'smc:plex-voice', intent.plex);
     if (intent.deeplink) handLiveDeeplink(intent.deeplink);
+    if (intent.open) hand(LIVE_OPEN_KEY, LIVE_OPEN_EVENT, intent.open);
     // Player Settings (sign-out, the line's password, billing) is a grown-up's.
     if (intent.settings && !kidsLevel()) { setSettingsInitialView(intent.settings === 'appearance' ? 'appearance' : undefined); setSettingsOpen(true); }
   }, [enterMode]);

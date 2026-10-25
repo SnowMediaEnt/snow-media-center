@@ -2,7 +2,7 @@ import { memo, useState, useEffect, useLayoutEffect, useMemo, useCallback, useRe
 import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Store, Video, MessageCircle, Settings as SettingsIcon, User, LogIn, Smartphone, Shield, LifeBuoy, Tv, Film, Gift, Mic, Gamepad2 } from 'lucide-react';
+import { Settings as SettingsIcon, User, LogIn, Smartphone, Shield, Gift, Mic } from 'lucide-react';
 import NewsTicker from '@/components/NewsTicker';
 // MediaBar is lazy-loaded so disabling it (or slow boot) doesn't pay its cost upfront
 const MediaBar = lazy(() => import('@/components/MediaBar'));
@@ -15,7 +15,7 @@ import PlayerNudgeDialog from '@/components/PlayerNudgeDialog';
 import RequestReadyDialog from '@/components/RequestReadyDialog';
 import { playerNudgeOff } from '@/lib/playerNudge';
 import { retiredAppFor } from '@/lib/retiredApps';
-import { openPlayerSection, openScreen } from '@/lib/appActions';
+import { openScreen } from '@/lib/appActions';
 import ServiceExpirationBanner from '@/components/ServiceExpirationBanner';
 
 import { useAppAlerts, type AppAlert } from '@/hooks/useAppAlerts';
@@ -38,7 +38,17 @@ import { useVersion } from '@/hooks/useVersion';
 import { useNavigate } from 'react-router-dom';
 import { useNavigation } from '@/hooks/useNavigation';
 import { useActiveProfile } from '@/hooks/useActiveProfile';
-import { homeCardIds, profileGameView, type HomeCardId } from '@/lib/kidsGameNavigation';
+import { profileGameView } from '@/lib/kidsGameNavigation';
+import { arrangeTiles, openTile, tileDef, useSavedTiles, type TileContext, type TileDest } from '@/lib/homeTiles';
+import { useBarPrefs } from '@/lib/homeBar';
+import { TILE_BG, TILE_ICONS } from '@/components/home/tileVisuals';
+import HomeEditorLayer, { MoveHint, MovingTileMark } from '@/components/home/HomeEditor';
+import { useHomeEditor } from '@/components/home/useHomeEditor';
+import { useLongPress } from '@/hooks/useLongPress';
+import { createOkHold } from '@/lib/okHold';
+import { isTouchUI } from '@/lib/phoneMode';
+import { hasNativePlayer } from '@/capacitor/SnowPlayer';
+import { hasRecorder } from '@/capacitor/SnowRecorder';
 import { setGameMusicMode } from '@/components/games/shared/gameMusic';
 import { openProfiles } from '@/lib/profilesUi';
 import { avatarColors, profileName } from '@/lib/profiles';
@@ -120,9 +130,8 @@ const BRAND = { title: 'SNOW MEDIA', subtitle: 'CENTER', company: 'Snow Media En
 // A screen-name test the text guard (src/i18n/guard) does not mistake for on-screen words.
 const isView = (current: string, view: string) => current === view;
 
-const HOME_CARD_VIEW: Record<HomeCardId, string> = { livetv: 'livetv', plex: 'livetv', apps: 'apps', support: 'support', store: 'store', 'kids-games': 'kids-games' };
 /** The How-to guide's hooks on the cards (data-howto; literals, so its check finds them). */
-const HOME_CARD_HOWTO: Partial<Record<HomeCardId, string>> = { livetv: 'home.cardLivetv', plex: 'home.cardPlex', support: 'home.cardSupport', store: 'home.cardStore' };
+const HOME_CARD_HOWTO: Partial<Record<TileDest, string>> = { livetv: 'home.cardLivetv', plex: 'home.cardPlex', support: 'home.cardSupport', store: 'home.cardStore' };
 
 const HomeActionCard = memo(({
   button,
@@ -132,14 +141,17 @@ const HomeActionCard = memo(({
   onActivate,
   boostSize = false,
   badgeCount = 0,
+  holdProps,
 }: {
-  button: { icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'purple' | 'gold' | 'navy'; tag?: string };
+  button: { icon: typeof Smartphone; title: string; description: string; bg: string; tag?: string };
   index: number;
   isFocused: boolean;
   layoutMode: 'grid' | 'row';
   onActivate: () => void;
   boostSize?: boolean;
   badgeCount?: number;
+  /** A finger held on the card (or a right click): its menu (useLongPress). */
+  holdProps?: Record<string, unknown>;
 }) => {
   const { t } = useTranslation();
   const ButtonIcon = button.icon;
@@ -154,21 +166,11 @@ const HomeActionCard = memo(({
       style={cardStyle}
       data-focused={isFocused ? 'true' : 'false'}
       data-home-card={index}
-      className={`
-        home-focus-surface relative overflow-hidden cursor-pointer border-0 rounded-3xl flex-shrink-0 shadow-xl h-full
-        ${button.variant === 'blue' ? '[background:var(--gradient-blue)]' : ''}
-        ${button.variant === 'purple' ? '[background:var(--gradient-purple)]' : ''}
-        ${button.variant === 'gold' ? '[background:var(--gradient-gold)]' : ''}
-        ${button.variant === 'navy' ? '[background:var(--gradient-navy)]' : ''}
-      `}
-
+      className={`home-focus-surface relative overflow-hidden cursor-pointer border-0 rounded-3xl flex-shrink-0 shadow-xl h-full ${button.bg}`}
+      {...holdProps}
       onClick={onActivate}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onActivate();
-        }
-      }}
+      // OK is Home's (a press opens, a hold the card's menu): see Index's key handler.
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.preventDefault(); }}
     >
       <div className="absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-black/20 rounded-3xl pointer-events-none" />
 
@@ -626,6 +628,7 @@ const Index = () => {
     const saved = localStorage.getItem('snow-media-layout');
     return (saved as 'grid' | 'row') || 'row'; // Default to row layout
   });
+  const homeEditOpenRef = useRef(false);
   const [screenHeight, setScreenHeight] = useState(window.innerHeight);
   const [screenWidth, setScreenWidth] = useState(window.innerWidth);
   const { t } = useTranslation();
@@ -654,6 +657,9 @@ const Index = () => {
   const navigate = useNavigate();
 
   const handleRootBack = useCallback(() => {
+    // A tile's menu, the picker, a tile being moved or the bar's Customize
+    // take Back themselves (HomeEditor).
+    if (homeEditOpenRef.current) return true;
     if (showEasterEgg) {
       setShowEasterEgg(false);
       return true;
@@ -1052,6 +1058,9 @@ const Index = () => {
   // MediaBar callbacks — stable so its memo can skip re-renders on focus ticks.
   const onMediaBarExitDown = useCallback(() => { setIsInMediaBar(false); setFocusedButton(0); }, []);
   const onMediaBarExitUp = useCallback(() => { setIsInMediaBar(false); setFocusedButton(-2); }, []);
+  // Hold OK on the bar (viaOk) or a finger on it: its menu. OK on an empty bar: Customize.
+  const onMediaBarHold = useCallback((viaOk: boolean) => editorRef.current.openBarMenu(viaOk), []);
+  const onMediaBarCustomize = useCallback((viaOk: boolean) => editorRef.current.openBarCustomize(viaOk), []);
 
   // Clock callback — stable (HomeClock already memoised).
   const onClockUpdate = useCallback(() => navigateToRef.current('settings'), []);
@@ -1076,28 +1085,79 @@ const Index = () => {
   // Card order on the home row. The Player is the star of the app, so it sits
   // at the far left and is the card focused at launch (focusedButton 0 = first
   // card). Everything below looks cards up by id, never by fixed position.
-  const cardIds = useMemo<HomeCardId[]>(
-    () => homeCardIds(playerEnabled, profile.kidsLevel),
-    [playerEnabled, profile.kidsLevel],
-  );
+  //
+  // The four tiles are the viewer's own (Hold OK on one: lib/homeTiles,
+  // components/home/HomeEditor), per profile; the defaults are the cards Home
+  // always had. With the Player switched off its tiles are left out, as
+  // before, and the row is not customised then (it is not the row of four).
+  // A Kids profile keeps its Home as it is, the way its Settings stays short
+  // (no tile or content-bar menus): it is offered nothing to change.
+  const savedTiles = useSavedTiles();
+  const tileCtx = useMemo<TileContext>(() => ({
+    kidsLevel: profile.kidsLevel ?? null,
+    playerEnabled,
+    recorder: hasNativePlayer() && hasRecorder() && !isDemo(),
+  }), [profile.kidsLevel, playerEnabled]);
+  const fullRow = useMemo(() => arrangeTiles(savedTiles, { ...tileCtx, playerEnabled: true }), [savedTiles, tileCtx]);
+  const canEditTiles = playerEnabled && !kids;
+  const canEditTilesRef = useRef(canEditTiles);
+  useEffect(() => { canEditTilesRef.current = canEditTiles; }, [canEditTiles]);
+  const barPrefs = useBarPrefs();
+  const onEditorFocusTile = useCallback((slot: number) => { setIsInMediaBar(false); setFocusedButton(slot); }, []);
+  const editor = useHomeEditor({ row: fullRow, ctx: tileCtx, barSource: barPrefs.source, barShow: barPrefs.show, onFocusTile: onEditorFocusTile });
+  homeEditOpenRef.current = editor.open;
+  const editorRef = useRef(editor);
+  editorRef.current = editor;
+  const touchUI = isTouchUI();
+  const cardIds = useMemo<TileDest[]>(() => {
+    const row = editor.previewRow ?? fullRow;
+    return playerEnabled ? row : row.filter((id) => !tileDef(id).player);
+  }, [editor.previewRow, fullRow, playerEnabled]);
+  // A finger held on a tile (or a right click): its menu.
+  const tileLongPress = useLongPress<number>((slot) => { if (canEditTilesRef.current) { setFocusedButton(slot); editorRef.current.openTileMenu(slot); } });
+  const tileLongPressRef = useRef(tileLongPress);
+  tileLongPressRef.current = tileLongPress;
   const cardCountRef = useRef(cardIds.length);
   useEffect(() => { cardCountRef.current = cardIds.length; }, [cardIds.length]);
   // A card that went away (a Kids profile's Store) takes the focus with it.
   useEffect(() => { setFocusedButton((b) => (b >= cardIds.length ? cardIds.length - 1 : b)); }, [cardIds.length]);
-  const appsCardIdx = cardIds.indexOf('apps');
+  // Main Apps is no longer a tile; its pinned-apps popup stays wired for when it is.
+  const appsCardIdx = (cardIds as string[]).indexOf('apps');
   const appsCardIdxRef = useRef(appsCardIdx);
   useEffect(() => { appsCardIdxRef.current = appsCardIdx; }, [appsCardIdx]);
   const activateByIndex = useMemo(
-    // Live TV and Plex go straight into their part of the Player (Back from
-    // there comes home), not to the Player's chooser.
+    // Live TV, Plex and the Player's other places go straight into their part
+    // of the Player (Back from there comes home), not to the Player's chooser.
+    // A tap that is only the lift of a finger whose hold opened the menu does nothing.
     () => cardIds.map((id) => () => {
-      if (id === 'livetv' || id === 'plex') openPlayerSection(id === 'plex' ? 'movies' : 'live', navigateToRef.current);
-      else navigateToRef.current(HOME_CARD_VIEW[id]);
+      if (tileLongPressRef.current.isHoldLift()) return;
+      openTile(id, navigateToRef.current);
     }),
     [cardIds],
   );
   const activateByIndexRef = useRef(activateByIndex);
   useEffect(() => { activateByIndexRef.current = activateByIndex; }, [activateByIndex]);
+
+  // OK on a tile: let go before HOLD_MS, it opens; held, the tile's menu
+  // (the Services list's hold). The menu takes OK only once this OK is let go.
+  // (A ref: the key handler below is registered once.)
+  const tileHoldRef = useRef(createOkHold<number>());
+  const cancelTileHold = useCallback(() => tileHoldRef.current.cancel(), []);
+  useEffect(() => {
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const slot = tileHoldRef.current.release();
+      if (slot == null) return;
+      if (currentViewRef.current !== 'home' || focusedButtonRef.current !== slot) return;
+      activateByIndexRef.current[slot]?.();
+    };
+    window.addEventListener('keyup', onKeyUp);
+    return () => { window.removeEventListener('keyup', onKeyUp); cancelTileHold(); };
+  }, [cancelTileHold]);
+  // Leaving Home (or the bar taking the remote) mid-hold: the hold comes to nothing.
+  useEffect(() => { if (currentView !== 'home' || isInMediaBar) cancelTileHold(); }, [currentView, isInMediaBar, cancelTileHold]);
+  // The bar switched off (its menu's Hide, Settings) while it had the remote.
+  useEffect(() => { if (!mediaBarEnabled && isInMediaBar) { setIsInMediaBar(false); setFocusedButton(0); } }, [mediaBarEnabled, isInMediaBar]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -1195,6 +1255,8 @@ const Index = () => {
       if (!isTyping && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
         event.preventDefault();
       }
+      // Moving off a tile while OK is down: no press, no hold.
+      if (event.key.startsWith('Arrow')) tileHoldRef.current.cancel();
 
       // Home screen navigation
       // The last card's index (a Kids profile has no Store or Main Apps card).
@@ -1315,7 +1377,12 @@ const Index = () => {
             // Settings (a Kids profile gets its short, safe Settings).
             navigateToRef.current('settings');
           } else if (focusedButton >= 0) {
-            activateByIndexRef.current[focusedButton]?.();
+            // A held OK repeats: only its first press counts.
+            if (event.repeat || tileHoldRef.current.pending()) break;
+            if (!canEditTilesRef.current) { activateByIndexRef.current[focusedButton]?.(); break; }
+            tileHoldRef.current.press(focusedButton, (slot) => {
+              if (currentViewRef.current === 'home' && focusedButtonRef.current === slot) editorRef.current.openTileMenu(slot, true);
+            });
           } else if (focusedButton === -4 && giveawayBadgeOnRef.current) {
             // Home gift badge
             try { trackEvent('giveaway_badge_click', 'giveaway'); } catch { void 0; }
@@ -1336,17 +1403,11 @@ const Index = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const buttons = useMemo(() => {
-    const byId: Record<HomeCardId, { icon: typeof Smartphone; title: string; description: string; variant: 'blue' | 'gold' | 'purple' | 'navy'; tag?: string }> = {
-      livetv: { icon: Tv, title: t('home.liveTv.title'), description: t('home.liveTv.description'), variant: 'navy' },
-      plex: { icon: Film, title: t('home.plex.title'), description: t('home.plex.description'), variant: 'blue', tag: t('home.plex.tag') },
-      apps: { icon: Smartphone, title: t('home.mainApps.title'), description: t('home.mainApps.description'), variant: 'blue' },
-      support: { icon: LifeBuoy, title: t('home.support.title'), description: t('home.support.description'), variant: 'gold' },
-      store: { icon: Store, title: t('home.store.title'), description: t('home.store.description'), variant: 'purple' },
-      'kids-games': { icon: Gamepad2, title: t('home.kidsLounge.title'), description: t('home.kidsLounge.description'), variant: 'purple' },
-    };
-    return cardIds.map((id) => byId[id]);
-  }, [cardIds, t]);
+  // Each tile: its destination's own icon, name and colour.
+  const buttons = useMemo(() => cardIds.map((id) => {
+    const d = tileDef(id);
+    return { icon: TILE_ICONS[id], title: t(d.titleKey), description: t(d.descKey), bg: TILE_BG[d.color], tag: d.tagKey ? t(d.tagKey) : undefined };
+  }), [cardIds, t]);
 
   const tagline = t('home.tagline');
   const adminLabel = t('common.admin');
@@ -1479,10 +1540,12 @@ const Index = () => {
               <div className="flex-1 min-h-0 flex flex-col justify-center" data-media-bar-slot style={{ paddingTop: 'clamp(0.75rem, 2vh, 1.5rem)' }}>
               <Suspense fallback={<div className="h-[240px] flex-shrink-0" />}>
                 <MediaBar
-                  active={isInMediaBar}
+                  active={isInMediaBar && !editor.open}
                   onExitDown={onMediaBarExitDown}
                   onExitUp={onMediaBarExitUp}
                   onOpenPlayer={() => navigateTo('livetv')}
+                  onHoldMenu={kids ? undefined : onMediaBarHold}
+                  onCustomize={kids ? undefined : onMediaBarCustomize}
                 />
               </Suspense>
               </div>
@@ -1504,6 +1567,7 @@ const Index = () => {
 
               {buttons.map((button, index) => {
                 const isFocused = focusedButton === index;
+                const moving = editor.movingSlot === index;
                 // Stable callback (created once in activateByIndex via useMemo)
                 // — keeps HomeActionCard.memo effective for the unfocused cards.
                 const activateCard = activateByIndex[index];
@@ -1517,6 +1581,7 @@ const Index = () => {
                     onActivate={activateCard}
                     boostSize={!mediaBarEnabled}
                     badgeCount={cardIds[index] === 'support' ? unreadTicketCount + unreadMailCount : 0}
+                    holdProps={canEditTiles ? tileLongPress.bind(index) : undefined}
                   />
                 );
 
@@ -1545,11 +1610,17 @@ const Index = () => {
                   );
                 }
                 
-                return <div key={index} className="h-full" data-howto={HOME_CARD_HOWTO[cardIds[index]]}>{cardContent}</div>;
+                return (
+                  <div key={index} className="relative h-full" data-tile={cardIds[index]} data-howto={HOME_CARD_HOWTO[cardIds[index]]}>
+                    {cardContent}
+                    {moving && <MovingTileMark editor={editor} touch={touchUI} />}
+                  </div>
+                );
               })}
             </div>
               );
             })()}
+            {editor.movingSlot >= 0 && <MoveHint touch={touchUI} />}
           </div>
         </div>
       )}
@@ -1584,6 +1655,10 @@ const Index = () => {
           if (pa) performLaunchPinnedApp(pa.app);
         }}
       />
+
+      {/* Hold OK on a tile or the content bar: their menus, the shortcut
+          picker and the bar's Customize (components/home/HomeEditor). */}
+      {isView(currentView, 'home') && <HomeEditorLayer editor={editor} />}
 
       {/* "Who's watching?" at start, and the profile screens on demand. */}
       <ProfileGate onOpenChange={setProfileGateOpen} />

@@ -1,0 +1,90 @@
+{
+  "homeEdit": {
+    "dest": {
+      "guideTitle": "الدليل",
+      "guideDesc": "ما يُعرض الآن وبعده",
+      "gameDayTitle": "يوم المباراة",
+      "gameDayDesc": "أهم مباريات اليوم",
+      "multiTitle": "شاشات متعددة",
+      "multiDesc": "شاهد عدة قنوات معًا",
+      "favoritesTitle": "المفضلة",
+      "favoritesDesc": "قنواتك المفضلة",
+      "recordingsTitle": "التسجيلات",
+      "recordingsDesc": "ما سجّلته",
+      "moviesTitle": "الأفلام",
+      "moviesDesc": "أفلام خدمتك",
+      "seriesTitle": "المسلسلات",
+      "seriesDesc": "مسلسلات خدمتك",
+      "searchTitle": "بحث",
+      "searchDesc": "قل أو اكتب ما تريد",
+      "settingsTitle": "الإعدادات",
+      "settingsDesc": "الخلفيات واللغة والمزيد",
+      "speedTestTitle": "اختبار السرعة",
+      "speedTestDesc": "افحص سرعة الإنترنت",
+      "bufferingTitle": "دليل التقطيع",
+      "bufferingDesc": "أصلح التقطيع خطوة بخطوة",
+      "aiChatTitle": "محادثة الذكاء الاصطناعي",
+      "aiChatDesc": "اسأل Snow Media AI"
+    },
+    "tileMenu": {
+      "moveBtn": "نقل",
+      "changeBtn": "تغيير الاختصار",
+      "resetBtn": "الافتراضي",
+      "cancelBtn": "إلغاء"
+    },
+    "move": {
+      "leftLabel": "نقل لليسار",
+      "rightLabel": "نقل لليمين",
+      "doneBtn": "تم",
+      "hintRemote": "◀ ▶ للنقل · OK للوضع · رجوع للإلغاء",
+      "hintTouch": "المس الأسهم لنقل البلاطة، ثم تم"
+    },
+    "picker": {
+      "title": "تغيير الاختصار",
+      "subtitle": "اختر ما تفتحه هذه البلاطة. إن كان موجودًا في الرئيسية فسيتبادلان المكان.",
+      "thisTileLabel": "على هذه البلاطة",
+      "onHomeChip": "في الرئيسية",
+      "backHint": "رجوع يعود إلى القائمة."
+    },
+    "bar": {
+      "menuTitle": "شريط المحتوى",
+      "customizeBtn": "تخصيص",
+      "hideBtn": "إخفاء الشريط",
+      "cancelBtn": "إلغاء",
+      "customizeTitle": "تخصيص شريط المحتوى",
+      "customizeSubtitle": "يُحفظ اختيارك لهذا الملف الشخصي.",
+      "sourceTitle": "العرض من",
+      "showTitle": "العرض",
+      "doneBtn": "تم",
+      "sourceBothChip": "البث المباشر وPlex",
+      "sourceLiveChip": "البث المباشر فقط",
+      "sourcePlexChip": "Plex فقط",
+      "sourceOffChip": "إيقاف",
+      "showRecommendedChip": "التوصيات",
+      "showContinueChip": "متابعة المشاهدة",
+      "showFavoritesChip": "المفضلة",
+      "headingContinue": "متابعة المشاهدة",
+      "headingFavorites": "المفضلة",
+      "emptyMyList": "لا شيء في قائمتي على Plex بعد.",
+      "emptyFavorites": "لا توجد قنوات مفضلة بعد. في البث المباشر، اضغط مطولًا على OK فوق قناة لإضافتها.",
+      "emptyNoLive": "سجّل الدخول إلى البث المباشر لترى قنواتك هنا.",
+      "emptyContinue": "لا شيء لمتابعته بعد. ما تشاهده سيظهر هنا.",
+      "emptyNoPlex": "سجّل الدخول إلى Plex لترى العناوين هنا.",
+      "emptyGeneric": "لا شيء لعرضه الآن.",
+      "emptyHoldHint": "اضغط مطولًا على OK هنا لتغيير ما يعرضه الشريط."
+    },
+    "settings": {
+      "sectionTitle": "الشاشة الرئيسية",
+      "sourceTitle": "شريط المحتوى: العرض من",
+      "sourceDesc": "البث المباشر وPlex، أو أحدهما فقط، أو بلا شريط.",
+      "showTitle": "شريط المحتوى: العرض",
+      "showDesc": "التوصيات، أو ما كنت تشاهده فقط، أو مفضلتك.",
+      "tilesTitle": "البلاطات السفلية",
+      "tilesDesc": "في الرئيسية، اضغط مطولًا على OK فوق بلاطة لنقلها أو تغيير اختصارها.",
+      "resetBtn": "إعادة الضبط",
+      "resetTitle": "أُعيد ضبط بلاطات الرئيسية",
+      "resetDesc": "عاد البث المباشر وPlex والدعم والمتجر إلى أماكنها.",
+      "resetAlreadyDesc": "بلاطاتك هي البلاطات الافتراضية بالفعل."
+    }
+  }
+}

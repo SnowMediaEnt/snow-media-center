@@ -1,0 +1,7 @@
+# Home screen customisation: tiles (move / change shortcut), content-bar choices.
+src/components/home/HomeEditor.tsx
+src/components/home/useHomeEditor.ts
+src/components/home/tileVisuals.ts
+src/lib/homeTiles.ts
+src/lib/homeBar.ts
+src/hooks/useLongPress.ts

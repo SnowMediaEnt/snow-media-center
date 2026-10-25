@@ -8,7 +8,9 @@ import { useMailNotify, saveMailNotify } from '@/lib/snowMail';
 import { peekIntent, clearIntent, takeIntent, INTENT_KEYS, SCREEN_INTENT_EVENT } from '@/lib/appActions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { isDemo, isHowtoCapture } from '@/lib/demoMode';
-import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check, LayoutDashboard, Newspaper, UsersRound, Smartphone, Star, ChevronRight, Lock } from 'lucide-react';
+import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check, LayoutDashboard, Newspaper, UsersRound, Smartphone, Star, ChevronRight, Lock, Home, Rows3, LayoutGrid } from 'lucide-react';
+import { BAR_SHOWS, BAR_SHOW_KEYS, BAR_SOURCES, BAR_SOURCE_KEYS, chooseBarShow, chooseBarSource, useBarPrefs } from '@/lib/homeBar';
+import { loadSavedTiles, saveTiles } from '@/lib/homeTiles';
 import { openProfiles } from '@/lib/profilesUi';
 import { avatarColors, hasParentPin, loadProfiles, pinsAvailable, profileName, PROFILES_EVENT } from '@/lib/profiles';
 import { useActiveProfile } from '@/hooks/useActiveProfile';
@@ -66,6 +68,9 @@ type SettingsFocus =
   | 'ui-player-toggle'
   | 'ui-device-alerts-toggle'
   | 'ui-rate-app'
+  | 'ui-home-bar-source'
+  | 'ui-home-bar-show'
+  | 'ui-home-tiles-reset'
   | 'updates-content'
   | 'alerts-content'
   | 'ai-content'
@@ -127,6 +132,15 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
   // The How-to pictures show the tab a real box has (developer build only).
   const showUpdates = (!demo || isHowtoCapture()) && !kids;
   const [mediaBarEnabled, setMediaBarEnabledState] = useMediaBarEnabled();
+  // Home screen (grown-up profiles): what the content bar shows, and the tiles.
+  const { source: barSource, show: barShow } = useBarPrefs();
+  const cycleBarSource = () => chooseBarSource(BAR_SOURCES[(BAR_SOURCES.indexOf(barSource) + 1) % BAR_SOURCES.length]);
+  const cycleBarShow = () => chooseBarShow(BAR_SHOWS[(BAR_SHOWS.indexOf(barShow) + 1) % BAR_SHOWS.length]);
+  const resetHomeTiles = () => {
+    const had = loadSavedTiles() !== null;
+    saveTiles(null);
+    toast({ title: i18n.t('homeEdit.settings.resetTitle'), description: had ? i18n.t('homeEdit.settings.resetDesc') : i18n.t('homeEdit.settings.resetAlreadyDesc') });
+  };
   const dashboardSize = useDashboardSize();
   const mailNotify = useMailNotify();
   const deviceAlerts = useDeviceAlerts();
@@ -287,6 +301,8 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
         if (!kids && deviceAlerts.supported) order.push('ui-device-alerts-toggle');
         if (rateShown) order.push('ui-rate-app');
         if (isAdmin) order.push('ui-player-toggle');
+        // Home screen: grown-up profiles (a Kids profile keeps its own Home as it is).
+        if (!kids) order.push('ui-home-bar-source', 'ui-home-bar-show', 'ui-home-tiles-reset');
         order.push(...SUPPORTED_LANGUAGES.map((lang) => `ui-language-${lang.code}` as SettingsFocus));
         return order;
       };
@@ -397,6 +413,9 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
           else if (focusedElement === 'ui-device-alerts-toggle') void toggleDeviceAlerts(!deviceAlerts.status.enabled);
           else if (focusedElement === 'ui-rate-app') openReview();
           else if (focusedElement === 'ui-player-toggle') void togglePlayer(!playerEnabled);
+          else if (focusedElement === 'ui-home-bar-source') cycleBarSource();
+          else if (focusedElement === 'ui-home-bar-show') cycleBarShow();
+          else if (focusedElement === 'ui-home-tiles-reset') resetHomeTiles();
           else if (focusedElement.startsWith('ui-language-')) {
             handleLanguageSelect(focusedElement.replace('ui-language-', ''));
           }
@@ -607,7 +626,7 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   // toggleAiTier reads the state below; it is recreated with it.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin, showUpdates, kids, mediaBarEnabled, playerEnabled, setMediaBarEnabledState, deviceAlerts.supported, deviceAlerts.status.enabled, dashboardSize, mailNotify, aiTierShown, aiTier, canPremium, rateShown, playerAccount]);
+  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin, showUpdates, kids, mediaBarEnabled, playerEnabled, setMediaBarEnabledState, deviceAlerts.supported, deviceAlerts.status.enabled, dashboardSize, mailNotify, aiTierShown, aiTier, canPremium, rateShown, playerAccount, barSource, barShow]);
 
   useEffect(() => {
     const scrollAllToTop = () => {
@@ -917,6 +936,76 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
               )}
 
             </SettingsGroup>
+
+            {/* Home screen: what the content bar shows, and the four tiles.
+                OK steps through the choices; a tap picks one. */}
+            {!kids && (
+              <section data-settings-home aria-label={t('homeEdit.settings.sectionTitle')}>
+                <h3 className="flex items-center text-sm font-bold uppercase tracking-wider text-brand-gold px-2 mb-2">
+                  <Home className="w-4 h-4 mr-2" />{t('homeEdit.settings.sectionTitle')}
+                </h3>
+                <SettingsGroup>
+                  <SettingRow
+                    {...settingsFocusAttrs('ui-home-bar-source')}
+                    focused={isFocused('ui-home-bar-source')}
+                    onFocus={() => setFocusedElement('ui-home-bar-source')}
+                    onClick={cycleBarSource}
+                    icon={Rows3}
+                    title={t('homeEdit.settings.sourceTitle')}
+                    description={t('homeEdit.settings.sourceDesc')}
+                  >
+                    <div className="flex flex-wrap mt-2 -ml-1">
+                      {BAR_SOURCES.map((src) => (
+                        <button
+                          key={src}
+                          type="button"
+                          data-choice={src}
+                          aria-pressed={barSource === src}
+                          onClick={(e) => { e.stopPropagation(); setFocusedElement('ui-home-bar-source'); chooseBarSource(src); }}
+                          className={`ml-1 mt-1 rounded-lg border px-3 py-1.5 text-sm font-semibold ${barSource === src ? 'bg-brand-gold/25 border-brand-gold text-white' : 'bg-slate-900/60 border-white/15 text-slate-200'}`}
+                        >
+                          {t(BAR_SOURCE_KEYS[src])}
+                        </button>
+                      ))}
+                    </div>
+                  </SettingRow>
+                  <SettingRow
+                    {...settingsFocusAttrs('ui-home-bar-show')}
+                    focused={isFocused('ui-home-bar-show')}
+                    onFocus={() => setFocusedElement('ui-home-bar-show')}
+                    onClick={cycleBarShow}
+                    icon={Star}
+                    title={t('homeEdit.settings.showTitle')}
+                    description={t('homeEdit.settings.showDesc')}
+                  >
+                    <div className="flex flex-wrap mt-2 -ml-1">
+                      {BAR_SHOWS.map((sh) => (
+                        <button
+                          key={sh}
+                          type="button"
+                          data-choice={sh}
+                          aria-pressed={barShow === sh}
+                          onClick={(e) => { e.stopPropagation(); setFocusedElement('ui-home-bar-show'); chooseBarShow(sh); }}
+                          className={`ml-1 mt-1 rounded-lg border px-3 py-1.5 text-sm font-semibold ${barShow === sh ? 'bg-brand-gold/25 border-brand-gold text-white' : 'bg-slate-900/60 border-white/15 text-slate-200'}`}
+                        >
+                          {t(BAR_SHOW_KEYS[sh])}
+                        </button>
+                      ))}
+                    </div>
+                  </SettingRow>
+                  <SettingRow
+                    {...settingsFocusAttrs('ui-home-tiles-reset')}
+                    focused={isFocused('ui-home-tiles-reset')}
+                    onFocus={() => setFocusedElement('ui-home-tiles-reset')}
+                    onClick={resetHomeTiles}
+                    icon={LayoutGrid}
+                    title={t('homeEdit.settings.tilesTitle')}
+                    description={t('homeEdit.settings.tilesDesc')}
+                    control={<span className="rounded-lg bg-white/10 border border-white/15 px-3 py-1.5 text-sm font-semibold text-white">{t('homeEdit.settings.resetBtn')}</span>}
+                  />
+                </SettingsGroup>
+              </section>
+            )}
 
             {/* Everyone can pick a language: admin or not, Kids profile or not, demo too. */}
             {/* px-5 lines its icon and title up with the rows above (panel p-1.5 + row px-3.5). */}

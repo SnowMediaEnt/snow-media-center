@@ -134,9 +134,11 @@ const toScreen = (view: string, key: string, value: string, navigate: Navigate) 
   navigate(view);
 };
 
-/** Support, opened on one of its tools (Live TV Settings › Fix a problem). */
-export function openSupportTool(tool: 'speedtest' | 'tickets', navigate: Navigate): void {
-  toScreen('support', INTENT_KEYS.support, tool, navigate);
+/** Support, opened on one of its tools (Live TV Settings › Fix a problem,
+ *  a Home tile): the Speed test, tickets, the AI chat or the Buffering Guide. */
+export function openSupportTool(tool: 'speedtest' | 'tickets' | 'ai' | 'buffering', navigate: Navigate): void {
+  if (tool === 'buffering') toScreen('support', 'smc-open-buffering-guide', '1', navigate);
+  else toScreen('support', INTENT_KEYS.support, tool, navigate);
 }
 
 /** Flip a setting. Returns a sentence for the toast, or null if unknown. */
@@ -175,7 +177,11 @@ export interface PlayerIntent {
   /** Opened from its own Home card: Back from it goes home, not to the
    *  Player's chooser. */
   home?: boolean;
-  section?: 'live' | 'guide' | 'multi' | 'movies' | 'backups' | 'gameday' | 'recordings';
+  /** 'movies' is Plex; 'vod-movies' / 'vod-series' the line's own Movies
+   *  and Series (Plex when the Player has no line). */
+  section?: 'live' | 'guide' | 'multi' | 'movies' | 'backups' | 'gameday' | 'recordings' | 'vod-movies' | 'vod-series';
+  /** Live TV: open on its Favorites, or its Recordings (a Home tile). */
+  open?: LiveOpen;
   settings?: 'appearance' | 'hub';
   report?: ReportIntent;
   /** Live TV: play the channel with this name. */
@@ -186,6 +192,11 @@ export interface PlayerIntent {
   /** Live TV: play exactly this channel (Game Day, a kickoff reminder). */
   deeplink?: LiveDeeplink;
 }
+
+/** Where in Live TV a Home tile opens it (LiveSection reads LIVE_OPEN_KEY). */
+export type LiveOpen = 'favorites' | 'recordings';
+export const LIVE_OPEN_KEY = 'smc-live-open';
+export const LIVE_OPEN_EVENT = 'smc:live-open';
 
 /** One channel on one line, as the content bar and Game Day hand it over. */
 export interface LiveDeeplink { host: string; username: string; streamId: number; name?: string; icon?: string; categoryId?: string; num?: number }
@@ -224,6 +235,12 @@ const toPlayer = (intent: PlayerIntent, navigate: Navigate) => {
 /** Home's Live TV and Plex cards: straight into that part of the Player. */
 export function openPlayerSection(section: 'live' | 'movies', navigate: Navigate): void {
   toPlayer({ section, home: true }, navigate);
+}
+
+/** A Home tile's place in the Player (the Guide, Favorites, Multi-Screen…):
+ *  straight in, and Back from it comes Home. */
+export function openPlayerFromHome(intent: Omit<PlayerIntent, 'home'>, navigate: Navigate): void {
+  toPlayer({ ...intent, home: true }, navigate);
 }
 
 /** Live TV: find the channel and play it. */

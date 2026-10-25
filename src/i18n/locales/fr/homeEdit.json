@@ -1,0 +1,90 @@
+{
+  "homeEdit": {
+    "dest": {
+      "guideTitle": "Guide",
+      "guideDesc": "En ce moment et ensuite",
+      "gameDayTitle": "Game Day",
+      "gameDayDesc": "Les grands matchs du jour",
+      "multiTitle": "Multi-écran",
+      "multiDesc": "Regardez plusieurs chaînes",
+      "favoritesTitle": "Favoris",
+      "favoritesDesc": "Vos chaînes favorites",
+      "recordingsTitle": "Enregistrements",
+      "recordingsDesc": "Ce que vous avez enregistré",
+      "moviesTitle": "Films",
+      "moviesDesc": "Les films de votre service",
+      "seriesTitle": "Séries TV",
+      "seriesDesc": "Les séries de votre service",
+      "searchTitle": "Rechercher",
+      "searchDesc": "Dites ou tapez ce que vous voulez",
+      "settingsTitle": "Paramètres",
+      "settingsDesc": "Fonds, langue et plus",
+      "speedTestTitle": "Test de débit",
+      "speedTestDesc": "Vérifiez votre connexion",
+      "bufferingTitle": "Guide anti-coupures",
+      "bufferingDesc": "Réglez les coupures pas à pas",
+      "aiChatTitle": "Chat IA",
+      "aiChatDesc": "Demandez à Snow Media AI"
+    },
+    "tileMenu": {
+      "moveBtn": "Déplacer",
+      "changeBtn": "Changer le raccourci",
+      "resetBtn": "Par défaut",
+      "cancelBtn": "Annuler"
+    },
+    "move": {
+      "leftLabel": "Déplacer à gauche",
+      "rightLabel": "Déplacer à droite",
+      "doneBtn": "Terminé",
+      "hintRemote": "◀ ▶ pour déplacer · OK pour poser · Retour pour annuler",
+      "hintTouch": "Touchez les flèches pour déplacer la tuile, puis Terminé"
+    },
+    "picker": {
+      "title": "Changer le raccourci",
+      "subtitle": "Choisissez ce que cette tuile ouvre. Une tuile déjà sur l'accueil échange sa place.",
+      "thisTileLabel": "Sur cette tuile",
+      "onHomeChip": "À L'ACCUEIL",
+      "backHint": "Retour revient au menu."
+    },
+    "bar": {
+      "menuTitle": "Barre de contenu",
+      "customizeBtn": "Personnaliser",
+      "hideBtn": "Masquer la barre",
+      "cancelBtn": "Annuler",
+      "customizeTitle": "Personnaliser la barre de contenu",
+      "customizeSubtitle": "Votre choix est enregistré pour ce profil.",
+      "sourceTitle": "Afficher depuis",
+      "showTitle": "Afficher",
+      "doneBtn": "Terminé",
+      "sourceBothChip": "TV en direct et Plex",
+      "sourceLiveChip": "TV en direct seule",
+      "sourcePlexChip": "Plex seul",
+      "sourceOffChip": "Masquée",
+      "showRecommendedChip": "Recommandations",
+      "showContinueChip": "Reprendre",
+      "showFavoritesChip": "Favoris",
+      "headingContinue": "Reprendre la lecture",
+      "headingFavorites": "Favoris",
+      "emptyMyList": "Rien dans votre Ma liste Plex pour l'instant.",
+      "emptyFavorites": "Pas encore de chaînes favorites. Dans TV en direct, maintenez OK sur une chaîne pour l'ajouter.",
+      "emptyNoLive": "Connectez-vous à TV en direct pour voir vos chaînes ici.",
+      "emptyContinue": "Rien à reprendre pour l'instant. Ce que vous regardez s'affichera ici.",
+      "emptyNoPlex": "Connectez-vous à Plex pour voir des titres ici.",
+      "emptyGeneric": "Rien à afficher pour le moment.",
+      "emptyHoldHint": "Maintenez OK ici pour changer ce que la barre affiche."
+    },
+    "settings": {
+      "sectionTitle": "Écran d'accueil",
+      "sourceTitle": "Barre de contenu : afficher depuis",
+      "sourceDesc": "TV en direct et Plex, un seul des deux, ou pas de barre.",
+      "showTitle": "Barre de contenu : afficher",
+      "showDesc": "Recommandations, seulement ce que vous regardiez, ou vos favoris.",
+      "tilesTitle": "Tuiles du bas",
+      "tilesDesc": "À l'accueil, maintenez OK sur une tuile pour la déplacer ou changer son raccourci.",
+      "resetBtn": "Réinitialiser",
+      "resetTitle": "Tuiles de l'accueil réinitialisées",
+      "resetDesc": "TV en direct, Plex, Assistance et la Boutique sont de retour à leur place.",
+      "resetAlreadyDesc": "Vos tuiles sont déjà celles d'origine."
+    }
+  }
+}

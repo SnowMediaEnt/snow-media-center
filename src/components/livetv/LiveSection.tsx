@@ -85,7 +85,7 @@ import { useLiveLayout, hasLiveLayoutChoice, DEFAULT_LIVE_LAYOUT, stripInitial, 
 import { useViewSize } from '@/lib/viewSize';
 import { listRowSlot, useLiveRowSize } from '@/lib/liveRows';
 import { nameClasses } from '@/lib/channelName';
-import { peekIntent, clearIntent, type ReportIntent } from '@/lib/appActions';
+import { peekIntent, clearIntent, LIVE_OPEN_KEY, LIVE_OPEN_EVENT, type LiveOpen, type ReportIntent } from '@/lib/appActions';
 import { channelForName } from '@/lib/voiceCommands';
 import { leftOutOfSearch, searchLiveChannels } from '@/lib/liveSearch';
 import { adultCategoryIds } from '@/lib/adultSearch';
@@ -2072,6 +2072,35 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       .then((cats) => { if (kidsAllowsChannel(stream, new Set(cats.map((c) => String(c.category_id))))) start(); })
       .catch(() => undefined);
   }, [lines, deeplinkTick, visibleCategories, categoriesByLine]);
+
+  // A Home tile's Favorites or Recordings: Live TV opens on its Favorites
+  // (every line's, with more than one), or with Recordings open. Read once;
+  // 'smc:live-open' asks again while Live TV is open. Recordings on a box
+  // that does not record leaves Live TV as it is.
+  const [pendingOpen, setPendingOpen] = useState<LiveOpen | null>(() => peekIntent<LiveOpen>(LIVE_OPEN_KEY, true));
+  useEffect(() => { clearIntent(LIVE_OPEN_KEY); }, []);
+  useEffect(() => {
+    const on = (e: Event) => { clearIntent(LIVE_OPEN_KEY); setPendingOpen(((e as CustomEvent<LiveOpen>).detail) || null); };
+    window.addEventListener(LIVE_OPEN_EVENT, on);
+    return () => window.removeEventListener(LIVE_OPEN_EVENT, on);
+  }, []);
+  useEffect(() => {
+    if (!pendingOpen) return;
+    if (pendingOpen === 'recordings') {
+      setPendingOpen(null);
+      if (recordOn) setRecordingsOpen(true);
+      return;
+    }
+    const idx = visibleCategories.findIndex((c) => c.isFav);
+    if (idx < 0) return; // no line listed yet
+    setPendingOpen(null);
+    userMovedRef.current = true;
+    setSearchOpen(false);
+    setCategoryIdx(idx);
+    setChannelIdx(0);
+    // An empty Favorites keeps the highlight on it, in the categories.
+    if ((visibleCategories[idx].count ?? 0) > 0) setPane('channels');
+  }, [pendingOpen, visibleCategories, recordOn]);
 
   // How long one channel is actually watched, and on which service. Starts
   // when a channel goes live and closes when it stops, changes or the viewer

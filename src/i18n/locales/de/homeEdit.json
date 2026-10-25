@@ -1,0 +1,90 @@
+{
+  "homeEdit": {
+    "dest": {
+      "guideTitle": "Guide",
+      "guideDesc": "Was jetzt und danach läuft",
+      "gameDayTitle": "Game Day",
+      "gameDayDesc": "Die großen Spiele heute",
+      "multiTitle": "Multi-Screen",
+      "multiDesc": "Sender nebeneinander schauen",
+      "favoritesTitle": "Favoriten",
+      "favoritesDesc": "Deine Lieblingssender",
+      "recordingsTitle": "Aufnahmen",
+      "recordingsDesc": "Was du aufgenommen hast",
+      "moviesTitle": "Filme",
+      "moviesDesc": "Die Filme deines Dienstes",
+      "seriesTitle": "TV-Serien",
+      "seriesDesc": "Die Serien deines Dienstes",
+      "searchTitle": "Suchen",
+      "searchDesc": "Sag oder tippe, was du willst",
+      "settingsTitle": "Einstellungen",
+      "settingsDesc": "Hintergründe, Sprache und mehr",
+      "speedTestTitle": "Speedtest",
+      "speedTestDesc": "Prüfe deine Internetgeschwindigkeit",
+      "bufferingTitle": "Puffer-Ratgeber",
+      "bufferingDesc": "Puffern Schritt für Schritt beheben",
+      "aiChatTitle": "KI-Chat",
+      "aiChatDesc": "Frag Snow Media AI"
+    },
+    "tileMenu": {
+      "moveBtn": "Bewegen",
+      "changeBtn": "Verknüpfung ändern",
+      "resetBtn": "Standard",
+      "cancelBtn": "Abbrechen"
+    },
+    "move": {
+      "leftLabel": "Nach links",
+      "rightLabel": "Nach rechts",
+      "doneBtn": "Fertig",
+      "hintRemote": "◀ ▶ zum Verschieben · OK zum Ablegen · Zurück zum Abbrechen",
+      "hintTouch": "Tippe auf die Pfeile, um die Kachel zu verschieben, dann Fertig"
+    },
+    "picker": {
+      "title": "Verknüpfung ändern",
+      "subtitle": "Wähle, was diese Kachel öffnet. Ist es schon auf dem Startbildschirm, tauschen beide den Platz.",
+      "thisTileLabel": "Auf dieser Kachel",
+      "onHomeChip": "AUF START",
+      "backHint": "Zurück führt zum Menü."
+    },
+    "bar": {
+      "menuTitle": "Inhaltsleiste",
+      "customizeBtn": "Anpassen",
+      "hideBtn": "Leiste ausblenden",
+      "cancelBtn": "Abbrechen",
+      "customizeTitle": "Inhaltsleiste anpassen",
+      "customizeSubtitle": "Deine Wahl wird für dieses Profil gespeichert.",
+      "sourceTitle": "Anzeigen aus",
+      "showTitle": "Anzeigen",
+      "doneBtn": "Fertig",
+      "sourceBothChip": "Live-TV und Plex",
+      "sourceLiveChip": "Nur Live-TV",
+      "sourcePlexChip": "Nur Plex",
+      "sourceOffChip": "Aus",
+      "showRecommendedChip": "Empfehlungen",
+      "showContinueChip": "Weiterschauen",
+      "showFavoritesChip": "Favoriten",
+      "headingContinue": "Weiterschauen",
+      "headingFavorites": "Favoriten",
+      "emptyMyList": "Noch nichts in deiner Plex-Merkliste.",
+      "emptyFavorites": "Noch keine Lieblingssender. Halte in Live-TV OK auf einem Sender, um ihn hinzuzufügen.",
+      "emptyNoLive": "Melde dich bei Live-TV an, um deine Sender hier zu sehen.",
+      "emptyContinue": "Noch nichts zum Weiterschauen. Was du schaust, erscheint hier.",
+      "emptyNoPlex": "Melde dich bei Plex an, um hier Titel zu sehen.",
+      "emptyGeneric": "Gerade gibt es hier nichts.",
+      "emptyHoldHint": "Halte hier OK, um zu ändern, was die Leiste zeigt."
+    },
+    "settings": {
+      "sectionTitle": "Startbildschirm",
+      "sourceTitle": "Inhaltsleiste: anzeigen aus",
+      "sourceDesc": "Live-TV und Plex, nur eins davon oder keine Leiste.",
+      "showTitle": "Inhaltsleiste: anzeigen",
+      "showDesc": "Empfehlungen, nur was du geschaut hast, oder deine Favoriten.",
+      "tilesTitle": "Kacheln unten",
+      "tilesDesc": "Halte auf dem Startbildschirm OK auf einer Kachel, um sie zu verschieben oder ihre Verknüpfung zu ändern.",
+      "resetBtn": "Zurücksetzen",
+      "resetTitle": "Kacheln zurückgesetzt",
+      "resetDesc": "Live-TV, Plex, Support und der Shop sind wieder an ihrem Platz.",
+      "resetAlreadyDesc": "Deine Kacheln sind schon die Standardkacheln."
+    }
+  }
+}

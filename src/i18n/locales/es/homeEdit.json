@@ -1,0 +1,90 @@
+{
+  "homeEdit": {
+    "dest": {
+      "guideTitle": "Guía",
+      "guideDesc": "Lo que dan ahora y después",
+      "gameDayTitle": "Game Day",
+      "gameDayDesc": "Los grandes partidos de hoy",
+      "multiTitle": "Multipantalla",
+      "multiDesc": "Mira canales lado a lado",
+      "favoritesTitle": "Favoritos",
+      "favoritesDesc": "Tus canales favoritos",
+      "recordingsTitle": "Grabaciones",
+      "recordingsDesc": "Lo que grabaste",
+      "moviesTitle": "Películas",
+      "moviesDesc": "Las películas de tu servicio",
+      "seriesTitle": "Series de TV",
+      "seriesDesc": "Las series de tu servicio",
+      "searchTitle": "Buscar",
+      "searchDesc": "Di o escribe lo que quieres",
+      "settingsTitle": "Ajustes",
+      "settingsDesc": "Fondos, idioma y más",
+      "speedTestTitle": "Prueba de velocidad",
+      "speedTestDesc": "Revisa tu velocidad de internet",
+      "bufferingTitle": "Guía de buffering",
+      "bufferingDesc": "Arregla el buffering paso a paso",
+      "aiChatTitle": "Chat con IA",
+      "aiChatDesc": "Pregúntale a Snow Media AI"
+    },
+    "tileMenu": {
+      "moveBtn": "Mover",
+      "changeBtn": "Cambiar acceso",
+      "resetBtn": "Restablecer",
+      "cancelBtn": "Cancelar"
+    },
+    "move": {
+      "leftLabel": "Mover a la izquierda",
+      "rightLabel": "Mover a la derecha",
+      "doneBtn": "Listo",
+      "hintRemote": "◀ ▶ para mover · OK para soltar · Atrás para cancelar",
+      "hintTouch": "Toca las flechas para mover el mosaico y luego Listo"
+    },
+    "picker": {
+      "title": "Cambiar acceso directo",
+      "subtitle": "Elige qué abre este mosaico. Si ya está en Inicio, intercambian lugares.",
+      "thisTileLabel": "En este mosaico",
+      "onHomeChip": "EN INICIO",
+      "backHint": "Atrás vuelve al menú."
+    },
+    "bar": {
+      "menuTitle": "Barra de contenido",
+      "customizeBtn": "Personalizar",
+      "hideBtn": "Ocultar la barra",
+      "cancelBtn": "Cancelar",
+      "customizeTitle": "Personaliza la barra de contenido",
+      "customizeSubtitle": "Tu elección se guarda para este perfil.",
+      "sourceTitle": "Mostrar de",
+      "showTitle": "Mostrar",
+      "doneBtn": "Listo",
+      "sourceBothChip": "TV en vivo y Plex",
+      "sourceLiveChip": "Solo TV en vivo",
+      "sourcePlexChip": "Solo Plex",
+      "sourceOffChip": "Apagada",
+      "showRecommendedChip": "Recomendaciones",
+      "showContinueChip": "Seguir viendo",
+      "showFavoritesChip": "Favoritos",
+      "headingContinue": "Seguir viendo",
+      "headingFavorites": "Favoritos",
+      "emptyMyList": "Aún no hay nada en tu Mi lista de Plex.",
+      "emptyFavorites": "Aún no tienes canales favoritos. En TV en vivo, mantén OK en un canal para agregarlo.",
+      "emptyNoLive": "Inicia sesión en TV en vivo para ver tus canales aquí.",
+      "emptyContinue": "Aún no hay nada para seguir viendo. Lo que veas aparecerá aquí.",
+      "emptyNoPlex": "Inicia sesión en Plex para ver títulos aquí.",
+      "emptyGeneric": "No hay nada que mostrar por ahora.",
+      "emptyHoldHint": "Mantén OK aquí para cambiar lo que muestra la barra."
+    },
+    "settings": {
+      "sectionTitle": "Pantalla de inicio",
+      "sourceTitle": "Barra de contenido: mostrar de",
+      "sourceDesc": "TV en vivo y Plex, solo uno de ellos o sin barra.",
+      "showTitle": "Barra de contenido: mostrar",
+      "showDesc": "Recomendaciones, solo lo que estabas viendo o tus favoritos.",
+      "tilesTitle": "Mosaicos inferiores",
+      "tilesDesc": "En Inicio, mantén OK en un mosaico para moverlo o cambiar su acceso directo.",
+      "resetBtn": "Restablecer",
+      "resetTitle": "Mosaicos de Inicio restablecidos",
+      "resetDesc": "TV en vivo, Plex, Soporte y la Tienda volvieron a su lugar.",
+      "resetAlreadyDesc": "Tus mosaicos ya son los de siempre."
+    }
+  }
+}
