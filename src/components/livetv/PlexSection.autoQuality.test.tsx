@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlexItem, PlexLibrary } from '@/lib/plex';
 import { beginStream, endStream, recordPlayerRate, setBuffering as diagSetBuffering } from '@/lib/bufferDiagnostics';
 import { emptyPlayerStats } from '@/capacitor/SnowPlayer';
-import { markPlaybackStart } from '@/lib/playerSeek';
+import { markJump, markPlaybackStart, markSeek } from '@/lib/playerSeek';
 
 // Slow under a loaded full run (renders the whole screen); the default 5 s flakes.
 vi.setConfig({ testTimeout: 20_000 });
@@ -23,7 +23,7 @@ type NativeState = {
   error: { code?: string; message: string; httpStatus?: number } | null; buffering: boolean; paused: boolean;
   audioWarning: { codecs: string; ffmpegAvailable: boolean } | null; controller: null;
   getPosition: () => Promise<{ position: number; duration: number; playing: boolean }>;
-  seekTo: () => Promise<void>; retry: () => void; loads?: number;
+  seekTo: (sec?: number) => Promise<void>; retry: () => void; loads?: number;
 };
 
 const h = vi.hoisted(() => {
@@ -56,6 +56,13 @@ const h = vi.hoisted(() => {
     bandwidth: [] as Array<(d: Record<string, unknown>) => void>,
     closePlayer: null as null | (() => void),
     pickQuality: null as null | ((key: string, resumeSec: number) => void),
+    /** The player controls' seek and position (in the title's time). */
+    seekTo: null as null | ((sec: number) => Promise<void>),
+    getPos: null as null | (() => Promise<{ position: number; duration: number; playing: boolean }>),
+    /** Every jump handed to the native player (the stream's own time). */
+    nativeSeeks: [] as number[],
+    /** The overlay's "load this subtitle file". */
+    loadSub: null as null | ((sub: { url: string; lang?: string }, resumeSec: number) => void),
   };
 });
 
@@ -145,6 +152,13 @@ vi.mock('./PlexDetail', () => ({
         const v = { id: 'd1:0', ratingKey: item.ratingKey, mediaIndex: 0, label: '1080p', bitrateKbps: 16000, partKey: '/library/parts/7/file.mkv' };
         onPlay(item, undefined, undefined, undefined, { version: v, versions: [v], startPreset: '720-3', measuredKbps: 1700 });
       }}>PLAY:Measured</button>
+      {/* Continue Watching: a resume at 30:00. */}
+      <button onClick={() => onPlay(item, 1800)}>PLAY:Resume</button>
+      {/* A resume at 30:00 on a server the title page measured too slow: a conversion from there. */}
+      <button onClick={() => {
+        const v = { id: 'd1:0', ratingKey: item.ratingKey, mediaIndex: 0, label: '1080p', bitrateKbps: 16000, partKey: '/library/parts/7/file.mkv' };
+        onPlay(item, 1800, undefined, undefined, { version: v, versions: [v], startPreset: '720-3', measuredKbps: 1700 });
+      }}>PLAY:MeasuredResume</button>
       {/* The viewer picked this version on the title page: it plays as it is. */}
       <button onClick={() => {
         const v = { id: 'd1:0', ratingKey: item.ratingKey, mediaIndex: 0, label: '1080p', bitrateKbps: 16000, partKey: '/library/parts/7/file.mkv' };
@@ -155,9 +169,16 @@ vi.mock('./PlexDetail', () => ({
 }));
 // The player's controls: Back, and the Quality menu.
 vi.mock('./PlexPlayerOverlay', () => ({
-  default: ({ onBackWhileHidden, onChangeQuality }: { onBackWhileHidden: () => void; onChangeQuality: (k: string, s: number) => void }) => {
+  default: ({ onBackWhileHidden, onChangeQuality, seekTo, getPosition, onLoadExternalSubtitle }: {
+    onBackWhileHidden: () => void; onChangeQuality: (k: string, s: number) => void;
+    onLoadExternalSubtitle: (sub: { url: string; lang?: string }, resumeSec: number) => void;
+    seekTo: (sec: number) => Promise<void>; getPosition: () => Promise<{ position: number; duration: number; playing: boolean }>;
+  }) => {
     h.closePlayer = onBackWhileHidden;
     h.pickQuality = onChangeQuality;
+    h.seekTo = seekTo;
+    h.getPos = getPosition;
+    h.loadSub = onLoadExternalSubtitle;
     return null;
   },
 }));
@@ -218,12 +239,16 @@ beforeEach(async () => {
   h.rangeFetch = [];
   h.starts = [];
   (await import('@/lib/plexAutoQuality'))._resetConversionRefusals();
+  h.nativeSeeks = [];
   h.native = {
     error: null, buffering: false, paused: false, audioWarning: null, controller: null,
-    getPosition: async () => ({ ...h.pos }), seekTo: async () => undefined, retry: () => undefined,
+    getPosition: async () => ({ ...h.pos }), seekTo: async (sec?: number) => { h.nativeSeeks.push(sec ?? -1); }, retry: () => undefined,
   };
   h.closePlayer = null;
   h.pickQuality = null;
+  h.seekTo = null;
+  h.getPos = null;
+  h.loadSub = null;
   h.toast.mockReset();
   h.part.mockReset();
   // A 10 Mb/s film, one file.
@@ -240,6 +265,8 @@ beforeEach(async () => {
   (await import('@/lib/plexProgress')).__resetPlexProgressForTests('device');
   (await import('@/lib/plexVersions'))._resetPlexSpeedCache();
   markPlaybackStart(0);
+  markJump(0);
+  markSeek(0);
 });
 afterEach(() => {
   act(() => { endStream(); });
@@ -1427,7 +1454,10 @@ describe('the rescue, after review: a start only, one at a time, never against t
     await report(1500);
     await wait(3_500);
     await until(() => expect(cap(lastUrl())).toBe('3000'));
-    expect(h.starts[h.starts.length - 1]).toBe(600);
+    // The conversion starts there on the server (its offset), so the player
+    // starts at the stream's own 0.
+    expect(/[?&]offset=(\d+)/.exec(lastUrl())?.[1]).toBe('600');
+    expect(h.starts[h.starts.length - 1]).toBeUndefined();
   });
 
   it('a server that turned a conversion down: not asked again by itself this session', async () => {
@@ -1517,5 +1547,280 @@ describe('"Still preparing" (1.9.7: the card over a picture about to play, its R
     key('keydown', 'Escape');
     await until(() => expect(screen.queryByText('Still preparing…')).toBeNull());
     expect(retry).toHaveBeenCalledTimes(1);
+  });
+});
+
+// The owner, 1.9.7: "When you start it from the beginning it plays just
+// fine, but if you try to do anything else, pause it and come back or fast
+// forward or rewind it, then everything just fucks up." His Plex server
+// delivers enough to play from the start but is limited (1.5-14 Mb/s
+// against 15-16 Mb/s files), and on his TV every seek is a 4-5 s gap and
+// more before the next frame. As the TV does it: a resume, ◀ ▶ presses that
+// add up, a conversion asked to jump past what it has converted, a long
+// pause.
+describe('resume, seek and pause (the TV: a limited server, 4-5 s and more per seek)', () => {
+  const offsetOf = (u: string) => /[?&]offset=(\d+)/.exec(u)?.[1] ?? null;
+  const switched = () => toastTitles().filter((t) => t.indexOf('Lowered') === 0 || t.indexOf('Switched') === 0);
+  /** The buffering card's own words, any of them. */
+  const cardShown = () => !!screen.queryByText(/Buffering · \d+s/);
+  const serverBlamed = () => !!screen.queryByText("The Plex server can't send this fast enough");
+  const press = async (to: number, gap = 200) => { act(() => { void h.seekTo?.(to); }); await wait(gap); };
+
+  it('a resume plays the file from where it was (the start goes with the load); its first stalls are the resume: "Loading…", no card, no drop', async () => {
+    await openDune();
+    fireEvent.click(await screen.findByText('PLAY:Resume', undefined, { timeout: 3000 }));
+    await until(() => expect(h.urls.length).toBeGreaterThan(0));
+    expect(isFile(lastUrl())).toBe(true);
+    expect(h.starts[0]).toBe(1800);
+    h.pos.position = 1800;
+    await started();
+    act(() => { beginStream(lastUrl(), 'vod'); markPlaybackStart(); });
+    await wait(4_000);
+    // 12 s at 1.5 Mb/s of a 10 Mb/s file: a start from 0:00 would take that as starved.
+    stallBoth();
+    for (let i = 0; i < 4; i += 1) await report(1500);
+    expect(cardShown()).toBe(false);
+    expect(serverBlamed()).toBe(false);
+    expect(screen.getByText('Loading…')).toBeTruthy();
+    expect(h.urls).toHaveLength(1);
+    expect(switched()).toEqual([]);
+    playOn();
+  });
+
+  it('a resume converted (the server measured too slow): the session starts at 30:00 on the server, the player at its own 0, and positions read in the title\'s time', async () => {
+    await openDune();
+    fireEvent.click(await screen.findByText('PLAY:MeasuredResume', undefined, { timeout: 3000 }));
+    await until(() => expect(isTranscode(lastUrl())).toBe(true));
+    expect(cap(lastUrl())).toBe('3000');
+    expect(offsetOf(lastUrl())).toBe('1800');
+    expect(h.starts[h.starts.length - 1]).toBeUndefined();
+    await until(() => expect(h.getPos).not.toBeNull());
+    h.pos.position = 12; h.pos.duration = 5400;
+    const p = await h.getPos!();
+    expect(p.position).toBe(1812);
+    expect(p.duration).toBe(7200);
+  });
+
+  it('◀ ▶ on a file: quick presses add up to ONE jump in the player; its rebuffer, however long, is a quiet loader, never the card, never a drop', async () => {
+    await playingDune();
+    await press(610);
+    await press(620);
+    await press(630, 0);
+    // Shown at once where it goes; sent once the presses stop.
+    expect((await h.getPos!()).position).toBe(630);
+    expect(h.nativeSeeks).toEqual([]);
+    await wait(800);
+    expect(h.nativeSeeks).toEqual([630]);
+    h.pos.position = 630;
+    // The rebuffer: 12 s at 1.5 Mb/s before the next frame (past the old 5 s).
+    stallBoth();
+    for (let i = 0; i < 4; i += 1) await report(1500);
+    await wait(1_000);
+    expect(cardShown()).toBe(false);
+    expect(serverBlamed()).toBe(false);
+    expect(screen.getByText('Loading…')).toBeTruthy();
+    // It plays on; a stall 10 s later at 1.5 Mb/s is still the jump settling.
+    playOn();
+    act(() => { markPlaybackStart(); });
+    await wait(10_000);
+    stallBoth();
+    for (let i = 0; i < 3; i += 1) await report(1500);
+    await wait(2_500);
+    expect(cardShown()).toBe(false);
+    expect(h.urls).toHaveLength(1);
+    expect(switched()).toEqual([]);
+    playOn();
+    // Past the grace, a server really too slow for the film is still acted on.
+    await wait(31_000);
+    await deliverInStall([4000, 4000, 4000]);
+    await until(() => expect(cap(lastUrl())).toBe('3000'));
+  });
+
+  it("after a jump's grace the card is back, and judges the server only on what came after the grace", async () => {
+    await playingDune();
+    await press(1200, 800);
+    h.pos.position = 1200;
+    stallBoth();
+    // The jump never plays on: a minute later it is a stall like any other.
+    for (let i = 0; i < 21; i += 1) await report(1500);
+    await wait(2_500);
+    expect(cardShown()).toBe(true);
+    playOn();
+  });
+
+  it('a jump in a conversion past what it has converted: ONE new session at the new place, the old one stopped first, quietly; a jump within it stays in place', async () => {
+    await openDune();
+    await play('Dune');
+    await started();
+    act(() => { h.pickQuality?.('1080-8', 600); });
+    await until(() => expect(cap(lastUrl())).toBe('8000'));
+    expect(offsetOf(lastUrl())).toBe('600');
+    await started();
+    act(() => { beginStream(lastUrl(), 'vod'); markPlaybackStart(); });
+    // 30 s into the session (10:30), 20 s loaded ahead.
+    h.pos.position = 30;
+    h.stats.mockImplementation(async () => ({ ...emptyPlayerStats(), bufferedAheadSec: 20 }));
+    const urlsBefore = h.urls.length;
+    const decisionsBefore = decisionsAll().length;
+    const stopsBefore = stops().length;
+    const toastsBefore = h.toast.mock.calls.length;
+    // Fast-forward pressed again and again: to 30:00, then 40:00.
+    await press(1800);
+    await press(2400, 0);
+    await wait(800);
+    await until(() => expect(h.urls.length).toBe(urlsBefore + 1));
+    const next = lastUrl();
+    expect(offsetOf(next)).toBe('2400');
+    expect(cap(next)).toBe('8000');
+    expect(h.starts[h.starts.length - 1]).toBeUndefined();
+    expect(h.nativeSeeks).toEqual([]);
+    expect(decisionsAll()).toHaveLength(decisionsBefore + 1);
+    expect(stops().length).toBe(stopsBefore + 1);
+    expect(requestIndex('/transcode/universal/stop')).toBeLessThan(h.fetch.mock.calls.findIndex((c, i) => i > requestIndex('/transcode/universal/stop') && String(c[0]).includes('/transcode/universal/decision?')));
+    // Quiet: no toast, no failure step.
+    expect(h.toast.mock.calls.length).toBe(toastsBefore);
+    // It reads where it went until the new session plays, then in the title's time.
+    h.pos.position = 0;
+    expect((await h.getPos!()).position).toBe(2400);
+    h.pos.position = 60;
+    await started();
+    await until(async () => expect((await h.getPos!()).position).toBe(2460));
+    // Back 30 s: within this session, a plain jump in its own time.
+    await press(2430, 800);
+    expect(h.urls).toHaveLength(urlsBefore + 1);
+    expect(h.nativeSeeks).toEqual([30]);
+    // Back before where the session started: a new session there.
+    h.pos.position = 30;
+    await press(1000, 800);
+    await until(() => expect(offsetOf(lastUrl())).toBe('1000'));
+    expect(h.urls).toHaveLength(urlsBefore + 2);
+  });
+
+  it('a jump in a conversion is no start to rescue, and no quality step', async () => {
+    // A 16 Mb/s film automatic quality took down to 1080p · 8 Mbps (not the
+    // viewer's pick: a rescue would be free to second-guess it).
+    h.part.mockImplementation(async () => ({ partKey: '/library/parts/7/file.mkv', bitrateKbps: 16000, versions: [] }));
+    await playingDune();
+    await deliverInStall([12000, 12000, 12000]);
+    await until(() => expect(cap(lastUrl())).toBe('8000'));
+    await started();
+    act(() => { beginStream(lastUrl(), 'vod'); markPlaybackStart(); });
+    await wait(31_000);
+    h.pos.position = 30;
+    const before = h.urls.length;
+    const switchedBefore = switched().length;
+    // The new session never shows a picture, the server slow to start there.
+    h.pos.playing = false;
+    await press(4000, 800);
+    await until(() => expect(h.urls.length).toBe(before + 1));
+    stallBoth();
+    // Past the conversion's start grace (30 s), when a start would be rescued.
+    for (let i = 0; i < 14; i += 1) await report(1500);
+    // Its new session keeps the viewer's quality: no rescue to 720p.
+    expect(h.urls.map(cap).slice(before).filter((c) => c !== '8000')).toEqual([]);
+    expect(switched()).toHaveLength(switchedBefore);
+  });
+
+  it('a seek, then the player reads 0 (a reload): a restart picks up where the viewer jumped to, never where it was before', async () => {
+    await playingDune();
+    await press(3000, 800);
+    // The player lost its place right after the jump (a reload reads 0).
+    h.pos.position = 0;
+    await wait(6_000);
+    act(() => { markPlaybackStart(); });
+    await wait(31_000);
+    await deliverInStall([1500, 1500, 1500]);
+    await until(() => expect(cap(lastUrl())).toBe('3000'));
+    expect(offsetOf(lastUrl())).toBe('3000');
+  });
+
+  it('a resume that never gets going is rescued at the resume point, not at 0:00', async () => {
+    h.part.mockImplementation(async () => ({ partKey: '/library/parts/7/file.mkv', bitrateKbps: 16000, versions: [] }));
+    h.pos.playing = false; h.pos.position = 0; h.pos.duration = 0;
+    await openDune();
+    fireEvent.click(await screen.findByText('PLAY:Resume', undefined, { timeout: 3000 }));
+    await until(() => expect(h.urls.length).toBeGreaterThan(0));
+    act(() => { beginStream(lastUrl(), 'vod'); });
+    stallBoth();
+    for (let i = 0; i < 5; i += 1) await report(1500, i ? 3_000 : 6_000);
+    await wait(10_000);
+    await until(() => expect(cap(lastUrl())).toBe('3000'));
+    expect(offsetOf(lastUrl())).toBe('1800');
+  });
+
+  it('playing on after a long pause, the session gone: a new one where the viewer is, quietly — never the failure machine', async () => {
+    await openDune();
+    await play('Dune');
+    await started();
+    act(() => { h.pickQuality?.('1080-8', 600); });
+    await until(() => expect(cap(lastUrl())).toBe('8000'));
+    await started();
+    h.pos.position = 120;
+    act(() => { h.native = { ...h.native, paused: true }; h.kick?.(); });
+    await wait(5 * 60_000);
+    // Kept alive meanwhile, as Plex's own players do.
+    expect(pings().length).toBeGreaterThan(0);
+    act(() => { h.native = { ...h.native, paused: false }; h.kick?.(); });
+    await wait(2_000);
+    const before = h.urls.length;
+    const toastsBefore = toastTitles().length;
+    act(() => { h.native = { ...h.native, error: { code: 'PLEX_TRANSCODE_HTTP', message: 'gone', httpStatus: 404 } }; h.kick?.(); });
+    await until(() => expect(h.urls.length).toBe(before + 1));
+    // 12:00 into the title: 10:00 where the session started, 2:00 into it.
+    expect(offsetOf(lastUrl())).toBe('720');
+    expect(cap(lastUrl())).toBe('8000');
+    expect(toastTitles().slice(toastsBefore)).toEqual([]);
+  });
+
+  it('the same error with no pause before it is still the failure machine\'s (a fresh session, said so)', async () => {
+    await openDune();
+    await play('Dune');
+    await started();
+    act(() => { h.pickQuality?.('1080-8', 600); });
+    await until(() => expect(cap(lastUrl())).toBe('8000'));
+    await started();
+    const toastsBefore = toastTitles().length;
+    act(() => { h.native = { ...h.native, error: { code: 'PLEX_TRANSCODE_HTTP', message: 'gone', httpStatus: 404 } }; h.kick?.(); });
+    await until(() => expect(toastTitles().length).toBeGreaterThan(toastsBefore));
+  });
+
+  it("the remote's Fast-forward / Rewind go through the same jump: presses add up, one jump", async () => {
+    await playingDune();
+    const ff = () => act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'MediaFastForward' })); });
+    ff(); await wait(100);
+    ff(); await wait(100);
+    ff();
+    await wait(900);
+    expect(h.nativeSeeks).toEqual([690]);
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'MediaRewind' })); });
+    await wait(900);
+    expect(h.nativeSeeks).toEqual([690, 680]);
+  });
+});
+
+describe('a subtitle file beside a conversion started part-way', () => {
+  const offsetOf = (u: string) => /[?&]offset=(\d+)/.exec(u)?.[1] ?? null;
+  it('a new session from 0:00 picked up at the viewer\'s place (the lines are in the title\'s time); its jumps stay in the playlist', async () => {
+    await openDune();
+    await play('Dune');
+    await started();
+    act(() => { h.pickQuality?.('1080-8', 600); });
+    await until(() => expect(offsetOf(lastUrl())).toBe('600'));
+    await started();
+    // The overlay's "load this subtitle" (PlexPlayerOverlay → onLoadExternalSubtitle), at 12:00.
+    const before = h.urls.length;
+    act(() => { h.loadSub?.({ url: 'https://subs.test/a.srt', lang: 'en' }, 720); });
+    await until(() => expect(h.urls.length).toBe(before + 1));
+    expect(isTranscode(lastUrl())).toBe(true);
+    expect(offsetOf(lastUrl())).toBeNull();
+    expect(cap(lastUrl())).toBe('8000');
+    expect(h.starts[h.starts.length - 1]).toBe(720);
+    await started();
+    h.stats.mockImplementation(async () => ({ ...emptyPlayerStats(), bufferedAheadSec: 5 }));
+    h.pos.position = 720;
+    act(() => { void h.seekTo?.(3600); });
+    await wait(900);
+    expect(h.urls).toHaveLength(before + 1);
+    expect(h.nativeSeeks).toEqual([3600]);
   });
 });

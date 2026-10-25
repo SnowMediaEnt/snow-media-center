@@ -1098,7 +1098,7 @@ export function plexTranscodeUrl(
   base: string,
   ratingKey: string,
   token: string,
-  opts?: { maxVideoBitrateKbps?: number; videoResolution?: string; mediaIndex?: number; location?: 'lan' | 'wan'; playbackSession?: string },
+  opts?: { maxVideoBitrateKbps?: number; videoResolution?: string; mediaIndex?: number; location?: 'lan' | 'wan'; playbackSession?: string; offset?: number },
 ): string {
   const path = encodeURIComponent(`/library/metadata/${ratingKey}`);
   const cid = encodeURIComponent(getPlexClientId());
@@ -1121,6 +1121,13 @@ export function plexTranscodeUrl(
   if (opts?.maxVideoBitrateKbps) url += `&maxVideoBitrate=${opts.maxVideoBitrateKbps}`;
   if (opts?.videoResolution) url += `&videoResolution=${encodeURIComponent(opts.videoResolution)}`;
   if (opts?.location) url += `&location=${opts.location}`;
+  // Where the session starts, whole seconds into the title (a resume, a
+  // seek past what is converted): the server converts from there, as Plex's
+  // own players ask for it, instead of from 0:00 with the player jumping into
+  // a playlist the server has not produced. The stream's own time 0 is then
+  // this place (plexSeek.transcodeOffsetOf reads it back).
+  const offset = opts?.offset && opts.offset > 0 ? Math.floor(opts.offset) : 0;
+  if (offset > 0) url += `&offset=${offset}`;
   const h = plexHeaders();
   url += `&${PLEX_CLIENT_PARAMS.filter((k) => k !== 'X-Plex-Client-Identifier').map((k) => `${k}=${encodeURIComponent(h[k])}`).join('&')}`;
   return url;

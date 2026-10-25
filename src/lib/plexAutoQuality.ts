@@ -80,6 +80,15 @@ export const SEEK_GRACE_MS = 5_000;
  * from the jump: the start-up hold alone can outlast a seek's 5 s.
  */
 export const START_GRACE_MS = 30_000;
+/**
+ * A jump (a seek, playing on after a pause, a start part-way in; playerSeek
+ * markJump) is still loading until playback picks up again: until then a
+ * stall is the jump, however long the server takes to start again there
+ * (the owner's TV took 4-5 s and more on every seek, past SEEK_GRACE_MS, and
+ * those seconds were judged as the server too slow for the film). This
+ * long at most: a jump that never plays on is judged like any stall.
+ */
+export const JUMP_PENDING_MAX_MS = 60_000;
 /** A proven line: the server has sustained this many times what the stream
  *  needs (sustainedKbps). Stalls alone then never leave the file. */
 export const PROVEN_FACTOR = 2;
@@ -345,12 +354,49 @@ export function sustainedKbps(rates: RateReport[], now: number): number | null {
 }
 
 /**
- * Whether a stall at `at` belongs to a jump rather than the connection:
- * within SEEK_GRACE_MS of the jump itself (`lastSeekAt`), or within
- * START_GRACE_MS of playback beginning after it (`lastStartAt`).
+ * The viewer's jump at `lastJumpAt` (playerSeek markJump) has not played on
+ * yet at `at`: playback last began (`lastStartAt`) before it, and it is
+ * under JUMP_PENDING_MAX_MS old.
  */
-export function inJumpGrace(at: number, lastSeekAt = 0, lastStartAt = 0, seekGraceMs = SEEK_GRACE_MS): boolean {
-  if (lastSeekAt > 0 && at - lastSeekAt >= 0 && at - lastSeekAt < seekGraceMs) return true;
+export function jumpPending(at: number, lastJumpAt = 0, lastStartAt = 0): boolean {
+  return lastJumpAt > 0 && lastJumpAt > lastStartAt && at >= lastJumpAt && at - lastJumpAt < JUMP_PENDING_MAX_MS;
+}
+
+/**
+ * When the grace of the viewer's last jump ends, as known at `now`: while it
+ * is still loading, JUMP_PENDING_MAX_MS after it; once playback picked up
+ * again after it (`lastStartAt`), START_GRACE_MS after that. 0 when there is
+ * no jump to speak of (none, or playback began again for another reason long
+ * after it).
+ */
+export function jumpGraceEnd(now: number, lastJumpAt = 0, lastStartAt = 0): number {
+  if (lastJumpAt <= 0 || now < lastJumpAt) return 0;
+  if (lastJumpAt > lastStartAt) return now - lastJumpAt < JUMP_PENDING_MAX_MS ? lastJumpAt + JUMP_PENDING_MAX_MS : 0;
+  // Playback began again after the jump: the jump's own start, if it came
+  // while the jump was still loading.
+  return lastStartAt - lastJumpAt < JUMP_PENDING_MAX_MS ? lastStartAt + START_GRACE_MS : 0;
+}
+
+/**
+ * `at` falls in the viewer's last jump: it has not played on yet, or played
+ * on under START_GRACE_MS ago. A stall then is the jump (the buffering card
+ * shows a quiet loader), and nothing it delivers is evidence against the
+ * server: no drop, no starved verdict, no raise.
+ */
+export function afterJump(at: number, lastJumpAt = 0, lastStartAt = 0): boolean {
+  const end = jumpGraceEnd(at, lastJumpAt, lastStartAt);
+  return end > 0 && at >= lastJumpAt && at < end;
+}
+
+/**
+ * Whether a stall at `at` belongs to a jump rather than the connection:
+ * within SEEK_GRACE_MS of the jump itself (`lastSeekAt`), within
+ * START_GRACE_MS of playback beginning after it (`lastStartAt`), or while
+ * the viewer's jump (`lastJumpAt`) has not played on yet (jumpPending).
+ */
+export function inJumpGrace(at: number, lastSeekAt = 0, lastStartAt = 0, lastJumpAt = 0): boolean {
+  if (lastSeekAt > 0 && at - lastSeekAt >= 0 && at - lastSeekAt < SEEK_GRACE_MS) return true;
+  if (jumpPending(at, lastJumpAt, lastStartAt)) return true;
   return lastStartAt > 0 && at - lastStartAt >= 0 && at - lastStartAt < START_GRACE_MS;
 }
 
@@ -429,12 +475,12 @@ export function deliveryShort(delivery: Delivery, needKbps: number | undefined):
  */
 export function deliveredKbps(
   rates: RateReport[], now: number,
-  opts: { since?: number; lastStartAt?: number; lastSeekAt?: number; stallStart?: number; proven?: boolean; needKbps?: number; direct?: boolean } = {},
+  opts: { since?: number; lastStartAt?: number; lastSeekAt?: number; lastJumpAt?: number; stallStart?: number; proven?: boolean; needKbps?: number; direct?: boolean } = {},
 ): Delivery {
   const from = Math.max(opts.since ?? 0, now - DELIVERY_WINDOW_MS);
   // A window from before playback last began is the load (or the seek)
   // itself, never evidence; nor is the half minute after it.
-  const counts = (t: number): boolean => t > from && t <= now && t >= (opts.lastStartAt ?? 0) && !inJumpGrace(t, opts.lastSeekAt ?? 0, opts.lastStartAt ?? 0);
+  const counts = (t: number): boolean => t > from && t <= now && t >= (opts.lastStartAt ?? 0) && !inJumpGrace(t, opts.lastSeekAt ?? 0, opts.lastStartAt ?? 0, opts.lastJumpAt ?? 0);
   const paused = opts.stallStart != null && stallEvidence(rates, opts.stallStart, now).paused;
   const data = rates.filter((r) => r.stalled && r.kbps > 0 && counts(r.t)).map((r) => r.kbps);
   const needed = opts.proven ? DELIVERY_PROVEN_WINDOWS : DELIVERY_MIN_WINDOWS;
@@ -443,10 +489,14 @@ export function deliveredKbps(
   if (data.length >= needed) return { kbps: Math.round(mean(data)), windows: data.length, paused, ...proven };
   // Starved: a file played as it is, inside the start's grace (never a
   // seek's), delivered under half of what it needs — no amount of waiting
-  // fixes that. Never on a proven line, never for a conversion warming up.
+  // fixes that. Never on a proven line, never for a conversion warming up,
+  // never after the viewer's jump (a seek, an unpause, a resume: the server
+  // starting again at a new place is slow at first, and the owner's limited
+  // server read 1.5 Mb/s there on films it then played smoothly).
   if (opts.direct && !opts.proven && opts.needKbps && opts.needKbps > 0) {
     const early = rates
-      .filter((r) => r.stalled && r.kbps > 0 && r.t > from && r.t <= now && r.t >= (opts.lastStartAt ?? 0) && !inJumpGrace(r.t, opts.lastSeekAt ?? 0, 0))
+      .filter((r) => r.stalled && r.kbps > 0 && r.t > from && r.t <= now && r.t >= (opts.lastStartAt ?? 0) && !inJumpGrace(r.t, opts.lastSeekAt ?? 0, 0)
+        && !afterJump(r.t, opts.lastJumpAt ?? 0, opts.lastStartAt ?? 0))
       .map((r) => r.kbps);
     if (early.length >= STARVED_MIN_WINDOWS) {
       const k = Math.round(mean(early));
@@ -467,6 +517,9 @@ export interface StallContext {
   lastStartAt?: number;
   /** The last seek (SEEK_GRACE_MS), 0 if unknown. */
   lastSeekAt?: number;
+  /** The viewer's last jump (playerSeek markJump; jumpPending, afterJump),
+   *  0 if none. */
+  lastJumpAt?: number;
   /** On the Plex Relay. */
   relay?: boolean;
   /** A 4K file played as it is (bugs/plex-4k.md). */
@@ -655,7 +708,7 @@ export class AutoQuality {
    * takes delivery evidence (onDelivery).
    */
   onStall(at: number, ladder: QualityStep[], index: number, ctx: StallContext = {}): AutoMove | null {
-    if (inJumpGrace(at, ctx.lastSeekAt ?? 0, ctx.lastStartAt ?? 0)) return null;
+    if (inJumpGrace(at, ctx.lastSeekAt ?? 0, ctx.lastStartAt ?? 0, ctx.lastJumpAt ?? 0)) return null;
     this.lastStallAt = at;
     this.stallTimes = this.stallTimes.filter((t) => at - t < STALL_WINDOW_MS);
     this.stallTimes.push(at);
@@ -684,7 +737,7 @@ export class AutoQuality {
    */
   delivery(rates: RateReport[], now: number, ctx: StallContext = {}, stallStart?: number, needKbps?: number): Delivery {
     const proven = lineClearFor(needKbps, { ...ctx, shortKbps: null });
-    return deliveredKbps(rates, now, { since: this.lastChangeAt, lastStartAt: ctx.lastStartAt, lastSeekAt: ctx.lastSeekAt, stallStart, proven, needKbps, direct: ctx.direct });
+    return deliveredKbps(rates, now, { since: this.lastChangeAt, lastStartAt: ctx.lastStartAt, lastSeekAt: ctx.lastSeekAt, lastJumpAt: ctx.lastJumpAt, stallStart, proven, needKbps, direct: ctx.direct });
   }
 
   /**
@@ -743,8 +796,9 @@ export class AutoQuality {
       const clear = lineClearFor(ctx.needKbps, ctx);
       const next = !clear || ev < ctx.needKbps * DELIVERY_PROVEN_FACTOR ? dropTarget(ladder, index, ev) : null;
       if (next) {
-        const graced = ctx.stallAt != null && inJumpGrace(ctx.stallAt, 0, ctx.lastStartAt ?? 0);
-        const starved = !clear && !!ctx.direct && ev < ctx.needKbps * STARVED_FACTOR;
+        const jump = ctx.stallAt != null && afterJump(ctx.stallAt, ctx.lastJumpAt ?? 0, ctx.lastStartAt ?? 0);
+        const graced = ctx.stallAt != null && (jump || inJumpGrace(ctx.stallAt, 0, ctx.lastStartAt ?? 0));
+        const starved = !jump && !clear && !!ctx.direct && ev < ctx.needKbps * STARVED_FACTOR;
         return { next, manualKey: this.manual, shortKbps: ev, soon: !graced || starved };
       }
       if (clear) proven = ctx.sustainedKbps ?? null;
@@ -770,17 +824,21 @@ export class AutoQuality {
    * when the steady speed (over RAISE_SUSTAIN_MS) carries the step above
    * with headroom, no stall came in that time, no change in the last 2
    * minutes, not above `ceilingIndex`, and no undone raise is still waiting.
+   * Never within the grace of a start or a jump (`ctx`): a stream is not
+   * switched under a seek, a resume or an unpause that is still settling.
    */
-  maybeRaise(now: number, ladder: QualityStep[], index: number, ceilingIndex: number, steady: number | null): AutoMove | null {
-    if (!this.raiseWindowOpen(now)) return null;
+  maybeRaise(now: number, ladder: QualityStep[], index: number, ceilingIndex: number, steady: number | null, ctx: StallContext = {}): AutoMove | null {
+    if (!this.raiseWindowOpen(now, ctx)) return null;
     const step = raiseTarget(ladder, index, ceilingIndex, steady);
     return step ? { step, direction: 'up', reason: 'speed' } : null;
   }
 
   /** Whether a raise may happen now, speed aside: 2 minutes since the last
-   *  change, no undone raise waiting, no stall for a minute and a half. */
-  raiseWindowOpen(now: number): boolean {
+   *  change, no undone raise waiting, no stall for a minute and a half, and
+   *  not within the grace of a start or a jump (`ctx`). */
+  raiseWindowOpen(now: number, ctx: StallContext = {}): boolean {
     if (now - this.lastChangeAt < MIN_CHANGE_GAP_MS) return false;
+    if (inJumpGrace(now, ctx.lastSeekAt ?? 0, ctx.lastStartAt ?? 0, ctx.lastJumpAt ?? 0)) return false;
     if (now < this.raiseBlockedUntil) return false;
     if (this.lastStallAt && now - this.lastStallAt < RAISE_SUSTAIN_MS) return false;
     return true;
@@ -1033,9 +1091,13 @@ export function transcodePingUrl(url: string | null | undefined): string | null 
 export const TRANSCODE_PING_MS = 20_000;
 
 /** Keeps a converting session alive while playback is paused (the player
- *  asks for no segments then). Fire and forget, like stopPlexTranscode. */
+ *  asks for no segments then). Fire and forget, like stopPlexTranscode, but
+ *  through the native HTTP stack on a box, like the waited stop (the
+ *  WebView's no-cors request is never known to have arrived; a session that
+ *  times out under a long pause is a dead one to play on). Never throws. */
 export function pingPlexTranscode(url: string | null | undefined): void {
-  void sendQuietly(transcodePingUrl(url));
+  const ping = transcodePingUrl(url);
+  if (ping) void sendAndWait(ping, STOP_TIMEOUT_MS).catch(() => { /* ignore */ });
 }
 
 /** One quiet request; resolves when it is answered or given up on. */

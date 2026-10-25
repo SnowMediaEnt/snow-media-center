@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import i18n from '@/i18n';
 import { onMediaKey } from '@/lib/mediaKeys';
 import { SnowPlayer, type SnowSubtitle } from '@/capacitor/SnowPlayer';
-import { markPlaybackStart, markSeek } from '@/lib/playerSeek';
+import { markJump, markPlaybackStart, markSeek } from '@/lib/playerSeek';
 import { createNativeVideoController, type NativeControllerHandle } from '@/lib/nativeVideoController';
 import type { VideoController } from '@/components/livetv/VideoPlayer';
 import { enterQuiet, exitQuiet } from '@/utils/quietMode';
@@ -194,6 +194,17 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   // (markPlaybackStart): the server is only getting going at that place.
   const startPendingRef = useRef(false);
   const jumped = () => { if (!liveRef.current) startPendingRef.current = true; };
+  // Paused on purpose right now (the state above, readable from callbacks).
+  // Playing a film on after a pause is the viewer's jump (playerSeek
+  // markJump): the server may have closed the connection or let a converting
+  // session lapse meanwhile, and the stall while it starts again is that,
+  // never the server being too slow for the film.
+  const pausedNowRef = useRef(false);
+  const onPausedChange = useCallback((p: boolean) => {
+    if (!p && pausedNowRef.current && !liveRef.current) { markJump(); startPendingRef.current = true; }
+    pausedNowRef.current = p;
+    setPaused(p);
+  }, []);
 
   const markStreaming = (on: boolean) => {
     // A preview never claims the screen: the flag would stop the updater,
@@ -237,14 +248,14 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
       handleRef.current = createNativeVideoController({
         onTracksChanged: () => cbTracksRef.current?.(),
         onPlayStateChange: (p) => cbPlayStateRef.current?.(p),
-        onPausedChange: setPaused,
+        onPausedChange,
       });
       setController(handleRef.current.controller);
     }
     return () => {
       // Full teardown handled by the load effect below on active=false.
     };
-  }, [active]);
+  }, [active, onPausedChange]);
 
   // Global player-error / state listeners tied to buffering + retry logic.
   useEffect(() => {
@@ -399,6 +410,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     setBuffering(true);
     // A new stream (or a reload) starts playing.
     setPaused(false);
+    pausedNowRef.current = false;
     handleRef.current?.resetPaused?.();
     setError(null);
     setEngineNotice(null);
@@ -545,6 +557,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     }
     setBuffering(false);
     setPaused(false);
+    pausedNowRef.current = false;
     setError(null);
     retriesRef.current = 0;
     exhaustRetriedRef.current = false;
@@ -606,7 +619,9 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   }, [active]);
 
   const seekTo = useCallback(async (seconds: number) => {
-    markSeek();
+    // The viewer's jump (a film only: Live TV's catch-up seeks keep the
+    // plain seek mark).
+    if (liveRef.current) markSeek(); else markJump();
     jumped();
     try { await SnowPlayer.seekTo({ position: Math.max(0, seconds) }); } catch { /* ignore */ }
   }, []);
@@ -634,7 +649,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
             const p = await SnowPlayer.getPosition();
             const to = k === 'ff' ? p.position + 30 : p.position - 10;
             const max = p.duration > 0 ? Math.max(0, p.duration - 1) : Number.MAX_SAFE_INTEGER;
-            markSeek();
+            markJump();
             jumped();
             await SnowPlayer.seekTo({ position: Math.min(max, Math.max(0, to)) });
           } catch { /* ignore */ }

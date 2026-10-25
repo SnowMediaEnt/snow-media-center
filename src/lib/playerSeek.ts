@@ -17,3 +17,15 @@ let lastStart = 0;
 
 export function markPlaybackStart(at: number = Date.now()): void { lastStart = at; }
 export function lastPlaybackStartAt(): number { return lastStart; }
+
+// When the viewer last MOVED a film's playback: a seek or a skip, playing on
+// after a pause, or a start part-way into the film (Continue Watching, a
+// resume point). Unlike a plain seek mark (a display mode switch is one too)
+// it says the place changed under the viewer's own hand, and the server has
+// to start again there: until playback picks up again, and for the half
+// minute after, a stall is that jump, never the server being too slow for
+// the stream (plexAutoQuality.afterJump). A jump is also a seek.
+let lastJump = 0;
+
+export function markJump(at: number = Date.now()): void { lastJump = at; lastSeek = at; }
+export function lastJumpAt(): number { return lastJump; }
