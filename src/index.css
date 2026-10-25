@@ -92,6 +92,14 @@
     --gradient-purple: linear-gradient(135deg, hsl(248 53% 58%), hsl(267 50% 40%));
     --gradient-navy: linear-gradient(135deg, hsl(214 91% 15%), hsl(214 91% 20%));
     --gradient-white: linear-gradient(135deg, hsl(0 0% 100%), hsl(210 17% 98%));
+    /* Home tiles a viewer picked as shortcuts (src/lib/homeTiles.ts). */
+    --gradient-teal: linear-gradient(135deg, hsl(178 55% 42%), hsl(192 70% 24%));
+    --gradient-green: linear-gradient(135deg, hsl(142 50% 42%), hsl(158 64% 22%));
+    --gradient-slate: linear-gradient(135deg, hsl(215 20% 42%), hsl(220 26% 22%));
+    --gradient-rose: linear-gradient(135deg, hsl(340 70% 58%), hsl(330 60% 34%));
+    --gradient-red: linear-gradient(135deg, hsl(4 72% 54%), hsl(356 66% 32%));
+    --gradient-orange: linear-gradient(135deg, hsl(28 90% 55%), hsl(16 76% 36%));
+    --gradient-indigo: linear-gradient(135deg, hsl(232 58% 58%), hsl(240 50% 32%));
     
     /* Elegant shadows with brand colors */
     --shadow-brand: 0 10px 30px -10px hsl(var(--brand-ice) / 0.3);

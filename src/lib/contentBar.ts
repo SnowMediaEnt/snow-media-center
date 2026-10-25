@@ -15,7 +15,7 @@
 // title when its library, certificate, genre or name does (adultContent.ts).
 import {
   loadCreds, loadSavedAccounts, getLiveCategories, getLiveStreams, getShortEpg, pickNowNext,
-  type XtreamCreds, type XtreamLiveStream,
+  type FavChannel, type XtreamCreds, type XtreamLiveStream,
 } from '@/lib/xtream';
 import { isAdultChannel, isAdultLabel, isAdultPlexItem, isFlaggedAdult } from '@/lib/adultContent';
 import { buildLines } from '@/lib/liveLines';
@@ -25,7 +25,7 @@ import { currentViewer, loadWatchHistory, syncWatchHistoryFromCloud, channelKey,
 import { viewerIsAccount } from '@/lib/viewer';
 import { KIDS_GENRE, hasKidsGenre, isKidsLabel, kidsAllowsChannel, kidsAllowsPlex, kidsLevel } from '@/lib/kidsFilter';
 
-export type BarSource = 'history' | 'live' | 'foryou' | 'plex';
+export type BarSource = 'history' | 'live' | 'foryou' | 'plex' | 'favorite';
 
 export interface BarChannel {
   host: string;
@@ -121,6 +121,10 @@ async function fillNowPlaying(items: BarItem[], lines: XtreamCreds[]): Promise<v
 export interface ViewerBar {
   viewer: string;
   items: BarItem[];
+  /** A Live TV line is signed in on this box. */
+  hasLines?: boolean;
+  /** This box is signed in to Plex. */
+  hasPlex?: boolean;
 }
 
 export async function buildViewerBar(): Promise<ViewerBar> {
@@ -330,5 +334,65 @@ export async function buildViewerBar(): Promise<ViewerBar> {
     } catch { /* Plex unreachable: the bar keeps what it has */ }
   }
 
-  return { viewer, items };
+  return { viewer, items, hasLines: lines.length > 0, hasPlex: !!(plexServer?.base && plexServer.token) };
+}
+
+const FAVORITES_MAX = 40;
+
+export interface FavoritesBar {
+  items: BarItem[];
+  /** A Live TV line is signed in on this box (the hint says so when not). */
+  hasLines: boolean;
+}
+
+/**
+ * The bar's Favorites row (Settings › UI › Home screen › Show: Favorites):
+ * the viewer's Live TV favourites in their own order (favoritesOrder, one
+ * order across every line, A–Z when they picked that), each with what is on
+ * now, then — unless `source` says Live TV only — their Plex My List. Plex
+ * only: just My List. The same adult and Kids rules as the other rows.
+ */
+export async function buildFavoritesBar(source: 'both' | 'live' | 'plex'): Promise<FavoritesBar> {
+  // Loaded here, not with the bar: only this row needs them.
+  const [{ arrangeFavorites, loadFavOrder }, { myList }] = await Promise.all([import('@/lib/favoritesOrder'), import('@/lib/plexFavorites')]);
+  let lines: XtreamCreds[] = [];
+  try {
+    const creds = await loadCreds();
+    if (creds) lines = buildLines(creds, await loadSavedAccounts().catch(() => []));
+  } catch { /* no Player sign-in */ }
+  const items: BarItem[] = [];
+
+  if (source !== 'plex' && lines.length) {
+    const catIndex = new Map<string, CategoryIndex>();
+    await Promise.all(lines.map(async (l) => { catIndex.set(lineKey(l), await categoryIndex(l)); }));
+    const all: Array<{ line: XtreamCreds; f: FavChannel }> = [];
+    for (const line of lines) for (const f of loadFavoritesForLine(line).values()) all.push({ line, f });
+    const arranged = arrangeFavorites(all, loadFavOrder(), (x) => ({ line: lineKey(x.line), id: x.f.stream_id, name: x.f.name }));
+    const seen = new Set<string>();
+    for (const { line, f } of arranged) {
+      if (items.length >= FAVORITES_MAX) break;
+      const key = channelKey(line, f.stream_id);
+      if (seen.has(key)) continue;
+      if (adultChannel(catIndex.get(lineKey(line)), f.name, f.category_id, f)) continue;
+      seen.add(key);
+      items.push(channelItem('favorite', line, { stream_id: f.stream_id, name: f.name, category_id: f.category_id, stream_icon: f.stream_icon }, line.serverLabel));
+    }
+    await fillNowPlaying(items, lines);
+  }
+
+  if (source !== 'live') {
+    const plexServer = await loadPlexServer().catch(() => null);
+    if (plexServer?.base && plexServer.token) {
+      for (const it of myList()) {
+        if (items.length >= FAVORITES_MAX) break;
+        if (isAdultPlexItem({ title: it.title })) continue;
+        items.push({
+          id: `plex-${it.ratingKey}`, source: 'favorite', kind: it.type, title: it.title,
+          poster: plexImageUrl(plexServer.base, it.thumb, plexServer.token),
+          ratingKey: it.ratingKey, librarySectionID: it.librarySectionID,
+        });
+      }
+    }
+  }
+  return { items, hasLines: lines.length > 0 };
 }

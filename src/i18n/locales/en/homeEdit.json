@@ -1,0 +1,90 @@
+{
+  "homeEdit": {
+    "dest": {
+      "guideTitle": "Guide",
+      "guideDesc": "What's on now and next",
+      "gameDayTitle": "Game Day",
+      "gameDayDesc": "Today's big games",
+      "multiTitle": "Multi-Screen",
+      "multiDesc": "Watch channels side by side",
+      "favoritesTitle": "Favorites",
+      "favoritesDesc": "Your favorite channels",
+      "recordingsTitle": "Recordings",
+      "recordingsDesc": "What you recorded",
+      "moviesTitle": "Movies",
+      "moviesDesc": "Your service's movies",
+      "seriesTitle": "TV Shows",
+      "seriesDesc": "Your service's series",
+      "searchTitle": "Search",
+      "searchDesc": "Say or type what you want",
+      "settingsTitle": "Settings",
+      "settingsDesc": "Backgrounds, language & more",
+      "speedTestTitle": "Speed Test",
+      "speedTestDesc": "Check your internet speed",
+      "bufferingTitle": "Buffering Guide",
+      "bufferingDesc": "Fix buffering step by step",
+      "aiChatTitle": "AI Chat",
+      "aiChatDesc": "Ask Snow Media AI"
+    },
+    "tileMenu": {
+      "moveBtn": "Move",
+      "changeBtn": "Change shortcut",
+      "resetBtn": "Reset to default",
+      "cancelBtn": "Cancel"
+    },
+    "move": {
+      "leftLabel": "Move left",
+      "rightLabel": "Move right",
+      "doneBtn": "Done",
+      "hintRemote": "◀ ▶ to move · OK to put it down · Back to cancel",
+      "hintTouch": "Tap the arrows to move the tile, then Done"
+    },
+    "picker": {
+      "title": "Change shortcut",
+      "subtitle": "Pick what this tile opens. One that is already on Home swaps places with it.",
+      "thisTileLabel": "On this tile",
+      "onHomeChip": "ON HOME",
+      "backHint": "Back returns to the menu."
+    },
+    "bar": {
+      "menuTitle": "Content bar",
+      "customizeBtn": "Customize",
+      "hideBtn": "Hide content bar",
+      "cancelBtn": "Cancel",
+      "customizeTitle": "Customize the content bar",
+      "customizeSubtitle": "Your choice is saved for this profile.",
+      "sourceTitle": "Show from",
+      "showTitle": "Show",
+      "doneBtn": "Done",
+      "sourceBothChip": "Live TV and Plex",
+      "sourceLiveChip": "Live TV only",
+      "sourcePlexChip": "Plex only",
+      "sourceOffChip": "Off",
+      "showRecommendedChip": "Recommendations",
+      "showContinueChip": "Continue watching",
+      "showFavoritesChip": "Favorites",
+      "headingContinue": "Continue watching",
+      "headingFavorites": "Favorites",
+      "emptyMyList": "Nothing in your Plex My List yet.",
+      "emptyFavorites": "No favorite channels yet. In Live TV, hold OK on a channel to add it.",
+      "emptyNoLive": "Sign in to Live TV to see your channels here.",
+      "emptyContinue": "Nothing to continue yet. What you watch shows up here.",
+      "emptyNoPlex": "Sign in to Plex to see titles here.",
+      "emptyGeneric": "Nothing to show here right now.",
+      "emptyHoldHint": "Hold OK here to change what the bar shows."
+    },
+    "settings": {
+      "sectionTitle": "Home screen",
+      "sourceTitle": "Content bar: show from",
+      "sourceDesc": "Live TV and Plex, just one of them, or no bar at all.",
+      "showTitle": "Content bar: show",
+      "showDesc": "Recommendations, only what you were watching, or your favorites.",
+      "tilesTitle": "Bottom tiles",
+      "tilesDesc": "On Home, hold OK on a tile to move it or change its shortcut.",
+      "resetBtn": "Reset tiles",
+      "resetTitle": "Home tiles reset",
+      "resetDesc": "Live TV, Plex, Support and the Store are back in their places.",
+      "resetAlreadyDesc": "Your tiles are already the standard ones."
+    }
+  }
+}

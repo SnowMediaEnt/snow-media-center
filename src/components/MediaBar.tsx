@@ -20,7 +20,10 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { isDemo, demoDialogMsg } from '@/lib/demoMode';
-import { buildViewerBar, type BarChannel } from '@/lib/contentBar';
+import { buildFavoritesBar, buildViewerBar, type BarChannel } from '@/lib/contentBar';
+import { BAR_HEADING_KEYS, DEFAULT_BAR_PREFS, emptyHintKey, filterBarItems, useBarPrefs } from '@/lib/homeBar';
+import { useLongPress } from '@/hooks/useLongPress';
+import { createOkHold } from '@/lib/okHold';
 import { WATCH_HISTORY_EVENT } from '@/lib/watchHistory';
 import { isAdultTitle } from '@/lib/adultContent';
 import { kidsLevel } from '@/lib/kidsFilter';
@@ -31,7 +34,7 @@ type MediaItem = {
   /** plex: the shared "recently added" feed · history / live / foryou: built
    *  on the device for this viewer. 'sports' is only ever seen from an old
    *  cached or not-yet-redeployed feed and is dropped on read. */
-  source: 'plex' | 'tmdb' | 'sports' | 'history' | 'live' | 'foryou';
+  source: 'plex' | 'tmdb' | 'sports' | 'history' | 'live' | 'foryou' | 'favorite';
   kind: string;
   title: string;
   subtitle?: string;
@@ -55,6 +58,10 @@ type Props = {
   onExitDown?: () => void;
   onExitUp?: () => void;
   onOpenPlayer?: () => void;
+  /** Hold OK on the bar (viaOk true: the OK is still down) or a finger on it: its menu. */
+  onHoldMenu?: (viaOk: boolean) => void;
+  /** OK on an empty bar: Customize (what it shows may be what is empty). */
+  onCustomize?: (viaOk: boolean) => void;
 };
 
 // Demo mode gets its own cache bucket because it stores the sanitised
@@ -73,6 +80,7 @@ const SOURCE_BADGE: Record<string, { labelKey: string; color: string } | null> =
   history: { labelKey: 'home.badges.continueChip', color: 'hsl(39 31% 60%)' },
   live: { labelKey: 'home.badges.liveChip', color: 'hsl(0 80% 55%)' },
   foryou: { labelKey: 'home.badges.forYouChip', color: 'hsl(189 37% 80%)' },
+  favorite: null,
 };
 
 const notSports = (i: MediaItem) => i?.title && i.source !== 'sports';
@@ -232,10 +240,24 @@ const BarPoster = memo(({ src, className }: { src: string; className: string }) 
 });
 BarPoster.displayName = 'BarPoster';
 
-const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: Props) => {
+const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer, onHoldMenu, onCustomize }: Props) => {
   const { t } = useTranslation();
   const cached = useMemo(readCache, []);
-  const [items, setItems] = useState<MediaItem[]>(cached ?? []);
+  // Everything the bar has (the viewer's rows, then the shared feed); what is
+  // drawn is the part the viewer's Source and Show ask for (lib/homeBar).
+  const [allItems, setItems] = useState<MediaItem[]>(cached ?? []);
+  // A Kids profile's bar is the one it always had (its Home is not customised).
+  const { prefs: viewerPrefs } = useBarPrefs();
+  const prefs = kidsLevel() ? DEFAULT_BAR_PREFS : viewerPrefs;
+  const favMode = prefs.show === 'favorites';
+  // The Favorites row is its own: their Live TV favourites, then My List.
+  const [favItems, setFavItems] = useState<MediaItem[] | null>(null);
+  const [lineState, setLineState] = useState<{ hasLines: boolean; hasPlex: boolean } | null>(null);
+  const [viewerLoaded, setViewerLoaded] = useState(false);
+  const items = useMemo(
+    () => (favMode ? favItems ?? [] : filterBarItems(allItems, prefs)),
+    [favMode, favItems, allItems, prefs],
+  );
   // True once the feed has answered at all. Until then an empty bar shows
   // placeholder posters; after it, an empty bar is simply empty. Without this
   // a feed that answers `items: []` — Plex unreachable from the edge runtime
@@ -352,14 +374,17 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
     // The viewer's own rows: built on the device from their history, their
     // lines and Plex. Demo has no viewer and no lines — the feed alone.
     const loadViewer = async () => {
-      if (DEMO) return;
+      if (DEMO) { setViewerLoaded(true); return; }
       try {
-        const { items: mine } = await buildViewerBar();
+        const { items: mine, hasLines, hasPlex } = await buildViewerBar();
         if (cancelled) return;
         viewerItemsRef.current = mine as MediaItem[];
+        setLineState({ hasLines: !!hasLines, hasPlex: !!hasPlex });
         composeItems();
       } catch (e) {
         console.warn('[MediaBar] viewer rows failed:', (e as Error).message);
+      } finally {
+        if (!cancelled) setViewerLoaded(true);
       }
     };
     const loadAll = () => { void loadViewer(); void load(); };
@@ -395,6 +420,29 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The Favorites row: built when it is asked for, again when the Source
+  // changes (Live TV only leaves My List out, Plex only is My List).
+  useEffect(() => {
+    if (!favMode || DEMO) { setFavItems(null); return; }
+    let cancelled = false;
+    setFavItems(null);
+    const cancelIdle = runWhenIdle(() => {
+      void buildFavoritesBar(prefs.source)
+        .then(({ items: favs, hasLines }) => {
+          if (cancelled) return;
+          setFavItems((favs as MediaItem[]).filter(notAdult));
+          setLineState((prev) => ({ hasLines, hasPlex: prev?.hasPlex ?? false }));
+        })
+        .catch(() => { if (!cancelled) setFavItems([]); });
+    }, 300);
+    return () => { cancelled = true; cancelIdle(); };
+  }, [favMode, prefs.source]);
+  // Another Source or Show: back to the first page.
+  useEffect(() => { setPageIdx(0); }, [prefs.source, prefs.show]);
+
+  // Answered at all (the empty hint shows only then; before, placeholders).
+  const ready = favMode ? favItems !== null || DEMO : (viewerLoaded && (loaded || prefs.source === 'live'));
 
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
   // Endless wrap: fill every page to PAGE_SIZE by looping back to the start.
@@ -440,6 +488,19 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
   const activeRef = useRef(active);
   const onExitDownRef = useRef(onExitDown);
   const onExitUpRef = useRef(onExitUp);
+  const onHoldMenuRef = useRef(onHoldMenu);
+  onHoldMenuRef.current = onHoldMenu;
+  const onCustomizeRef = useRef(onCustomize);
+  onCustomizeRef.current = onCustomize;
+  const handleClickRef = useRef(handleClick);
+  handleClickRef.current = handleClick;
+  // OK on the bar: let go before HOLD_MS, the tile opens (an empty bar:
+  // Customize); held, the bar's menu (Home's tiles' hold, the same latch).
+  const barHold = useMemo(() => createOkHold<'bar'>(), []);
+  const cancelBarHold = () => barHold.cancel();
+  useEffect(() => { if (!active) barHold.cancel(); }, [active, barHold]);
+  // A finger held on the bar (or a right click): its menu.
+  const longPress = useLongPress<'bar'>(() => onHoldMenuRef.current?.(false));
 
   useEffect(() => { focusIdxRef.current = focusIdx; }, [focusIdx]);
   useEffect(() => { pageIdxRef.current = pageIdx; }, [pageIdx]);
@@ -461,6 +522,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
       const currentPage = currentPageRef.current;
       const totalPages = totalPagesRef.current;
 
+      if (e.key.startsWith('Arrow')) cancelBarHold();
       switch (e.key) {
         case 'ArrowLeft':
           e.preventDefault(); e.stopPropagation();
@@ -493,14 +555,35 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
         case 'Enter':
         case ' ': {
           e.preventDefault(); e.stopPropagation();
-          const item = currentPage[focusIdx];
-          if (item) handleClick(item);
+          // A held OK repeats: only its first press counts.
+          if (e.repeat || barHold.pending()) break;
+          // No menu here (a Kids profile): OK is a press, at once.
+          if (!onHoldMenuRef.current) {
+            const item = currentPage[focusIdx];
+            if (item) handleClickRef.current(item);
+            break;
+          }
+          barHold.press('bar', () => { if (activeRef.current) onHoldMenuRef.current?.(true); });
           break;
         }
       }
     };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (barHold.release() == null) return;
+      if (!activeRef.current || document.querySelector('[aria-modal="true"]')) return;
+      e.preventDefault(); e.stopPropagation();
+      const item = currentPageRef.current[focusIdxRef.current];
+      if (item) handleClickRef.current(item);
+      else onCustomizeRef.current?.(false);
+    };
     window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
+    window.addEventListener('keyup', onKeyUp, true);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('keyup', onKeyUp, true);
+      cancelBarHold();
+    };
   }, []);
 
   const isEmpty = items.length === 0;
@@ -510,7 +593,10 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
       ref={containerRef}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
+      {...longPress.bind('bar')}
       data-media-bar
+      data-bar-show={prefs.show}
+      data-bar-source={prefs.source}
       data-howto="home.recommended"
       // flex-shrink-0: this is a flex item in the home column; without it the
       // bar is what gets squeezed when the page runs short of height and its
@@ -520,7 +606,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
     >
       {/* Clean row: a plain heading over bare posters with the title under
           each, no band behind it (the look the owner picked from the clone). */}
-      <h2 className="text-white/90 font-semibold text-sm tracking-wide px-12">{t('home.mediaBar.heading')}</h2>
+      <h2 className="text-white/90 font-semibold text-sm tracking-wide px-12">{t(BAR_HEADING_KEYS[prefs.show])}</h2>
       <div className="flex items-stretch gap-2 pt-2 pb-2 px-1">
         <button
           type="button"
@@ -535,7 +621,15 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
 
         <div className="flex-1 grid gap-4 min-w-0" style={{ gridTemplateColumns: `repeat(${PAGE_SIZE}, minmax(0, 1fr))` }}>
           {isEmpty
-            ? (loaded ? null : Array.from({ length: PAGE_SIZE }).map((_, i) => (
+            ? (ready
+              // Nothing for these choices: say why, and how to change them.
+              ? (
+                <div className="media-poster flex flex-col items-center justify-center text-center rounded-xl bg-white/5 border border-white/10 px-6" style={{ gridColumn: `1 / span ${PAGE_SIZE}` }} data-bar-empty>
+                  <span className="text-white/85 text-base font-semibold">{t(emptyHintKey(prefs, lineState ?? { hasLines: false, hasPlex: false }))}</span>
+                  {onHoldMenu && <span className="text-white/55 text-sm mt-1">{t('homeEdit.bar.emptyHoldHint')}</span>}
+                </div>
+              )
+              : Array.from({ length: PAGE_SIZE }).map((_, i) => (
                 <div key={i} className="media-poster rounded-xl bg-white/5 animate-pulse" />
               )))
             : currentPage.map((item, idx) => {
@@ -546,7 +640,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => clickable && handleClick(item)}
+                    onClick={() => { if (longPress.isHoldLift()) return; if (clickable) handleClick(item); }}
                     disabled={!clickable}
                     title={item.title}
                     data-focused={isFocused ? 'true' : 'false'}
@@ -581,6 +675,10 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer }: P
                       <span className="text-white/85 text-sm font-medium leading-tight line-clamp-1">
                         {item.title}
                       </span>
+                      {/* Favorites: what is on each channel now. */}
+                      {favMode && item.subtitle && (
+                        <span className="text-white/55 text-xs leading-tight line-clamp-1 mt-0.5">{item.subtitle}</span>
+                      )}
                     </div>
                   </button>
                 );
