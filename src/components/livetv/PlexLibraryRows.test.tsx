@@ -20,7 +20,7 @@ vi.mock('@/integrations/supabase/client', () => ({
 }));
 vi.mock('@/lib/plexReveal', () => ({ revealPlexRail: h.reveal, revealPlexTile: () => undefined }));
 vi.mock('@/lib/plexUpNext', () => ({ upNextEpisodes: h.upNext }));
-vi.mock('@/lib/plexBackdrop', () => ({ focusBackdrop: () => undefined }));
+vi.mock('@/lib/plexBackdrop', () => ({ focusBackdrop: () => undefined, previewPlex: () => undefined }));
 vi.mock('./PlexImage', () => ({ default: () => null }));
 vi.mock('@/lib/plex', async (orig) => ({
   ...(await orig<typeof import('@/lib/plex')>()),
@@ -79,8 +79,9 @@ describe('PlexLibraryRows — moving between rails', () => {
     expect(lastRevealed()).toBe('released');
     const box = h.reveal.mock.calls[h.reveal.mock.calls.length - 1][0] as HTMLElement;
     expect(box.querySelector('.plex-rail-head')?.textContent).toBe('Recently Released');
-    // Up off the first rail: the chip bar, shown the same way.
-    key('ArrowUp');
+    // Down past the last rail: the chip bar under the rows (the Apple TV
+    // app's "All Movies" line), shown the same way.
+    for (let i = 0; i < 6; i++) key('ArrowDown');
     await flush();
     expect(lastRevealed()).toContain('plex-bar');
   });

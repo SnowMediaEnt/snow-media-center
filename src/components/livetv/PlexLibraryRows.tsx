@@ -32,9 +32,10 @@ import { isPlexKeyOwner } from './plexKeyOwner';
 import { createPlexHoldOk, type PlexHoldOk } from './plexRecommendHold';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
-import { focusBackdrop } from '@/lib/plexBackdrop';
+import { focusBackdrop, previewPlex } from '@/lib/plexBackdrop';
 import { revealPlexRail } from '@/lib/plexReveal';
 import { isDemo } from '@/lib/demoMode';
+import { demoGetLibraryQuery, demoGetSectionOnDeck, demoGetSectionRow } from '@/lib/plexDemo';
 import { continueWatching, mergeContinue, plexItemWatched, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
 import { upNextEpisodes } from '@/lib/plexUpNext';
 import {
@@ -321,9 +322,12 @@ const PlexLibraryRows = memo(({
         setCachedHub(base, path, items, epoch);
         return;
       }
+      // The demo answers from its catalog (plexDemo), so a library opens on
+      // its rows there too.
+      const demo = isDemo();
       const items = spec.kind === 'onDeck'
-        ? await getPlexSectionOnDeck(base, token, libKey)
-        : await getPlexSectionRow(base, token, libKey, spec.query || '', rowDepth(spec.id));
+        ? await (demo ? demoGetSectionOnDeck : getPlexSectionOnDeck)(base, token, libKey)
+        : await (demo ? demoGetSectionRow : getPlexSectionRow)(base, token, libKey, spec.query || '', rowDepth(spec.id));
       if (rowGenRef.current[spec.id] !== gen) return;
       // An empty-but-successful response is a real answer: the row is hidden.
       // That is the documented behaviour for every guarded row (the date and
@@ -426,7 +430,7 @@ const PlexLibraryRows = memo(({
     setGridCursor(0);
     const q = filterQuery;
     const { base, token } = connRef.current;
-    void getPlexLibraryQuery(base, token, libKey, q, 0, PAGE)
+    void (isDemo() ? demoGetLibraryQuery : getPlexLibraryQuery)(base, token, libKey, q, 0, PAGE)
       .then((page) => {
         if (cancelled) return;
         setResults({ query: q, items: page.items, total: page.totalSize });
@@ -450,7 +454,7 @@ const PlexLibraryRows = memo(({
     loadingMoreRef.current = true;
     const q = results.query;
     const start = results.items.length;
-    void getPlexLibraryQuery(connRef.current.base, connRef.current.token, libKey, q, start, PAGE)
+    void (isDemo() ? demoGetLibraryQuery : getPlexLibraryQuery)(connRef.current.base, connRef.current.token, libKey, q, start, PAGE)
       .then((page) => {
         setResults((r) => {
           if (!r || r.query !== q || r.items.length !== start) return r; // stale
@@ -652,8 +656,16 @@ const PlexLibraryRows = memo(({
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
         const cs = chipsRef.current;
         const ci = chipIdxRef.current;
-        if (e.key === 'ArrowUp') { onExitRef.current(); return; }
-        if (e.key === 'ArrowDown') { setZone('content'); return; }
+        // Over the filtered grid the bar is at the top: Up leaves, Down goes
+        // into the grid. Under the rows (the Apple TV app's "All Movies"
+        // line) Up goes back to the last row, and Down has nowhere to go.
+        const rowsNow = rowsRef.current;
+        if (e.key === 'ArrowUp') {
+          if (!filteringRef.current && rowsNow.length > 0) { setZone('content'); setFocusedRowId(rowsNow[rowsNow.length - 1].spec.id); setCol(0); }
+          else onExitRef.current();
+          return;
+        }
+        if (e.key === 'ArrowDown') { if (filteringRef.current) setZone('content'); return; }
         if (e.key === 'ArrowLeft') { if (ci > 0) setChipId(cs[ci - 1].id); else onExitRef.current(); return; }
         if (e.key === 'ArrowRight') { if (ci < cs.length - 1) setChipId(cs[ci + 1].id); return; }
         if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; const chip = cs[ci]; if (chip) activateChipRef.current(chip.id); }
@@ -688,7 +700,9 @@ const PlexLibraryRows = memo(({
       // out of the screen.
       if (e.key === 'ArrowUp') {
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-        if (r <= 0) setZone('bar');
+        // Up off the first row: the side menu, as on Home (the filters are
+        // under the last row).
+        if (r <= 0) onExitRef.current();
         else { setFocusedRowId(list[r - 1].spec.id); setCol(0); }
         return;
       }
@@ -698,7 +712,9 @@ const PlexLibraryRows = memo(({
         // put focus somewhere real. Without this the user sits on an empty
         // screen with Down doing nothing until the first row lands.
         if (list.length === 0) { setZone('bar'); return; }
+        // Down past the last row: the filters and the whole library.
         if (r < list.length - 1) { setFocusedRowId(list[r + 1].spec.id); setCol(0); }
+        else setZone('bar');
         return;
       }
 
@@ -749,6 +765,14 @@ const PlexLibraryRows = memo(({
     : filtering ? results?.items[gridCursor] ?? null
       : rows[row]?.items[col] ?? null;
   useEffect(() => { focusBackdrop(focusedItem); }, [focusedItem]);
+  // Until the viewer comes into the rows, the library's first title's art is
+  // behind them, as the Apple TV app opens a library.
+  const enteredRef = useRef(false);
+  const firstItem = rows[0]?.items[0] ?? null;
+  useEffect(() => {
+    if (isActive) enteredRef.current = true;
+    else if (!enteredRef.current && firstItem) previewPlex(firstItem);
+  }, [isActive, firstItem]);
 
   // Vertical scroll. The focused tile's own scrollIntoView brings only the
   // TILE to the edge of the page: pressing Up left the rail's heading and
@@ -773,71 +797,79 @@ const PlexLibraryRows = memo(({
     if (revealRowId) revealPlexRail(root.querySelector(`[data-plex-row="${revealRowId}"]`) as HTMLElement | null);
   }, [isActive, barHasFocus, filtering, revealRowId, row, gridCursor, menu]);
 
+  // The chip bar and its menu: over the filtered grid when a filter is on,
+  // else under the rows, as the Apple TV app's "All Movies" line.
+  const barBlock = (
+    <>
+        {/* CHIP BAR. gap-2 deliberately — it is in the html.no-flex-gap
+            emulation allowlist; gap-5/6/8 are not and collapse on Chromium 66.
+            The chips are the Apple TV app's menu buttons (plex.css .plex-chip):
+            a white face under the highlight, gold once they hold a choice. */}
+        <div className="plex-bar flex flex-wrap items-center gap-2">
+          {!filtering && <span className="plex-rail-head font-montserrat mr-2">{t('plex.library.allHeading', { lib: libTitle })}</span>}
+          {chips.map((chip, i) => {
+            const focused = isActive && barHasFocus && i === chipIdx && !menu;
+            const open = menu?.chip === chip.id;
+            return (
+              <div
+                key={chip.id}
+                ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }}
+                onClick={() => { setZone('bar'); setChipId(chip.id); activateChip(chip.id); }}
+                data-focused={focused ? 'true' : 'false'}
+                className={`plex-chip tv-ring cursor-pointer font-nunito${
+                  focused ? ' z-10' : open ? ' plex-chip--open' : chip.set ? ' plex-chip--set' : ''
+                }`}
+              >
+                {chip.label}
+              </div>
+            );
+          })}
+          {filtering && <span className="ml-auto text-xs text-brand-ice/50 font-nunito">{t('plex.library.barHint')}</span>}
+        </div>
+
+        {/* FILTER MENU. Capped and scrollable, and the focused row scrolls itself
+            into view — a genre list is commonly 30+ entries, where the player's
+            fixed 5-item pickers would run off the bottom of the screen with no
+            way to see what is selected. */}
+        {menu && (
+          <div className="plex-rail rounded-plex-lg bg-black/90 border border-white/15 p-2 max-h-[60vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-2 py-1">
+              <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">
+                {chips.find((c) => c.id === menu.chip)?.label ?? t('plex.library.choose')}
+              </p>
+              <span className="text-xs text-brand-ice/60 font-nunito">{t('plex.library.menuHint')}</span>
+            </div>
+            {menu.options.length === 0 ? (
+              <div className="px-3 py-3 text-sm font-nunito text-brand-ice/60">
+                {menu.loading ? t('common.loading') : t('plex.library.nothingToChoose')}
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {menu.options.map((opt, i) => {
+                  const f = i === menu.idx;
+                  return (
+                    <div
+                      key={`${opt.key}-${i}`}
+                      ref={(el) => { if (f && el) el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }}
+                      onClick={() => applyMenuChoice(menu.chip, opt)}
+                      data-focused={f ? 'true' : 'false'}
+                      className={`tv-ring px-3 py-2 rounded-plex-sm font-nunito text-sm cursor-pointer ${
+                        f ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'
+                      }`}
+                    >
+                      {opt.title}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+    </>
+  );
+
   return (
     <div ref={rootRef}>
-      {/* CHIP BAR. gap-2 deliberately — it is in the html.no-flex-gap
-          emulation allowlist; gap-5/6/8 are not and collapse on Chromium 66.
-          The chips are the Apple TV app's menu buttons (plex.css .plex-chip):
-          a white face under the highlight, gold once they hold a choice. */}
-      <div className="plex-bar flex flex-wrap items-center gap-2">
-        {chips.map((chip, i) => {
-          const focused = isActive && barHasFocus && i === chipIdx && !menu;
-          const open = menu?.chip === chip.id;
-          return (
-            <div
-              key={chip.id}
-              ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }}
-              onClick={() => { setZone('bar'); setChipId(chip.id); activateChip(chip.id); }}
-              data-focused={focused ? 'true' : 'false'}
-              className={`plex-chip tv-ring cursor-pointer font-nunito${
-                focused ? ' z-10' : open ? ' plex-chip--open' : chip.set ? ' plex-chip--set' : ''
-              }`}
-            >
-              {chip.label}
-            </div>
-          );
-        })}
-        <span className="ml-auto text-xs text-brand-ice/50 font-nunito">{t('plex.library.barHint')}</span>
-      </div>
-
-      {/* FILTER MENU. Capped and scrollable, and the focused row scrolls itself
-          into view — a genre list is commonly 30+ entries, where the player's
-          fixed 5-item pickers would run off the bottom of the screen with no
-          way to see what is selected. */}
-      {menu && (
-        <div className="plex-rail rounded-plex-lg bg-black/90 border border-white/15 p-2 max-h-[60vh] overflow-y-auto">
-          <div className="flex items-center justify-between px-2 py-1">
-            <p className="text-xs uppercase tracking-wide font-quicksand font-semibold text-brand-ice/70">
-              {chips.find((c) => c.id === menu.chip)?.label ?? t('plex.library.choose')}
-            </p>
-            <span className="text-xs text-brand-ice/60 font-nunito">{t('plex.library.menuHint')}</span>
-          </div>
-          {menu.options.length === 0 ? (
-            <div className="px-3 py-3 text-sm font-nunito text-brand-ice/60">
-              {menu.loading ? t('common.loading') : t('plex.library.nothingToChoose')}
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {menu.options.map((opt, i) => {
-                const f = i === menu.idx;
-                return (
-                  <div
-                    key={`${opt.key}-${i}`}
-                    ref={(el) => { if (f && el) el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }}
-                    onClick={() => applyMenuChoice(menu.chip, opt)}
-                    data-focused={f ? 'true' : 'false'}
-                    className={`tv-ring px-3 py-2 rounded-plex-sm font-nunito text-sm cursor-pointer ${
-                      f ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'
-                    }`}
-                  >
-                    {opt.title}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* FILTERED RESULTS — a plain grid, not the virtualizer. Deliberate: the
           virtualizer assumes its container starts at scrollTop 0, and anything
@@ -846,6 +878,7 @@ const PlexLibraryRows = memo(({
           need it. */}
       {filtering ? (
         <div>
+          {barBlock}
           <div className="flex items-baseline justify-between mb-3">
             <div className="text-base font-quicksand font-semibold text-white/90">
               {describeFilters(filters, sortTitle) || t('plex.library.filtered')}
@@ -885,13 +918,6 @@ const PlexLibraryRows = memo(({
         </div>
       ) : (
       <>
-      {rows.length === 0 && (
-        <div className="plex-rail text-brand-ice/70 font-nunito text-sm px-2">
-          {allSettled
-            ? t('plex.library.nothingYet', { lib: libTitle })
-            : t('plex.library.loading', { lib: libTitle })}
-        </div>
-      )}
 
       {rows.map((r, ri) => {
         const focused = isActive && !barHasFocus && ri === row;
@@ -928,6 +954,16 @@ const PlexLibraryRows = memo(({
           </div>
         );
       })}
+      {/* Under the rows: the whole library and its filters. With no rows
+          (yet), the bar first and the word on them under it. */}
+      <div className={rows.length ? 'mt-2' : ''}>{barBlock}</div>
+      {rows.length === 0 && (
+        <div className="plex-rail text-brand-ice/70 font-nunito text-sm px-2">
+          {allSettled
+            ? t('plex.library.nothingYet', { lib: libTitle })
+            : t('plex.library.loading', { lib: libTitle })}
+        </div>
+      )}
       </>
       )}
     </div>

@@ -315,6 +315,7 @@
       "off": "Off",
       "defaultOrder": "Default order",
       "barHint": "◀ ▶ pick · OK opens · ▼ list",
+      "allHeading": "All {{lib}}",
       "choose": "Choose",
       "menuHint": "▲▼ · OK · Back",
       "nothingToChoose": "Nothing to choose here for this library.",

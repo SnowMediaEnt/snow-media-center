@@ -22,7 +22,7 @@ vi.mock('@/integrations/supabase/client', () => ({
 }));
 vi.mock('@/lib/plexReveal', () => ({ revealPlexRail: () => undefined, revealPlexTile: () => undefined }));
 vi.mock('@/lib/plexUpNext', () => ({ upNextEpisodes: h.upNext }));
-vi.mock('@/lib/plexBackdrop', () => ({ focusBackdrop: () => undefined }));
+vi.mock('@/lib/plexBackdrop', () => ({ focusBackdrop: () => undefined, previewPlex: () => undefined }));
 vi.mock('./PlexImage', () => ({ default: () => null }));
 vi.mock('@/lib/plex', async (orig) => ({
   ...(await orig<typeof import('@/lib/plex')>()),

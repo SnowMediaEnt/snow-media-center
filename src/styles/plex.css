@@ -8,7 +8,7 @@
    TVs, so its sizes are the tvOS points halved:
      - Home: the highlighted title's art across the top 60 % of the screen,
        fading to black downwards and from the left, its name (24, extra
-       bold), a facts line and three lines of summary over it (PlexHero);
+       bold), a facts line and one line of summary over it (PlexHero);
        Discover, the season and the libraries put their own name there.
      - Rails: a white Montserrat heading (14 bold), 2:3 posters 110 × 165
        with 8 px corners, 12 apart; Continue Watching is a row of wide 16:9
@@ -437,7 +437,9 @@
 .plex-hero {
   position: relative;
   flex: 0 0 auto;
-  height: 122px;
+  /* The owner's Apple TV photo: title, facts and ONE line of summary, and
+     Continue Watching starts right under it. */
+  height: 94px;
   padding: 3.5vh 24px 0;
   overflow: hidden;
 }
@@ -455,15 +457,15 @@
   color: hsl(var(--brand-ice));
 }
 .plex-hero-sum {
-  margin-top: 4px;
-  max-width: 560px;
+  margin-top: 2px;
+  max-width: 640px;
   font-size: 11.5px;
   line-height: 16px;
   color: rgba(255, 255, 255, 0.8);
   overflow: hidden;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 1;
 }
 /* Discover, the season, a library: the page's name, large. */
 .plex-page-title {

@@ -114,3 +114,38 @@ export async function demoGetActorItems(
 ): Promise<PlexItem[]> {
   return [];
 }
+
+// ── a library's rows (PlexLibraryRows), from the same catalog ─────────────
+// The real ones are server queries (`sort=…&unwatched=1&…`): here the sort
+// and the unwatched / date / rating bounds the rows use are read from the
+// query and applied to the library's titles, so a library opens on rows in
+// demo mode as on a real server.
+function demoQuery(items: PlexItem[], query: string): PlexItem[] {
+  const q = new URLSearchParams(query.replace(/%3E%3E=/gi, '>>=').replace(/%3E=/gi, '>='));
+  let out = items.slice();
+  if (q.get('unwatched') === '1' || q.get('unwatchedLeaves') === '1') out = out.filter((it) => !it.viewOffset && !it.viewCount);
+  if (q.has('audienceRating>>')) out = out.filter((it) => (it.rating ?? 0) >= Number(q.get('audienceRating>>')));
+  if (q.has('viewCount>>')) out = out.filter((it) => (it.viewCount ?? 0) > 0);
+  const [key, dir] = (q.get('sort') ?? '').split(':');
+  const val = (it: PlexItem): number | string => (
+    key === 'addedAt' ? it.addedAt ?? 0
+      : key === 'originallyAvailableAt' || key === 'year' ? it.year ?? 0
+        : key === 'audienceRating' ? it.rating ?? 0
+          : key === 'lastViewedAt' ? it.lastViewedAt ?? 0
+            : (it.title || '').toLowerCase());
+  if (key) out.sort((a, b) => { const x = val(a); const y = val(b); return (x > y ? 1 : x < y ? -1 : 0) * (dir === 'desc' ? -1 : 1); });
+  return out;
+}
+
+export async function demoGetSectionRow(_base: string, _token: string, sectionKey: string, query: string, limit = 15): Promise<PlexItem[]> {
+  return demoQuery((await fetchDemoCatalog()).itemsByLibrary[sectionKey] ?? [], query).slice(0, limit);
+}
+
+export async function demoGetSectionOnDeck(_base: string, _token: string, sectionKey: string): Promise<PlexItem[]> {
+  return (await fetchDemoCatalog()).home.continueWatching.filter((it) => String(it.librarySectionID ?? '') === String(sectionKey));
+}
+
+export async function demoGetLibraryQuery(_base: string, _token: string, sectionKey: string, query: string, start = 0, size = 60): Promise<PlexLibraryPage> {
+  const all = demoQuery((await fetchDemoCatalog()).itemsByLibrary[sectionKey] ?? [], query);
+  return { items: all.slice(start, start + size), totalSize: all.length };
+}
