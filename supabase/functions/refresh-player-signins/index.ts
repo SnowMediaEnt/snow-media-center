@@ -24,6 +24,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { decryptMaybe } from '../_shared/panelcrypto.ts';
+import { ensureMissingPins } from '../_shared/signinPinLines.ts';
 
 const BATCH_SIZE = 50;
 const MAX_ROWS_PER_RUN = 300;
@@ -34,6 +35,10 @@ const REQUEST_TIMEOUT_MS = 10_000;
 const INTER_REQUEST_DELAY_MS = 300;
 const DIGEST_MAX_LINES = 25;
 const DAY_MS = 86_400_000;
+// Sign-in PINs for lines that have none (a Vibez line renewed on its panel, a
+// line the hub added by hand): at the end of each run, within this budget.
+const PIN_BUDGET_MS = 20_000;
+const PIN_MAX_PER_RUN = 300;
 
 // Hosts this unattended job may contact. dstreams is served on :2083 as well
 // as :8080 — the billing API hands back the :2083 form, and without it here
@@ -593,6 +598,15 @@ Deno.serve(async (req) => {
     }
   }
 
+  // ---- Sign-in PINs for lines that have none (never fails the run) ----
+  let pins: { created: number; failed: number; more: boolean } | { error: string } = { error: 'skipped' };
+  try {
+    const r = await ensureMissingPins(admin, { max: PIN_MAX_PER_RUN, deadline: Date.now() + PIN_BUDGET_MS });
+    pins = r.ok ? { created: r.created, failed: r.failed, more: r.more } : { error: r.reason };
+  } catch (e) {
+    pins = { error: e instanceof Error ? e.name : 'error' };
+  }
+
   const summary = {
     ok: true,
     scanned: candidates.length,
@@ -603,6 +617,7 @@ Deno.serve(async (req) => {
     expiring: counts.expiring,
     expired: counts.expired,
     notified,
+    pins,
   };
   console.log('[refresh-player-signins] summary', JSON.stringify(summary));
   return jsonResponse(summary);

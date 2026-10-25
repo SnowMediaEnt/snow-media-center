@@ -41,3 +41,30 @@ export async function decryptMaybe(value: string | null | undefined): Promise<st
   const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, await key(), ct);
   return new TextDecoder().decode(plain);
 }
+
+function b64encode(bytes: Uint8Array): string {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+
+/**
+ * The mirror of decryptMaybe: enc:v1 ciphertext of `plain` (a fresh random
+ * IV every time), or null when PANEL_CRED_KEY is missing or unusable. Callers
+ * that must never store a value in the clear (signin_pins.pin_enc) refuse on
+ * null.
+ */
+export async function encryptForStorage(plain: string): Promise<string | null> {
+  let k: CryptoKey;
+  try {
+    k = await key();
+  } catch {
+    return null;
+  }
+  const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, k, new TextEncoder().encode(plain)));
+  const joined = new Uint8Array(iv.length + ct.length);
+  joined.set(iv);
+  joined.set(ct, iv.length);
+  return PREFIX + b64encode(joined);
+}

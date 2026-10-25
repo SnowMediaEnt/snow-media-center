@@ -138,3 +138,13 @@ verify_jwt = true
 # owner or an admin).
 [functions.device-inbox]
 verify_jwt = false
+
+# Sign in with a PIN (20261025120000_signin_pins.sql). A box has no session:
+# the function limits wrong PINs per address and for everyone (fail closed).
+[functions.pin-signin]
+verify_jwt = false
+
+# The hub's sign-in PINs. Checks the caller IN CODE: an admin's JWT
+# (has_role 'admin'), or x-internal-secret = INTERNAL_FN_SECRET for 'ensure'.
+[functions.signin-pins]
+verify_jwt = false

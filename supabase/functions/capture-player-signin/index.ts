@@ -307,6 +307,30 @@ async function throttle(
   }
 }
 
+// The line's sign-in PIN (signin-pins 'ensure': made if the line has none, so
+// a renewal keeps the digits; this is how Vibez lines get theirs). In the
+// background: never waited on, and nothing it does can slow down or fail
+// the capture. Only after the panel has accepted the line.
+function ensureSigninPin(host: string, username: string, customerId: string | null): void {
+  try {
+    const url = Deno.env.get('SUPABASE_URL');
+    const secret = Deno.env.get('INTERNAL_FN_SECRET');
+    if (!url || !secret) return;
+    const call = fetch(`${url}/functions/v1/signin-pins`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': secret },
+      body: JSON.stringify({ action: 'ensure', host, username, customer_id: customerId, source: 'capture' }),
+      signal: AbortSignal.timeout(15_000),
+    })
+      .then(async (res) => { await res.body?.cancel().catch(() => {}); })
+      .catch(() => console.warn('[capture-player-signin] sign-in PIN not requested'));
+    const rt = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
+    rt?.waitUntil?.(call);
+  } catch {
+    // Never the capture's problem.
+  }
+}
+
 async function resolveSupabaseUser(
   admin: ReturnType<typeof createClient>,
   authHeader: string | null,
@@ -450,6 +474,8 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: false, reason: 'db_error' });
     }
     const linked = Boolean((data as { linked?: boolean } | null)?.linked);
+    // h. The line's sign-in PIN, without waiting.
+    ensureSigninPin(host, typedUsername, matchedCustomerId);
     return jsonResponse({ ok: true, linked });
   } catch (e) {
     console.error('[capture-player-signin] unexpected:', e);

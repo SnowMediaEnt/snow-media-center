@@ -148,10 +148,18 @@ export interface ThrottleDb {
  * each under its own key prefix. The count goes up in one statement
  * (public.throttle_hit), so calls arriving together each get their own
  * count rather than all reading the same one. A missing key (no IP) is let
- * through, and so is a database error: a throttle outage must not take the
- * feature down.
+ * through. A database error is let through by default ('allow'): a throttle
+ * outage must not take the feature down. A caller that hands out
+ * credentials (pin-signin) passes 'deny' instead, so an outage refuses
+ * rather than lifting its limits.
  */
-export async function throttle(db: ThrottleDb, key: string | null, max: number, windowMs: number): Promise<boolean> {
+export async function throttle(
+  db: ThrottleDb,
+  key: string | null,
+  max: number,
+  windowMs: number,
+  failure: 'allow' | 'deny' = 'allow',
+): Promise<boolean> {
   if (!key) return true;
   try {
     const { data, error } = await db.rpc('throttle_hit', { p_key: key, p_window_ms: windowMs });
@@ -159,7 +167,12 @@ export async function throttle(db: ThrottleDb, key: string | null, max: number, 
     if (typeof data !== 'number') throw new Error(`throttle_hit returned ${JSON.stringify(data)}`);
     return data <= max;
   } catch (e) {
-    console.warn('[throttle] fail-open:', e instanceof Error ? e.message : String(e));
+    const why = e instanceof Error ? e.message : String(e);
+    if (failure === 'deny') {
+      console.warn('[throttle] fail-closed:', why);
+      return false;
+    }
+    console.warn('[throttle] fail-open:', why);
     return true;
   }
 }
