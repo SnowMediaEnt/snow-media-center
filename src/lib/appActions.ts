@@ -29,7 +29,7 @@ export type PreferenceKey = 'live_layout' | 'dashboard_size' | 'post_notificatio
 export interface ReportIntent { search: string; issue?: string; details?: string }
 
 export const INTENT_KEYS = {
-  player: 'smc-player-intent',      // { section?: 'live'|'guide'|'multi'|'movies'|'backups', settings?: 'appearance'|'hub', report?: ReportIntent }
+  player: 'smc-player-intent',      // { section?: 'live'|'guide'|'multi'|'movies'|'backups'|'gameday'|'recordings', settings?: 'appearance'|'hub', report?: ReportIntent }
   support: 'smc-support-open',      // 'posts' | 'tickets' | 'cleaner' | 'speedtest' | 'videos' | 'ai'
   settings: 'smc-settings-tab',     // 'media' | 'ui' | 'profiles' | 'updates' | 'alerts' | 'ai'
   installApp: 'smc-install-app',    // app name
@@ -175,7 +175,7 @@ export interface PlayerIntent {
   /** Opened from its own Home card: Back from it goes home, not to the
    *  Player's chooser. */
   home?: boolean;
-  section?: 'live' | 'guide' | 'multi' | 'movies' | 'backups' | 'gameday';
+  section?: 'live' | 'guide' | 'multi' | 'movies' | 'backups' | 'gameday' | 'recordings';
   settings?: 'appearance' | 'hub';
   report?: ReportIntent;
   /** Live TV: play the channel with this name. */

@@ -11,7 +11,7 @@
 // arrangement. Ported from Tronix (4369a23, b033d02).
 import { memo, useContext, useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, ChevronDown, ChevronRight, Film, Loader2, Maximize, Search, Star, Tv } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, Loader2, Maximize, Search, Star, Tv } from 'lucide-react';
 import { formatCount } from '@/lib/catalogCounts';
 import { PlayerTabsSlot, keepChipInView } from './playerTabs';
 
@@ -46,10 +46,6 @@ interface Props {
   searchInputRef: RefObject<HTMLInputElement>;
   onSearchToggle: () => void;
   onSearchChange: (q: string) => void;
-  /** Recordings (a chip before the categories), when there are any. */
-  showRecordings: boolean;
-  recordingNow: boolean;
-  onOpenRecordings: () => void;
   categoriesLoading: boolean;
   categories: UprightCategory[];
   categoryIdx: number;
@@ -67,7 +63,6 @@ const chip = (on: boolean) => `flex-shrink-0 inline-flex items-center gap-1.5 h-
 const LiveUpright = memo(({
   layoutChooser, previewBoxRef, previewBox, nativePreviewActive, inBox, boxNowTitle, onFullScreen,
   searchOpen, searchQuery, searchInputRef, onSearchToggle, onSearchChange,
-  showRecordings, recordingNow, onOpenRecordings,
   categoriesLoading, categories, categoryIdx, onPickCategory, channelList, children,
 }: Props) => {
   const { t } = useTranslation();
@@ -149,12 +144,6 @@ const LiveUpright = memo(({
           />
         ) : (
           <>
-            {showRecordings && (
-              <button type="button" onClick={onOpenRecordings} data-recordings-chip="" className={chip(false)}>
-                <Film className="w-4 h-4" />{t('live.list.recordingsBtn')}
-                {recordingNow && <span className="w-2.5 h-2.5 rounded-full bg-red-500" aria-label={t('live.list.recordingNow')} />}
-              </button>
-            )}
             {categoriesLoading && categories.length === 0 && (
               <span className="flex-shrink-0 inline-flex items-center gap-2 text-brand-ice/70 font-nunito text-sm">
                 <Loader2 className="w-4 h-4 animate-spin text-brand-gold" /> {t('live.list.loadingCategories')}

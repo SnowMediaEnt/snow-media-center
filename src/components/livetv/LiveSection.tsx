@@ -3,7 +3,7 @@ import { App as CapApp } from '@capacitor/app';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import { formatTime } from '@/i18n/format';
-import { ChevronDown, ChevronLeft, ChevronRight, Film, Loader2, Search, Star, Tv } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Loader2, Search, Star, Tv } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   loadFavoritesData,
@@ -129,13 +129,12 @@ import {
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 const ReportChannelDialog = lazy(() => import('./ReportChannelDialog'));
 
-const RecordingsScreen = lazy(() => import('./RecordingsScreen'));
 
 const NATIVE_PLAYBACK = hasNativePlayer();
 // Demo latch (?demo=1) — canned lineup, no provider contact, no <video> mount.
 const DEMO = isDemo();
-// The How-to pictures (developer build only): a second service, the layout
-// chooser and the Recordings entry, as a real box shows them.
+// The How-to pictures (developer build only): a second service and the
+// layout chooser, as a real box shows them.
 const HOWTO = isHowtoCapture();
 // Record live channels (TRACKER 25): the native app with the recorder plugin
 // (an older build has none), never the demo. A Kids profile hides it too (see
@@ -218,7 +217,9 @@ const ALL_FAVS_ID = '__allfavs__';
 //   GRID_COLS tiles, 168px tall in a 176px slot.
 const rowHeightFor = (l: LiveLayout, opts: { slim?: boolean; upright?: boolean } = {}): number => (l === 'grid' ? 176 : listRowSlot(l, opts));
 const GRID_COLS = 5;
-const CAT_ROW_HEIGHT = 48; // px — matches py-2.5 + text-sm + 4px vertical gap (space-y-1)
+// px — a slim row (owner, 2026-10-24: more categories on screen): py-1 +
+// 15px text + a 3px gap under each row. Was 48.
+const CAT_ROW_HEIGHT = 35;
 const CAT_FOCUS_PAD = 8;   // px — breathing room so the focus ring is never flush to the pane edge
 const EPG_MAX_CONCURRENT = 5;
 const EPG_CACHE_MAX = 400;
@@ -611,27 +612,17 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const [recordFor, setRecordFor] = useState<{ st: XtreamLiveStream; line: XtreamCreds } | null>(null);
   const recordForRef = useRef(recordFor);
   recordForRef.current = recordFor;
-  // Live TV › Recordings: an entry under Search once there is something to
-  // list; the screen takes the section over (and the remote) while open.
-  const [recordingsOpen, setRecordingsOpen] = useState(false);
-  const recordingsOpenRef = useRef(recordingsOpen);
-  recordingsOpenRef.current = recordingsOpen;
-  const [recFocused, setRecFocused] = useState(false);
-  const recFocusedRef = useRef(recFocused);
-  recFocusedRef.current = recFocused;
-  const [hasRecordings, setHasRecordings] = useState(false);
-  // Schedules (set for later, or missed) give the Recordings entry a reason to show before any file exists.
-  const [hasSchedules, setHasSchedules] = useState(false);
+  // Live TV › Recordings is a section of its own now (the far-left menu,
+  // LiveTV.tsx); here only what is recording right now matters (the REC
+  // badge, the rewind plan).
   const [recJobs, setRecJobs] = useState<RecordingJob[]>([]);
-  // Re-reads what is recorded and what is recording. The one place a
-  // "recordings changed" event lands: the screens fire it after a start, stop,
-  // rename or delete (notifyRecordingsChanged), and the native side's own
-  // 'recordingsChanged' event (a scheduled start, a recording that ended)
-  // fires the same event (SnowRecorder.ts).
+  // Re-reads what is recording. The one place a "recordings changed" event
+  // lands: the screens fire it after a start, stop, rename or delete
+  // (notifyRecordingsChanged), and the native side's own 'recordingsChanged'
+  // event (a scheduled start, a recording that ended) fires the same event
+  // (SnowRecorder.ts).
   const refreshRecordings = useCallback(() => {
     if (!recordOnRef.current) return;
-    SnowRecorder.list().then((r) => setHasRecordings(r.recordings.length > 0)).catch(() => { /* older app */ });
-    SnowRecorder.listSchedules().then((r) => setHasSchedules(r.schedules.length > 0)).catch(() => { /* older app */ });
     SnowRecorder.active().then((r) => setRecJobs(r.jobs)).catch(() => { /* older app */ });
   }, []);
   useEffect(() => {
@@ -2131,7 +2122,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // The preview: the dwelt-on channel, in the box, while this section has
   // the remote and the box is on screen. Same player, same stream URL as
   // fullscreen, so OK on the previewing channel only moves the picture.
-  const nativePreviewActive = NATIVE_PLAYBACK && !DEMO && isActive && !fullscreen && !!previewChannel && !recordingsOpen;
+  const nativePreviewActive = NATIVE_PLAYBACK && !DEMO && isActive && !fullscreen && !!previewChannel;
   // Vibez (strmz.xyz) is only reliable via the raw .ts container on Fire TV —
   // the shared buildNativeLiveUrl helper always swaps .m3u8→.ts. Dreamstreams
   // works on both.
@@ -2566,12 +2557,6 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   const playingLineRef = useRef(playingLine);
   playingLineRef.current = playingLine;
   const playingStreamRef = useRef<XtreamLiveStream | null>(null);
-  // The Recordings entry under Search is on screen (once something is recorded).
-  const showRecEntry = ((recordOn && (hasRecordings || hasSchedules)) || HOWTO) && !searchOpen;
-  const recEntryRef = useRef(showRecEntry);
-  recEntryRef.current = showRecEntry;
-  // It went away (the last recording deleted) while highlighted: hand the highlight back.
-  useEffect(() => { if (!showRecEntry && recFocused) setRecFocused(false); }, [showRecEntry, recFocused]);
   const paneRef = useRef(pane);
   const categoryIdxRef = useRef(categoryIdx);
   const channelIdxRef = useRef(channelIdx);
@@ -2955,7 +2940,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     loadKey: nativeUrl ? `${nativeUrl}#${native.loads ?? 0}` : null,
     buffering: native.buffering,
     error: !!native.error,
-    busy: !!(warnFor || reportFor || reportCatFor || recordFor) || recordingsOpen || chOverlayOpen || recent.open
+    busy: !!(warnFor || reportFor || reportCatFor || recordFor) || chOverlayOpen || recent.open
       || subMenuOpen || audioMenuOpen || volMenuOpen || choosingLayout,
     onGone: (why) => { if (why === 'error') bufferHelpGaveWayAtRef.current = Date.now(); },
   });
@@ -2965,7 +2950,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
 
   // Turning the phone (or a tablet) while a channel plays (Tronix 2ca8249):
   // sideways it goes full screen, upright it comes back to the box. Not while
-  // something else owns the screen (Recordings, the Report / Record / warning
+  // something else owns the screen (the Report / Record / warning
   // dialogs) or the section isn't the active one: the channel would go full
   // screen with no keys.
   const turnedFromRef = useRef(phoneLayout);
@@ -2976,7 +2961,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     turnedFromRef.current = phoneLayout;
     // "Still buffering?" does not hold the turn: it goes by itself once the
     // picture moves (useBufferingHelp), and in this same commit it is still open.
-    if (recordingsOpenRef.current || reportForRef.current || recordForRef.current || warnForRef.current || !activeForTurnRef.current) return;
+    if (reportForRef.current || recordForRef.current || warnForRef.current || !activeForTurnRef.current) return;
     const wasUpright = from === 'portrait';
     const nowUpright = phoneLayout === 'portrait';
     if (wasUpright && !nowUpright && !fullscreenRef.current && previewChannelRef.current) {
@@ -3020,8 +3005,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     if (!isActive) return;
     const handler = (e: KeyboardEvent) => {
      try {
-      // The Report / Record dialogs, "Still buffering?" and the Recordings screen own the keyboard while open.
-      if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || recordingsOpenRef.current || bufferHelpOpenRef.current) return;
+      // The Report / Record dialogs and "Still buffering?" own the keyboard while open.
+      if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || bufferHelpOpenRef.current) return;
       // It just gave way to the error card: a press made as they swapped
       // never lands on Retry / Try on / Report it.
       if (Date.now() - bufferHelpGaveWayAtRef.current < BUFFER_HELP_ARM_MS) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); return; }
@@ -3039,7 +3024,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       // Remote "Menu" / context key on a category: its menu (Report category down).
       if (
         !fullscreenRef.current && !typing && paneRef.current === 'categories'
-        && !searchFocusedRef.current && !recFocusedRef.current && !recentRef.current.isOpen()
+        && !searchFocusedRef.current && !recentRef.current.isOpen()
         && (e.key === 'ContextMenu' || e.keyCode === 82)
       ) {
         const c = visibleCategoriesRef.current[categoryIdxRef.current];
@@ -3401,20 +3386,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       const chans = visibleChannelsRef.current;
 
       if (paneRef.current === 'categories') {
-        // Recordings, between Search and the categories.
-        if (recFocusedRef.current) {
-          if (e.key === 'ArrowUp') { setRecFocused(false); setSearchFocused(true); return; }
-          if (e.key === 'ArrowDown') { setRecFocused(false); return; }
-          if (e.key === 'ArrowLeft') { onExitLeft(); return; }
-          if (e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ') { setRecordingsOpen(true); return; }
-          return;
-        }
         if (searchFocusedRef.current) {
           if (e.key === 'ArrowUp')   { setSearchFocused(false); onExitUp?.(); return; }
           if (e.key === 'ArrowDown') {
             if (searchOpenRef.current && searchInputRef.current) { searchInputRef.current.focus(); return; }
             setSearchFocused(false);
-            if (recEntryRef.current) setRecFocused(true);
             return;
           }
           if (e.key === 'ArrowLeft') { onExitLeft(); return; }
@@ -3432,11 +3408,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           setCategoryIdx(i => (i + 1) % Math.max(1, cats.length));
         }
         else if (e.key === 'ArrowUp') {
-          if (categoryIdxRef.current === 0) {
-            if (recEntryRef.current) setRecFocused(true);
-            else setSearchFocused(true);
-            return;
-          }
+          if (categoryIdxRef.current === 0) { setSearchFocused(true); return; }
           userMovedRef.current = true;
           setCategoryIdx(i => (i - 1 + cats.length) % Math.max(1, cats.length));
         }
@@ -3526,7 +3498,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         }
         hold.fired = false;
       }
-      if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || recordingsOpenRef.current || bufferHelpOpenRef.current) return;
+      if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || bufferHelpOpenRef.current) return;
       if (e.key !== 'Enter' && e.key !== ' ') return;
       if (paneRef.current !== 'channels' || fullscreenRef.current) {
         cancelEnterTimer();
@@ -3576,7 +3548,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           // Recently watched, the list over the picture (overlayBack: the
           // keyboard, a search typed there, its categories, the list), the
           // picture, the caller (the Guide, Game Day), the categories, out.
-          if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || recordingsOpenRef.current || bufferHelpOpenRef.current) return;
+          if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || bufferHelpOpenRef.current) return;
           if (favMoveRef.current.movingKey) { favMoveRef.current.drop(); return; }
           if (subMenuOpenRef.current || audioMenuOpenRef.current || volMenuOpenRef.current) { setSubMenuOpen(false); setAudioMenuOpen(false); setVolMenuOpen(false); return; }
           if (recentRef.current.isOpen()) { recentRef.current.close(); return; }
@@ -3843,15 +3815,6 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       reportOf={(c) => channelReport(downSet, c.line.host, c.stream.stream_id, c.stream.category_id)}
     />
   ) : null;
-
-  // Live TV › Recordings takes the section over (the remote too).
-  if (recordingsOpen) {
-    return (
-      <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
-        <RecordingsScreen active={isActive} onClose={() => { setRecordingsOpen(false); refreshRecordings(); }} />
-      </Suspense>
-    );
-  }
 
   // A touch screen, full screen (Tronix 4369a23): a tap on the picture brings
   // the bar up or puts it away (and closes an open menu). A tap on a bar
@@ -4153,13 +4116,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       style={drawer ? { transform: pane === 'categories' ? 'translateX(0)' : 'translateX(-110%)' } : undefined}
       className={drawer
         ? `absolute left-0 top-0 bottom-0 z-20 ${paneW} border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-[#0b1220] ${pane === 'categories' ? '' : 'pointer-events-none'}`
-        : `w-64 max-w-[16rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}${catsFolded ? ' invisible' : ''}`}
+        : `w-56 max-w-[14rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}${catsFolded ? ' invisible' : ''}`}
     >
         <button
           onClick={() => setSearchOpen(o => !o)}
           data-focused={searchFocused ? 'true' : 'false'}
           data-howto="live.searchBtn"
-          className={`tv-ring w-full flex items-center gap-2 px-3 py-3 mb-2 rounded-xl border border-white/10 text-brand-ice font-nunito text-base ${searchFocused ? 'bg-brand-gold/25 scale-[1.02] z-10' : 'bg-black/40'}`}
+          className={`tv-ring w-full flex items-center gap-2 px-3 py-2 mb-2 rounded-xl border border-white/10 text-brand-ice font-nunito text-base ${searchFocused ? 'bg-brand-gold/25 scale-[1.02] z-10' : 'bg-black/40'}`}
         >
           <Search className="w-4 h-4" />
           <span className="min-w-0 truncate">{searchOpen ? t('live.list.closeSearchBtn') : t('live.list.searchChannelsBtn')}</span>
@@ -4177,20 +4140,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
             }}
             placeholder={t('live.list.searchPlaceholder')}
             data-howto="live.searchBox"
-            className="w-full mb-3 rounded-xl bg-black/40 text-white border border-white/20 px-3 py-3 font-nunito text-base focus:outline-none focus:ring-2 focus:ring-brand-gold"
+            className="w-full mb-2 rounded-xl bg-black/40 text-white border border-white/20 px-3 py-2 font-nunito text-base focus:outline-none focus:ring-2 focus:ring-brand-gold"
           />
-        )}
-        {showRecEntry && (
-          <button
-            onClick={() => setRecordingsOpen(true)}
-            data-focused={recFocused ? 'true' : 'false'}
-            data-howto="live.recordingsBtn"
-            className={`tv-ring w-full flex items-center gap-2 px-3 py-3 mb-2 rounded-xl border border-white/10 text-brand-ice font-nunito text-base ${recFocused ? 'bg-brand-gold/25 scale-[1.02] z-10' : 'bg-black/40'}`}
-          >
-            <Film className="w-4 h-4" />
-            <span className="min-w-0 truncate">{t('live.list.recordingsBtn')}</span>
-            {recJobs.length > 0 && <span className="ml-auto w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" aria-label={t('live.list.recordingNow')} />}
-          </button>
         )}
         {!searchOpen && (
           <>
@@ -4213,7 +4164,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                   const i = vRow.index;
                   const c = visibleCategories[i];
                   if (!c) return null;
-                  const isFocused = isActive && pane === 'categories' && !searchFocused && !recFocused && categoryIdx === i;
+                  const isFocused = isActive && pane === 'categories' && !searchFocused && categoryIdx === i;
                   // The category whose channels are listed. Marked only while
                   // the viewer is over in that list — a thin gold bar, not a
                   // filled box — so there is never a second highlight on
@@ -4241,24 +4192,24 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                         width: '100%',
                         transform: `translateY(${vRow.start}px)`,
                         height: CAT_ROW_HEIGHT,
-                        paddingBottom: 4, // matches space-y-1 gap so heights are stable
+                        paddingBottom: 3, // the gap under the row, so heights are stable
                       }}
                       className={`
-                        tv-ring flex items-center gap-2 py-2 rounded-xl cursor-pointer
+                        tv-ring flex items-center gap-2 py-1 rounded-xl cursor-pointer
                         ${c.isHeader ? 'px-3 mt-1' : grouped ? 'pl-6 pr-3' : 'px-3'}
                         ${isFocused ? 'bg-brand-gold/25 z-10' : ''}
                         ${!isFocused && c.isHeader ? 'bg-white/10 border border-white/15' : ''}
                         ${!isFocused && !c.isHeader ? 'border border-transparent hover:bg-white/5' : ''}
                       `}
                     >
-                      {isMarked && <span className="absolute left-1 top-2 bottom-2 w-[3px] rounded-full bg-brand-gold" aria-hidden="true" />}
+                      {isMarked && <span className="absolute left-1 top-1.5 bottom-2 w-[3px] rounded-full bg-brand-gold" aria-hidden="true" />}
                       {c.isHeader && (c.collapsedHeader
                         ? <ChevronRight className="w-4 h-4 text-brand-gold flex-shrink-0" />
                         : <ChevronDown className="w-4 h-4 text-brand-gold flex-shrink-0" />)}
                       {c.isFav && <Star className="w-4 h-4 text-brand-gold flex-shrink-0" />}
                       <span className={c.isHeader
                         ? `font-quicksand font-bold uppercase tracking-wide text-sm truncate flex-1 ${isFocused ? 'text-white' : 'text-brand-gold'}`
-                        : `font-nunito truncate flex-1 ${isFocused ? 'text-white font-semibold' : isMarked ? 'text-brand-gold font-semibold' : 'text-brand-ice'}`}>
+                        : `font-nunito text-[15px] truncate flex-1 ${isFocused ? 'text-white font-semibold' : isMarked ? 'text-brand-gold font-semibold' : 'text-brand-ice'}`}>
                         {catLabel(c)}
                       </span>
                       {c.isHeader && c.line.outside && (
@@ -4269,7 +4220,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                       )}
                       {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
                       {!isLoadingThis && !c.isHeader && c.count != null && c.count > 0 && (
-                        <span className={`text-xs font-nunito tabular-nums px-2 py-1 rounded-lg ${isFocused ? 'bg-brand-navy/40 text-brand-gold' : 'bg-white/10 text-brand-ice/70'}`}>
+                        <span className={`text-xs font-nunito tabular-nums px-2 py-0.5 rounded-lg flex-shrink-0 ${isFocused ? 'bg-brand-navy/40 text-brand-gold' : 'bg-white/10 text-brand-ice/70'}`}>
                           {formatCount(c.count)}
                         </span>
                       )}
@@ -4456,9 +4407,6 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         searchInputRef={searchInputRef}
         onSearchToggle={() => { const open = !searchOpen; setSearchOpen(open); if (!open) setSearchQuery(''); }}
         onSearchChange={setSearchQuery}
-        showRecordings={showRecEntry}
-        recordingNow={recJobs.length > 0}
-        onOpenRecordings={() => setRecordingsOpen(true)}
         categoriesLoading={categoriesLoading}
         categories={visibleCategories.map((c) => ({
           id: c.id, label: catLabel(c), isHeader: c.isHeader, collapsedHeader: c.collapsedHeader, isFav: c.isFav,

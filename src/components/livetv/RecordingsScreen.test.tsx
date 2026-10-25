@@ -102,6 +102,26 @@ describe('the list', () => {
   });
 });
 
+describe('a section of the far-left menu', () => {
+  it('▲ from the top row goes to the header (onExitUp); lower down it moves up', async () => {
+    const onExitUp = vi.fn();
+    render(<RecordingsScreen onClose={vi.fn()} onExitUp={onExitUp} />);
+    await settle();
+    up();
+    key('ArrowDown'); key('ArrowUp');
+    expect(onExitUp).not.toHaveBeenCalled();
+    key('ArrowUp');
+    expect(onExitUp).toHaveBeenCalledTimes(1);
+  });
+
+  it('◀ and Back close it (to the menu)', async () => {
+    const onClose = await open();
+    key('ArrowLeft');
+    key('Escape');
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('Delete asks first', () => {
   it('starts on Keep it; Delete it removes the file', async () => {
     await open();
