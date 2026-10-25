@@ -116,6 +116,15 @@ import { pauseLoading, resumeLoading, waitForResume } from '@/lib/loadGate';
 const DEMO = isDemo();
 /** How long a server-side convert may take to start before falling back. */
 const TRANSCODE_START_GRACE_MS = 30000;
+/** A file played as it is: how long a start may take before "Still
+ *  preparing" (when nothing is drawn and nothing arrives). 8 s fired on
+ *  starts that were about to play (1.9.7, the owner's Fire TV). */
+const DIRECT_START_GRACE_MS = 15000;
+/** Data arriving at least this fast is a start under way, not a dead one. */
+const ARRIVING_KBPS = 128;
+/** A start that receives data but never draws anything gets the card after
+ *  this long all the same. */
+const START_GIVE_UP_MS = 60000;
 /** A converting session playback left is stopped this long after, unless the
  *  same address came back (a reload with subtitles puts it back at once). */
 const TRANSCODE_STOP_DELAY_MS = 1500;
@@ -4013,10 +4022,37 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // Only while the player is up: its 4 s timer used to re-render all of Plex
   // after mount and after every player close, for a bar that was not shown.
   const [titleShown] = useTransientVisible(4000, { watchKeys: false, deps: [playingTitle, streamUrl], enabled: fullscreen });
+  // Loading is done once a picture is on screen: from then on a wait is a
+  // buffering stall (the buffering card and automatic quality), never "Still
+  // preparing". The owner's TV (1.9.7) showed the card over a picture that
+  // was about to play, and its Retry started the film all over again.
+  const markLoaded = useCallback(() => {
+    if (!stillLoadingRef.current) return;
+    stillLoadingRef.current = false;
+    clearSlowLoadTimer();
+    setSlowLoad(false);
+  }, [clearSlowLoadTimer]);
+  /** The player has drawn this stream's first frame (getStats). */
+  const frameDrawn = useCallback(async (): Promise<boolean> => {
+    try {
+      const st = await SnowPlayer.getStats();
+      return st.firstFrameMs != null || (st.renderedFrames ?? 0) > 0;
+    } catch { return false; }
+  }, []);
+  /** Data is arriving from the server (the last window, a few seconds old
+   *  at most, at ARRIVING_KBPS or more). */
+  const bytesArriving = useCallback((): boolean => {
+    const r = rates();
+    const last = r[r.length - 1];
+    return !!last && Date.now() - last.t <= 2 * RATE_TICK_MS + 500 && last.kbps >= ARRIVING_KBPS;
+  }, [rates]);
+  const slowTokenRef = useRef(0);
   const armSlowLoadTimer = useCallback(() => {
     clearSlowLoadTimer();
     stillLoadingRef.current = true;
     setSlowLoad(false);
+    const token = ++slowTokenRef.current;
+    const armedAt = Date.now();
     // Converting has to fill the server's first segments before anything
     // plays: on a 4K or HEVC file, or a remote server, that routinely takes
     // longer than 8 s. Giving up at 8 s is what made every "1080p · 8 Mbps"
@@ -4026,14 +4062,28 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // slow, so look again once the hold is over.
     // A conversion recovery under way (a stop awaited, a decision pending)
     // is not the server being slow either: look again once it is through.
-    const fire = () => {
+    // A picture drawn: loading is done. Nothing drawn: first the rescue of a
+    // start the server feeds too little (tryRescue, which does nothing when
+    // the server delivers enough); then, with data still arriving, the start
+    // is under way, so no card, a look again in a few seconds; after a
+    // minute of that, the card all the same. Only a start where nothing is drawn and
+    // (almost) nothing arrives gets "Still preparing" in time.
+    const again = (ms: number) => { slowLoadTimerRef.current = window.setTimeout(() => { void fire(); }, ms) as unknown as number; };
+    const fire = async (): Promise<void> => {
       slowLoadTimerRef.current = null;
-      if (!stillLoadingRef.current) return;
-      if (isPreBuffering() || convertRecoveringRef.current) { slowLoadTimerRef.current = window.setTimeout(fire, 2000) as unknown as number; return; }
+      if (!stillLoadingRef.current || token !== slowTokenRef.current) return;
+      if (isPreBuffering() || convertRecoveringRef.current) { again(2000); return; }
+      const drawn = await frameDrawn();
+      if (!stillLoadingRef.current || token !== slowTokenRef.current) return;
+      if (drawn) { markLoaded(); return; }
+      // Nothing drawn: a start the server feeds too little is rescued first
+      // (before any card shows); one still receiving data is waited for.
+      if (tryRescueRef.current('slow') === 'rescued') return;
+      if (bytesArriving() && Date.now() - armedAt < START_GIVE_UP_MS) { again(5000); return; }
       setSlowLoad(true);
     };
-    slowLoadTimerRef.current = window.setTimeout(fire, useTranscodeRef.current ? TRANSCODE_START_GRACE_MS : 8000) as unknown as number;
-  }, [clearSlowLoadTimer]);
+    again(useTranscodeRef.current ? TRANSCODE_START_GRACE_MS : DIRECT_START_GRACE_MS);
+  }, [clearSlowLoadTimer, frameDrawn, markLoaded, bytesArriving]);
   useEffect(() => { armSlowLoadTimerRef.current = armSlowLoadTimer; }, [armSlowLoadTimer]);
   useEffect(() => {
     // A new stream: the last one's start-up hold (if any) is over.
@@ -4050,12 +4100,22 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     if (!fullscreen || !streamUrl) return;
     let lastPos: number | null = null;
     let alive = true;
+    let tick = 0;
     const id = window.setInterval(async () => {
       // Nothing left to watch for: playback already started once. A stall
       // mid-film flips `native` and re-runs this effect, and without this it
       // polled the player across the bridge every 1.5 s for the whole stall.
       if (!stillLoadingRef.current) { window.clearInterval(id); return; }
       try {
+        // A picture on screen (every other tick, 3 s): loading is done,
+        // whether or not it has begun to play (a start-up hold, a stall).
+        tick += 1;
+        if (tick % 2 === 0 && await frameDrawn()) {
+          if (!alive) return;
+          markLoaded();
+          window.clearInterval(id);
+          return;
+        }
         const p = await native.getPosition();
         if (!alive) return;
         const advanced = p.duration > 0 && lastPos !== null && p.position > lastPos + 0.1;
@@ -4072,7 +4132,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       } catch { /* ignore */ }
     }, 1500);
     return () => { alive = false; window.clearInterval(id); };
-  }, [fullscreen, streamUrl, native, clearSlowLoadTimer]);
+  }, [fullscreen, streamUrl, native, clearSlowLoadTimer, frameDrawn, markLoaded]);
 
   // A conversion the server accepted but never fed: the slow-load watchdog
   // fired while a converting stream was still loading (no error, no
@@ -4863,6 +4923,23 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
 
   const goHome = useCallback(() => { cancelPendingTab(); setLibIdx(homeIdx); setZone('tabs'); }, [cancelPendingTab]);
 
+  // "Still preparing"'s Start again: the stream again (no stream address yet:
+  // the title's play path from scratch). OK reaches it only after a key-up
+  // since the card appeared (the key effect below), and it is never the
+  // focused default, so no held or stray OK restarts the film.
+  const [startAgainArmed, setStartAgainArmed] = useState(false);
+  useEffect(() => { setStartAgainArmed(false); }, [slowLoad]);
+  const startAgainRef = useRef<() => void>(() => { /* filled below */ });
+  startAgainRef.current = () => {
+    armSlowLoadTimer();
+    if (!streamUrl && playing) {
+      // No stream URL resolved yet — native.retry() would be a no-op.
+      void playRatingKey(playing.ratingKey, playing.title, startPos, subCtx, playingResLabel, undefined, { version: playVersionRef.current, versions: playVersionsRef.current }, { trailer: playing.trailer });
+    } else {
+      native.retry();
+    }
+  };
+
   // Single keydown effect. STRUCTURAL RULE: while `detailItem` OR `fullscreen`
   // is set, this handler is TORN DOWN entirely — the detail overlay / player
   // overlay wire their own capture listeners. That guarantees exactly ONE
@@ -4874,8 +4951,24 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // handler so the user is never stuck on a black loading screen while the
     // native decoder acquires. Everything else is deferred to the overlay.
     if (fullscreen && (!streamUrl || slowLoad || !!native.error)) {
+      // "Still preparing": OK starts again only once a key-up has come since
+      // the card appeared — the OK still held from starting the film, or a
+      // stray press, never restarts it. Back always works.
+      const card = slowLoad && !native.error;
+      let okArmed = false;
+      const isOk = (e: KeyboardEvent) => e.key === 'Enter' || e.key === ' ' || e.keyCode === 23 || e.keyCode === 66;
+      const okUp = (e: KeyboardEvent) => {
+        if (!card || !isOk(e)) return;
+        okArmed = true;
+        setStartAgainArmed(true);
+      };
       const backOnly = (e: KeyboardEvent) => {
         const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.keyCode === 8;
+        if (card && isOk(e)) {
+          e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+          if (okArmed && !e.repeat) { okArmed = false; setStartAgainArmed(false); startAgainRef.current(); }
+          return;
+        }
         if (!isBack) return;
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
         // Hand the D-pad back synchronously so the same Back can't leak
@@ -4884,7 +4977,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
         setFullscreen(false); setStreamUrl(null); setUseTranscode(false);
       };
       window.addEventListener('keydown', backOnly, true);
-      return () => window.removeEventListener('keydown', backOnly, true);
+      window.addEventListener('keyup', okUp, true);
+      return () => { window.removeEventListener('keydown', backOnly, true); window.removeEventListener('keyup', okUp, true); };
     }
     if (detailItem || fullscreen) return;
     const gridHold = gridHoldRef.current!;
@@ -5135,18 +5229,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             </div>
             <p className="font-quicksand font-semibold mb-1">{t('plex.section.stillPreparing')}</p>
             <p className="text-sm text-brand-ice/70 font-nunito mb-4">{t('plex.section.slowToRespond')}</p>
-            <button onClick={() => {
-              if (!streamUrl && playing) {
-                // No stream URL resolved yet — native.retry() would be a no-op.
-                // Re-invoke the current item's play path from scratch.
-                armSlowLoadTimer();
-                void playRatingKey(playing.ratingKey, playing.title, startPos, subCtx, playingResLabel, undefined, { version: playVersionRef.current, versions: playVersionsRef.current }, { trailer: playing.trailer });
-              } else {
-                armSlowLoadTimer();
-                native.retry();
-              }
-            }} autoFocus data-focused="true" className="tv-ring tv-ring-contrast flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold">
-              <RotateCw className="w-4 h-4" /> {t('common.retry')}
+            {/* Never auto-focused: OK presses it only after a key-up (see startAgainRef). */}
+            <button onClick={() => startAgainRef.current()} tabIndex={-1} data-start-again data-focused={startAgainArmed ? 'true' : undefined} className={`${startAgainArmed ? 'tv-ring tv-ring-contrast ' : ''}flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold`}>
+              <RotateCw className="w-4 h-4" /> {t('plex.section.startAgain')}
             </button>
           </div>
         )}

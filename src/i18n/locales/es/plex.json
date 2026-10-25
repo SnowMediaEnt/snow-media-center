@@ -516,7 +516,8 @@
       "route": "Ruta: {{route}}",
       "menuHint": "▶ a las filas · Mantén OK para ocultar una biblioteca · Atrás salir",
       "finding": "Buscando “{{title}}” en Plex…",
-      "serverTooSlow": "Tu servidor Plex envía solo unos {{speed}}, muy poco incluso para {{quality}}."
+      "serverTooSlow": "Tu servidor Plex envía solo unos {{speed}}, muy poco incluso para {{quality}}.",
+      "startAgain": "Empezar de nuevo"
     },
     "provider": {
       "authFailed": "El panel rechazó tu inicio de sesión en TV en vivo. Vuelve a iniciar sesión en TV en vivo y regresa aquí.",

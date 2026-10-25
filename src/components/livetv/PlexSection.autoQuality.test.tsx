@@ -1311,7 +1311,8 @@ describe("a Plex server that sends 1.5 Mb/s of a 16 Mb/s film (the owner's TV, 1
 
   it('the start-up loading never finishes: rescued instead of "Still preparing…"', async () => {
     await loadingAt(1500);
-    await wait(3_000);
+    // A file gets 15 s; then the rescue, before any card shows.
+    await wait(9_000);
     await until(() => expect(cap(lastUrl())).toBe('3000'));
     expect(screen.queryByText('Still preparing…')).toBeNull();
   });
@@ -1444,5 +1445,77 @@ describe('the rescue, after review: a start only, one at a time, never against t
     await until(() => expect(h.urls.length).toBeGreaterThan(0));
     expect(isFile(h.urls[0])).toBe(true);
     expect(decisionsAll()).toHaveLength(asked);
+  });
+});
+
+describe('"Still preparing" (1.9.7: the card over a picture about to play, its Retry starting the film over)', () => {
+  const key = (type: 'keydown' | 'keyup', k: string, repeat = false) => act(() => {
+    window.dispatchEvent(new KeyboardEvent(type, { key: k, bubbles: true, repeat }));
+  });
+  /** A start that never reports playing (a start-up hold, a slow start). */
+  async function startNotPlaying() {
+    h.pos.playing = false; h.pos.position = 0; h.pos.duration = 0;
+    await openDune();
+    await play('Dune');
+    act(() => { beginStream(lastUrl(), 'vod'); });
+  }
+  const drawing = () => h.stats.mockImplementation(async () => ({ ...emptyPlayerStats(), firstFrameMs: 900, renderedFrames: 24 }));
+
+  it('a first frame on screen is loading done: a stall after it is a stall, never "Still preparing"', async () => {
+    drawing();
+    await startNotPlaying();
+    await wait(4_000);
+    setBuffering(true);
+    await wait(40_000);
+    expect(screen.queryByText('Still preparing…')).toBeNull();
+    expect(h.urls).toHaveLength(1);
+  });
+
+  it('frames drawn, the server slow: no automatic restart (a rescue is for a start that never gets going)', async () => {
+    drawing();
+    h.part.mockImplementation(async () => ({ partKey: '/library/parts/7/file.mkv', bitrateKbps: 16000, versions: [] }));
+    await startNotPlaying();
+    stallBoth();
+    for (let i = 0; i < 8; i += 1) await report(1500);
+    await wait(10_000);
+    expect(h.urls).toHaveLength(1);
+    expect(screen.queryByText('Still preparing…')).toBeNull();
+  });
+
+  it('data arriving, nothing drawn yet: still a start under way, no card', async () => {
+    await startNotPlaying();
+    for (let i = 0; i < 7; i += 1) await report(30000);
+    expect(screen.queryByText('Still preparing…')).toBeNull();
+  });
+
+  it('a truly dead start (nothing drawn, nothing arriving): the card after 15 s, not 8', async () => {
+    await startNotPlaying();
+    await wait(14_000);
+    expect(screen.queryByText('Still preparing…')).toBeNull();
+    await wait(2_500);
+    await until(() => expect(screen.getByText('Still preparing…')).toBeTruthy());
+    const btn = screen.getByText('Start again').closest('button')!;
+    expect(document.activeElement).not.toBe(btn);
+  });
+
+  it('a held or stray OK never restarts; OK after a key-up does; Back still closes', async () => {
+    const retry = vi.fn();
+    h.native = { ...h.native, retry };
+    await startNotPlaying();
+    await wait(16_500);
+    await until(() => expect(screen.getByText('Still preparing…')).toBeTruthy());
+    // The OK still held from starting the film: its repeats, and a press with no key-up since the card came.
+    key('keydown', 'Enter', true);
+    key('keydown', 'Enter');
+    expect(retry).not.toHaveBeenCalled();
+    // A deliberate press: released, then pressed.
+    key('keyup', 'Enter');
+    key('keydown', 'Enter');
+    expect(retry).toHaveBeenCalledTimes(1);
+    await wait(16_500);
+    await until(() => expect(screen.getByText('Still preparing…')).toBeTruthy());
+    key('keydown', 'Escape');
+    await until(() => expect(screen.queryByText('Still preparing…')).toBeNull());
+    expect(retry).toHaveBeenCalledTimes(1);
   });
 });

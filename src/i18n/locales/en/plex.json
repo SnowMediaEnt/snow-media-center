@@ -510,7 +510,8 @@
       "route": "Route: {{route}}",
       "menuHint": "▶ into rows · Hold OK hide a library · Back exit",
       "finding": "Finding “{{title}}” on Plex…",
-      "serverTooSlow": "Your Plex server is sending only about {{speed}}, too little even for {{quality}}."
+      "serverTooSlow": "Your Plex server is sending only about {{speed}}, too little even for {{quality}}.",
+      "startAgain": "Start again"
     },
     "provider": {
       "authFailed": "Your Live TV sign-in was rejected by the panel. Sign into Live TV again, then come back.",

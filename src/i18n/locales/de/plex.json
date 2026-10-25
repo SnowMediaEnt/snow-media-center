@@ -510,7 +510,8 @@
       "route": "Route: {{route}}",
       "menuHint": "▶ zu den Reihen · OK halten blendet eine Mediathek aus · Zurück beendet",
       "finding": "„{{title}}“ wird auf Plex gesucht…",
-      "serverTooSlow": "Dein Plex-Server sendet nur etwa {{speed}}, zu wenig selbst für {{quality}}."
+      "serverTooSlow": "Dein Plex-Server sendet nur etwa {{speed}}, zu wenig selbst für {{quality}}.",
+      "startAgain": "Neu starten"
     },
     "provider": {
       "authFailed": "Das Panel hat deine Live-TV-Anmeldung abgelehnt. Melde dich erneut bei Live-TV an und komm dann zurück.",

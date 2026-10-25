@@ -516,7 +516,8 @@
       "route": "Route : {{route}}",
       "menuHint": "▶ vers les lignes · Maintenez OK pour masquer une bibliothèque · Retour quitter",
       "finding": "Recherche de « {{title}} » sur Plex…",
-      "serverTooSlow": "Votre serveur Plex n'envoie qu'environ {{speed}}, trop peu même pour {{quality}}."
+      "serverTooSlow": "Votre serveur Plex n'envoie qu'environ {{speed}}, trop peu même pour {{quality}}.",
+      "startAgain": "Recommencer"
     },
     "provider": {
       "authFailed": "Le panneau a refusé votre connexion à TV en direct. Reconnectez-vous à TV en direct, puis revenez.",
