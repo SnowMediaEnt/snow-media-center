@@ -2,7 +2,7 @@ import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from 'reac
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tv, Loader2, Sparkles, KeyRound } from 'lucide-react';
+import { Tv, Loader2, Sparkles, KeyRound, UserRound } from 'lucide-react';
 import {
   authenticateRouted,
   pickServerForUsername,
@@ -36,6 +36,10 @@ import { pinSignIn, pinDigits, formatPin, PIN_LENGTH, type PinFailReason } from 
 // Sign-up for someone with no account yet: DreamStreams end to end on the TV,
 // Vibez handed off to their site. Loaded only when the viewer presses it.
 const GetStartedFlow = lazy(() => import('@/components/getstarted/GetStartedFlow'));
+
+// The left column's controls, for Left back from the right column.
+const LEFT_IDS = ['cf-user', 'cf-pass', 'cf-pass-show', 'cf-submit', 'cf-cancel'];
+const PIN_LEFT_IDS = ['cf-pin-input', 'cf-pin-show', 'cf-pin-submit'];
 
 interface Props {
   initial?: Partial<XtreamCreds> | null;
@@ -96,32 +100,46 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
   // This form must own its own D-pad navigation. Without it the WebView's
   // native spatial navigation decides where focus lands on mount, which put
   // the cursor on a bottom button instead of the Username field.
+  //
+  // Two columns on a TV: the fields and Sign in on the left, "Other ways in"
+  // (a PIN, Get started) on the right. Up / Down stay inside a column; Right
+  // from the left column crosses over, and Left comes back to wherever the
+  // highlight last was on the left.
   const hasCancel = !!onCancel;
+  const lastLeftRef = useRef<string>('cf-user');
   const navigation = useMemo<TVFocusNavigationMap>(() => {
-    // Below the Sign in row: Sign in with a PIN (when offered), then Get started.
-    const belowSubmit = showPinOption ? 'cf-pin' : showStart ? 'cf-start' : undefined;
+    // The top of the right column: Sign in with a PIN (when offered), else Get started.
+    const side = showPinOption ? 'cf-pin' : showStart ? 'cf-start' : null;
+    const backLeft = (ids: string[], fallback: string) => () =>
+      (ids.includes(lastLeftRef.current) ? lastLeftRef.current : fallback);
+    const toLeft = backLeft(LEFT_IDS, 'cf-user');
+    const toPinLeft = backLeft(PIN_LEFT_IDS, 'cf-pin-submit');
     return {
-      // Right stays put: the nearest thing to the right is the password's Show, a row down.
-      'cf-user':   { down: 'cf-pass', right: null },
-      'cf-pass':   { up: 'cf-user', down: 'cf-submit', right: 'cf-pass-show' },
+      'cf-user':   { up: null, down: 'cf-pass', left: null, right: side },
+      // Right from the password box: its Show / Hide first, then the right column.
+      'cf-pass':   { up: 'cf-user', down: 'cf-submit', left: null, right: 'cf-pass-show' },
       // Show / Hide inside the password box: Up / Down go where the box's go,
-      // Left back to it, Right stays (spatial search would reach Cancel).
-      'cf-pass-show': { up: 'cf-user', down: 'cf-submit', left: 'cf-pass', right: null },
-      'cf-submit': { up: 'cf-pass', right: hasCancel ? 'cf-cancel' : undefined, down: belowSubmit },
-      'cf-cancel': { up: 'cf-pass', left: 'cf-submit', down: belowSubmit },
-      'cf-pin':    { up: 'cf-submit', down: showStart ? 'cf-start' : null, left: null, right: null },
-      // Only `up` is pinned. Left/right/down are left undefined so useTVFocus
-      // falls through to spatial search — a `null` here would swallow the key
-      // and make this button a dead end the viewer cannot leave sideways.
-      'cf-start':  { up: showPinOption ? 'cf-pin' : 'cf-submit' },
-      // The PIN screen: the field (its Show / Hide on the right), Sign in,
-      // then the way back to username and password.
+      // Left back to it.
+      'cf-pass-show': { up: 'cf-user', down: 'cf-submit', left: 'cf-pass', right: side },
+      'cf-submit': { up: 'cf-pass', down: null, left: null, right: hasCancel ? 'cf-cancel' : side },
+      'cf-cancel': { up: 'cf-pass', down: null, left: 'cf-submit', right: side },
+      // The right column.
+      'cf-pin':    { up: null, down: showStart ? 'cf-start' : null, left: toLeft, right: null },
+      'cf-start':  { up: showPinOption ? 'cf-pin' : null, down: null, left: toLeft, right: null },
+      // The PIN screen: the field (its Show / Hide on the right) and Sign in
+      // on the left, the way back to username and password on the right.
       'cf-pin-input':  { up: null, down: 'cf-pin-submit', left: null, right: 'cf-pin-show' },
-      'cf-pin-show':   { up: null, down: 'cf-pin-submit', left: 'cf-pin-input', right: null },
-      'cf-pin-submit': { up: 'cf-pin-input', down: 'cf-pin-back', left: null, right: null },
-      'cf-pin-back':   { up: 'cf-pin-submit', down: null, left: null, right: null },
+      'cf-pin-show':   { up: null, down: 'cf-pin-submit', left: 'cf-pin-input', right: 'cf-pin-back' },
+      'cf-pin-submit': { up: 'cf-pin-input', down: null, left: null, right: 'cf-pin-back' },
+      'cf-pin-back':   { up: null, down: null, left: toPinLeft, right: null },
     };
   }, [hasCancel, showStart, showPinOption]);
+  // Where Left from the right column returns to: the last left-column
+  // control that had focus, however it got there (remote, keyboard, tap).
+  const noteFocus = (e: React.FocusEvent<HTMLFormElement>) => {
+    const id = (e.target as HTMLElement).dataset?.tvFocusId;
+    if (id && (LEFT_IDS.includes(id) || PIN_LEFT_IDS.includes(id))) lastLeftRef.current = id;
+  };
 
   // Leaving the PIN screen: the field is emptied and the dots come back.
   const leavePinMode = () => { setPin(''); setShowPin(false); setPinMode(false); };
@@ -308,208 +326,232 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
     );
   }
 
+  // Shared by every field and button: 40px fields, 36-40px buttons, no
+  // ring (the remote's highlight is the focus mark).
+  const fieldClass = 'rounded-lg h-10 bg-black/30 text-white border-white/20 focus-visible:ring-0 focus-visible:ring-offset-0';
+  const sideButtonClass = 'w-full rounded-lg min-h-9 h-auto py-1.5 px-2.5 text-[13px] whitespace-normal transition-transform duration-150 ease-out';
+
   return (
-    <div ref={containerRef} className="min-h-screen flex items-center justify-center px-6 py-3">
+    <div ref={containerRef} className="min-h-screen flex items-center justify-center px-4 py-3">
       <form
         onSubmit={pinMode ? submitPin : submit}
         // A tapped button keeps the typing box's focus (phones: the keyboard
         // stays up and the form doesn't jump from under the finger).
         onMouseDown={keepTypingFocus}
+        onFocus={noteFocus}
         data-creds-form
-        className="w-full max-w-xl rounded-3xl px-8 py-6 [background:var(--gradient-navy)] shadow-2xl border border-white/10"
+        // Wide and slim on a TV: two columns across ~880 of the 960 CSS px.
+        // An upright phone stacks them (styles/phone-player.css).
+        className="w-full max-w-[880px] rounded-2xl px-6 py-5 [background:var(--gradient-navy)] shadow-2xl border border-white/10"
       >
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-12 h-12 rounded-2xl bg-brand-gold/20 flex items-center justify-center">
-            <Tv className="w-7 h-7 text-brand-gold" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-quicksand font-bold text-white">{t('liveAccount.credentials.title')}</h2>
-            <p className="text-brand-ice/70 font-nunito text-sm">
-              {pinMode ? t('liveAccount.credentials.pin.subtitle') : t('liveAccount.credentials.subtitle')}
-            </p>
-          </div>
-        </div>
-
-        {pinMode ? (
-          <div className="space-y-1.5">
-            <Label htmlFor="lt-pin" className="text-brand-ice font-nunito">{t('liveAccount.credentials.pin.label')}</Label>
-            {/* Show / Hide comes BEFORE the field, as on the password: the
-                keyboard's Done after the PIN lands on Sign in. */}
-            <div className="relative">
-              <PasswordRevealButton
-                {...focusProps('cf-pin-show')}
-                shown={showPin}
-                onToggle={() => setShowPin((v) => !v)}
-                disabled={testing}
-              />
-              <Input
-                id="lt-pin"
-                {...focusProps('cf-pin-input')}
-                type={showPin ? 'text' : 'password'}
-                inputMode="numeric"
-                placeholder="12345 67890"
-                aria-label={t('liveAccount.credentials.pin.label')}
-                // Shown grouped "12345 67890"; held as the digits alone.
-                value={formatPin(pin)}
-                onChange={(e) => setPin(pinDigits(e.target.value))}
-                maxLength={PIN_LENGTH + 1}
-                className={`rounded-xl h-12 bg-black/30 text-white text-lg tracking-widest border-white/20 focus-visible:ring-0 focus-visible:ring-offset-0 ${PASSWORD_REVEAL_PAD}`}
-                autoComplete="off"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                enterKeyHint="done"
-                disabled={testing}
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="space-y-1.5" data-howto="signin.username">
-              <Label htmlFor="lt-user" className="text-brand-ice font-nunito">{t('liveAccount.credentials.username')}</Label>
-              <Input
-                id="lt-user"
-                {...focusProps('cf-user')}
-                placeholder={t('liveAccount.credentials.username')}
-                aria-label={t('liveAccount.credentials.username')}
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="rounded-xl h-12 bg-black/30 text-white border-white/20 focus-visible:ring-0 focus-visible:ring-offset-0"
-                autoComplete="off"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                enterKeyHint="next"
-                disabled={testing}
-              />
-            </div>
-            <div className="space-y-1.5" data-howto="signin.password">
-              <Label htmlFor="lt-pass" className="text-brand-ice font-nunito">{t('liveAccount.credentials.password')}</Label>
-              {/* Show / Hide comes BEFORE the field: the keyboard's Done after the
-                  password lands on the next control in DOM order, Sign in. */}
-              <div className="relative">
-                <PasswordRevealButton
-                  {...focusProps('cf-pass-show')}
-                  shown={showPassword}
-                  onToggle={() => setShowPassword((v) => !v)}
-                  disabled={testing}
-                />
-                <Input
-                  id="lt-pass"
-                  {...focusProps('cf-pass')}
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder={t('liveAccount.credentials.password')}
-                  aria-label={t('liveAccount.credentials.password')}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className={`rounded-xl h-12 bg-black/30 text-white border-white/20 focus-visible:ring-0 focus-visible:ring-offset-0 ${PASSWORD_REVEAL_PAD}`}
-                  autoComplete="off"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  enterKeyHint="done"
-                  disabled={testing}
-                />
+        <div className="sm:flex sm:items-stretch" data-creds-cols>
+          {/* ── Left: the title, the fields, Sign in ─────────────────────── */}
+          <div className="sm:flex-1 min-w-0" data-creds-main>
+            <div className="flex items-center mb-3.5">
+              <div className="w-9 h-9 mr-3 shrink-0 rounded-xl bg-brand-gold/20 flex items-center justify-center">
+                <Tv className="w-5 h-5 text-brand-gold" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-xl leading-tight font-quicksand font-bold text-white truncate">{t('liveAccount.credentials.title')}</h2>
+                <p className="text-brand-ice/70 font-nunito text-sm leading-snug">
+                  {pinMode ? t('liveAccount.credentials.pin.subtitle') : t('liveAccount.credentials.subtitle')}
+                </p>
               </div>
             </div>
-          </div>
-        )}
 
-        {testing && (
-          <div className="mt-4 flex items-center gap-3 text-brand-ice/90 font-nunito text-sm">
-            <Loader2 className="w-4 h-4 animate-spin text-brand-gold" />
-            <span>
-              {probingServer ? t('liveAccount.credentials.checking', { server: probingServer.label }) : t('liveAccount.credentials.connecting')}
-            </span>
-          </div>
-        )}
+            {pinMode ? (
+              <div className="space-y-1">
+                <Label htmlFor="lt-pin" className="text-brand-ice font-nunito text-sm">{t('liveAccount.credentials.pin.label')}</Label>
+                {/* Show / Hide comes BEFORE the field, as on the password: the
+                    keyboard's Done after the PIN lands on Sign in. */}
+                <div className="relative">
+                  <PasswordRevealButton
+                    {...focusProps('cf-pin-show')}
+                    shown={showPin}
+                    onToggle={() => setShowPin((v) => !v)}
+                    disabled={testing}
+                  />
+                  <Input
+                    id="lt-pin"
+                    {...focusProps('cf-pin-input')}
+                    type={showPin ? 'text' : 'password'}
+                    inputMode="numeric"
+                    placeholder="12345 67890"
+                    aria-label={t('liveAccount.credentials.pin.label')}
+                    // Shown grouped "12345 67890"; held as the digits alone.
+                    value={formatPin(pin)}
+                    onChange={(e) => setPin(pinDigits(e.target.value))}
+                    maxLength={PIN_LENGTH + 1}
+                    className={`${fieldClass} text-base md:text-base tracking-widest ${PASSWORD_REVEAL_PAD}`}
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    enterKeyHint="done"
+                    disabled={testing}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                <div className="space-y-1" data-howto="signin.username">
+                  <Label htmlFor="lt-user" className="text-brand-ice font-nunito text-sm">{t('liveAccount.credentials.username')}</Label>
+                  <Input
+                    id="lt-user"
+                    {...focusProps('cf-user')}
+                    placeholder={t('liveAccount.credentials.username')}
+                    aria-label={t('liveAccount.credentials.username')}
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className={fieldClass}
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    enterKeyHint="next"
+                    disabled={testing}
+                  />
+                </div>
+                <div className="space-y-1" data-howto="signin.password">
+                  <Label htmlFor="lt-pass" className="text-brand-ice font-nunito text-sm">{t('liveAccount.credentials.password')}</Label>
+                  {/* Show / Hide comes BEFORE the field: the keyboard's Done after the
+                      password lands on the next control in DOM order, Sign in. */}
+                  <div className="relative">
+                    <PasswordRevealButton
+                      {...focusProps('cf-pass-show')}
+                      shown={showPassword}
+                      onToggle={() => setShowPassword((v) => !v)}
+                      disabled={testing}
+                    />
+                    <Input
+                      id="lt-pass"
+                      {...focusProps('cf-pass')}
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder={t('liveAccount.credentials.password')}
+                      aria-label={t('liveAccount.credentials.password')}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className={`${fieldClass} ${PASSWORD_REVEAL_PAD}`}
+                      autoComplete="off"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      enterKeyHint="done"
+                      disabled={testing}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
-        {pinMode ? (
-          <>
-            <Button
-              type="submit"
-              variant="gold"
-              {...focusProps('cf-pin-submit')}
-              disabled={testing}
-              className="w-full mt-5 rounded-xl h-12 transition-transform duration-150 ease-out"
-            >
-              {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-              <span className="min-w-0 truncate">{testing ? t('liveAccount.credentials.signingIn') : t('liveAccount.credentials.signIn')}</span>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={leavePinMode}
-              {...focusProps('cf-pin-back')}
-              disabled={testing}
-              className="w-full mt-2.5 rounded-xl min-h-12 h-auto py-2 whitespace-normal text-brand-ice underline underline-offset-4 hover:bg-white/10 hover:text-white"
-            >
-              <span className="min-w-0 text-center leading-snug">{t('liveAccount.credentials.pin.back')}</span>
-            </Button>
-          </>
-        ) : (
-          <>
-          <div className="flex gap-3 mt-5">
-            <Button
-              type="submit"
-              variant="gold"
-              {...focusProps('cf-submit')}
-              data-howto="signin.submit"
-              disabled={testing}
-              className="flex-1 rounded-xl h-12 transition-transform duration-150 ease-out"
-            >
-              {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-              <span className="min-w-0 truncate">{testing ? t('liveAccount.credentials.signingIn') : t('liveAccount.credentials.signIn')}</span>
-            </Button>
-            {onCancel && (
+            {pinMode ? (
               <Button
-                type="button"
-                variant="white"
-                onClick={onCancel}
-                {...focusProps('cf-cancel')}
+                type="submit"
+                variant="gold"
+                {...focusProps('cf-pin-submit')}
                 disabled={testing}
-                className="rounded-xl h-12 transition-transform duration-150 ease-out"
+                className="w-full mt-4 rounded-lg h-10 transition-transform duration-150 ease-out"
               >
-                {t('common.cancel')}
+                {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                <span className="min-w-0 truncate">{testing ? t('liveAccount.credentials.signingIn') : t('liveAccount.credentials.signIn')}</span>
               </Button>
+            ) : (
+              <div className="flex mt-4">
+                <Button
+                  type="submit"
+                  variant="gold"
+                  {...focusProps('cf-submit')}
+                  data-howto="signin.submit"
+                  disabled={testing}
+                  className="flex-1 min-w-0 rounded-lg h-10 transition-transform duration-150 ease-out"
+                >
+                  {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                  <span className="min-w-0 truncate">{testing ? t('liveAccount.credentials.signingIn') : t('liveAccount.credentials.signIn')}</span>
+                </Button>
+                {onCancel && (
+                  <Button
+                    type="button"
+                    variant="white"
+                    onClick={onCancel}
+                    {...focusProps('cf-cancel')}
+                    disabled={testing}
+                    className="ml-2.5 rounded-lg h-10 px-6 transition-transform duration-150 ease-out"
+                  >
+                    {t('common.cancel')}
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {testing && (
+              <div className="mt-2.5 flex items-center text-brand-ice/90 font-nunito text-sm">
+                <Loader2 className="w-4 h-4 mr-2 shrink-0 animate-spin text-brand-gold" />
+                <span className="min-w-0 truncate">
+                  {probingServer ? t('liveAccount.credentials.checking', { server: probingServer.label }) : t('liveAccount.credentials.connecting')}
+                </span>
+              </div>
             )}
           </div>
 
-          {showPinOption && (
-            <Button
-              type="button"
-              variant="white"
-              onClick={() => { setShowPassword(false); setShowPin(false); setPin(''); setPinMode(true); }}
-              {...focusProps('cf-pin')}
-              disabled={testing}
-              className="w-full mt-2.5 rounded-xl min-h-12 h-auto py-2 whitespace-normal transition-transform duration-150 ease-out"
-            >
-              <KeyRound className="w-4 h-4 mr-2 shrink-0 text-brand-gold" />
-              <span className="min-w-0 text-center leading-snug">{t('liveAccount.credentials.pin.signInWithPin')}</span>
-            </Button>
-          )}
-
-          {showStart && (
-            <Button
-              type="button"
-              variant="white"
-              onClick={() => { openedFromRef.current = 'cf-start'; setShowPassword(false); setChildOpen(true); }}
-              {...focusProps('cf-start')}
-              disabled={testing}
-              // The way in for someone with no login yet: the whole line shows,
-              // wrapping on a narrow screen rather than cut off.
-              className="w-full mt-2.5 rounded-xl min-h-12 h-auto py-2 whitespace-normal transition-transform duration-150 ease-out"
-            >
-              <Sparkles className="w-4 h-4 mr-2 shrink-0 text-brand-gold" />
-              <span className="min-w-0 text-center leading-snug">{pending ? t('liveAccount.credentials.finishSetup', { label: pending.label }) : t('liveAccount.credentials.getStarted')}</span>
-            </Button>
-          )}
-          </>
-        )}
-
-        <p className="text-brand-ice/60 text-xs leading-snug font-nunito mt-3" data-howto="signin.note">
-          {pinMode ? t('liveAccount.credentials.pin.note') : t('liveAccount.credentials.note')}
-        </p>
+          {/* ── Right, a lighter panel: other ways in, and the small print ── */}
+          <div
+            className="mt-4 sm:mt-0 sm:ml-6 sm:w-[360px] shrink-0 flex flex-col rounded-xl bg-white/[0.06] border border-white/10 px-3.5 py-3.5"
+            data-creds-side
+          >
+            {(pinMode || showPinOption || showStart) && (
+              <p className="text-brand-ice/70 font-nunito text-xs font-semibold uppercase tracking-wider mb-2.5">
+                {t('liveAccount.credentials.otherWays')}
+              </p>
+            )}
+            {pinMode ? (
+              <Button
+                type="button"
+                variant="white"
+                onClick={leavePinMode}
+                {...focusProps('cf-pin-back')}
+                disabled={testing}
+                className={sideButtonClass}
+              >
+                <UserRound className="w-4 h-4 mr-2 shrink-0 text-brand-gold" />
+                <span className="min-w-0 text-center leading-snug">{t('liveAccount.credentials.pin.back')}</span>
+              </Button>
+            ) : (
+              <>
+                {showPinOption && (
+                  <Button
+                    type="button"
+                    variant="white"
+                    onClick={() => { setShowPassword(false); setShowPin(false); setPin(''); setPinMode(true); }}
+                    {...focusProps('cf-pin')}
+                    disabled={testing}
+                    className={sideButtonClass}
+                  >
+                    <KeyRound className="w-4 h-4 mr-2 shrink-0 text-brand-gold" />
+                    <span className="min-w-0 text-center leading-snug">{t('liveAccount.credentials.pin.signInWithPin')}</span>
+                  </Button>
+                )}
+                {showStart && (
+                  <Button
+                    type="button"
+                    variant="white"
+                    onClick={() => { openedFromRef.current = 'cf-start'; setShowPassword(false); setChildOpen(true); }}
+                    {...focusProps('cf-start')}
+                    disabled={testing}
+                    // The way in for someone with no login yet: the whole line
+                    // shows, wrapping on a narrow screen rather than cut off.
+                    className={`${sideButtonClass} ${showPinOption ? 'mt-2' : ''}`}
+                  >
+                    <Sparkles className="w-4 h-4 mr-2 shrink-0 text-brand-gold" />
+                    <span className="min-w-0 text-center leading-snug">{pending ? t('liveAccount.credentials.finishSetup', { label: pending.label }) : t('liveAccount.credentials.getStarted')}</span>
+                  </Button>
+                )}
+              </>
+            )}
+            <p className="text-brand-ice/60 text-xs leading-snug font-nunito mt-auto pt-3" data-howto="signin.note">
+              {pinMode ? t('liveAccount.credentials.pin.note') : t('liveAccount.credentials.note')}
+            </p>
+          </div>
+        </div>
       </form>
     </div>
   );

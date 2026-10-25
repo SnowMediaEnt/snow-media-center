@@ -283,6 +283,7 @@
       "signIn": "Sign In",
       "signingIn": "Signing in…",
       "getStarted": "New customer? Click here to create an account",
+      "otherWays": "Other ways in",
       "finishSetup": "Finish setting up {{label}}",
       "note": "Email usernames connect to Vibez; all other usernames connect to DreamStreams. Your credentials are stored only on this device.",
       "missingTitle": "Missing info",

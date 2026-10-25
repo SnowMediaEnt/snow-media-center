@@ -101,12 +101,12 @@ const submitPin = async () => {
 const lastToast = () => h.toast.mock.calls.at(-1)?.[0] as { title: string; description: string } | undefined;
 
 describe('Sign in with a PIN: the screen', () => {
-  it('sits below Sign in and opens one numeric field, dots by default, shown grouped', async () => {
+  it('comes after Sign in (the right column) and opens one numeric field, dots by default, shown grouped', async () => {
     await renderForm();
     const pinBtn = screen.getByRole('button', { name: /sign in with a pin/i });
     const signIn = screen.getByRole('button', { name: /^sign in$/i });
     expect(signIn.compareDocumentPosition(pinBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // Get started (the new-customer way in) is still there, below it.
+    // Get started (the new-customer way in) is still there, under it.
     expect(byId('cf-start')).toBeTruthy();
 
     const input = await openPin();
@@ -250,7 +250,7 @@ describe('Sign in with a PIN: signing in', () => {
 });
 
 describe('Sign in with a PIN: the remote', () => {
-  it('Down from Sign in reaches it, OK opens the field, and Up / Down / Right walk the PIN screen', async () => {
+  it('Right from the Sign in row reaches it, OK opens the field, and the PIN screen is two columns too', async () => {
     await renderForm();
     expect(document.activeElement).toBe(byId('cf-user'));
     await press(byId('cf-user'), 'ArrowDown', 40);
@@ -258,14 +258,20 @@ describe('Sign in with a PIN: the remote', () => {
     await press(byId('cf-pass'), 'ArrowDown', 40);
     expect(document.activeElement).toBe(byId('cf-submit'));
     await press(byId('cf-submit'), 'ArrowDown', 40);
+    expect(document.activeElement).toBe(byId('cf-submit')); // the left column ends here
+    await press(byId('cf-submit'), 'ArrowRight', 39);
+    expect(document.activeElement).toBe(byId('cf-cancel'));
+    await press(byId('cf-cancel'), 'ArrowRight', 39);
     expect(document.activeElement).toBe(byId('cf-pin'));
     await press(byId('cf-pin'), 'ArrowDown', 40);
     expect(document.activeElement).toBe(byId('cf-start'));
     await press(byId('cf-start'), 'ArrowUp', 38);
     expect(document.activeElement).toBe(byId('cf-pin'));
     await press(byId('cf-pin'), 'ArrowUp', 38);
-    expect(document.activeElement).toBe(byId('cf-submit'));
-    await press(byId('cf-submit'), 'ArrowDown', 40);
+    expect(document.activeElement).toBe(byId('cf-pin')); // top of the right column
+    await press(byId('cf-pin'), 'ArrowLeft', 37);
+    expect(document.activeElement).toBe(byId('cf-cancel')); // back where it came from
+    await press(byId('cf-cancel'), 'ArrowRight', 39);
     expect(document.activeElement).toBe(byId('cf-pin'));
 
     await press(byId('cf-pin'), 'Enter', 13);
@@ -277,12 +283,38 @@ describe('Sign in with a PIN: the remote', () => {
     expect(document.activeElement).toBe(byId('cf-pin-input'));
     await press(byId('cf-pin-input'), 'ArrowDown', 40);
     expect(document.activeElement).toBe(byId('cf-pin-submit'));
-    await press(byId('cf-pin-submit'), 'ArrowDown', 40);
+    await press(byId('cf-pin-submit'), 'ArrowRight', 39);
     expect(document.activeElement).toBe(byId('cf-pin-back'));
-    await press(byId('cf-pin-back'), 'ArrowUp', 38);
+    await press(byId('cf-pin-back'), 'ArrowLeft', 37);
     expect(document.activeElement).toBe(byId('cf-pin-submit'));
     await press(byId('cf-pin-submit'), 'ArrowUp', 38);
     expect(document.activeElement).toBe(byId('cf-pin-input'));
+  });
+
+  it('Right from any left-column field crosses to the right column, and Left returns to it', async () => {
+    await renderForm();
+    await press(byId('cf-user'), 'ArrowRight', 39);
+    expect(document.activeElement).toBe(byId('cf-pin'));
+    await press(byId('cf-pin'), 'ArrowDown', 40);
+    await press(byId('cf-start'), 'ArrowLeft', 37);
+    expect(document.activeElement).toBe(byId('cf-user'));
+    await press(byId('cf-user'), 'ArrowDown', 40);
+    await press(byId('cf-pass'), 'ArrowRight', 39);
+    expect(document.activeElement).toBe(byId('cf-pass-show'));
+    await press(byId('cf-pass-show'), 'ArrowRight', 39);
+    expect(document.activeElement).toBe(byId('cf-pin'));
+    await press(byId('cf-pin'), 'ArrowLeft', 37);
+    expect(document.activeElement).toBe(byId('cf-pass-show'));
+  });
+
+  it('with no Cancel, Right from Sign in goes straight to the right column', async () => {
+    render(<CredentialsForm onSaved={vi.fn()} />);
+    await raf();
+    act(() => { byId('cf-submit').focus(); });
+    await press(byId('cf-submit'), 'ArrowRight', 39);
+    expect(document.activeElement).toBe(byId('cf-pin'));
+    await press(byId('cf-pin'), 'ArrowLeft', 37);
+    expect(document.activeElement).toBe(byId('cf-submit'));
   });
 
   it('the keyboard\'s Done after the PIN lands on Sign in without signing in', async () => {

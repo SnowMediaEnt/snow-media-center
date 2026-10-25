@@ -283,6 +283,7 @@
       "signIn": "Anmelden",
       "signingIn": "Anmeldung läuft…",
       "getStarted": "Neukunde? Hier klicken, um ein Konto zu erstellen",
+      "otherWays": "Andere Wege zur Anmeldung",
       "finishSetup": "Einrichtung von {{label}} abschließen",
       "note": "Ist der Benutzername eine E-Mail-Adresse, geht es zu Vibez, sonst zu DreamStreams. Deine Zugangsdaten werden nur auf diesem Gerät gespeichert.",
       "missingTitle": "Angaben fehlen",

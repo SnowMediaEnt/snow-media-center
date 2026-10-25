@@ -127,6 +127,15 @@ html.is-upright [data-creds-form] {
 html.is-upright [data-creds-form] .text-xs {
   font-size: 13px;
 }
+/* One column upright: the "Other ways in" panel under Sign in, full width. */
+html.is-upright [data-creds-cols] {
+  display: block;
+}
+html.is-upright [data-creds-side] {
+  width: auto;
+  margin-left: 0;
+  margin-top: 16px;
+}
 
 /* ── The first-open layout chooser and the "Keep this layout?" card ───── */
 html.is-upright [data-live-layout-chooser] .text-xs {

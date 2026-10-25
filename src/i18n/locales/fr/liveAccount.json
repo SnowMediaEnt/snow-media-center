@@ -291,6 +291,7 @@
       "signIn": "Se connecter",
       "signingIn": "Connexion…",
       "getStarted": "Nouveau client ? Cliquez ici pour créer un compte",
+      "otherWays": "Autres façons de se connecter",
       "finishSetup": "Terminez la configuration de {{label}}",
       "note": "Les identifiants de type e-mail se connectent à Vibez ; tous les autres se connectent à DreamStreams. Vos identifiants sont stockés uniquement sur cet appareil.",
       "missingTitle": "Informations manquantes",

@@ -291,6 +291,7 @@
       "signIn": "Iniciar sesión",
       "signingIn": "Iniciando sesión…",
       "getStarted": "¿Cliente nuevo? Haz clic aquí para crear una cuenta",
+      "otherWays": "Otras formas de entrar",
       "finishSetup": "Termina de configurar {{label}}",
       "note": "Los usuarios con correo se conectan a Vibez; todos los demás se conectan a DreamStreams. Tus credenciales se guardan solo en este dispositivo.",
       "missingTitle": "Faltan datos",

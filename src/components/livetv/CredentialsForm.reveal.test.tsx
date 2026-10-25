@@ -90,7 +90,7 @@ describe('Live TV sign-in: Show / Hide password', () => {
     expect(pass.type).toBe('text');
   });
 
-  it('the remote: Right from the password reaches it, OK flips it, Left goes back, Up / Down as from the password', async () => {
+  it('the remote: Right from the password reaches it, OK flips it, Right again the right column, Left goes back, Up / Down as from the password', async () => {
     const { user, pass, reveal, signIn } = await setup();
     expect(document.activeElement).toBe(user);
     await press(user, 'ArrowDown', 40);
@@ -107,7 +107,11 @@ describe('Live TV sign-in: Show / Hide password', () => {
     expect(pass.type).toBe('password');
 
     await press(reveal, 'ArrowRight', 39);
-    expect(document.activeElement).toBe(reveal); // nothing to its right
+    // Right again crosses to the right column (Sign in with a PIN); Left comes back.
+    const pinBtn = document.querySelector('[data-tv-focus-id="cf-pin"]') as HTMLButtonElement;
+    expect(document.activeElement).toBe(pinBtn);
+    await press(pinBtn, 'ArrowLeft', 37);
+    expect(document.activeElement).toBe(reveal);
     await press(reveal, 'ArrowLeft', 37);
     expect(document.activeElement).toBe(pass);
 
