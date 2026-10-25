@@ -109,11 +109,13 @@ describe('Live TV opened from a Home tile', () => {
     expect(sessionStorage.getItem('smc-live-open')).toBeNull();
   });
 
-  it('Recordings: opens with Recordings up (a box that records)', async () => {
+  it('Recordings has its own section now: the old hand-off is used up and changes nothing here', async () => {
     const { Live } = await openLive();
     sessionStorage.setItem('smc-live-open', JSON.stringify('recordings'));
     render(<Live creds={line} isActive onExitLeft={() => {}} onBack={() => {}} />);
-    await waitFor(() => expect(document.querySelector('[data-recordings-screen]')).toBeTruthy());
+    await sleep(80);
+    expect(sessionStorage.getItem('smc-live-open')).toBeNull();
+    expect(document.querySelector('[data-recordings-screen]')).toBeNull();
   });
 
   it('asked again while Live TV is open (the event)', async () => {
@@ -121,7 +123,7 @@ describe('Live TV opened from a Home tile', () => {
     favs.saveFavoritesForLine(line, new Map([[101, { stream_id: 101, name: 'News One', num: 1, category_id: '1' }]]));
     render(<Live creds={line} isActive onExitLeft={() => {}} onBack={() => {}} />);
     await sleep(60);
-    act(() => { window.dispatchEvent(new CustomEvent('smc:live-open', { detail: 'recordings' })); });
-    await waitFor(() => expect(document.querySelector('[data-recordings-screen]')).toBeTruthy());
+    act(() => { window.dispatchEvent(new CustomEvent('smc:live-open', { detail: 'favorites' })); });
+    await waitFor(() => expect(text()).toContain('News One'));
   });
 });

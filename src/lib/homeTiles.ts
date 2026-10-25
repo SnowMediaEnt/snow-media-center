@@ -180,7 +180,7 @@ export function openTile(id: TileDest, navigate: Navigate): void {
     case 'gameday': openPlayerFromHome({ section: 'gameday' }, navigate); break;
     case 'multi': openPlayerFromHome({ section: 'multi' }, navigate); break;
     case 'favorites': openPlayerFromHome({ section: 'live', open: 'favorites' }, navigate); break;
-    case 'recordings': openPlayerFromHome({ section: 'live', open: 'recordings' }, navigate); break;
+    case 'recordings': openPlayerFromHome({ section: 'recordings' }, navigate); break;
     case 'movies': openPlayerFromHome({ section: 'vod-movies' }, navigate); break;
     case 'series': openPlayerFromHome({ section: 'vod-series' }, navigate); break;
     case 'support': navigate('support'); break;

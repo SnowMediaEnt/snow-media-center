@@ -2086,11 +2086,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   }, []);
   useEffect(() => {
     if (!pendingOpen) return;
-    if (pendingOpen === 'recordings') {
-      setPendingOpen(null);
-      if (recordOn) setRecordingsOpen(true);
-      return;
-    }
+    // Recordings is its own section now (the far-left menu): nothing to do here.
+    if (pendingOpen === 'recordings') { setPendingOpen(null); return; }
     const idx = visibleCategories.findIndex((c) => c.isFav);
     if (idx < 0) return; // no line listed yet
     setPendingOpen(null);
@@ -2100,7 +2097,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     setChannelIdx(0);
     // An empty Favorites keeps the highlight on it, in the categories.
     if ((visibleCategories[idx].count ?? 0) > 0) setPane('channels');
-  }, [pendingOpen, visibleCategories, recordOn]);
+  }, [pendingOpen, visibleCategories]);
 
   // How long one channel is actually watched, and on which service. Starts
   // when a channel goes live and closes when it stops, changes or the viewer
