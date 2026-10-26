@@ -47,4 +47,18 @@ class LiveCushionTest {
         assertEquals("live 8 / 10 s", LiveCushion.label(8000, 10000))
         assertEquals("live 2.5 / 5 s", LiveCushion.label(2500, 5000))
     }
+
+    @Test fun catchUpStartsOnlyWhenPlayingAndShort() {
+        assertTrue(LiveCushion.needsCatchUp(true, 2500L, 10000))
+        assertFalse(LiveCushion.needsCatchUp(false, 2500L, 10000))
+        assertFalse(LiveCushion.needsCatchUp(true, 9500L, 10000))
+        assertFalse(LiveCushion.needsCatchUp(true, 2500L, 0))
+    }
+
+    @Test fun catchUpEndsFilledOrAfterThreeMinutes() {
+        assertNull(LiveCushion.catchUpEnd(5000L, 10000, 60_000L))
+        assertEquals("filled", LiveCushion.catchUpEnd(10000L, 10000, 60_000L))
+        assertEquals("timeout", LiveCushion.catchUpEnd(5000L, 10000, LiveCushion.CATCH_UP_MAX_MS))
+        assertTrue(LiveCushion.CATCH_UP_SPEED < 1f && LiveCushion.CATCH_UP_SPEED >= 0.9f)
+    }
 }

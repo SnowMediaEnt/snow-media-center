@@ -61,6 +61,17 @@ describe('useLiveCushion', () => {
     expect(setLiveBuffer).toHaveBeenCalledWith({ liveStartBufferMs: 6000, liveRebufferMs: 8000 });
   });
 
+  it('on MPV: no cushion, no step-up, no label', () => {
+    const h = renderHook(() => useLiveCushion(ALIENS, true, 'mpv'));
+    expect(h.result.current.cushion).toBeNull();
+    expect(h.result.current.playing).toBeNull();
+    act(() => h.result.current.onStall());
+    expect(setLiveBuffer).not.toHaveBeenCalled();
+    // Nothing was stepped for the channel either.
+    const exo = renderHook(() => useLiveCushion(ALIENS, true, 'exo'));
+    expect(exo.result.current.cushion).toEqual(CUSHION_LEVELS[2]);
+  });
+
   it('a fixed size applies when watched, and previews stay quick', () => {
     saveLiveBuffer('xlarge');
     const h = mount(NEWS, false);

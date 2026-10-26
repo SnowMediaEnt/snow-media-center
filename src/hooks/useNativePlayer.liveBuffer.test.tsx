@@ -95,6 +95,17 @@ describe('a live stall', () => {
     expect(onLiveStall).toHaveBeenCalledTimes(2);
   });
 
+  it("not a native reconnect's refill, nor a stall inside the rewind buffer", async () => {
+    const onLiveStall = vi.fn();
+    renderHook(() => useNativePlayer({ active: true, url: CH, volume: 1, live: true, onLiveStall }));
+    await ready();
+    fire('playerState', { playing: true });
+    fire('playerState', { state: 'buffering', reconnect: true });
+    fire('playerState', { state: 'ready' });
+    fire('playerState', { state: 'buffering', rewindBuffer: true });
+    expect(onLiveStall).not.toHaveBeenCalled();
+  });
+
   it('not right after a seek (rewind, Go live)', async () => {
     const onLiveStall = vi.fn();
     renderHook(() => useNativePlayer({ active: true, url: CH, volume: 1, live: true, onLiveStall }));
@@ -119,6 +130,18 @@ describe('the plugin', () => {
   it('reads the cushion for live loads and keeps it off the rewind buffer', () => {
     expect(plugin).toMatch(/liveStartBufferMs = if \(live\) LiveCushion\.clamp/);
     expect(plugin).toMatch(/fun setLiveBuffer\(call: PluginCall\)/);
+    // A picture rebuild (SurfaceView toggle, NoPictureRescue) keeps the channel's cushion:
+    // buildPlayer's new load control starts at 0, so it comes from the slot.
+    expect(plugin).toContain('s.loadControl?.beginStream(film = !live, liveStartMs = s.liveStartMs, liveRebufferMs = s.liveRebufferMs)');
+    expect(plugin).not.toContain('liveStartMs = lc.liveStartMs');
+    // A raise while playing is caught up at 0.93x (pitch kept), ended by a stall, a pause, a seek, a reconnect, the rewind buffer or another load.
+    expect(plugin).toMatch(/startCatchUp\(s\)/);
+    expect(plugin).toContain('PlaybackParameters(LiveCushion.CATCH_UP_SPEED, 1f)');
+    for (const why of ['"stall"', '"paused"', '"seek"', '"reconnect"', '"rewind"', '"stopped"']) expect(plugin).toContain(`endCatchUp(s, ${why})`);
+    expect(plugin).toContain('o.put("liveCatchUp"');
+    // Reconnects and the rewind buffer flag their buffering.
+    expect(plugin).toContain('.put("state", "buffering").put("reconnect", true)');
+    expect(plugin).toContain('if (screenId == MAIN && tsBuffer) ev.put("rewindBuffer", true)');
     // The on-box rewind buffer gets none (it may hold only seconds ahead).
     expect(plugin).toMatch(/no\s+\/\/ cushion[\s\S]{0,120}beginStream\(film = false\)\n/);
   });

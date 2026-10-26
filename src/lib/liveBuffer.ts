@@ -12,7 +12,7 @@
 // The setting (Live TV Settings › Player › Live buffer): Auto (default),
 // Small, Medium, Large, Extra large. Auto:
 //   • a normal channel starts quick (Small), so zapping stays fast;
-//   • a 24/7 channel (its category or name says "24/7", "24-7" or "247")
+//   • a 24/7 channel (its category or name says "24/7", "24-7" or "24x7")
 //     starts at Large (10 s);
 //   • a channel that stalls anyway gets one size more for the rest of the
 //     day (2.5 → 6 → 10 → 15 s; a 24/7 one 10 → 15 s), at most every STEP_GAP_MS, kept per box in
@@ -77,9 +77,12 @@ export function saveLiveBuffer(choice: LiveBufferChoice): void {
   try { window.dispatchEvent(new CustomEvent(LIVE_BUFFER_EVENT)); } catch { /* ignore */ }
 }
 
-/** A 24/7 channel by its name or category: "24/7", "24-7" or "247" (not inside a longer number). */
+/** A 24/7 channel by its name or category: "24/7", "24-7" or "24x7", never
+ *  inside a longer number or a date ("2024-7", "124/7", "24-72"). A bare
+ *  "247" is a channel number or a brand ("Sky Sports 247"), not a loop. */
+const TWENTY_FOUR_SEVEN = /(^|\D)24\s*[/x-]\s*7(\D|$)/i;
 export function isTwentyFourSeven(...texts: Array<string | null | undefined>): boolean {
-  return texts.some((s) => !!s && /24\s*[/-]\s*7|(^|[^0-9])247([^0-9]|$)/i.test(s));
+  return texts.some((s) => !!s && TWENTY_FOUR_SEVEN.test(s));
 }
 
 // ── Auto's steps, per channel, for the day ──────────────────────────────────

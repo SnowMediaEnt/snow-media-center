@@ -348,6 +348,9 @@ export interface SnowPlayerPlugin {
     event: 'playerState' | 'playerError' | 'tracksChanged' | 'audioUnsupported' | 'bandwidth' | 'preBuffer' | 'engineFallback' | 'displayMode' | 'audioOutput',
     cb: (data: {
       screenId?: string; state?: string; playing?: boolean;
+      /** playerState 'buffering': a native reconnect's refill (`reconnect`) or
+       *  the on-box rewind buffer's (`rewindBuffer`), not the channel stalling. */
+      reconnect?: boolean; rewindBuffer?: boolean;
       /** playerError: the player's own ERROR_CODE_* name, AUDIO_DECODE, or
        *  RECONNECT_EXHAUSTED once the plugin has given up (a channel after
        *  20 restarts in a row, a film or episode after 3). A film's message

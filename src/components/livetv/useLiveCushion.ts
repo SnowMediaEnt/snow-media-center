@@ -32,7 +32,9 @@ export interface LiveCushionState {
   onStall: () => void;
 }
 
-export function useLiveCushion(channel: LiveCushionChannel | null, watched: boolean): LiveCushionState {
+export function useLiveCushion(channelIn: LiveCushionChannel | null, watched: boolean, engine: 'exo' | 'mpv' = 'exo'): LiveCushionState {
+  // MPV buffers its own way: no cushion sent, no step-up, no "bigger buffer".
+  const channel = engine === 'mpv' ? null : channelIn;
   const [choice, setChoice] = useState<LiveBufferChoice>(loadLiveBuffer);
   useEffect(() => {
     const read = () => setChoice(loadLiveBuffer());

@@ -2198,7 +2198,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       name: cushionStream.name,
       category: categoryNameOn(cushionStream, cushionLine) ?? (directLiveUrl ? playingCat?.name : currentCat?.name) ?? null,
     }
-    : null, nativeActive || (nativePreviewActive && (heldPreview.held || upright)));
+    : null, nativeActive || (nativePreviewActive && (heldPreview.held || upright)), playerEngine);
   const native = useNativePlayer({
     active: nativeActive || nativePreviewActive,
     url: nativeUrl,

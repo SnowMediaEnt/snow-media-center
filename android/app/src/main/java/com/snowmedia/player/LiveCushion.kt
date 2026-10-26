@@ -49,6 +49,32 @@ internal object LiveCushion {
         return bufferedUs >= needUs || !stillLoading
     }
 
+    // ── Catch-up: a bigger cushion asked for while the channel plays ────────
+    //
+    // The player is asked about its start only while it buffers, so a cushion
+    // raised mid-play (a preview going full screen) would wait for the next
+    // stall, which the viewer then sees. Instead it plays at CATCH_UP_SPEED
+    // (the pitch kept) until that much is buffered ahead: at 0.93x a live
+    // stream gains 0.07 s a second, so 7.5 s more takes about 107 s. Never
+    // longer than CATCH_UP_MAX_MS; a stall, a seek, a pause or another
+    // channel ends it at once (the plugin).
+
+    const val CATCH_UP_SPEED = 0.93f
+    const val CATCH_UP_MAX_MS = 180_000L
+    /** Less short of the cushion than this: not worth slowing down for. */
+    const val CATCH_UP_MIN_SHORT_MS = 1000L
+
+    /** Start a catch-up: playing, and the new start cushion is that far ahead of what is buffered. */
+    fun needsCatchUp(playing: Boolean, bufferedMs: Long, startMs: Int): Boolean =
+        playing && startMs > 0 && startMs - bufferedMs >= CATCH_UP_MIN_SHORT_MS
+
+    /** Why a running catch-up ends now ("filled", "timeout"), or null to go on. */
+    fun catchUpEnd(bufferedMs: Long, startMs: Int, elapsedMs: Long): String? = when {
+        bufferedMs >= startMs -> "filled"
+        elapsedMs >= CATCH_UP_MAX_MS -> "timeout"
+        else -> null
+    }
+
     /** For the stats: "live 8 / 10 s"; null for the player's own. */
     fun label(startMs: Int, rebufferMs: Int): String? {
         if (startMs <= 0 && rebufferMs <= 0) return null

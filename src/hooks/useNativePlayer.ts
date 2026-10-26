@@ -351,11 +351,14 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
         stateH = keep(await SnowPlayer.addListener('playerState', (data) => {
           if ((data as { screenId?: string }).screenId && (data as { screenId?: string }).screenId !== 'main') return;
           // Mirror stall state into the buffering diagnostics (never throws).
+          // A native reconnect's refill and the on-box rewind buffer's are not
+          // the channel stalling (the plugin flags them).
+          const notOwnStall = data.reconnect === true || data.rewindBuffer === true;
           if (data.state === 'buffering') {
             setBuffering(true); try { diagBuffering(true); } catch { /* ignore */ }
             // A live channel that had played runs dry: a real stall (never the
             // start-up fill, a seek's or Go live's refill, or after a pause).
-            if (liveRef.current && playedThisLoadRef.current && !inStallRef.current && !pausedNowRef.current
+            if (liveRef.current && !notOwnStall && playedThisLoadRef.current && !inStallRef.current && !pausedNowRef.current
               && Date.now() - Math.max(lastSeekAt(), unpausedAtRef.current) > STALL_AFTER_SEEK_MS) {
               inStallRef.current = true;
               try { cbLiveStallRef.current?.(); } catch { /* ignore */ }

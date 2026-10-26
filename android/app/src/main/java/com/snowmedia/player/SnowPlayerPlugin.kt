@@ -32,6 +32,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaLibraryInfo
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.common.TrackSelectionOverride
@@ -182,6 +183,15 @@ class SnowPlayerPlugin : Plugin() {
         // live after a rewind gets it again. 0 = the player's own.
         var liveStartMs: Int = 0
         var liveRebufferMs: Int = 0
+        // A raised cushion being caught up by playing a little slow
+        // (LiveCushion.CATCH_UP_*): its tick, when it began (0 = none), and
+        // the last one's result for the stats.
+        var catchUpRunnable: Runnable? = null
+        var catchUpStartedAtMs: Long = 0L
+        var lastCatchUp: String? = null
+        // A reconnect of this slot is under way (reconnect() → ready): its
+        // buffering is not a stall (the WebView's Live buffer step-up).
+        var reconnecting: Boolean = false
         var lastPositionMs: Long = 0L
         var reconnectAttempts: Int = 0
         // A Plex conversion the server answered with an error status, in this
@@ -443,6 +453,8 @@ class SnowPlayerPlugin : Plugin() {
         // error each time (a customer's box: 6 restarts, "Buffer 0.0 s").
         private const val TRANSCODE_HTTP_TRIES = 2
         private const val RECONNECT_DELAY_MS = 500L
+        /** How often a Live buffer catch-up looks at what is buffered (LiveCushion). */
+        private const val CATCH_UP_TICK_MS = 500L
         private const val FIRST_FRAME_TIMEOUT_MS = 8000L
         private const val POSITION_TICK_MS = 5000L
         private const val BANDWIDTH_TICK_MS = 3000L
@@ -503,6 +515,7 @@ class SnowPlayerPlugin : Plugin() {
     private fun anySlotStreaming(): Boolean = slots.values.any { it.currentUrl != null }
 
     private fun cancelTimers(s: PlayerSlot) {
+        endCatchUp(s, "stopped")
         s.watchdogRunnable?.let { mainHandler.removeCallbacks(it) }
         s.watchdogRunnable = null
         s.reconnectRunnable?.let { mainHandler.removeCallbacks(it) }
@@ -899,7 +912,8 @@ class SnowPlayerPlugin : Plugin() {
         // A passthrough mute is worked out again from the new output.
         p.trackSelectionParameters = if (wasMuted) params.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false).build() else params
         s.trackSelector?.let { ts -> ts.setParameters(ts.buildUponParameters().setTunnelingEnabled(s.tunneled)) }
-        s.loadControl?.let { lc -> lc.beginStream(film = !live, liveStartMs = lc.liveStartMs, liveRebufferMs = lc.liveRebufferMs) }
+        // buildPlayer made a new load control: the channel's cushion is the slot's.
+        s.loadControl?.beginStream(film = !live, liveStartMs = s.liveStartMs, liveRebufferMs = s.liveRebufferMs)
         s.firstFrameSeen = false
         setPassthrough(s, screenId, false)
         applyFormat(s)
@@ -1112,7 +1126,9 @@ class SnowPlayerPlugin : Plugin() {
         s.reconnectAttempts++
         s.restarts++
         s.lastRestartReason = reason
-        notifyListeners("playerState", JSObject().put("screenId", screenId).put("state", "buffering"))
+        s.reconnecting = true
+        endCatchUp(s, "reconnect")
+        notifyListeners("playerState", JSObject().put("screenId", screenId).put("state", "buffering").put("reconnect", true))
         s.reconnectRunnable?.let { mainHandler.removeCallbacks(it) }
         val r = Runnable {
             val p = s.player ?: return@Runnable
@@ -2122,13 +2138,27 @@ class SnowPlayerPlugin : Plugin() {
                     Player.STATE_ENDED -> "ended"
                     else -> "unknown"
                 }
-                notifyListeners("playerState", JSObject().put("screenId", screenId).put("state", str))
+                // A stall (or a reconnect's refill) ends a catch-up at once.
+                if (state == Player.STATE_BUFFERING) endCatchUp(s, "stall")
+                val ev = JSObject().put("screenId", screenId).put("state", str)
+                // Not the channel's own stall (the WebView's Live buffer
+                // step-up leaves these): a reconnect's refill, or the on-box
+                // rewind buffer's.
+                if (s.reconnecting) ev.put("reconnect", true)
+                if (screenId == MAIN && tsBuffer) ev.put("rewindBuffer", true)
+                if (state == Player.STATE_READY) s.reconnecting = false
+                notifyListeners("playerState", ev)
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 // Playing counts as played since load(), picture or not (a
                 // radio channel): never given up as off the air (DeadStreamRule).
                 if (isPlaying) { s.playedThisLoad = true; s.deadKind = null; s.deadStreak = 0 }
+                // Paused or stalled: a catch-up ends (LiveCushion).
+                if (!isPlaying) endCatchUp(s, "paused")
                 notifyListeners("playerState", JSObject().put("screenId", screenId).put("playing", isPlaying))
+            }
+            override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+                if (reason == Player.DISCONTINUITY_REASON_SEEK || reason == Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT) endCatchUp(s, "seek")
             }
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                 reportPaused(s, screenId)
@@ -2615,6 +2645,8 @@ class SnowPlayerPlugin : Plugin() {
             s.isLive = live
             s.liveStartMs = liveStartBufferMs
             s.liveRebufferMs = liveRebufferMs
+            s.reconnecting = false
+            s.lastCatchUp = null
             s.lastPositionMs = startMs
             s.reconnectAttempts = 0
             s.transcodeHttpFails = 0
@@ -2912,6 +2944,9 @@ class SnowPlayerPlugin : Plugin() {
         o.put("lastError", s?.lastError ?: JSONObject.NULL)
         o.put("httpStatus", s?.lastHttpStatus ?: JSONObject.NULL)
         o.put("loadProfile", s?.let { loadProfileOf(it) } ?: JSONObject.NULL)
+        // A raised Live buffer caught up by playing at 0.93x: "running", or
+        // how the last one ended and after how long ("filled after 96 s").
+        o.put("liveCatchUp", s?.lastCatchUp ?: JSONObject.NULL)
         // How many connections the file is being read over right now
         // (RangeFetchDataSource's live count: 0 while the window is full and
         // nothing is in flight); 1 for a conversion, Live TV, or a server on
@@ -3147,6 +3182,44 @@ class SnowPlayerPlugin : Plugin() {
     }
 
     /**
+     * A bigger start cushion asked for while the channel plays: the load
+     * control is asked about it only while buffering, so the player plays at
+     * LiveCushion.CATCH_UP_SPEED (pitch kept) until that much is buffered
+     * ahead, then at 1x again. Live, the main slot, ExoPlayer only, never in
+     * the rewind buffer. A smaller one (back to a preview) just ends it.
+     */
+    private fun startCatchUp(s: PlayerSlot) {
+        endCatchUp(s, "replaced")
+        val p = s.player ?: return
+        if (slots[MAIN] !== s || !s.isLive || tsBuffer || s.engine != EngineChoice.EXO || s.currentUrl == null) return
+        if (!LiveCushion.needsCatchUp(p.isPlaying, p.totalBufferedDuration, s.liveStartMs)) return
+        p.setPlaybackParameters(PlaybackParameters(LiveCushion.CATCH_UP_SPEED, 1f))
+        s.catchUpStartedAtMs = SystemClock.elapsedRealtime()
+        s.lastCatchUp = "running"
+        val r = object : Runnable {
+            override fun run() {
+                val pl = s.player ?: return
+                val elapsed = SystemClock.elapsedRealtime() - s.catchUpStartedAtMs
+                val why = LiveCushion.catchUpEnd(pl.totalBufferedDuration, s.liveStartMs, elapsed)
+                if (why != null) endCatchUp(s, why) else mainHandler.postDelayed(this, CATCH_UP_TICK_MS)
+            }
+        }
+        s.catchUpRunnable = r
+        mainHandler.postDelayed(r, CATCH_UP_TICK_MS)
+    }
+
+    /** Back to 1x; the stats keep how it went ("filled in 96 s"). */
+    private fun endCatchUp(s: PlayerSlot, why: String) {
+        if (s.catchUpStartedAtMs == 0L) return
+        s.catchUpRunnable?.let { mainHandler.removeCallbacks(it) }
+        s.catchUpRunnable = null
+        val secs = (SystemClock.elapsedRealtime() - s.catchUpStartedAtMs) / 1000
+        s.catchUpStartedAtMs = 0L
+        s.lastCatchUp = "$why after $secs s"
+        try { s.player?.setPlaybackParameters(PlaybackParameters.DEFAULT) } catch (_: Throwable) { /* released */ }
+    }
+
+    /**
      * Live TV's cushion changed on the channel playing (a bigger one after a
      * stall, lib/liveBuffer): from the next start or restart on, no reload.
      * The main player's live channel only, never the on-box rewind buffer
@@ -3161,7 +3234,10 @@ class SnowPlayerPlugin : Plugin() {
             if (s != null && s.isLive && s.currentUrl != null && s.engine == EngineChoice.EXO) {
                 s.liveStartMs = startMs
                 s.liveRebufferMs = rebufferMs
-                if (!tsBuffer) s.loadControl?.setLiveCushion(startMs, rebufferMs)
+                if (!tsBuffer) {
+                    s.loadControl?.setLiveCushion(startMs, rebufferMs)
+                    startCatchUp(s)
+                }
             }
             call.resolve()
         }
@@ -3709,6 +3785,7 @@ class SnowPlayerPlugin : Plugin() {
         s.reconnectRunnable = null
         s.watchdogRunnable?.let { mainHandler.removeCallbacks(it) }
         s.watchdogRunnable = null
+        endCatchUp(s, "rewind")
         tsBuffer = true
         val item = MediaItem.Builder()
             .setUri(Uri.fromFile(sess.playlist))
@@ -3733,6 +3810,7 @@ class SnowPlayerPlugin : Plugin() {
 
     /** Load the channel itself again (Go live). */
     private fun tsGoLive(s: PlayerSlot) {
+        endCatchUp(s, "rewind")
         tsReset()
         val url = s.currentUrl ?: return
         val p = s.player ?: return

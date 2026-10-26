@@ -14,15 +14,16 @@ beforeEach(() => {
 });
 
 describe('isTwentyFourSeven', () => {
-  it('finds 24/7, 24-7 and 247 in a name or category, any case', () => {
-    expect(isTwentyFourSeven('Ancient Aliens 24/7')).toBe(true);
-    expect(isTwentyFourSeven(null, 'US| 24-7 CHANNELS')).toBe(true);
-    expect(isTwentyFourSeven('247 Simpsons')).toBe(true);
-    expect(isTwentyFourSeven('SHOWS 24 / 7')).toBe(true);
+  it.each(['24/7 Ancient Aliens', 'AMC 24-7', '24/7: Seinfeld', 'Ancient Aliens 24/7', 'SHOWS 24 / 7', 'Cartoons 24x7'])('%s is 24/7', (name) => {
+    expect(isTwentyFourSeven(name)).toBe(true);
   });
-  it('leaves normal channels and longer numbers alone', () => {
-    expect(isTwentyFourSeven('News 1', 'US News')).toBe(false);
-    expect(isTwentyFourSeven('Channel 1247')).toBe(false);
+  it('finds it in the category too', () => {
+    expect(isTwentyFourSeven('Seinfeld', 'US| 24-7 CHANNELS')).toBe(true);
+  });
+  it.each(['2024-75 Season', 'EPL 2024-7', '124/7', 'Channel 24-72', 'Sky Sports 247', 'PPV 247', 'Channel 1247', 'News 1'])('%s is not', (name) => {
+    expect(isTwentyFourSeven(name)).toBe(false);
+  });
+  it('nothing to read: not', () => {
     expect(isTwentyFourSeven(undefined, null)).toBe(false);
   });
 });
