@@ -75,6 +75,17 @@ internal object LiveCushion {
         else -> null
     }
 
+    /**
+     * How long a load may go without a first picture before the plugin's
+     * watchdog reconnects it: its own wait (20 s for live), plus the start cushion the player
+     * is told to wait for. A 10 s cushion on a stream that arrives at
+     * real-time speed can't show a picture inside 8 s, and the reconnect
+     * threw the half-filled cushion away to start again from nothing, over
+     * and over (seen on the Fire TV, 2026-10-26).
+     */
+    fun firstFrameTimeoutMs(baseMs: Long, startMs: Int): Long =
+        baseMs + startMs.coerceIn(0, MAX_MS)
+
     /** For the stats: "live 8 / 10 s"; null for the player's own. */
     fun label(startMs: Int, rebufferMs: Int): String? {
         if (startMs <= 0 && rebufferMs <= 0) return null

@@ -329,7 +329,7 @@ const DownloadProgress = ({ app, onClose, onComplete, prefetchedPath }: Download
               </div>
             </div>
             
-            <Progress value={progress} className="h-3" />
+            <Progress value={progress} className="h-3 bg-slate-700" indicatorClassName="bg-blue-700" />
             
             <div className="flex justify-between text-sm">
               <span className="text-slate-300">{`${one(downloadedMB)} ${UNIT.mb}`} / {app.size || FALLBACK_SIZE}</span>

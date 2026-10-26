@@ -456,6 +456,9 @@ class SnowPlayerPlugin : Plugin() {
         /** How often a Live buffer catch-up looks at what is buffered (LiveCushion). */
         private const val CATCH_UP_TICK_MS = 500L
         private const val FIRST_FRAME_TIMEOUT_MS = 8000L
+        /** A live channel's first wait: some panels send nothing for 12 s on a
+         *  24/7 channel, and an 8 s reconnect never let one start (LiveCushion). */
+        private const val LIVE_FIRST_FRAME_TIMEOUT_MS = 20_000L
         private const val POSITION_TICK_MS = 5000L
         private const val BANDWIDTH_TICK_MS = 3000L
         // VOD start: time spent on nothing but filling the buffer, so a film
@@ -765,7 +768,9 @@ class SnowPlayerPlugin : Plugin() {
             if (s.currentUrl != null && !s.firstFrameSeen && !audioOnly) reconnect(s, screenId, "no picture in 8 s")
         }
         s.watchdogRunnable = r
-        mainHandler.postDelayed(r, FIRST_FRAME_TIMEOUT_MS)
+        // A live channel told to wait for a bigger cushion gets that long more (LiveCushion).
+        val waitMs = if (s.isLive) LiveCushion.firstFrameTimeoutMs(LIVE_FIRST_FRAME_TIMEOUT_MS, s.liveStartMs) else FIRST_FRAME_TIMEOUT_MS
+        mainHandler.postDelayed(r, waitMs)
     }
 
     // ---- A black screen with the sound playing (NoPictureRescue) -------------

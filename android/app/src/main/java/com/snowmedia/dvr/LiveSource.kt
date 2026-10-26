@@ -212,7 +212,7 @@ internal class LiveSource(private val url: String) {
             val c = u.openConnection() as HttpURLConnection
             c.instanceFollowRedirects = false
             c.connectTimeout = TIMEOUT_MS
-            c.readTimeout = TIMEOUT_MS
+            c.readTimeout = READ_TIMEOUT_MS
             c.setRequestProperty("Accept-Encoding", "identity")
             conn = c
             val code = try { c.responseCode } catch (e: IOException) {
@@ -240,6 +240,10 @@ internal class LiveSource(private val url: String) {
     companion object {
         private const val BUF = 64 * 1024
         private const val TIMEOUT_MS = 10_000
+        // A 24/7 channel on a busy panel can take 12 s before its first byte
+        // (DreamStreams, 2026-10-26); 10 s hung up on it and retried forever.
+        // The player's own source waits 30 s too.
+        private const val READ_TIMEOUT_MS = 30_000
         private const val MAX_REDIRECTS = 5
         private const val MAX_PLAYLIST = 1024 * 1024
 

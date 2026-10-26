@@ -61,4 +61,10 @@ class LiveCushionTest {
         assertEquals("timeout", LiveCushion.catchUpEnd(5000L, 10000, LiveCushion.CATCH_UP_MAX_MS))
         assertTrue(LiveCushion.CATCH_UP_SPEED < 1f && LiveCushion.CATCH_UP_SPEED >= 0.9f)
     }
+
+    @Test fun firstPictureWatchdogWaitsForTheCushion() {
+        assertEquals(8000L, LiveCushion.firstFrameTimeoutMs(8000L, 0))
+        assertEquals(18000L, LiveCushion.firstFrameTimeoutMs(8000L, 10000))
+        assertEquals(8000L + LiveCushion.MAX_MS, LiveCushion.firstFrameTimeoutMs(8000L, 99_000))
+    }
 }
