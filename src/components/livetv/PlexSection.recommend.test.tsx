@@ -368,6 +368,9 @@ describe('hold OK on a Home poster', { timeout: 30_000 }, () => {
     await wait(700);
     expect(await screen.findByText(/Sign in to your Snow Media account to recommend titles/, undefined, T)).toBeTruthy();
     keyUp('Enter', 13);
+    // Report a problem first, then OK (it closes the menu).
+    expect(screen.getByText('Report a problem')).toBeTruthy();
+    key('ArrowDown', 40);
     okPress();
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), T);
     expect(h.ops).toEqual([]);

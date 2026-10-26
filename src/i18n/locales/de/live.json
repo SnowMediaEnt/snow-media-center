@@ -388,7 +388,15 @@
       "categoryFooter": "Halte OK gedrückt oder drücke die Menütaste auf einer Kategorie, um dies zu öffnen.",
       "categorySentTitle": "Kategorie gemeldet – danke!",
       "categorySentDesc": "Alle Sender darin zeigen jetzt für alle ⚠️.",
-      "bufferingWarnNote": "Das Ticket warnt auch andere Zuschauer, bevor sie ihn starten."
+      "bufferingWarnNote": "Das Ticket warnt auch andere Zuschauer, bevor sie ihn starten.",
+      "vod": {
+        "menuTitle": "Titeloptionen",
+        "reportProblem": "Problem melden",
+        "choiceWontPlay": "Spielt nicht ab",
+        "choiceBuffering": "Puffert",
+        "choiceWrongTitle": "Falscher Titel oder keine Untertitel",
+        "footer": "Halte OK auf einem Film oder einer Serie gedrückt, um dies zu öffnen."
+      }
     },
     "vod": {
       "allMovies": "Alle Filme",

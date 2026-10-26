@@ -67,7 +67,11 @@ import { __setViewerForTests } from '@/lib/viewer';
 const creds = { host: 'http://h.test', username: 'u', password: 'p', output: 'ts', serverLabel: 'Acme TV' } as never;
 const settle = async (ms = 0) => { await act(async () => { await new Promise((r) => setTimeout(r, ms)); }); };
 const until = async (ok: () => boolean) => { for (let i = 0; i < 100 && !ok(); i++) await settle(20); return ok(); };
-const key = (k: string) => act(() => { fireEvent.keyDown(window, { key: k, keyCode: k === 'Enter' ? 13 : k === 'Escape' ? 27 : undefined }); });
+// OK is pressed and let go, as a remote does (a press runs on its release).
+const key = (k: string) => act(() => {
+  fireEvent.keyDown(window, { key: k, keyCode: k === 'Enter' ? 13 : k === 'Escape' ? 27 : undefined });
+  if (k === 'Enter') fireEvent.keyUp(window, { key: k, keyCode: 13 });
+});
 const tile = (name: string) => [...document.querySelectorAll('[data-vod-grid] *')].find((e) => e.getAttribute('data-focused') != null && (e.textContent || '').includes(name)) as HTMLElement | undefined;
 const badge = (name: string) => tile(name)?.querySelector('[data-watched]') ?? null;
 const row = (i: number) => document.querySelector(`[data-episode-i="${i}"]`);

@@ -388,7 +388,15 @@
       "categoryFooter": "Hold OK or press the Menu key on a category to open this.",
       "categorySentTitle": "Category reported — thanks!",
       "categorySentDesc": "Every channel in it now shows ⚠️ for everyone.",
-      "bufferingWarnNote": "A ticket also warns other viewers before they play it."
+      "bufferingWarnNote": "A ticket also warns other viewers before they play it.",
+      "vod": {
+        "menuTitle": "Title options",
+        "reportProblem": "Report a problem",
+        "choiceWontPlay": "Won't play",
+        "choiceBuffering": "Buffering",
+        "choiceWrongTitle": "Wrong title or no subtitles",
+        "footer": "Hold OK on a movie or show to open this."
+      }
     },
     "vod": {
       "allMovies": "All Movies",

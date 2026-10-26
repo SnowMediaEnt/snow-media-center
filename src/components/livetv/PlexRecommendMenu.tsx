@@ -1,6 +1,9 @@
 // Hold OK on a Plex movie or show (or a finger held on its poster): a short
 // menu to recommend it to the other viewers of this server, or to take the
-// recommendation back. Signed out, it says to sign in instead.
+// recommendation back. Signed out, it says to sign in instead. Every title
+// also has "Report a problem" (onReport: PlexSection opens the same report as
+// Live TV's channels, tagged Plex); a title that can't be recommended (an
+// episode whose show is not known, anything adult) has only that and Cancel.
 //
 // Owns the remote while open (plexRecommendHold gave it the key owner):
 // ▲ ▼ move, OK chooses, Back closes. OK is taken only once the press that
@@ -9,10 +12,10 @@
 // Whenever it goes, the remote goes back (an unmount gives it back too, so
 // the key owner is never left as the menu's with no menu on screen).
 import { memo, useEffect, useRef, useState } from 'react';
-import { Check, Loader2, ThumbsUp, X } from 'lucide-react';
+import { Check, Flag, Loader2, ThumbsUp, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { PlexItem } from '@/lib/plex';
-import { loadMyRecommended, myRecommendedKeys, recommendTarget, recommendTitle, unrecommendTitle } from '@/lib/plexRecommend';
+import { canRecommend, loadMyRecommended, myRecommendedKeys, recommendTarget, recommendTitle, unrecommendTitle } from '@/lib/plexRecommend';
 import { resolveViewer, viewerAccountId } from '@/lib/viewer';
 import { isPlexKeyOwner } from './plexKeyOwner';
 import { claimPlexHoldMenu, plexOkHeld, releasePlexHoldMenu, tapIsHoldLift, toastRecommendResult } from './plexRecommendHold';
@@ -24,21 +27,25 @@ interface Props {
   /** Plex has the remote. Off while a notice of the Player's is over it: the
    *  menu leaves every key to that notice (PlexSection then closes it). */
   isActive?: boolean;
+  /** "Report a problem": the caller closes this menu and opens the report. */
+  onReport?: (item: PlexItem) => void;
   onClose: () => void;
 }
 
 // 'checking': is it this account's already? 'on': it is.
 type Mode = 'checking' | 'signedOut' | 'off' | 'on';
 
-const PlexRecommendMenu = memo(({ item, server, isActive = true, onClose }: Props) => {
+const PlexRecommendMenu = memo(({ item, server, isActive = true, onReport, onClose }: Props) => {
   const { t } = useTranslation();
-  const target = recommendTarget(item);
+  const canRec = canRecommend(item);
+  const target = canRec ? recommendTarget(item) : null;
   const targetKey = target?.ratingKey ?? '';
   const [mode, setMode] = useState<Mode>(() => {
     const known = myRecommendedKeys(server);
     return known ? (known.has(targetKey) ? 'on' : 'off') : 'checking';
   });
   useEffect(() => {
+    if (!canRec) return;
     let cancelled = false;
     void (async () => {
       await resolveViewer();
@@ -50,7 +57,7 @@ const PlexRecommendMenu = memo(({ item, server, isActive = true, onClose }: Prop
       if (!cancelled) setMode(keys?.has(targetKey) ? 'on' : 'off');
     })();
     return () => { cancelled = true; };
-  }, [server, targetKey]);
+  }, [server, targetKey, canRec]);
 
   // onClose gives the remote back (PlexSection: releasePlexHoldMenu); so
   // does going away any other way.
@@ -62,7 +69,12 @@ const PlexRecommendMenu = memo(({ item, server, isActive = true, onClose }: Prop
   }, []);
 
   const rows: Array<{ id: string; label: string; run?: () => void }> = [];
-  if (mode === 'signedOut') {
+  const reportRow = onReport ? [{ id: 'report', label: t('live.report.vod.reportProblem'), run: () => onReport(item) }] : [];
+  if (!target) {
+    rows.push(...reportRow);
+    rows.push({ id: 'cancel', label: t('common.cancel'), run: onClose });
+  } else if (mode === 'signedOut') {
+    rows.push(...reportRow);
     rows.push({ id: 'ok', label: t('common.ok'), run: onClose });
   } else {
     if (mode === 'checking') rows.push({ id: 'checking', label: t('plex.recommend.checking') });
@@ -85,6 +97,7 @@ const PlexRecommendMenu = memo(({ item, server, isActive = true, onClose }: Prop
         },
       });
     }
+    rows.push(...reportRow);
     rows.push({ id: 'cancel', label: t('common.cancel'), run: onClose });
   }
   const rowsRef = useRef(rows); rowsRef.current = rows;
@@ -121,8 +134,9 @@ const PlexRecommendMenu = memo(({ item, server, isActive = true, onClose }: Prop
     };
   }, []);
 
-  if (!target) return null;
-  const signedOut = mode === 'signedOut';
+  const signedOut = !!target && mode === 'signedOut';
+  const title = target?.title ?? item.title;
+  const year = target ? target.year : item.year;
   return (
     <div
       className="fixed z-[80] flex items-center justify-center bg-black/75 px-4"
@@ -133,7 +147,7 @@ const PlexRecommendMenu = memo(({ item, server, isActive = true, onClose }: Prop
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={t('plex.recommend.menuAria', { title: target.title })}
+        aria-label={t('plex.recommend.menuAria', { title })}
         data-plex-recommend-menu=""
         // w-full + max-w, not min(): CSS min() is Chrome 79.
         className="w-full max-w-[460px] rounded-2xl bg-brand-navy/95 border border-brand-gold/40 shadow-[0_0_40px_rgba(245,200,80,0.25)] p-6 text-white"
@@ -141,7 +155,7 @@ const PlexRecommendMenu = memo(({ item, server, isActive = true, onClose }: Prop
         <div className="flex items-center mb-4 min-w-0">
           <ThumbsUp className="w-6 h-6 text-brand-gold flex-shrink-0 mr-3" aria-hidden="true" />
           <h2 className="font-quicksand font-bold text-xl truncate min-w-0">
-            {target.title}{target.year ? ` (${target.year})` : ''}
+            {title}{year ? ` (${year})` : ''}
           </h2>
         </div>
         {signedOut && (
@@ -166,6 +180,7 @@ const PlexRecommendMenu = memo(({ item, server, isActive = true, onClose }: Prop
                 }`}
               >
                 {row.id === 'checking' ? <Loader2 className="w-5 h-5 mr-3 text-brand-gold flex-shrink-0 animate-spin" aria-hidden="true" />
+                  : row.id === 'report' ? <Flag className="w-5 h-5 mr-3 text-brand-gold flex-shrink-0" aria-hidden="true" />
                   : row.id === 'add' || row.id === 'remove' ? <ThumbsUp className={`w-5 h-5 mr-3 text-brand-gold flex-shrink-0${row.id === 'remove' ? ' fill-current' : ''}`} aria-hidden="true" />
                     : row.id === 'ok' ? <Check className="w-5 h-5 mr-3 text-brand-gold flex-shrink-0" aria-hidden="true" />
                       : <X className="w-5 h-5 mr-3 text-brand-ice/70 flex-shrink-0" aria-hidden="true" />}
@@ -174,7 +189,7 @@ const PlexRecommendMenu = memo(({ item, server, isActive = true, onClose }: Prop
             );
           })}
         </div>
-        {!signedOut && (
+        {target && !signedOut && (
           <p className="mt-4 text-xs text-brand-ice/70 font-nunito">{t('plex.recommend.note')}</p>
         )}
       </div>

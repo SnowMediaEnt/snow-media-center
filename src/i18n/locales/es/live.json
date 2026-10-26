@@ -389,7 +389,15 @@
       "categoryFooter": "Mantén OK o pulsa la tecla Menú en una categoría para abrir esto.",
       "categorySentTitle": "Categoría reportada: ¡gracias!",
       "categorySentDesc": "Todos sus canales muestran ahora ⚠️ para todos.",
-      "bufferingWarnNote": "El ticket también avisa a otros espectadores antes de verlo."
+      "bufferingWarnNote": "El ticket también avisa a otros espectadores antes de verlo.",
+      "vod": {
+        "menuTitle": "Opciones del título",
+        "reportProblem": "Informar de un problema",
+        "choiceWontPlay": "No se reproduce",
+        "choiceBuffering": "Se queda cargando",
+        "choiceWrongTitle": "Título incorrecto o sin subtítulos",
+        "footer": "Mantén pulsado OK en una película o serie para abrir esto."
+      }
     },
     "vod": {
       "allMovies": "Todas las películas",

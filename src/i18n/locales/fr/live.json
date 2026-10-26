@@ -389,7 +389,15 @@
       "categoryFooter": "Maintenez OK ou appuyez sur la touche Menu sur une catégorie pour ouvrir ceci.",
       "categorySentTitle": "Catégorie signalée — merci !",
       "categorySentDesc": "Toutes ses chaînes affichent maintenant ⚠️ pour tout le monde.",
-      "bufferingWarnNote": "Le ticket prévient aussi les autres avant qu’ils la lancent."
+      "bufferingWarnNote": "Le ticket prévient aussi les autres avant qu’ils la lancent.",
+      "vod": {
+        "menuTitle": "Options du titre",
+        "reportProblem": "Signaler un problème",
+        "choiceWontPlay": "Ne se lance pas",
+        "choiceBuffering": "Mise en mémoire tampon",
+        "choiceWrongTitle": "Mauvais titre ou pas de sous-titres",
+        "footer": "Maintenez OK sur un film ou une série pour ouvrir ceci."
+      }
     },
     "vod": {
       "allMovies": "Tous les films",

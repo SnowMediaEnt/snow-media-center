@@ -55,7 +55,8 @@ if (!('ResizeObserver' in globalThis)) {
 
 const creds = { host: 'http://panel.example:8080', username: 'user1', password: 'pass1', serverLabel: 'Test' };
 const settle = async () => { for (let i = 0; i < 5; i++) await act(async () => { await new Promise((r) => setTimeout(r, 0)); }); };
-const key = async (k: string, extra: Record<string, unknown> = {}) => { await act(async () => { fireEvent.keyDown(window, { key: k, ...extra }); }); await settle(); };
+// OK is pressed and let go, as a remote does (a press runs on its release).
+const key = async (k: string, extra: Record<string, unknown> = {}) => { await act(async () => { fireEvent.keyDown(window, { key: k, ...extra }); if (k === 'Enter' || k === ' ') fireEvent.keyUp(window, { key: k, ...extra }); }); await settle(); };
 const latest = () => h.args[h.args.length - 1];
 
 async function openAndPlay() {

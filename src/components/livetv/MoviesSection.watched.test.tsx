@@ -50,7 +50,8 @@ const creds = { host: 'http://panel.example:8080', username: 'user1', password: 
 const otherLine = { host: 'http://vibez.example', username: 'user1' };
 const settle = async (ms = 0) => { await act(async () => { await new Promise((r) => setTimeout(r, ms)); }); };
 const until = async (ok: () => boolean) => { for (let i = 0; i < 100 && !ok(); i++) await settle(20); return ok(); };
-const key = (k: string) => act(() => { fireEvent.keyDown(window, { key: k }); });
+// OK is pressed and let go, as a remote does (a press runs on its release).
+const key = (k: string) => act(() => { fireEvent.keyDown(window, { key: k }); if (k === 'Enter' || k === ' ') fireEvent.keyUp(window, { key: k }); });
 const tile = (name: string) => [...document.querySelectorAll('[data-vod-grid] *')].find((e) => e.getAttribute('data-focused') != null && (e.textContent || '').includes(name)) as HTMLElement | undefined;
 const badge = (name: string) => tile(name)?.querySelector('[data-watched]') ?? null;
 const pageBadge = () => document.querySelector('[data-movie-detail] [data-watched]');

@@ -29,6 +29,7 @@ import { useTouchUI } from '@/lib/phoneMode';
 import { kidsLevel } from '@/lib/kidsFilter';
 import { canRecommend, loadMyRecommended, myRecommendedKeys, plexRecommendServer, recommendTarget, recommendTitle, unrecommendTitle, PLEX_RECOMMEND_EVENT } from '@/lib/plexRecommend';
 import { createPlexHoldOk, tapIsHoldLift, tileHoldProps, toastRecommendResult, type PlexHoldOk } from './plexRecommendHold';
+import { okIsRepeat } from '@/lib/okLatch';
 
 interface Props {
   isActive: boolean;
@@ -752,7 +753,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
             if (trailerRef.current) { trailerFromRef.current = b; setZone('trailer'); }
             else downToVersionsOrCast();
           }
-          else if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; const def = bs[b]; if (def) activateRef.current(def.id); }
+          else if (e.key === 'Enter' || e.key === ' ') { if (okIsRepeat(e)) return; const def = bs[b]; if (def) activateRef.current(def.id); }
           return;
         }
         if (z === 'trailer') {
@@ -760,7 +761,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
           if (!trailerRef.current) { setZone('buttons'); return; }
           if (e.key === 'ArrowUp') { setZone('buttons'); setBtn(Math.max(0, Math.min(trailerFromRef.current, btnsRef.current.length - 1))); }
           else if (e.key === 'ArrowDown') downToVersionsOrCast();
-          else if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; playTrailerRef.current(); }
+          else if (e.key === 'Enter' || e.key === ' ') { if (okIsRepeat(e)) return; playTrailerRef.current(); }
           return;
         }
         if (z === 'versions') {
@@ -774,7 +775,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
           else if (e.key === 'ArrowUp') { setZone(trailerRef.current ? 'trailer' : 'buttons'); }
           else if (e.key === 'ArrowDown') { if (castRef.current.length > 0) { setZone('cast'); setCastIdx(0); } }
           else if (e.key === 'Enter' || e.key === ' ') {
-            if (e.repeat) return;
+            if (okIsRepeat(e)) return;
             const v = vs[vi];
             if (v) { setChosenId(v.id); setZone('buttons'); setBtn(0); }
           }
@@ -787,7 +788,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
         if (e.key === 'ArrowUp') { setZone(versionsRef.current.length > 1 ? 'versions' : trailerRef.current ? 'trailer' : 'buttons'); }
         else if (e.key === 'ArrowLeft') { if (c > 0) setCastIdx(c - 1); }
         else if (e.key === 'ArrowRight') { if (c < list.length - 1) setCastIdx(c + 1); }
-        else if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; const p = list[c]; if (p) void openActorRef.current(p); }
+        else if (e.key === 'Enter' || e.key === ' ') { if (okIsRepeat(e)) return; const p = list[c]; if (p) void openActorRef.current(p); }
         return;
       }
       if (s === 'seasons') {
@@ -819,7 +820,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
           if (next) setEpPref(next.label);
         }
         else if (e.key === 'Enter' || e.key === ' ') {
-          if (e.repeat) return; // a held OK must not act twice
+          if (okIsRepeat(e)) return; // a held OK must not act twice
           const ep = eps[ei];
           if (ep) {
             const sea = seasonsRef.current[seasonIdxRef.current];

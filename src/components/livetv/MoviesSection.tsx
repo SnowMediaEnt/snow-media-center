@@ -41,6 +41,9 @@ import { useWatchedFilms } from '@/hooks/useWatchedVod';
 import TrailerButton from './TrailerButton';
 import TrailerOverlay from './TrailerOverlay';
 import { movieTrailer, openTrailer } from '@/lib/trailer';
+import { okIsRepeat } from '@/lib/okLatch';
+import { useTitleHoldOk } from './useTitleHoldOk';
+import ReportChannelDialog from './ReportChannelDialog';
 
 interface Props {
   creds: XtreamCreds;
@@ -146,6 +149,11 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
   }, [showTrailer]);
 
   const [playing, setPlaying] = useState<{ url: string; title: string; streamId: number } | null>(null);
+  // OK on a poster or on Play: a press opens / plays it (when OK is let go);
+  // held, the film's options (Report a problem).
+  const {
+    menuFor: optionsFor, menuOpen: optionsOpen, okDown: titleOkDown, cancel: cancelTitleHold, closeMenu: closeOptions,
+  } = useTitleHoldOk<XtreamVodStream>(isActive && !playing);
   // Off the film's page, or playing: no trailer (the page's keys never wait
   // on a layer that is not drawn).
   useEffect(() => { if (pane !== 'detail' || !selectedMovie || playing) showTrailer(null); }, [pane, selectedMovie, playing, showTrailer]);
@@ -407,6 +415,10 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
   // inline arrows re-rendered every mounted tile on every key press.
   const openMovieRef = useRef(openMovie);
   useEffect(() => { openMovieRef.current = openMovie; }, [openMovie]);
+  const playMovieRef = useRef(playMovie);
+  useEffect(() => { playMovieRef.current = playMovie; }, [playMovie]);
+  const selectedMovieRef = useRef(selectedMovie);
+  selectedMovieRef.current = selectedMovie;
   const onTileFocus = useCallback((i: number) => { setGridIdx(i); setPane('grid'); }, []);
   const onTileActivate = useCallback((i: number) => {
     const m = visibleMoviesRef.current[i];
@@ -424,9 +436,12 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
       if (playingRef.current) return;
       // So does a trailer over the film's page (TrailerOverlay: OK pauses, Back closes it).
       if (trailerVideoRef.current) return;
+      // And a film's options menu (ReportChannelDialog: its own keys).
+      if (optionsOpen()) return;
 
       if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
         e.preventDefault(); e.stopPropagation();
+        cancelTitleHold();
         if (paneRef.current === 'detail') { setPane('grid'); setSelectedMovie(null); }
         // A touch screen shows no highlight to walk back through (the
         // categories are on screen beside or over the posters): the search
@@ -440,6 +455,8 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
       const arrows = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '];
       if (!arrows.includes(e.key)) return;
       e.preventDefault();
+      // Moving away: a hold under way comes to nothing.
+      if (e.key !== 'Enter' && e.key !== ' ') cancelTitleHold();
 
       if (paneRef.current === 'categories') {
         const cats = visibleCategoriesRef.current;
@@ -499,7 +516,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
         
         } else if (e.key === 'Enter' || e.key === ' ') {
           const m = list[i];
-          if (m) openMovie(m);
+          if (m) titleOkDown(e, m, () => { void openMovieRef.current(m); });
         }
         return;
       }
@@ -512,14 +529,17 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
         if (e.key === 'ArrowDown' && trailerRef.current) setDetailFocus('trailer');
         else if (e.key === 'ArrowUp') setDetailFocus('play');
         else if (e.key === 'Enter' || e.key === ' ') {
-          if (onTrailer) { if (!e.repeat) pressTrailer(); }
-          else playMovie();
+          if (onTrailer) { if (!okIsRepeat(e)) pressTrailer(); }
+          else {
+            const m = selectedMovieRef.current;
+            if (m) titleOkDown(e, m, () => playMovieRef.current());
+          }
         }
       }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive, onExitLeft, onExitUp, openMovie, playMovie, pressTrailer]);
+  }, [isActive, onExitLeft, onExitUp, pressTrailer, optionsOpen, titleOkDown, cancelTitleHold]);
 
   // --- Virtualize grid by rows ---
   const gridScrollRef = useRef<HTMLDivElement | null>(null);
@@ -621,6 +641,18 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
     </div>
   ) : null;
 
+  // A film's options (held OK): Report a problem, Cancel.
+  const optionsOverlay = optionsFor ? (
+    <ReportChannelDialog
+      kind="movie"
+      channelName={optionsFor.name}
+      channelId={optionsFor.stream_id}
+      categoryName={categories.find((c) => String(c.category_id) === String(optionsFor.category_id ?? ''))?.category_name}
+      line={creds}
+      onClose={closeOptions}
+    />
+  ) : null;
+
   // Fullscreen player
   if (playing) {
     return (
@@ -711,6 +743,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
           </div>
         </div>
         {demoNoticeOverlay}
+        {optionsOverlay}
         {trailerVideo && <TrailerOverlay video={trailerVideo} title={selectedMovie.name} kind="movie" onClose={closeTrailer} />}
       </div>
     );
@@ -864,6 +897,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
         )}
       </div>
       {demoNoticeOverlay}
+        {optionsOverlay}
     </div>
   );
 });

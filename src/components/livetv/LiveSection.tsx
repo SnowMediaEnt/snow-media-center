@@ -127,6 +127,7 @@ import {
   demoGetLiveStreams,
   demoGetShortEpg,
 } from '@/lib/xtreamDemo';
+import { okIsRepeat } from '@/lib/okLatch';
 
 const VideoPlayer = lazy(() => import('./VideoPlayer'));
 const ReportChannelDialog = lazy(() => import('./ReportChannelDialog'));
@@ -3185,7 +3186,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           pokeOverlay();
           const isOk = e.key === 'Enter' || e.key === ' ';
           // Held, or the keyboard's parting Enter as it went away: no press.
-          if (isOk && (e.repeat || ovSearchRef.current.partingOk())) return;
+          if (isOk && (okIsRepeat(e) || ovSearchRef.current.partingOk())) return;
           const cats = visibleCategoriesRef.current;
           const chans = visibleChannelsRef.current;
           if (paneRef.current === 'categories') {
@@ -3326,6 +3327,11 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         if (e.key === 'ArrowDown')  { changeChannelInFullscreen(+1); setBarFocus('play'); pokeBar(); return; }
         if (e.key === 'Enter' || e.key === ' ') {
           const id = barFocusRef.current;
+          // A held OK (its repeats, which some WebViews send with e.repeat
+          // false: okLatch) does one thing: only the skips add up. It never
+          // toggles pause/play back and forth.
+          const okRepeat = okIsRepeat(e);
+          if (okRepeat && id !== 'rew' && id !== 'fwd') return;
           if (id === 'prev')  changeChannelInFullscreen(-1);
           else if (id === 'next') changeChannelInFullscreen(+1);
           // Back 10s / Forward 10s: through the channel's rewind when it has
@@ -3336,12 +3342,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           else if (id === 'golive') { if (rewindOn) void rewindRef.current.goLive(); }
           else if (id === 'rec') {
             const st = playingStreamRef.current;
-            if (st && !e.repeat && recordOnRef.current) setRecordFor({ st, line: playingLineRef.current });
+            if (st && recordOnRef.current) setRecordFor({ st, line: playingLineRef.current });
           }
           else if (id === 'report') {
             // The channel that is playing; the menu finds its line by the stream object.
             const st = playingStreamRef.current;
-            if (st && !e.repeat) {
+            if (st) {
               streamLineRef.current.set(st, playingLineRef.current);
               setReportFor(st);
             }

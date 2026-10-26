@@ -53,7 +53,8 @@ const settle = async (ms = 0) => { await act(async () => { await new Promise((r)
 // Generous: a busy machine runs these pages slowly.
 const until = async (ok: () => boolean) => { for (let i = 0; i < 300 && !ok(); i++) await settle(20); return ok(); };
 const q = (sel: string) => document.querySelector<HTMLElement>(sel);
-const press = (key: string) => act(() => { fireEvent.keyDown(window, { key }); });
+// OK is pressed and let go, as a remote does (a press runs on its release).
+const press = (key: string) => act(() => { fireEvent.keyDown(window, { key }); if (key === 'Enter' || key === ' ') fireEvent.keyUp(window, { key }); });
 const tap = (el: Element | null | undefined) => act(() => { fireEvent.click(el!); });
 const btn = (name: string) => q(`[data-series-detail] [data-detail-btn="${name}"]`);
 const trailer = () => q('[data-series-detail] [data-trailer]');
