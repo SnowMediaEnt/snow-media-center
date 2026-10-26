@@ -36,7 +36,7 @@ vi.mock('@/lib/phoneRemote', () => ({
 }));
 
 import Settings from './Settings';
-import { generateWallpaper, INTENT_KEYS, openScreen } from '@/lib/appActions';
+import { generateWallpaper, INTENT_KEYS, openScreen, openSettingsPlace } from '@/lib/appActions';
 
 const selected = () => screen.getAllByRole('tab').find((t) => t.getAttribute('aria-selected') === 'true')?.getAttribute('data-settings-focus');
 
@@ -80,5 +80,21 @@ describe('Settings asked for a tab while it is open', () => {
     expect(selected()).toBe('tab-media');
     await act(async () => { openScreen('settings_ui', vi.fn()); });
     expect(selected()).toBe('tab-ui');
+  });
+
+  it('the assistant\'s "Home screen" opens UI on its Home screen rows, now or on the next visit', async () => {
+    kidsLevel = null;
+    openSettingsPlace('home_screen', vi.fn());
+    const first = render(<Settings onBack={vi.fn()} />);
+    expect(selected()).toBe('tab-ui');
+    expect(document.querySelector('[data-settings-focus="ui-home-bar-source"]')?.getAttribute('data-focused')).toBe('true');
+    first.unmount();
+
+    render(<Settings onBack={vi.fn()} />);
+    expect(selected()).toBe('tab-media');
+    await act(async () => { openSettingsPlace('home_screen', vi.fn()); });
+    expect(selected()).toBe('tab-ui');
+    expect(document.querySelector('[data-settings-focus="ui-home-bar-source"]')?.getAttribute('data-focused')).toBe('true');
+    expect(sessionStorage.getItem(INTENT_KEYS.settings)).toBeNull();
   });
 });

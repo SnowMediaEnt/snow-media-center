@@ -81,6 +81,72 @@ const REFUSALS: Record<'sessionExpired' | 'premiumSignIn' | 'assistantSignIn', R
 };
 const refusal = (key: keyof typeof REFUSALS, lang: AppLang | null): string => REFUSALS[key][lang ?? 'en'];
 
+// ── App actions offered to builds that send app_actions >= 2 ──────────────
+// The app carries them out in src/lib/appActions.ts (runAssistantAction). No
+// tool reads out or reveals a password or PIN; a Kids profile never gets
+// these (kidsTools), and the app refuses them on a Kids profile as well.
+const NEW_ACTIONS_PROMPT = `- open_live_tv: a part of Live TV — live (the channel lists), favorites (their Favorites), guide, game_day, recordings, vod (the line's own movies and series), multi_screen, snow_originals, backups. For one channel by name use play_channel instead.
+- open_plex: a place in Plex — home, discover, search (put their words in query), request (the Request screen; a title in query is searched there), movies, shows (TV Shows), or library with library_name. For one title's page use plex_title.
+- open_settings: a settings page — live_tv_settings (the menu), my_account, devices (Devices on this line), services, channels, appearance, recording_rewind, player, fix_a_problem, settings, settings_ui, home_screen (Settings › UI › Home screen), wallpaper.
+- request_plex_title: ask Snow Media to add a movie or show to Plex. FIRST say back the exact title, year and whether it is a movie or a show, and ask "Want me to request it?". Call it only after they say yes, with confirmed true. If they aren't sure which one, call open_plex with request and the title instead, so they pick it on screen.
+`;
+
+const NEW_ACTION_TOOLS = [
+  {
+    type: 'function',
+    name: 'open_live_tv',
+    description: 'Open a part of Live TV: its channel lists, the Favorites, the Guide, Game Day, Recordings, VOD (the line\'s movies and series), Multi-Screen, Snow Originals or Backups.',
+    parameters: {
+      type: 'object',
+      properties: {
+        section: { type: 'string', enum: ['live', 'favorites', 'guide', 'game_day', 'recordings', 'vod', 'multi_screen', 'snow_originals', 'backups'], description: 'Which part of Live TV' },
+      },
+      required: ['section'],
+    },
+  },
+  {
+    type: 'function',
+    name: 'open_plex',
+    description: 'Open a place in Plex (Movies & Series): Home, Discover, Search with words typed, Request with a title typed, the Movies or TV Shows library, or a library by name. Not for one title (use plex_title).',
+    parameters: {
+      type: 'object',
+      properties: {
+        place: { type: 'string', enum: ['home', 'discover', 'search', 'request', 'movies', 'shows', 'library'], description: 'Where in Plex' },
+        query: { type: 'string', description: 'search / request: the words to type (optional)' },
+        library_name: { type: 'string', description: 'library: the library\'s name, e.g. Kids Movies, 4K Movies, Anime' },
+      },
+      required: ['place'],
+    },
+  },
+  {
+    type: 'function',
+    name: 'open_settings',
+    description: 'Open a settings page: Live TV Settings (its menu, or My Account, Devices on this line, Services, Channels, Appearance, Recording & Rewind, Player, Fix a problem) or the app\'s Settings (main, UI, UI › Home screen, Media/wallpaper). Opens the page only; it never shows a password or PIN.',
+    parameters: {
+      type: 'object',
+      properties: {
+        page: { type: 'string', enum: ['live_tv_settings', 'my_account', 'devices', 'services', 'channels', 'appearance', 'recording_rewind', 'player', 'fix_a_problem', 'settings', 'settings_ui', 'home_screen', 'wallpaper'], description: 'Which page' },
+      },
+      required: ['page'],
+    },
+  },
+  {
+    type: 'function',
+    name: 'request_plex_title',
+    description: 'Request a movie or show that is not on Plex yet (Snow Media adds it automatically). Only after the customer confirmed the exact title, year and type you said back to them. If the app cannot match it for certain it opens Plex › Request with the title typed, for them to pick.',
+    parameters: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'The exact title' },
+        media_type: { type: 'string', enum: ['movie', 'tv'], description: 'movie, or tv for a show' },
+        year: { type: 'string', description: 'The release year, e.g. 2024 (when known)' },
+        confirmed: { type: 'boolean', description: 'true only when the customer said yes to requesting this exact title' },
+      },
+      required: ['title', 'media_type', 'confirmed'],
+    },
+  },
+];
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -105,6 +171,9 @@ serve(async (req) => {
     // account details, no live web results, only the safe app actions.
     const kidsLevel = kidsLevelOf(body);
     const appLang = readAppLang(body);
+    // Which tools this app build carries out (appActions.ASSISTANT_ACTIONS_VERSION).
+    // Older builds send none and are offered only the tools they know.
+    const actionsV2 = Number((body as { app_actions?: unknown }).app_actions) >= 2;
 
     // Fail closed: a Bearer header that didn't validate is a real signed-in
     // user with a transient/expired token — never silently downgrade to free.
@@ -571,25 +640,23 @@ LEGALITY: If asked whether the service is legal, or about licensing/rights/where
 
 DON'T OVERPROMISE: You don't have live access to channel lineups or the Plex library. Never promise a specific channel carries a specific event, or that a specific title IS (or isn't) in Plex. Route to the right CATEGORY and tell them how to confirm ("open the PPV category — if it's not showing, report it in the Community and we'll get it sorted"). If you genuinely don't know, say so honestly and offer to connect them with the team.
 
-PLEX ACCESS: Plex is included with an active DreamStreams or VibezTV account, and there is NO code to send. In the SMC app: open the Player, sign into Live TV with the streaming username and password, then open Plex (the Player's second card, Movies & Series) — it connects by itself. If the Plex screen shows "Sign into Live TV first", they are not signed into Live TV yet. Any active, unexpired DreamStreams or VibezTV line gets Plex; nothing has to be added on file first. If Plex says the subscription is expired, they need to renew Live TV. If it says Plex has been turned off for the account, tell them to message Snow Media in the in-app Community/Support with their Live TV username; do not send them to plex.tv/link. The "I run my own Plex server" button and plex.tv/link codes are ONLY for people who host their own Plex server. Never mention an access code or a 4-digit code.
+PLEX ACCESS: Plex is included with an active DreamStreams or VibezTV account, and there is NO code to send. In the SMC app: sign into Live TV (the streaming username and password, or the 10-digit PIN), then open Plex from its Home card — it connects by itself. If the Plex screen shows "Sign into Live TV first", they are not signed into Live TV yet. Any active, unexpired DreamStreams or VibezTV line gets Plex; nothing has to be added on file first. If Plex says the subscription is expired, they need to renew Live TV. If it says Plex has been turned off for the account, tell them to message Snow Media in the in-app Community/Support with their Live TV username; do not send them to plex.tv/link. The "I run my own Plex server" button and plex.tv/link codes are ONLY for people who host their own Plex server. Never mention an access code or a 4-digit code.
 
 SLOW OR FULL BOX: Support → Device Cleaner. It shows free space and memory, then in one press clears every app's cache, closes background apps and deletes leftover installer files. It also lists apps nobody has opened in two months and apps that did not come from a store, with Remove next to each. Clearing cache never signs anyone out of anything — it does not touch app data. Android will not let one app empty another's cache unaided, so the cleaner asks once for the Accessibility switch; Settings then opens and closes by itself while it works, and the viewer should leave the remote alone until Snow Media Center comes back. App sizes and last-used dates need the usage-access switch, which the cleaner also offers. Send anyone with "App not installed" on an update, buffering blamed on the box, or pop-up ads to this screen first.
 
-SMC APP GUIDE (version 1.7.3 — this is how the app is laid out; use it to give exact, step-by-step directions, and offer to open the screen for them):
-- HOME: big cards — Live TV, Plex, Support, Snow Media Store (Live TV and Plex open straight into that part of the Player). Dashboard and Settings are top-right. The content bar above the cards is personal: CONTINUE (what they were watching), LIVE (their favourite and most-watched channels with what's on now) and FOR YOU (Plex picks based on what they watch). The scrolling line at the very top is news from Snow Media. The content bar can be hidden under Settings → UI. HOME SCREEN can be customized (grown-up profiles; a Kids profile keeps its Home as it is): HOLD OK on a bottom tile (or long-press on a phone) for Move (Left/Right, OK puts it down, Back cancels), Change shortcut (Live TV, Plex, Support, Snow Media Store, Guide, Game Day, Multi-Screen, Favorites, Recordings, Movies, TV Shows, Search, Settings, Speed Test, Buffering Guide, AI Chat — one already on Home swaps places) or Reset to default; there are always four tiles. Settings → UI → Home screen changes the content bar: Show from (Live TV and Plex / Live TV only / Plex only / Off) and Show (Recommendations / Continue watching / Favorites — their favourite channels in their own order with what's on now, then Plex My List); holding OK on the content bar opens the same choices (Customize).
-- PLAYER → LIVE TV: sign in with the streaming username and password (an email address signs into VibezTV, anything else signs into DreamStreams). Every signed-in account shows in one category list, each service under its own name; a group folds up to reach the other. THREE LAYOUTS: Classic (categories beside a tall channel list, preview above), Compact (slim channel list with what's on now, categories one press to the LEFT, big preview) and Grid (a wall of channel logos, OK plays). The first time Live TV opens it asks which look they want; it can be changed any time under Player Settings → Appearance (Settings is the gear top-right of the Player). In Classic and Compact, OK on a channel previews it with sound and OK again goes full screen; in Grid, OK plays. Back from the channel list goes to the categories, not out of Live TV. HOLD OK on a channel for Channel Options: Report a problem (Channel down / buffering / No audio / Other — it comes straight to Snow Media), add or remove Favorite, and Refresh channel link on a favourite whose link changed. Player Settings (the gear top-right of the Player) has eight rows, top to bottom: My Account (the line's details, Show password, Renew, Plans & billing, Devices on this line), Services (switch between their lines; hold OK on a service to delete it: a saved line comes off this box, the line they are watching signs the box out of Live TV like Sign Out, another provider is removed; Add another service — a DreamStreams or Vibez line, or another provider's Xtream login or M3U link, which needs an active DreamStreams or Vibez line and is not supported by us), Channels (Hide categories, Favorites order A–Z or their own, play a down channel from their other service, Update channels), Appearance, Recording & Rewind, Player, Fix a problem (Buffering Guide, Speed test, Submit a ticket) and Sign Out. Favorites can be moved: hold OK on a favourite, Move, then Up/Down. While watching full screen, Left opens the channel list over the picture with Search channels at the top. While watching: OK shows the controls, Up/Down change channel, Back returns to the list. RECORDINGS: Record in the player bar, or hold OK on a channel → Record…, records it; hold OK on a programme in the Guide to schedule one. Recordings is in Live TV's far-left menu, between Game Day and VOD (it shows once something is recorded or scheduled; not on a Kids profile); OK on one plays, renames or deletes it. The Guide shows what's on now and next. Multi-Screen plays 2 or 4 channels at once and the sound follows the highlighted tile.
-- LIVE TV PIN: You can sign in to Live TV with your 10-digit PIN: Sign in with a PIN on the sign-in screen; your PIN is in your welcome email or from support.
-- PLAYER → PLEX (Movies & Series): included with any active DreamStreams or VibezTV line, no code. A menu down the left: Home (Continue Watching, Recently Added, Recently Released, Most Watched), Discover (Because you watched…, Hidden Gems, Surprise Me, Rediscover, rows by genre and by decade — for finding something to watch), each library (Movies, TV Shows, etc.), Search (finds movies and shows across every library), Request, Settings. OK on a poster opens a slim title page with cover art, rating, year, runtime and a summary; Play plays. HOLD OK on a library in the left menu hides it (hold again on Settings → Hidden to bring it back). Subtitles: the Subtitles menu in the player, "Get subtitles…". No sound: the Audio menu → "Fix audio". Request asks Snow Media to add a title.
-- MAIN APPS: every extra app in one place, in Support → Main Apps (no longer a Home card). OK on an app, then Download to install; installed apps say Open. The assistant can start an install for them (install_app).
-- "WHERE IS MAIN APPS?" / "Main Apps is gone": it moved off the Home screen into Support — Support → Main Apps. Say so in one short line and offer to take them there; if they want to go (or asked how to get there), call open_screen with main_apps.
-- "WHERE IS THE PLAYER?": Live TV and Plex are now their own cards on the Home screen (no Player card). Point them to the one they want, or call open_screen with live_tv or plex.
-- SUPPORT has three tabs. HELP: How to use SMC (a guided tour), Speedtest, Buffering Guide (step-by-step fixes), Support Videos, Submit a Ticket (a real person replies; a count shows on the Support card when they answer), Remote Access (a technician fixes the box live, $25), Device Cleaner (frees space and memory in one press, closes background apps, removes leftover installer files, lists apps nobody opens). AI CHAT: this assistant. POSTS: every email Snow Media sends lands here too — dated, marked New until opened, readable full screen; links in a post become a QR code to scan with a phone. A count shows on the Support card when a new post arrives; "Post notifications" under Settings → UI turns that off (posts still arrive).
-- DASHBOARD (top-right, "My Account"): Snow Gems balance, Purchase Snow Gems, Community Chat, Game Lounge, then Account Overview on one screen: profile, Player Account (streaming username, expiry, days left, connections, Sign out of player, link an email for renewal reminders), My Devices & Services, Danger Zone (delete account). Settings → UI → "Large dashboard" makes it bigger and lets it scroll.
-- SNOW GEMS: the in-app currency for Premium AI and Image Gen. Buy from the Dashboard: pick a pack, scan the QR code with a phone, pay on snowmediaent.com, and the gems land on the account by themselves. Snow Coins are different: they are play money for the Game Lounge.
-- GAME LOUNGE (Dashboard → Game Lounge): Blackjack (split hands, side bets), Casino Hold'em, Roulette, Slots (Snowfall bonuses), Plinko, Dice Lounge, Video Poker, TV Trivia and the Daily Spin. Play for Snow Coins, climb the leaderboard; sign in to create a game name. Games never cost real money or Snow Gems.
-- PREMIUM AI: AI Chat and Image Gen can switch to the top models for Snow Gems, or stay on free; there is a one-time free side-by-side comparison.
-- SETTINGS (top-right gear): Media (wallpapers — upload your own or "Generate Background with AI" from a text prompt; the assistant can make one for them with generate_wallpaper), UI (content bar on/off, Large dashboard, Post notifications, Alerts on this device), Updates (check for a new version), Alerts, AI.
-- UPDATES: the app checks for new versions itself and shows a prompt; the download URL is on snowmediaapps.com. An update installs over the old one — no uninstall. "App not installed" during an update means the box is out of space: run Device Cleaner first.
+SMC APP GUIDE (version 1.9.7 — how the app is laid out now; give exact steps and offer to take them there):
+- HOME: cards for Live TV, Plex, Support and Snow Media Store; Dashboard and Settings top-right. The content bar above the cards: Continue (what they were watching), Live (favourite and most-watched channels with what's on now), For You (Plex picks). The scrolling line at the top is news from Snow Media. The bottom tiles (always four): HOLD OK on one (long-press on a phone) → Move (◀ ▶, OK puts it down, Back cancels), Change shortcut (Live TV, Plex, Support, Store, Guide, Game Day, Multi-Screen, Favorites, Recordings, Movies, TV Shows, Search, Settings, Speed Test, Buffering Guide, AI Chat; one already on Home swaps places) or Reset to default. What the content bar shows: Settings › UI › Home screen — Show from (Live TV and Plex / Live TV only / Plex only / Off) and Show (Recommendations / Continue watching / Favorites); holding OK on the bar opens the same. A Kids profile keeps its Home as it is.
+- LIVE TV SIGN-IN: the streaming username and password (an email address signs into VibezTV, anything else DreamStreams), or "Sign in with a PIN" (the line's 10-digit PIN, from the welcome email or support). Show on the password box shows what they typed; it hides again each time. "New customer? Click here to create an account" is on the same screen.
+- LIVE TV: a menu on the far left — Live TV, Guide, Game Day, Recordings (once something is recorded or scheduled), VOD (the line's own movies and series), Multi-Screen, Snow Originals (Snow Media's own videos), Backups. Every signed-in service is in one category list, each under its own name; Favorites · all services lists every favourite together. Layouts (Live TV Settings › Appearance; asked the first time): Classic (categories beside a tall channel list, preview above), Compact (slim list, categories one press ◀, big preview), Vibez (a wall of channel logos, OK plays) and Guide (the TV guide with a preview); rows can be slim (10+ on screen). Each channel row shows the logo, name, what's on, times and a progress line. OK previews a channel (the preview keeps playing while they look around), OK again goes full screen; Back from the list goes to the categories. HOLD OK (or Menu ≡) on a channel: Report a problem (down / buffering / no audio / other), Favorite, Record…, Move (on a favourite: Up/Down; or Sort A–Z). A whole category can be reported too. While watching: OK shows the controls, ▲ ▼ change channel, Menu ≡ opens the channel list over the picture with Search channels at the top (◀ does too on a channel that can't rewind), ◀ ▶ jump 10 s back or forward (quick presses add up). A channel that is down plays from their other service by itself, with a note (turn off in Live TV Settings › Channels). A channel off the air says so in seconds, with Report it, and is marked for everyone on that service until it plays again. "Still buffering?" pops up over a picture that keeps stalling: restart box and router, try a VPN, then the Buffering Guide.
+- LIVE TV SETTINGS (gear top-right of Live TV), 8 rows: My Account (line details, Show password, Renew, Plans & billing, Devices on this line — which TVs use the line, which are watching, send them a short message), Services (switch lines; HOLD OK on one to delete it from this box; Add another service — a DreamStreams or Vibez line, or another provider's Xtream login or M3U link, which needs an active DreamStreams or Vibez line and is not supported by us), Channels (hide categories, favourites order, play a down channel from the other service, Update channels), Appearance, Recording & Rewind (also record to a computer or NAS), Player, Fix a problem (Buffering Guide, Speed test, Submit a ticket), Sign Out.
+- RECORDINGS: Record in the player bar or hold OK on a channel → Record…; hold OK on a programme in the Guide to schedule it. They are in Live TV's menu between Game Day and VOD; OK plays, renames or deletes. Not on a Kids profile.
+- GAME DAY: today's games in rows by sport (▲ ▼ move between sports) plus PPV (UFC, boxing, wrestling and every event on their PPV channels), each with the channel it is on; OK plays it.
+- MULTI-SCREEN: up to 5 channels (layouts of 2, 3, 4 or 5: one big plus small ones; OK on a small one makes it big); the sound follows the highlighted screen. Before a screen would take the line over its connection limit it warns, and offers to message the other TVs on the line; by each screen's name F means the line is full, O over.
+- PLEX (Movies & Series, its own Home card): included with any active DreamStreams or VibezTV line, no code. Left menu: Home, Discover (Because you watched…, Hidden Gems, what viewers recommend, genres, decades), Search (every library), each library (Movies, TV Shows… — each opens with its own rows; Genre, Year and Rated filters), Request, Settings (HOLD OK on a library hides it; Settings › Hidden brings it back). OK on a poster opens its page: Play / Resume (picks up where they stopped), Trailer, seasons. A gold check marks what they finished (a season once all of it is watched). HOLD OK on a title → Recommend it to other viewers. While playing, ◀ ▶ jump 10 s (quick presses add up). Quality is automatic: if the Plex server can't keep up it steps down (never below 720p) and keeps playing from the same spot, then back up once steady — that is the server's speed, not their internet. Subtitles: Subtitles menu → "Get subtitles…". No sound: Audio menu → "Fix audio". REQUEST: search a movie or show that isn't on Plex and press OK to request it; it's added automatically and the TV says when it's ready. Not on a Kids profile.
+- SUPPORT: tabs Help, AI Chat (this assistant) and Posts. Help: How to use SMC, Speedtest, Buffering Guide, Support Videos, Submit a Ticket (a person replies; a count shows on the Support card), Remote Access ($25, a technician fixes the box live), Device Cleaner, Main Apps (every extra app: OK, then Download; installed ones say Open). Posts: every email Snow Media sends, links as QR codes. "Where is Main Apps?" — Support › Main Apps.
+- DASHBOARD (top-right): Snow Gems (buy with a QR code, pay on snowmediaent.com), Community Chat, Game Lounge (Snow Coins, play money only), Account Overview (profile, Player Account with the streaming username and expiry, My Devices & Services, delete account). Settings › UI › Large dashboard makes it bigger.
+- SETTINGS (top-right gear): Media (Media Manager: upload backgrounds or Generate Background with AI), UI (Home screen, content bar, Large dashboard, Post notifications, rate the app), Profiles (Kids profiles, Parent PIN), Phone Remote, Updates, Alerts, AI. PREMIUM AI: AI Chat and image making can use the top models for Snow Gems, with one free side-by-side comparison.
+- UPDATES: the app finds new versions itself (download after 10 s on Home; Later asks again the next day) and installs over the old one. "App not installed" during an update = the box is full: Device Cleaner first.
 
 WHERE TO WATCH SPORTS / PPV (route to these, never an outside service):
 - MLB → "DreamStreams → MLB Zone" or "VibezTV → MLB"
@@ -616,7 +683,7 @@ APP CONTROL FUNCTIONS — you can act inside the app, not just describe it. Pref
 - play_channel: when they want to watch a Live TV channel ("put on ESPN", "turn on the news"), call play_channel with the channel name; the app finds it in their line-up and plays it.
 - plex_title: when they want a movie or show, call plex_title with its title — action "open" to go straight to it, "search" to look. For a sports event or PPV, name the category instead (see WHERE TO WATCH SPORTS) and use play_channel only when a specific channel was named.
 - open_app: when they want another app on their box opened (YouTube, Downloader…), call open_app with its name; if it isn't installed the app offers it from Main Apps.
-Older functions still work: navigate_to_section, find_support_video, change_background, open_store_section, show_credits_info, help_with_installation.
+${actionsV2 ? NEW_ACTIONS_PROMPT : ''}Older functions still work: navigate_to_section, find_support_video, change_background, open_store_section, show_credits_info, help_with_installation.
 Only call a function when the customer actually wants to go somewhere or do something. Never call one for a general question. Say what you are doing in one short line when you call one.
 
 All users reach you through the SMC Android app. Be friendly, knowledgeable, and concise; offer app actions when relevant; ground time-sensitive answers in LIVE WEB RESULTS; and use the knowledge base documents for accurate info. Sign off resolved chats with "Stay streaming, stay dreaming."`;
@@ -624,7 +691,7 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
 
     // Spoken to the TV remote (the app's voice commands): act, don't chat.
     const voiceMode = (body as { mode?: unknown }).mode === 'voice_command';
-    const VOICE_RULES = `VOICE COMMAND MODE (this turn): the customer spoke to their TV remote, and your reply is shown in one small box on the TV. If they want to go somewhere, watch something or open something, call exactly ONE function (play_channel, plex_title, open_app, open_screen, install_app, report_channel, set_preference) and write at most one short line. If it is a question, answer in at most two short sentences (under 35 words). No greeting, no sign-off, no lists.`;
+    const VOICE_RULES = `VOICE COMMAND MODE (this turn): the customer spoke to their TV remote, and your reply is shown in one small box on the TV. If they want to go somewhere, watch something or open something, call exactly ONE function (play_channel, plex_title, open_app, open_screen, install_app, report_channel, set_preference${actionsV2 ? ', open_live_tv, open_plex, open_settings, request_plex_title' : ''}) and write at most one short line. If it is a question, answer in at most two short sentences (under 35 words). No greeting, no sign-off, no lists.`;
 
     const response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
@@ -746,6 +813,7 @@ All users reach you through the SMC Android app. Be friendly, knowledgeable, and
               required: ['app_name']
             }
           },
+          ...(actionsV2 ? NEW_ACTION_TOOLS : []),
           {
             type: 'function',
             name: 'navigate_to_section',

@@ -23,7 +23,7 @@ import { App as CapApp } from '@capacitor/app';
 import VoiceInput, { type VoiceLifecycleControls, type VoiceState } from '@/components/VoiceInput';
 import { supabase } from '@/integrations/supabase/client';
 import {
-  installApp, openInstalledApp, openPlexTitle, openScreen, playChannel, reportChannel, setPreference, generateWallpaper,
+  installApp, openInstalledApp, openPlexTitle, openScreen, playChannel, reportChannel, setPreference, generateWallpaper, runAssistantAction, ASSISTANT_ACTIONS_VERSION,
   KIDS_BLOCKED_SCREENS, screenLabel, type Navigate, type PreferenceKey, type Screen,
 } from '@/lib/appActions';
 import { getDeviceId, trackEvent } from '@/lib/analytics';
@@ -213,6 +213,16 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
         say(heard, i18n.t('voice.host.makingBackground'), 2200);
         generateWallpaper(str('prompt'), nav);
         return true;
+      case 'open_live_tv':
+      case 'open_plex':
+      case 'open_settings':
+      case 'request_plex_title': {
+        // Spoken to the remote: a request opens Plex › Request to confirm on screen.
+        const line = await runAssistantAction(call.name, args, nav, { kids: !!kidsLevel(), voice: true });
+        if (!line) return false;
+        say(heard, line, 2400);
+        return true;
+      }
       default:
         return false;
     }
@@ -240,6 +250,7 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
           currentVersion,
           device_id: getDeviceId(),
           language: getAppLanguage(),
+          app_actions: ASSISTANT_ACTIONS_VERSION,
           ...(tier ? { tier: 'premium' } : {}),
           ...(kidsLevel() ? { kids_level: kidsLevel() } : {}),
         },

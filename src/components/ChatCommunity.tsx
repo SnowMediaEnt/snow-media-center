@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { openScreen, setPreference, reportChannel, installApp, generateWallpaper, playChannel, openPlexTitle, openInstalledApp, KIDS_BLOCKED_SCREENS, type Screen, type PreferenceKey } from '@/lib/appActions';
+import { openScreen, setPreference, reportChannel, installApp, generateWallpaper, playChannel, openPlexTitle, openInstalledApp, runAssistantAction, ASSISTANT_ACTIONS_VERSION, KIDS_BLOCKED_SCREENS, type Screen, type PreferenceKey } from '@/lib/appActions';
 import { kidsLevel } from '@/lib/kidsFilter';
 import { kidsAiNotice, kidsAiTitle } from '@/lib/kidsAiNotice';
 import { Button } from '@/components/ui/button';
@@ -835,6 +835,17 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         void openInstalledApp(String(args.app_name), onNavigate).then((said) => toast({ title: t('ai.chat.toast.appsTitle'), description: said }));
         break;
       }
+      // Live TV places, Plex places, Settings pages, a Plex request.
+      case 'open_live_tv':
+      case 'open_plex':
+      case 'open_settings':
+      case 'request_plex_title': {
+        if (!onNavigate) break;
+        stopVoicePlayback();
+        void runAssistantAction(name, args, onNavigate, { kids: !!kidsLevel() })
+          .then((line) => { if (line) toast({ title: t('ai.chat.toast.onItTitle'), description: line }); });
+        break;
+      }
       default:
         console.log('Unknown function:', name, args);
     }
@@ -899,6 +910,8 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
         device_id: getDeviceId(),
         // The app's language: the assistant answers in it.
         language: getAppLanguage(),
+        // Which of the assistant's tools this build carries out.
+        app_actions: ASSISTANT_ACTIONS_VERSION,
         // A Kids profile: the server keeps every answer to its age.
         ...(kidsLevel() ? { kids_level: kidsLevel() } : {}),
       };

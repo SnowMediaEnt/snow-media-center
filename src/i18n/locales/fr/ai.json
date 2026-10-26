@@ -277,6 +277,59 @@
         "kids": "Toutes les images créées sur ce profil enfant restent adaptées aux enfants : G et PG uniquement. Les idées effrayantes, violentes ou pour adultes sont refusées, et les images Premium sont réservées aux adultes.",
         "teen": "Toutes les images créées sur ce profil enfant restent adaptées aux enfants : rien au-delà de PG-13. Les idées effrayantes, violentes ou pour adultes sont refusées, et les images Premium sont réservées aux adultes."
       }
+    },
+    "actions": {
+      "grownUp": "Cette partie est réservée aux adultes : demande à un adulte de l'ouvrir.",
+      "unknownPlace": "Je n'ai pas trouvé cette partie de l'app.",
+      "openingLive": "Ouverture de {{where}}…",
+      "openingPlex": "Ouverture de Plex › {{where}}…",
+      "openingPlexLibrary": "Ouverture de la bibliothèque {{name}} dans Plex…",
+      "openingSettings": "Ouverture de {{where}}…",
+      "requestNeedsTitle": "Donnez-moi le titre exact et dites-moi si c'est un film ou une série.",
+      "live": {
+        "live": "TV en direct",
+        "favorites": "vos Favoris TV en direct",
+        "guide": "le Guide",
+        "game_day": "Game Day",
+        "recordings": "Enregistrements",
+        "vod": "VOD",
+        "multi_screen": "Multi-Screen",
+        "snow_originals": "Snow Originals",
+        "backups": "Secours"
+      },
+      "plex": {
+        "home": "Accueil",
+        "discover": "Découvrir",
+        "search": "Rechercher",
+        "request": "Demander",
+        "movies": "Films",
+        "shows": "Séries",
+        "library": "une bibliothèque",
+        "searchWith": "Recherche de « {{query}} » dans Plex…",
+        "requestWith": "Ouverture de Plex › Demander avec « {{query}} »…"
+      },
+      "settings": {
+        "live_tv_settings": "Paramètres TV en direct",
+        "my_account": "Paramètres TV en direct › Mon compte",
+        "devices": "Mon compte › Appareils sur cette ligne",
+        "services": "Paramètres TV en direct › Services",
+        "channels": "Paramètres TV en direct › Chaînes",
+        "appearance": "Paramètres TV en direct › Apparence",
+        "recording_rewind": "Paramètres TV en direct › Enregistrement et retour",
+        "player": "Paramètres TV en direct › Lecteur",
+        "fix_a_problem": "Paramètres TV en direct › Résoudre un problème",
+        "settings": "Paramètres",
+        "settings_ui": "Paramètres › UI",
+        "home_screen": "Paramètres › UI › Écran d'accueil",
+        "wallpaper": "Paramètres › Média"
+      },
+      "request": {
+        "requested": "{{title}} est demandé. Il est ajouté à Plex automatiquement, et ce téléviseur vous prévient quand il est prêt.",
+        "already": "{{title}} est déjà demandé et en route.",
+        "on_plex": "{{title}} est déjà sur Plex : je l'ouvre.",
+        "pick": "Ouverture de Plex › Demander avec « {{title}} » : choisissez le bon titre et appuyez sur OK pour le demander.",
+        "failed": "La demande pour {{title}} n'est pas passée. Réessayez dans un moment depuis Plex › Demander."
+      }
     }
   }
 }

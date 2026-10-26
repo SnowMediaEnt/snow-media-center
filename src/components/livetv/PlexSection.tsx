@@ -48,7 +48,7 @@ import {
 import { isDemo, isHowtoCapture, demoDialogMsg } from '@/lib/demoMode';
 import { isAdultLabel, isAdultPlexItem } from '@/lib/adultContent';
 import { kidsAllowsPlex, kidsLevel } from '@/lib/kidsFilter';
-import { peekPlexVoice, pickPlexVoiceMatch, plexVoiceQuery, plexVoiceSearchTexts, PLEX_VOICE_EVENT, PLEX_VOICE_KEY, type PlexVoiceIntent } from '@/lib/plexVoice';
+import { findPlexTab, peekPlexVoice, pickPlexVoiceMatch, plexTabOf, plexVoiceQuery, plexVoiceSearchTexts, PLEX_VOICE_EVENT, PLEX_VOICE_KEY, type PlexVoiceIntent } from '@/lib/plexVoice';
 import { clearPlexDeeplink, handPlexDeeplink, peekPlexDeeplink, type PlexDeeplink } from '@/lib/plexDeeplink';
 import { commitSearch, fallbackSuggestions, fetchPopularSearches, loadRecentSearches, popularOnThisServer } from '@/lib/plexSearches';
 import { rankSuggestions, searchLooksThin, searchVariants } from '@/lib/plexFuzzy';
@@ -2532,6 +2532,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // Search opened by a command: the words to type, and a count, so the same
   // words said again open a fresh search box.
   const [voiceSearch, setVoiceSearch] = useState<{ q: string; n: number } | null>(null);
+  // Request opened by the assistant with a title typed (open_plex, or a
+  // request it could not match for certain): the words, and a count.
+  const [voiceRequest, setVoiceRequest] = useState<{ q: string; n: number } | null>(null);
   // The title a command asked for is being looked up: said in place of Home,
   // which is not loaded behind it (see the voice effect).
   const [voiceWait, setVoiceWait] = useState<string | null>(() => (voiceAtMount?.intent.open ? plexVoiceQuery(voiceAtMount.intent.query) : null));
@@ -2539,7 +2542,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     const on = (e: Event) => {
       try { sessionStorage.removeItem(PLEX_VOICE_KEY); } catch { /* ignore */ }
       const d = (e as CustomEvent<PlexVoiceIntent>).detail;
-      if (d?.query) { voiceRef.current = { query: d.query, open: !!d.open, at: d.at }; setVoiceTick((t) => t + 1); }
+      const tab = plexTabOf(d?.tab);
+      if (d?.query || tab) { voiceRef.current = { query: String(d.query ?? ''), open: !!d.open && !tab, at: d.at, ...(tab ? { tab } : {}) }; setVoiceTick((t) => t + 1); }
     };
     window.addEventListener(PLEX_VOICE_EVENT, on);
     return () => window.removeEventListener(PLEX_VOICE_EVENT, on);
@@ -3458,7 +3462,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const adultKeysRef = useRef(adultKeys); adultKeysRef.current = adultKeys;
   useEffect(() => {
     const v = voiceRef.current;
-    if (!v || status !== 'ready' || !conn) return;
+    // A place in the menu (open_plex) is the effect below's.
+    if (!v || v.tab || status !== 'ready' || !conn) return;
     let cancelled = false;
     let handled = false;
     const words = plexVoiceQuery(v.query);
@@ -3511,6 +3516,37 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     return () => { cancelled = true; window.clearTimeout(cap); };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when Plex is ready or a new command arrives
   }, [status, conn, voiceTick]);
+
+  // The assistant's open_plex: a place in the side menu (Discover, Search or
+  // Request with words typed, Movies, TV Shows, a library by name). A
+  // library is only known once the library list is in, so this runs again
+  // when it lands; a name no library has opens Search with it typed.
+  useEffect(() => {
+    const v = voiceRef.current;
+    if (!v?.tab || status !== 'ready' || !conn) return;
+    const needsLibs = v.tab === 'movies' || v.tab === 'shows' || v.tab === 'library';
+    let i = findPlexTab(tabs, v.tab, v.query);
+    if (i < 0 && needsLibs && libraries.length === 0 && !librariesError) return; // still loading
+    voiceRef.current = null;
+    setVoiceWait(null);
+    if (fullscreenRef.current) exitFullscreen();
+    if (detailRef.current) closeDetail();
+    const words = v.query.trim();
+    if (i < 0 && v.tab === 'library' && words) {
+      setVoiceSearch((x) => ({ q: words, n: (x?.n ?? 0) + 1 }));
+      i = findPlexTab(tabs, 'search');
+    } else if (v.tab === 'search' && words) {
+      setVoiceSearch((x) => ({ q: words, n: (x?.n ?? 0) + 1 }));
+    } else if (v.tab === 'request' && words) {
+      setVoiceRequest((x) => ({ q: words, n: (x?.n ?? 0) + 1 }));
+    }
+    if (i < 0) i = homeIdx; // Request on a Kids profile, a server with no such library
+    cancelPendingTab();
+    setLibIdx(i);
+    setMenuKey(tabs[i].key);
+    setZone(i === homeIdx ? 'tabs' : 'grid');
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- a new command, Plex ready, or the library list landing
+  }, [status, conn, voiceTick, tabs, libraries.length, librariesError]);
 
   const closeDetail = useCallback(() => {
     setPlexKeyOwner('browse');
@@ -5784,7 +5820,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           <SearchPanel key={voiceSearch ? `voice:${voiceSearch.n}` : 'search'} initialQuery={voiceSearch?.q} isActive={isActive && zone === 'grid' && !detailItem && !fullscreen} base={conn.base} token={conn.token} adultKeys={adultKeys} onPlay={openDetail} onExitToTabs={exitToMenu} />
 
         ) : currentTab?.type === 'request' ? (
-          <OverseerrRequestPanel isActive={isActive && zone === 'grid' && !detailItem && !fullscreen} onExitToTabs={exitToMenu} />
+          <OverseerrRequestPanel key={voiceRequest ? `voice:${voiceRequest.n}` : 'request'} initialQuery={voiceRequest?.q} isActive={isActive && zone === 'grid' && !detailItem && !fullscreen} onExitToTabs={exitToMenu} />
         ) : currentTab?.type === 'manage' ? (
           <ManagePanel isActive={isActive && zone === 'grid' && !detailItem && !fullscreen} libraries={libraries} hidden={hidden} librariesError={librariesError} onToggle={toggleHidden} onExitToTabs={exitToMenu} serverName={conn?.name} owned={conn?.owned} accountToken={accountToken ?? conn?.token} onSignOut={() => { void signOut(); }} />
         ) : (currentTab?.type === 'movie' || currentTab?.type === 'show')

@@ -5,6 +5,7 @@
 // for a Plex that is not open yet and as the 'smc:plex-voice' event for one
 // that is.
 import type { PlexItem } from '@/lib/plex';
+import type { PlexTab } from '@/lib/appActions';
 import { normalizeTitle } from '@/lib/plexFuzzy';
 
 export interface PlexVoiceIntent {
@@ -13,7 +14,15 @@ export interface PlexVoiceIntent {
   open: boolean;
   /** When it was asked for (ms). A stored request is only good for a while. */
   at?: number;
+  /** The assistant's open_plex: a place in the side menu instead of a title.
+   *  `query` is then the library's name ('library') or the words to type
+   *  ('search', 'request'), and may be empty. */
+  tab?: PlexTab;
 }
+
+const PLEX_TAB_SET: ReadonlySet<string> = new Set(['home', 'discover', 'search', 'request', 'movies', 'shows', 'library']);
+/** A tab from storage or an event, or undefined. */
+export const plexTabOf = (v: unknown): PlexTab | undefined => (typeof v === 'string' && PLEX_TAB_SET.has(v) ? (v as PlexTab) : undefined);
 
 export const PLEX_VOICE_KEY = 'smc-plex-voice';
 export const PLEX_VOICE_EVENT = 'smc:plex-voice';
@@ -28,9 +37,11 @@ export function peekPlexVoice(now = Date.now()): { intent: PlexVoiceIntent; raw:
     const raw = sessionStorage.getItem(PLEX_VOICE_KEY);
     if (!raw) return null;
     const v = JSON.parse(raw) as PlexVoiceIntent | null;
-    if (!v || typeof v.query !== 'string' || !v.query.trim()) return null;
+    if (!v || typeof v.query !== 'string') return null;
+    const tab = plexTabOf(v.tab);
+    if (!tab && !v.query.trim()) return null;
     if (typeof v.at === 'number' && now - v.at > PLEX_VOICE_TTL_MS) return null;
-    return { intent: { query: v.query, open: !!v.open, at: v.at }, raw };
+    return { intent: { query: v.query, open: !!v.open && !tab, at: v.at, ...(tab ? { tab } : {}) }, raw };
   } catch { return null; }
 }
 
@@ -101,4 +112,37 @@ export function pickPlexVoiceMatch(query: string, items: PlexItem[]): PlexItem |
     return b.startsWith(`${a} `) && a.length >= b.length * 0.6;
   });
   return near.length ? one(near) : null;
+}
+
+/** Which side-menu entry a place means, as an index into `tabs`, or -1.
+ *  Movies / TV Shows: the library of that kind whose name says so, else the
+ *  first of that kind. A library by name: the same name, else one that starts
+ *  with it or contains it. */
+export function findPlexTab(
+  tabs: ReadonlyArray<{ type: string; title: string }>,
+  tab: PlexTab,
+  name = '',
+): number {
+  const byType = (type: string) => tabs.findIndex((t) => t.type === type);
+  switch (tab) {
+    case 'home': case 'discover': case 'search': case 'request': return byType(tab);
+    case 'movies': case 'shows': {
+      const type = tab === 'movies' ? 'movie' : 'show';
+      const plain = tab === 'movies' ? ['movies', 'films'] : ['tv shows', 'tv', 'shows', 'series', 'tv series'];
+      const exact = tabs.findIndex((t) => t.type === type && plain.includes(canon(t.title)));
+      if (exact >= 0) return exact;
+      const named = tabs.findIndex((t) => t.type === type && (tab === 'movies' ? /movie|film/i : /tv|show|series/i).test(t.title));
+      return named >= 0 ? named : byType(type);
+    }
+    case 'library': {
+      const want = canon(name);
+      if (!want) return -1;
+      const libs = tabs.map((t, i) => ({ i, c: (t.type === 'movie' || t.type === 'show' || t.type === 'seasonal') ? canon(t.title) : '' }));
+      const hit = libs.find((l) => l.c && l.c === want)
+        ?? libs.find((l) => l.c && l.c.startsWith(want))
+        ?? libs.find((l) => l.c && (l.c.includes(want) || squash(l.c).includes(squash(want))));
+      return hit ? hit.i : -1;
+    }
+  }
+  return -1;
 }

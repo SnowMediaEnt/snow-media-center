@@ -277,6 +277,59 @@
         "kids": "Todas las imágenes creadas en este perfil infantil son aptas para niños: solo G y PG. Las ideas de miedo, violencia o para adultos se rechazan, y las imágenes Premium son para adultos.",
         "teen": "Todas las imágenes creadas en este perfil infantil son aptas para niños: nada por encima de PG-13. Las ideas de miedo, violencia o para adultos se rechazan, y las imágenes Premium son para adultos."
       }
+    },
+    "actions": {
+      "grownUp": "Esa parte es para adultos: pídele a un adulto que la abra.",
+      "unknownPlace": "No encontré esa parte de la app.",
+      "openingLive": "Abriendo {{where}}…",
+      "openingPlex": "Abriendo Plex › {{where}}…",
+      "openingPlexLibrary": "Abriendo la biblioteca {{name}} en Plex…",
+      "openingSettings": "Abriendo {{where}}…",
+      "requestNeedsTitle": "Dime el título exacto y si es una película o una serie.",
+      "live": {
+        "live": "TV en vivo",
+        "favorites": "tus Favoritos de TV en vivo",
+        "guide": "la Guía",
+        "game_day": "Game Day",
+        "recordings": "Grabaciones",
+        "vod": "VOD",
+        "multi_screen": "Multi-Screen",
+        "snow_originals": "Snow Originals",
+        "backups": "Respaldos"
+      },
+      "plex": {
+        "home": "Inicio",
+        "discover": "Descubrir",
+        "search": "Buscar",
+        "request": "Solicitar",
+        "movies": "Películas",
+        "shows": "Series",
+        "library": "una biblioteca",
+        "searchWith": "Buscando \"{{query}}\" en Plex…",
+        "requestWith": "Abriendo Plex › Solicitar con \"{{query}}\"…"
+      },
+      "settings": {
+        "live_tv_settings": "Ajustes de TV en vivo",
+        "my_account": "Ajustes de TV en vivo › Mi cuenta",
+        "devices": "Mi cuenta › Dispositivos en esta línea",
+        "services": "Ajustes de TV en vivo › Servicios",
+        "channels": "Ajustes de TV en vivo › Canales",
+        "appearance": "Ajustes de TV en vivo › Apariencia",
+        "recording_rewind": "Ajustes de TV en vivo › Grabación y retroceso",
+        "player": "Ajustes de TV en vivo › Reproductor",
+        "fix_a_problem": "Ajustes de TV en vivo › Resolver un problema",
+        "settings": "Ajustes",
+        "settings_ui": "Ajustes › UI",
+        "home_screen": "Ajustes › UI › Pantalla de inicio",
+        "wallpaper": "Ajustes › Media"
+      },
+      "request": {
+        "requested": "Solicitaste {{title}}. Se añade a Plex automáticamente y este televisor te avisa cuando esté listo.",
+        "already": "{{title}} ya está solicitado y en camino.",
+        "on_plex": "{{title}} ya está en Plex: lo abro.",
+        "pick": "Abriendo Plex › Solicitar con \"{{title}}\": elige el correcto y pulsa OK para solicitarlo.",
+        "failed": "La solicitud de {{title}} no se envió. Inténtalo de nuevo en un rato desde Plex › Solicitar."
+      }
     }
   }
 }

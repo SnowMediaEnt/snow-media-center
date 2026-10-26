@@ -179,19 +179,27 @@ export interface PlayerIntent {
   home?: boolean;
   /** 'movies' is Plex; 'vod-movies' / 'vod-series' the line's own Movies
    *  and Series (Plex when the Player has no line). */
-  section?: 'live' | 'guide' | 'multi' | 'movies' | 'backups' | 'gameday' | 'recordings' | 'vod-movies' | 'vod-series';
+  section?: 'live' | 'guide' | 'multi' | 'movies' | 'backups' | 'gameday' | 'recordings' | 'vod' | 'originals' | 'vod-movies' | 'vod-series';
   /** Live TV: open on its Favorites, or its Recordings (a Home tile). */
   open?: LiveOpen;
-  settings?: 'appearance' | 'hub';
+  /** Live TV Settings: the menu ('hub') or one of its pages. */
+  settings?: 'hub' | LiveSettingsPage;
   report?: ReportIntent;
   /** Live TV: play the channel with this name. */
   play?: string;
   /** Plex: open this title (open) or search for it. `at`: when it was asked
    *  for, so a request Plex never picked up does not fire on a later visit. */
-  plex?: { query: string; open: boolean; at?: number };
+  plex?: { query: string; open: boolean; at?: number; tab?: PlexTab };
   /** Live TV: play exactly this channel (Game Day, a kickoff reminder). */
   deeplink?: LiveDeeplink;
 }
+
+/** A page of Live TV Settings (SettingsHub's rows; 'devices' is My Account ›
+ *  Devices on this line). */
+export type LiveSettingsPage = 'account' | 'devices' | 'services' | 'channels' | 'appearance' | 'rewind' | 'player' | 'help';
+
+/** A place in Plex's side menu (plexVoice.ts reads it). */
+export type PlexTab = 'home' | 'discover' | 'search' | 'request' | 'movies' | 'shows' | 'library';
 
 /** Where in Live TV a Home tile opens it (LiveSection reads LIVE_OPEN_KEY). */
 export type LiveOpen = 'favorites' | 'recordings';
@@ -297,4 +305,193 @@ export function generateWallpaper(prompt: string, navigate: Navigate, generate =
   put(generate ? INTENT_KEYS.wallpaper : INTENT_KEYS.wallpaperDraft, prompt);
   toScreen('settings', INTENT_KEYS.settings, 'media', navigate);
   try { trackEvent('ai_generate_wallpaper', 'ai', { generate }); } catch { void 0; }
+}
+
+// ── The assistant's newer actions (app_actions 2) ─────────────────────────
+/** Sent to snow-media-ai as `app_actions`: which of its tools this build can
+ *  carry out. An older build sends none, and is only offered the old ones. */
+export const ASSISTANT_ACTIONS_VERSION = 2;
+
+// open_live_tv, open_plex, open_settings and request_plex_title. The chat and
+// the voice host both hand them to runAssistantAction, so the two cannot
+// drift apart. Each returns the line to show (a toast, the voice box).
+
+/** Live TV's side menu, as the assistant names it. */
+export type LiveTvPlace = 'live' | 'favorites' | 'guide' | 'game_day' | 'recordings' | 'vod' | 'multi_screen' | 'snow_originals' | 'backups';
+const LIVE_TV_PLACES: Record<LiveTvPlace, Omit<PlayerIntent, 'home'>> = {
+  live: { section: 'live' },
+  favorites: { section: 'live', open: 'favorites' },
+  guide: { section: 'guide' },
+  game_day: { section: 'gameday' },
+  recordings: { section: 'recordings' },
+  vod: { section: 'vod' },
+  multi_screen: { section: 'multi' },
+  snow_originals: { section: 'originals' },
+  backups: { section: 'backups' },
+};
+/** Not on a Kids profile (Live TV leaves them out of its menu too). */
+const KIDS_BLOCKED_LIVE: ReadonlySet<LiveTvPlace> = new Set<LiveTvPlace>(['backups', 'recordings']);
+
+/** Open a part of Live TV. Null: not a place (or not a Kids profile's). */
+export function openLiveTv(place: string, navigate: Navigate, kids = false): Omit<PlayerIntent, 'home'> | null {
+  const intent = (LIVE_TV_PLACES as Record<string, Omit<PlayerIntent, 'home'>>)[place];
+  if (!intent || (kids && KIDS_BLOCKED_LIVE.has(place as LiveTvPlace))) return null;
+  toPlayer({ ...intent }, navigate);
+  try { trackEvent('ai_open_live_tv', 'ai', { place }); } catch { void 0; }
+  return intent;
+}
+
+const PLEX_TABS: ReadonlySet<PlexTab> = new Set<PlexTab>(['home', 'discover', 'search', 'request', 'movies', 'shows', 'library']);
+/** Words the assistant may pass: a library's name, or what to search for. */
+const cleanWords = (v: unknown, max = 80): string =>
+  Array.from(String(v ?? ''), (c) => (c.charCodeAt(0) < 32 ? ' ' : c)).join('').trim().slice(0, max);
+
+/** Open a place in Plex: a menu entry, a library by name, Search or Request
+ *  with words typed. Null: not a place (Request is not a Kids profile's). */
+export function openPlexPlace(tab: string, words: string, navigate: Navigate, kids = false): PlexTab | null {
+  if (!PLEX_TABS.has(tab as PlexTab)) return null;
+  const t = tab as PlexTab;
+  if (kids && t === 'request') return null;
+  const query = cleanWords(words);
+  if (t === 'library' && !query) return null;
+  toPlayer({ section: 'movies', plex: { query, open: false, tab: t, at: Date.now() } }, navigate);
+  try { trackEvent('ai_open_plex', 'ai', { tab: t }); } catch { void 0; }
+  return t;
+}
+
+/** Live TV Settings pages and the app's own Settings, as the assistant names them. */
+export type SettingsPlace =
+  | 'live_tv_settings' | 'my_account' | 'devices' | 'services' | 'channels' | 'appearance' | 'recording_rewind' | 'player' | 'fix_a_problem'
+  | 'settings' | 'settings_ui' | 'home_screen' | 'wallpaper';
+const LIVE_SETTINGS: Partial<Record<SettingsPlace, 'hub' | LiveSettingsPage>> = {
+  live_tv_settings: 'hub', my_account: 'account', devices: 'devices', services: 'services', channels: 'channels',
+  appearance: 'appearance', recording_rewind: 'rewind', player: 'player', fix_a_problem: 'help',
+};
+const APP_SETTINGS: Partial<Record<SettingsPlace, string | null>> = {
+  settings: null, settings_ui: 'ui', home_screen: 'ui-home', wallpaper: 'media',
+};
+
+/** Open a Settings page. Live TV Settings is a grown-up's (sign-out, the
+ *  line's details, billing); a Kids profile gets the app's short Settings
+ *  only. Null: not a page, or not this profile's. */
+export function openSettingsPlace(place: string, navigate: Navigate, kids = false): SettingsPlace | null {
+  const p = place as SettingsPlace;
+  const live = LIVE_SETTINGS[p];
+  if (live) {
+    if (kids) return null;
+    toPlayer({ section: 'live', settings: live }, navigate);
+  } else if (p in APP_SETTINGS) {
+    if (kids && p === 'home_screen') return null;
+    const tab = APP_SETTINGS[p];
+    if (tab) toScreen('settings', INTENT_KEYS.settings, tab, navigate);
+    else navigate('settings');
+  } else return null;
+  try { trackEvent('ai_open_settings', 'ai', { place: p }); } catch { void 0; }
+  return p;
+}
+
+export interface PlexRequestAsk { title: string; mediaType: 'movie' | 'tv'; year?: string | null }
+type RequestItem = { id: number; mediaType: 'movie' | 'tv'; title: string; year: string | null; posterUrl: string | null; status: number };
+const normTitle = (s: string) => s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/^the\s+/, '').replace(/[^a-z0-9]+/g, '');
+
+/** The one result a confirmed request means: same title (and year, when one
+ *  was given) and the same kind. More than one, or none: null, and the
+ *  viewer picks on the Request screen. */
+export function pickRequestMatch(items: RequestItem[], ask: PlexRequestAsk): RequestItem | null {
+  const want = normTitle(ask.title);
+  if (!want) return null;
+  const year = String(ask.year ?? '').trim();
+  const same = items.filter((it) => it.mediaType === ask.mediaType && normTitle(it.title) === want && (!year || String(it.year ?? '') === year));
+  return same.length === 1 ? same[0] : null;
+}
+
+export type PlexRequestOutcome = 'requested' | 'already' | 'on_plex' | 'pick' | 'failed';
+
+/** Request a title the viewer confirmed in the chat. A clear match is sent
+ *  to Snow Media's Overseerr (the same call as Plex › Request); anything
+ *  less certain opens Plex › Request with the title typed, for the viewer to
+ *  pick and confirm on screen. */
+export async function requestPlexTitle(
+  ask: PlexRequestAsk,
+  navigate: Navigate,
+  deps?: { search?: (q: string) => Promise<RequestItem[]>; request?: (it: RequestItem) => Promise<'requested' | 'already' | 'failed'> },
+): Promise<{ outcome: PlexRequestOutcome; title: string }> {
+  const title = cleanWords(ask.title, 120);
+  const lib = deps?.search && deps?.request ? null : await import('@/lib/overseerr');
+  const search = deps?.search ?? lib!.overseerrSearch;
+  const send = deps?.request ?? lib!.overseerrRequest;
+  const pick = () => { openPlexPlace('request', title, navigate); return { outcome: 'pick' as const, title }; };
+  if (!title) return { outcome: 'failed', title };
+  let found: RequestItem[] = [];
+  try { found = await search(title); } catch { return pick(); }
+  const hit = pickRequestMatch(found, { ...ask, title });
+  if (!hit) return pick();
+  const named = hit.year ? `${hit.title} (${hit.year})` : hit.title;
+  if (hit.status === 5) return { outcome: 'on_plex', title: named };
+  if (hit.status >= 2) return { outcome: 'already', title: named };
+  const res = await send(hit);
+  try { trackEvent('ai_plex_request', 'ai', { result: res, type: hit.mediaType }); } catch { void 0; }
+  return { outcome: res, title: named };
+}
+
+/** What the assistant's newer actions say back: one line, in the app's language. */
+const said = (key: string, vars?: Record<string, unknown>) => i18n.t(key, vars);
+
+/**
+ * Run one of the assistant's newer actions (the older ones stay with their
+ * callers). Returns the line to show, or null when `name` is not one of
+ * these. `voice`: spoken to the remote, where there is no conversation to
+ * confirm a request in, so a request opens Plex › Request instead.
+ */
+export async function runAssistantAction(
+  name: string,
+  args: Record<string, unknown> | null | undefined,
+  navigate: Navigate,
+  opts: { kids?: boolean; voice?: boolean } = {},
+): Promise<string | null> {
+  const a = args ?? {};
+  const str = (k: string) => cleanWords(a[k], 120);
+  const kids = !!opts.kids;
+  switch (name) {
+    case 'open_live_tv': {
+      const place = str('section');
+      const ok = openLiveTv(place, navigate, kids);
+      if (!ok) return kids && place in LIVE_TV_PLACES ? said('ai.actions.grownUp') : said('ai.actions.unknownPlace');
+      return said('ai.actions.openingLive', { where: said(`ai.actions.live.${place}`) });
+    }
+    case 'open_plex': {
+      const place = str('place');
+      const words = place === 'library' ? str('library_name') : str('query');
+      const tab = openPlexPlace(place, words, navigate, kids);
+      if (!tab) return kids && place === 'request' ? said('ai.actions.grownUp') : said('ai.actions.unknownPlace');
+      if (tab === 'library') return said('ai.actions.openingPlexLibrary', { name: words });
+      if ((tab === 'search' || tab === 'request') && words) return said(`ai.actions.plex.${tab}With`, { query: words });
+      return said('ai.actions.openingPlex', { where: said(`ai.actions.plex.${tab}`) });
+    }
+    case 'open_settings': {
+      const place = str('page');
+      const ok = openSettingsPlace(place, navigate, kids);
+      if (!ok) return kids && (place in LIVE_SETTINGS || place === 'home_screen') ? said('ai.actions.grownUp') : said('ai.actions.unknownPlace');
+      return said('ai.actions.openingSettings', { where: said(`ai.actions.settings.${place}`) });
+    }
+    case 'request_plex_title': {
+      if (kids) return said('ai.actions.grownUp');
+      const title = str('title');
+      const mediaType = a.media_type === 'tv' ? 'tv' : a.media_type === 'movie' ? 'movie' : null;
+      if (!title || !mediaType) return said('ai.actions.requestNeedsTitle');
+      const year = /^(19|20)\d\d$/.test(str('year')) ? str('year') : null;
+      // Spoken to the remote, or not confirmed in the chat: the viewer picks
+      // and confirms on Plex › Request.
+      if (opts.voice || a.confirmed !== true) {
+        openPlexPlace('request', title, navigate);
+        return said('ai.actions.request.pick', { title });
+      }
+      const res = await requestPlexTitle({ title, mediaType, year }, navigate);
+      // Already on Plex: its page, to play.
+      if (res.outcome === 'on_plex') openPlexTitle(title, true, navigate);
+      return said(`ai.actions.request.${res.outcome}`, { title: res.title });
+    }
+    default:
+      return null;
+  }
 }

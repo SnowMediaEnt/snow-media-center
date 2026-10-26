@@ -277,6 +277,59 @@
         "kids": "Alle Bilder auf diesem Kinderprofil bleiben kinderfreundlich – nur G und PG. Gruselige, gewalttätige oder erwachsene Ideen werden abgelehnt, und Premium-Bilder sind für Erwachsene.",
         "teen": "Alle Bilder auf diesem Kinderprofil bleiben kinderfreundlich – nichts über PG-13. Gruselige, gewalttätige oder erwachsene Ideen werden abgelehnt, und Premium-Bilder sind für Erwachsene."
       }
+    },
+    "actions": {
+      "grownUp": "Dieser Bereich ist für Erwachsene – bitte einen Erwachsenen, ihn zu öffnen.",
+      "unknownPlace": "Diesen Bereich der App habe ich nicht gefunden.",
+      "openingLive": "{{where}} wird geöffnet…",
+      "openingPlex": "Plex › {{where}} wird geöffnet…",
+      "openingPlexLibrary": "Die Bibliothek {{name}} in Plex wird geöffnet…",
+      "openingSettings": "{{where}} wird geöffnet…",
+      "requestNeedsTitle": "Nenne mir den genauen Titel und ob es ein Film oder eine Serie ist.",
+      "live": {
+        "live": "Live-TV",
+        "favorites": "deine Live-TV-Favoriten",
+        "guide": "der Guide",
+        "game_day": "Game Day",
+        "recordings": "Aufnahmen",
+        "vod": "VOD",
+        "multi_screen": "Multi-Screen",
+        "snow_originals": "Snow Originals",
+        "backups": "Backups"
+      },
+      "plex": {
+        "home": "Start",
+        "discover": "Entdecken",
+        "search": "Suche",
+        "request": "Anfragen",
+        "movies": "Filme",
+        "shows": "Serien",
+        "library": "eine Bibliothek",
+        "searchWith": "Plex wird nach „{{query}}“ durchsucht…",
+        "requestWith": "Plex › Anfragen mit „{{query}}“ wird geöffnet…"
+      },
+      "settings": {
+        "live_tv_settings": "Live-TV-Einstellungen",
+        "my_account": "Live-TV-Einstellungen › Mein Konto",
+        "devices": "Mein Konto › Geräte auf dieser Leitung",
+        "services": "Live-TV-Einstellungen › Dienste",
+        "channels": "Live-TV-Einstellungen › Sender",
+        "appearance": "Live-TV-Einstellungen › Darstellung",
+        "recording_rewind": "Live-TV-Einstellungen › Aufnahme & Zurückspulen",
+        "player": "Live-TV-Einstellungen › Player",
+        "fix_a_problem": "Live-TV-Einstellungen › Problem beheben",
+        "settings": "Einstellungen",
+        "settings_ui": "Einstellungen › UI",
+        "home_screen": "Einstellungen › UI › Startbildschirm",
+        "wallpaper": "Einstellungen › Medien"
+      },
+      "request": {
+        "requested": "{{title}} wurde angefragt. Es kommt automatisch zu Plex, und dieser Fernseher sagt dir, wenn es bereit ist.",
+        "already": "{{title}} ist schon angefragt und unterwegs.",
+        "on_plex": "{{title}} ist schon auf Plex – ich öffne es.",
+        "pick": "Plex › Anfragen mit „{{title}}“ wird geöffnet – wähle den richtigen Titel und drücke OK, um ihn anzufragen.",
+        "failed": "Die Anfrage für {{title}} hat nicht geklappt. Versuche es später noch einmal über Plex › Anfragen."
+      }
     }
   }
 }

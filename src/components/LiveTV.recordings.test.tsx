@@ -161,6 +161,13 @@ describe('Live TV › Recordings in the far-left menu', () => {
     expect(document.querySelector('[data-player-section="recordings"] [data-recording-now]')).not.toBeNull();
   });
 
+  it('the assistant can open Snow Originals too', async () => {
+    sessionStorage.setItem(INTENT_KEYS.player, JSON.stringify({ section: 'originals' }));
+    render(<LiveTV onBack={vi.fn()} />);
+    await settle(); await settle(); await settle();
+    expect(screen.getByText('originals-section')).toBeTruthy();
+  });
+
   it('the assistant can open it', async () => {
     sessionStorage.setItem(INTENT_KEYS.player, JSON.stringify({ section: 'recordings' }));
     render(<LiveTV onBack={vi.fn()} />);

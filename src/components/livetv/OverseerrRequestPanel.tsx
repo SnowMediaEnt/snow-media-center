@@ -14,7 +14,12 @@ interface ResultItem {
   id: number; mediaType: 'movie' | 'tv'; title: string;
   year: string | null; posterUrl: string | null; status: number;
 }
-interface Props { isActive: boolean; onExitToTabs: () => void; }
+interface Props {
+  isActive: boolean; onExitToTabs: () => void;
+  /** Words to search for at once (the assistant's request it could not
+   *  match for certain): the viewer picks and confirms here. */
+  initialQuery?: string;
+}
 
 const COLS = 6;
 
@@ -27,10 +32,10 @@ const statusBadge = (s: number): { labelKey: string; cls: string } | null => {
   return null;
 };
 
-const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
+const OverseerrRequestPanel = memo(({ isActive, onExitToTabs, initialQuery }: Props) => {
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(() => initialQuery?.trim() ?? '');
   const [results, setResults] = useState<ResultItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [cursor, setCursor] = useState(0);
@@ -61,6 +66,12 @@ const OverseerrRequestPanel = memo(({ isActive, onExitToTabs }: Props) => {
       setLoading(false);
     }
   };
+
+  // Opened with words (a key per request remounts the panel): search once.
+  useEffect(() => {
+    if (initialQuery?.trim()) void runSearch(initialQuery);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
+  }, []);
 
   const activate = (item: ResultItem) => {
     if (item.status === 5) { toast({ title: i18n.t('plex.request.toast.onPlexTitle'), description: i18n.t('plex.request.toast.onPlexDesc', { title: item.title }) }); return; }

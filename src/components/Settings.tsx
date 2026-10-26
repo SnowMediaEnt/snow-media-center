@@ -234,12 +234,24 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
       toast({ title: i18n.t('settings.toast.updateFailTitle'), description: (e as Error).message, variant: 'destructive' });
     }
   };
+  // 'ui-home' (the assistant's "Settings › UI › Home screen"): the UI tab,
+  // on its Home screen rows (a grown-up's; a Kids profile gets the tab).
   const [activeTab, setActiveTab] = useState(() => {
-    const want = peekIntent(INTENT_KEYS.settings);
+    const want = peekIntent(INTENT_KEYS.settings) === 'ui-home' ? 'ui' : peekIntent(INTENT_KEYS.settings);
     const open = kids ? ['media', 'ui', 'profiles', 'remote'] : ['media', 'ui', 'profiles', 'remote', 'updates', 'alerts', 'ai'];
     return want && open.includes(want) ? want : 'media';
   });
-  const [focusedElement, setFocusedElement] = useState<SettingsFocus>('back');
+  const [focusedElement, setFocusedElement] = useState<SettingsFocus>(() => (!kids && peekIntent(INTENT_KEYS.settings) === 'ui-home' ? 'ui-home-bar-source' : 'back'));
+  // Opened on the Home screen rows: bring them into view once drawn.
+  const homeAskedRef = useRef(focusedElement === 'ui-home-bar-source');
+  useEffect(() => {
+    if (!homeAskedRef.current || focusedElement !== 'ui-home-bar-source') return;
+    homeAskedRef.current = false;
+    const timer = window.setTimeout(() => {
+      (document.querySelector('[data-settings-focus="ui-home-bar-source"]') as HTMLElement | null)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }, 60);
+    return () => window.clearTimeout(timer);
+  }, [focusedElement]);
   // The Player Account panel (UI tab) and its sign-out, armed by a first OK.
   const { account: playerAccount } = usePlayerAccount();
   const [signOutArmed, setSignOutArmed] = useState(false);
@@ -259,9 +271,13 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
   useEffect(() => {
     const on = (e: Event) => {
       if ((e as CustomEvent<string>).detail !== 'settings') return;
-      const want = takeIntent(INTENT_KEYS.settings);
+      const asked = takeIntent(INTENT_KEYS.settings);
+      const home = asked === 'ui-home';
+      const want = home ? 'ui' : asked;
       const open = kids ? ['media', 'ui', 'profiles', 'remote'] : ['media', 'ui', 'profiles', 'remote', 'updates', 'alerts', 'ai'];
-      if (!want || !open.includes(want) || want === activeTab) return;
+      if (!want || !open.includes(want)) return;
+      if (home && !kids) { homeAskedRef.current = true; setActiveTab(want); setFocusedElement('ui-home-bar-source'); return; }
+      if (want === activeTab) return;
       setActiveTab(want);
       setFocusedElement(`tab-${want}` as SettingsFocus);
     };

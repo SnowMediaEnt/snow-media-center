@@ -102,4 +102,18 @@ describe('Live TV Settings › Channels › Update channels', () => {
     expect(box.bump).toHaveBeenCalledWith({ fresh: true });
     expect(screen.queryByText('settings-hub')).toBeNull();
   });
+
+describe('Live TV Settings opened by the assistant on a page', () => {
+  it.each(['devices', 'rewind', 'help', 'account'] as const)('hands Settings the page: %s', async (page) => {
+    localStorage.setItem('snow-livetv-layout', 'compact');
+    render(<LiveTV onBack={vi.fn()} />);
+    await settle();
+    key('Enter');
+    await settle();
+    act(() => { window.dispatchEvent(new CustomEvent(PLAYER_INTENT_EVENT, { detail: { section: 'live', settings: page } })); });
+    await settle();
+    expect(screen.getByText('settings-hub')).toBeTruthy();
+    expect(seen.hub?.initialView).toBe(page);
+  });
+});
 });

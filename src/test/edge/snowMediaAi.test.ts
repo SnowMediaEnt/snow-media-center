@@ -166,4 +166,53 @@ describe('snow-media-ai', () => {
     expect(until - before).toBeGreaterThanOrEqual(29 * 60_000);
     expect(until - before).toBeLessThanOrEqual(31 * 60_000);
   });
+
+  describe('app actions', () => {
+    const sentTools = (): Array<{ name: string; parameters?: { properties?: Record<string, { enum?: string[] }> } }> =>
+      JSON.parse(String(openAiCalls()[0][1]?.body)).tools;
+    const sentPrompt = (): string => JSON.parse(String(openAiCalls()[0][1]?.body)).instructions;
+    const NEW = ['open_live_tv', 'open_plex', 'open_settings', 'request_plex_title'];
+
+    it('offers the new tools only to a build that says it carries them out', async () => {
+      await ask({ message: 'take me to my favorites' });
+      expect(sentTools().map((t) => t.name)).not.toEqual(expect.arrayContaining(['open_live_tv']));
+      expect(sentPrompt()).not.toContain('request_plex_title');
+
+      fetchMock.mockClear();
+      await ask({ message: 'take me to my favorites', app_actions: 2 });
+      const names = sentTools().map((t) => t.name);
+      expect(names).toEqual(expect.arrayContaining([...NEW, 'open_screen', 'install_app', 'play_channel', 'plex_title']));
+      expect(sentPrompt()).toContain('request_plex_title');
+      // A request is confirmed with the customer first.
+      expect(sentPrompt()).toMatch(/Call it only after they say yes, with confirmed true/);
+      const req = sentTools().find((t) => t.name === 'request_plex_title');
+      expect(req?.parameters?.properties?.media_type?.enum).toEqual(['movie', 'tv']);
+    });
+
+    it('never offers them to a Kids profile, and drops one the model calls anyway', async () => {
+      fetchMock.mockImplementation(async (url: string) => (String(url).startsWith('https://api.openai.com/')
+        ? new Response(JSON.stringify({ output: [{ type: 'function_call', name: 'open_settings', arguments: '{"page":"my_account"}' }], usage: { total_tokens: 10 } }))
+        : new Response('not found', { status: 404 })));
+      const out = await ask({ message: 'open the guide', app_actions: 2, kids_level: 'kids' });
+      for (const n of NEW) expect(sentTools().map((t) => t.name)).not.toContain(n);
+      expect(out.body.functionCall).toBeNull();
+    });
+
+    it('passes a function call through to the app', async () => {
+      fetchMock.mockImplementation(async (url: string) => (String(url).startsWith('https://api.openai.com/')
+        ? new Response(JSON.stringify({ output: [{ type: 'function_call', name: 'open_plex', arguments: '{"place":"discover"}' }], usage: { total_tokens: 10 } }))
+        : new Response('not found', { status: 404 })));
+      const out = await ask({ message: 'show me something to watch', app_actions: 2 });
+      expect(out.body.functionCall).toEqual({ name: 'open_plex', arguments: { place: 'discover' } });
+    });
+
+    it('describes the app as it is now (1.9.7), and lists the new tools for voice commands', async () => {
+      await ask({ message: 'where is multi screen', app_actions: 2, mode: 'voice_command' });
+      const prompt = sentPrompt();
+      expect(prompt).toContain('SMC APP GUIDE (version 1.9.7');
+      expect(prompt).not.toContain('1.7.3');
+      for (const s of ['Sign in with a PIN', 'Devices on this line', 'Snow Originals', 'Still buffering?', 'up to 5 channels', 'Settings › UI › Home screen']) expect(prompt).toContain(s);
+      expect(prompt).toMatch(/call exactly ONE function \([^)]*open_live_tv, open_plex, open_settings, request_plex_title\)/);
+    });
+  });
 });

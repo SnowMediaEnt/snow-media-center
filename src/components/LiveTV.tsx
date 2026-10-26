@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, lazy, Suspense, type PointerEvent as ReactPointerEvent } from 'react';
 import ScrollText from '@/components/ScrollText';
-import { peekIntent, takeIntent, INTENT_KEYS, PLAYER_INTENT_EVENT, LIVE_OPEN_KEY, LIVE_OPEN_EVENT, handLiveDeeplink, type PlayerIntent } from '@/lib/appActions';
+import { peekIntent, takeIntent, INTENT_KEYS, PLAYER_INTENT_EVENT, LIVE_OPEN_KEY, LIVE_OPEN_EVENT, handLiveDeeplink, type PlayerIntent, type LiveSettingsPage } from '@/lib/appActions';
 import { App as CapApp } from '@capacitor/app';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
@@ -125,7 +125,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // Read-only "Account info" view, shown from the header Account button.
   const [settingsOpen, setSettingsOpen] = useState(false);
   // The assistant can open Player Settings straight on a screen.
-  const [settingsInitialView, setSettingsInitialView] = useState<'appearance' | 'services' | 'devices' | undefined>(undefined);
+  const [settingsInitialView, setSettingsInitialView] = useState<LiveSettingsPage | undefined>(undefined);
   // Settings › Services › Add another service › DreamStreams or Vibez line:
   // the sign-in form opens empty (not the line in use), and a saved line
   // closes Settings, the new line playing in Live TV.
@@ -620,7 +620,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       // the Guide (a channel or report handed over sets it again below).
       if (sec === 'live' && !intent.play && !intent.deeplink && !intent.report && !intent.open) setLiveWatching(false);
       enterMode('live');
-      if (sec === 'guide' || sec === 'multi' || sec === 'gameday' || sec === 'recordings') { setSection(sec); setPane('content'); }
+      if (sec === 'guide' || sec === 'multi' || sec === 'gameday' || sec === 'recordings' || sec === 'vod' || sec === 'originals') { setSection(sec); setPane('content'); }
     }
     const hand = (key: string, event: string, value: unknown) => {
       try { sessionStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
@@ -632,7 +632,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
     if (intent.deeplink) handLiveDeeplink(intent.deeplink);
     if (intent.open) hand(LIVE_OPEN_KEY, LIVE_OPEN_EVENT, intent.open);
     // Player Settings (sign-out, the line's password, billing) is a grown-up's.
-    if (intent.settings && !kidsLevel()) { setSettingsInitialView(intent.settings === 'appearance' ? 'appearance' : undefined); setSettingsOpen(true); }
+    if (intent.settings && !kidsLevel()) { setSettingsInitialView(intent.settings === 'hub' ? undefined : intent.settings); setSettingsOpen(true); }
   }, [enterMode]);
   const applyIntentRef = useRef(applyIntent);
   applyIntentRef.current = applyIntent;
