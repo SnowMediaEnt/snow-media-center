@@ -79,7 +79,8 @@ import { upNextEpisodes } from '@/lib/plexUpNext';
 import { fetchFeedItems, othersWatchingKeys, OTHERS_TTL_MS, OTHERS_WATCHING_TITLE_KEY } from '@/lib/plexOthersWatching';
 import { fetchRecommended, plexRecommendChangedAt, recommendedItems, setPlexRecommendContext, PLEX_RECOMMEND_EVENT, RECOMMENDED_TITLE_KEY } from '@/lib/plexRecommend';
 import PlexRecommendMenu from './PlexRecommendMenu';
-import { createPlexHoldOk, onPlexHoldMenu, releasePlexHoldMenu, tapIsHoldLift, tileHoldProps, type PlexHoldOk } from './plexRecommendHold';
+import { claimPlexHoldMenu, createPlexHoldOk, onPlexHoldMenu, releasePlexHoldMenu, tapIsHoldLift, tileHoldProps, type PlexHoldOk } from './plexRecommendHold';
+import ReportChannelDialog from './ReportChannelDialog';
 import { myList, pullFavoritesFromCloud, PLEX_FAVORITES_EVENT } from '@/lib/plexFavorites';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
@@ -3019,14 +3020,20 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const [recFor, setRecFor] = useState<PlexItem | null>(null);
   useEffect(() => onPlexHoldMenu(setRecFor), []);
   const closeRecommend = useCallback(() => { releasePlexHoldMenu(); setRecFor(null); }, []);
+  // "Report a problem" from that menu: the same report as Live TV's
+  // channels (ReportChannelDialog, kind plex). It keeps the remote the menu
+  // had (PlexReportLayer) and gives it back as it closes.
+  const [reportFor, setReportFor] = useState<PlexItem | null>(null);
+  const openReport = useCallback((it: PlexItem) => { setRecFor(null); setReportFor(it); }, []);
+  const closeReport = useCallback(() => { releasePlexHoldMenu(); setReportFor(null); }, []);
   // The menu goes, and gives the remote back, when Plex loses the remote (a
   // notice of the Player's over it: the claim card, the expiry notice, a
   // server alert) or the server it was for (a sign-in again, a reconnect):
   // left up, it would keep the keys from the notice, or be gone with the
   // key owner still its own and every Plex panel deaf.
   useEffect(() => {
-    if (!isActive || !recServer || status !== 'ready') closeRecommend();
-  }, [isActive, recServer, status, closeRecommend]);
+    if (!isActive || !recServer || status !== 'ready') { closeRecommend(); closeReport(); }
+  }, [isActive, recServer, status, closeRecommend, closeReport]);
 
   // Decided once per Plex visit: the menu does not reshuffle at midnight.
   const [season] = useState<Season | null>(() => activeSeason());
@@ -5906,12 +5913,33 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       )}
     </div>
     {playerLayer}
-    {recFor && recServer && !fullscreen ? <PlexRecommendMenu item={recFor} server={recServer} isActive={isActive} onClose={closeRecommend} /> : null}
+    {recFor && recServer && !fullscreen ? <PlexRecommendMenu item={recFor} server={recServer} isActive={isActive} onReport={openReport} onClose={closeRecommend} /> : null}
+    {reportFor && !fullscreen ? <PlexReportLayer item={reportFor} serverName={conn?.name} onClose={closeReport} /> : null}
     {demoNoticeOverlay}
     </>
   );
 });
 
+
+/** The report for a held Plex title: holds the remote (the key owner the
+ *  hold menu had) so no Plex panel moves under it. */
+function PlexReportLayer({ item, serverName, onClose }: { item: PlexItem; serverName?: string; onClose: () => void }) {
+  useEffect(() => { claimPlexHoldMenu(); }, []);
+  const episode = item.type === 'episode' && item.grandparentTitle
+    ? `${item.grandparentTitle} · S${item.parentIndex ?? '?'}E${item.index ?? '?'} · ${item.title}`
+    : null;
+  return (
+    <ReportChannelDialog
+      kind="plex"
+      channelName={episode ?? (item.year ? `${item.title} (${item.year})` : item.title)}
+      channelId={item.ratingKey}
+      // Straight to the reasons: Report a problem was the row picked.
+      initialChoice="Won't play"
+      serviceLabel={serverName ? `Plex: ${serverName}` : 'Plex'}
+      onClose={onClose}
+    />
+  );
+}
 
 PlexSection.displayName = 'PlexSection';
 export default PlexSection;

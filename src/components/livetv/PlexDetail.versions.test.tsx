@@ -35,7 +35,8 @@ import { _resetPlexSpeedCache, _setPlexSpeed } from '@/lib/plexVersions';
 import type { PlexItem } from '@/lib/plex';
 
 const BASE = 'http://srv:32400';
-const press = (key: string) => act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })); });
+// OK is pressed and let go, as a remote does.
+const press = (key: string) => act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })); if (key === 'Enter' || key === ' ') window.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true })); });
 
 function renderDetail(item: PlexItem) {
   const onPlay = vi.fn();

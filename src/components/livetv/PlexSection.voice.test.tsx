@@ -121,7 +121,8 @@ const LINK_KEY = 'smc-plex-deeplink';
 
 // Sent where the remote's key would land: the focused element (Search's box
 // takes its keys that way), else the page.
-const key = (k: string, keyCode: number) => { fireEvent.keyDown(document.activeElement ?? document.body, { key: k, keyCode }); };
+// OK is pressed and let go, as a remote does.
+const key = (k: string, keyCode: number) => { fireEvent.keyDown(document.activeElement ?? document.body, { key: k, keyCode }); if (k === 'Enter' || k === ' ') fireEvent.keyUp(document.activeElement ?? document.body, { key: k, keyCode }); };
 const renderPlex = async () => {
   const { default: PlexSection } = await import('./PlexSection');
   return render(<PlexSection isActive onExitLeft={() => undefined} onExitUp={() => undefined} />);

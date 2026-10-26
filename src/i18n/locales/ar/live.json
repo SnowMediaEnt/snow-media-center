@@ -392,7 +392,15 @@
       "categoryFooter": "اضغط مطولًا على OK أو اضغط زر القائمة على فئة لفتح هذا.",
       "categorySentTitle": "تم الإبلاغ عن الفئة — شكرًا!",
       "categorySentDesc": "تظهر ⚠️ الآن على كل قنواتها للجميع.",
-      "bufferingWarnNote": "التذكرة تنبّه المشاهدين الآخرين أيضًا قبل تشغيلها."
+      "bufferingWarnNote": "التذكرة تنبّه المشاهدين الآخرين أيضًا قبل تشغيلها.",
+      "vod": {
+        "menuTitle": "خيارات العنوان",
+        "reportProblem": "الإبلاغ عن مشكلة",
+        "choiceWontPlay": "لا يعمل",
+        "choiceBuffering": "تقطيع وتحميل",
+        "choiceWrongTitle": "عنوان خاطئ أو بدون ترجمة",
+        "footer": "اضغط مطولاً على OK فوق فيلم أو مسلسل لفتح هذا."
+      }
     },
     "vod": {
       "allMovies": "كل الأفلام",

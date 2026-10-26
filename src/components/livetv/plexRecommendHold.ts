@@ -1,5 +1,6 @@
 // Hold OK on a Plex poster: its menu, "Recommend to others"
-// (PlexRecommendMenu, plexRecommend.ts).
+// (PlexRecommendMenu, plexRecommend.ts) and "Report a problem" (the same
+// report as Live TV's channels and the line's films, tagged Plex).
 //
 // A short OK still opens the title, as it always did. On a title that has
 // the menu it opens when OK is let go rather than when it goes down: that is
@@ -18,7 +19,9 @@
 import i18n from '@/i18n';
 import { toast } from '@/hooks/use-toast';
 import type { PlexItem } from '@/lib/plex';
-import { canRecommend, type RecommendResult } from '@/lib/plexRecommend';
+import { type RecommendResult } from '@/lib/plexRecommend';
+import { isDemo } from '@/lib/demoMode';
+import { kidsLevel } from '@/lib/kidsFilter';
 import { getPlexKeyOwner, setPlexKeyOwner, type PlexKeyOwner } from './plexKeyOwner';
 
 /** Hold OK (or a finger) this long on a poster for its menu. */
@@ -38,10 +41,17 @@ export function onPlexHoldMenu(fn: Opener): () => void {
   return () => { if (opener === fn) opener = null; };
 }
 
+/** The title has the hold menu: every title (Report a problem is offered
+ *  on all of them, Recommend where it can be), but not in the demo or on a
+ *  Kids profile, where OK opens it on the press as before. */
+export function hasPlexHoldMenu(it: PlexItem | null | undefined): it is PlexItem {
+  return !!it && !isDemo() && !kidsLevel();
+}
+
 /** Open the menu for a poster, taking the remote first. False when the
  *  title has no menu or nothing can draw it. */
 export function openPlexHoldMenu(item: PlexItem): boolean {
-  if (!opener || !canRecommend(item)) return false;
+  if (!opener || !hasPlexHoldMenu(item)) return false;
   const now = getPlexKeyOwner();
   if (now !== 'menu') ownerBefore = now;
   setPlexKeyOwner('menu');
@@ -100,7 +110,7 @@ export function createPlexHoldOk(): PlexHoldOk {
     press(e, item, open) {
       // A held key's repeats, and a second press while one is timed.
       if (e.repeat || timer != null || !item) return;
-      if (!canRecommend(item)) { open(item); return; }
+      if (!hasPlexHoldMenu(item)) { open(item); return; }
       held = { item, open };
       okHeld = true;
       timer = window.setTimeout(() => {
@@ -140,7 +150,7 @@ export function tileHoldProps(item: PlexItem) {
   return {
     onTouchStart: () => {
       cancelTouchHold();
-      if (!canRecommend(item)) return;
+      if (!hasPlexHoldMenu(item)) return;
       touchTimer = window.setTimeout(() => {
         touchTimer = null;
         if (openPlexHoldMenu(item)) heldAt = Date.now();

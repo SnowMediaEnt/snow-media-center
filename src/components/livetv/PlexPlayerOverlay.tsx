@@ -26,6 +26,7 @@ import PlayerStatsPanel from './PlayerStatsPanel';
 import PlayerMenuList from './PlayerMenuList';
 import { useTouchUI } from '@/lib/phoneMode';
 import { createSeekSkipper } from '@/lib/skipQueue';
+import { okIsRepeat, okPressMark, okSamePress } from '@/lib/okLatch';
 
 // 'scrub' is the progress bar itself — reached with ▲ from any control, ◀ ▶
 // move a preview marker (accelerating on repeated presses), OK jumps there.
@@ -407,6 +408,9 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
 
   useEffect(() => {
     if (!active) return;
+    // The OK that started this film may still be held: it is ignored until
+    // it is let go, and a held OK's repeats never toggle pause/play (okLatch).
+    const openMark = okPressMark();
     const handler = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
@@ -447,11 +451,13 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
       }
       if (!isNav) return;
       e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+      if (isOk && okSamePress(e, openMark)) return;
+      const okRepeat = isOk && okIsRepeat(e);
 
       // With the bar hidden, OK takes the prompt on screen (Skip Intro, next
       // episode); any other key shows the bar as before.
       if (!visibleRef.current && isOk && promptRef.current) {
-        if (!e.repeat) promptRef.current.onOk();
+        if (!okRepeat) promptRef.current.onOk();
         return;
       }
       // ◀ ▶ with the bar hidden: back 10 s / forward 30 s, as in Live TV's films.
@@ -611,7 +617,8 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
       const idx = ROWS.indexOf(r);
       if (e.key === 'ArrowLeft') { if (idx > 0) setRow(ROWS[idx - 1]); }
       else if (e.key === 'ArrowRight') { if (idx < ROWS.length - 1) setRow(ROWS[idx + 1]); }
-      else if (isOk) void doActionRef.current(r);
+      // Held, only the skips repeat; Play/Pause and the menus once per press.
+      else if (isOk && (!okRepeat || r === 'seek-10' || r === 'seek+30')) void doActionRef.current(r);
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);

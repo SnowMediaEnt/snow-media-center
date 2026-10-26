@@ -12,8 +12,15 @@ import { isDemo, demoDialogMsg } from '@/lib/demoMode';
 import { isOutsideLine } from '@/lib/outsideSource';
 import type { XtreamCreds } from '@/lib/xtream';
 
+/** What the menu is for: a Live TV channel (the default), or a title held
+ *  in the line's Movies / Series or in Plex (the title's options: Report a
+ *  problem, with reasons that fit a film). */
+export type ReportKind = 'channel' | 'movie' | 'series' | 'plex';
+
 interface Props {
+  /** The channel's name, or the title's. */
   channelName: string;
+  kind?: ReportKind;
   channelId?: number | string;
   categoryName?: string;
   isFavorite?: boolean;
@@ -71,14 +78,22 @@ interface Props {
 
 // The choices are values the ticket text and the logic use, so they stay English;
 // the buttons show t(CHOICE_KEY[choice]).
-type Choice = 'Channel down' | 'Channel buffering' | 'No audio' | 'Other';
+type Choice = 'Channel down' | 'Channel buffering' | 'No audio' | 'Other'
+  | "Won't play" | 'Buffering' | 'Wrong title or no subtitles';
 const CHOICES: Choice[] = ['Channel down', 'Channel buffering', 'No audio', 'Other'];
+// A film, a show or a Plex title: what goes wrong with one of those.
+const TITLE_CHOICES: Choice[] = ["Won't play", 'Buffering', 'No audio', 'Wrong title or no subtitles', 'Other'];
 const CHOICE_KEY: Record<Choice, string> = {
   'Channel down': 'live.report.choiceDown',
   'Channel buffering': 'live.report.choiceBuffering',
   'No audio': 'live.report.choiceNoAudio',
   'Other': 'live.report.choiceOther',
+  "Won't play": 'live.report.vod.choiceWontPlay',
+  'Buffering': 'live.report.vod.choiceBuffering',
+  'Wrong title or no subtitles': 'live.report.vod.choiceWrongTitle',
 };
+// The ticket's words for each kind (English: the ticket is for the staff).
+const KIND_WORD: Record<ReportKind, string> = { channel: 'Channel', movie: 'Movie', series: 'Series', plex: 'Plex' };
 
 // Buffering is the one reason with two answers: most of the time the guide
 // fixes it on the spot, and when it does not, the report still has to reach
@@ -96,6 +111,7 @@ const MENU_HOWTO: Record<string, string> = { report: 'menu.report', fav: 'menu.f
  */
 const ReportChannelDialog = memo(({
   channelName,
+  kind = 'channel',
   channelId,
   categoryName,
   isFavorite,
@@ -122,6 +138,8 @@ const ReportChannelDialog = memo(({
 }: Props) => {
   const { t } = useTranslation();
   const { toast } = useToast();
+  const isTitle = kind !== 'channel';
+  const choices = isTitle ? TITLE_CHOICES : CHOICES;
   // A channel on a service added from elsewhere (lib/outsideSource): not ours
   // to fix, and nothing about it goes to our servers. No report, no "It's
   // working now"; a line says who to ask instead.
@@ -155,7 +173,7 @@ const ReportChannelDialog = memo(({
   //   menu:   the row in menuItems, top to bottom
   //   reasons: 0..3 = CHOICES, 4 = Cancel
   //   other:  0 = textarea, 1 = Submit, 2 = Cancel
-  const [focusIdx, setFocusIdx] = useState(outside ? 0 : initialChoice && initialChoice !== 'Other' ? Math.max(0, CHOICES.indexOf(initialChoice)) : initialChoice === 'Other' ? 1 : 0);
+  const [focusIdx, setFocusIdx] = useState(outside ? 0 : initialChoice && initialChoice !== 'Other' ? Math.max(0, choices.indexOf(initialChoice)) : initialChoice === 'Other' ? 1 : 0);
   const [note, setNote] = useState(initialNote ?? '');
   const [submitting, setSubmitting] = useState(false);
 
@@ -172,21 +190,23 @@ const ReportChannelDialog = memo(({
       const issue = choice === 'Other'
         ? (trimmedNote || 'Other')
         : (trimmedNote ? `${choice} — ${trimmedNote}` : choice);
+      const word = KIND_WORD[kind];
       const lines = [
+        ...(isTitle ? [`Type: ${word}`] : []),
         `Category: ${categoryName || 'Unknown'}`,
-        `Channel Name: ${channelName}`,
+        isTitle ? `Title: ${channelName}` : `Channel Name: ${channelName}`,
         `Issue: ${issue}`,
         '',
       ];
       if (serviceLabel) lines.push(`Service: ${serviceLabel}`);
-      if (channelId != null && String(channelId).length) lines.push(`Channel ID: ${channelId}`);
+      if (channelId != null && String(channelId).length) lines.push(`${isTitle ? `${word} ID` : 'Channel ID'}: ${channelId}`);
       if (account) {
         lines.push(`Player account: ${account.username}${account.serverLabel ? ' @ ' + account.serverLabel : ''}`);
       }
       lines.push('Reported from the player.');
       return lines.join('\n');
     },
-    [channelId, channelName, categoryName, account, serviceLabel],
+    [channelId, channelName, categoryName, account, serviceLabel, kind, isTitle],
   );
 
   // The Channel Options rows. "It's working now" leads when the channel
@@ -207,7 +227,7 @@ const ReportChannelDialog = memo(({
         onClose();
       },
     }] : []),
-    ...(outside ? [] : [{ id: 'report', label: t('live.report.reportChannel'), icon: Flag, run: () => { setStep('reasons'); setFocusIdx(0); } }]),
+    ...(outside ? [] : [{ id: 'report', label: isTitle ? t('live.report.vod.reportProblem') : t('live.report.reportChannel'), icon: Flag, run: () => { setStep('reasons'); setFocusIdx(0); } }]),
     ...(onWrongGame ? [{ id: 'wrong', label: t('live.report.wrongGame'), icon: Ban, run: () => { onWrongGame(); onClose(); } }] : []),
     ...(onToggleFavorite ? [{ id: 'fav', label: isFavorite ? t('live.report.removeFavorite') : t('live.report.addFavorite'), icon: isFavorite ? StarOff : Star, run: () => { onToggleFavorite(); onClose(); } }] : []),
     // A Favorites list: put the channel somewhere else in it, or sort it.
@@ -250,7 +270,7 @@ const ReportChannelDialog = memo(({
         if (choice === 'Channel down' || choice === 'Channel buffering') {
           try { trackEvent('channel_report', 'player', { reason: choice === 'Channel down' ? 'down' : 'buffering', channel: channelName, service: serviceLabel ?? null }); } catch { void 0; }
         }
-        const subject = `Channel issue: ${channelName}`;
+        const subject = `${KIND_WORD[kind]} issue: ${channelName}`;
         // App version, build and device lead the message; the report's own fields follow as they were.
         const message = await withAppInfo(buildMessage(choice, otherNote), line ? { lines: [line] } : {});
         if (user) {
@@ -277,12 +297,12 @@ const ReportChannelDialog = memo(({
         });
       }
     },
-    [createTicket, buildMessage, channelName, line, onClose, onReportedDown, onReportedBuffering, outside, serviceLabel, submitting, toast, user, t],
+    [createTicket, buildMessage, channelName, kind, line, onClose, onReportedDown, onReportedBuffering, outside, serviceLabel, submitting, toast, user, t],
   );
 
   const onPick = useCallback(
     (choice: Choice) => {
-      if (choice === 'Channel buffering') {
+      if (choice === 'Channel buffering' && !isTitle) {
         setStep('buffering');
         setFocusIdx(0);
         return;
@@ -295,7 +315,7 @@ const ReportChannelDialog = memo(({
       }
       void submit(choice);
     },
-    [submit, onOpenBufferingGuide],
+    [submit, isTitle],
   );
 
   // Owns the keyboard while open
@@ -307,7 +327,7 @@ const ReportChannelDialog = memo(({
         e.stopPropagation();
         if (step === 'other' && !submitting) {
           setStep('reasons');
-          setFocusIdx(CHOICES.length); // land on Cancel of reasons
+          setFocusIdx(choices.length); // land on Cancel of reasons
           setNote('');
           return;
         }
@@ -387,7 +407,7 @@ const ReportChannelDialog = memo(({
 
       // REASONS
       if (step === 'reasons') {
-        const count = CHOICES.length + 1;
+        const count = choices.length + 1;
         if (e.key === 'ArrowDown') {
           e.preventDefault(); e.stopPropagation();
           setFocusIdx(i => (i + 1) % count);
@@ -400,7 +420,7 @@ const ReportChannelDialog = memo(({
         }
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault(); e.stopPropagation();
-          if (focusIdx < CHOICES.length) onPick(CHOICES[focusIdx]);
+          if (focusIdx < choices.length) onPick(choices[focusIdx]);
           else onClose();
           return;
         }
@@ -439,7 +459,7 @@ const ReportChannelDialog = memo(({
       window.removeEventListener('keydown', handler, true);
       window.removeEventListener('keyup', onKeyUp, true);
     };
-  }, [step, focusIdx, note, onPick, onClose, submit, submitting, onToggleFavorite, onOpenBufferingGuide, canRefresh, refreshNow]);
+  }, [step, focusIdx, note, onPick, onClose, submit, submitting, onToggleFavorite, onOpenBufferingGuide, canRefresh, refreshNow, choices]);
 
   // Auto-blur textarea so D-pad navigation works again
   useEffect(() => {
@@ -447,7 +467,7 @@ const ReportChannelDialog = memo(({
   }, [step, focusIdx]);
 
   const title =
-    step === 'menu' ? t('live.report.menuTitle')
+    step === 'menu' ? (isTitle ? t('live.report.vod.menuTitle') : t('live.report.menuTitle'))
     : step === 'reasons' ? t('live.report.reasonsTitle')
     : step === 'buffering' ? t('live.report.bufferingTitle')
     : t('live.report.otherTitle');
@@ -506,7 +526,7 @@ const ReportChannelDialog = memo(({
 
         {atStep('reasons') && (
           <div className="space-y-2" data-howto="report.reasons">
-            {CHOICES.map((c, i) => {
+            {choices.map((c, i) => {
               const focused = focusIdx === i;
               return (
                 <button
@@ -529,12 +549,12 @@ const ReportChannelDialog = memo(({
 
             <button
               type="button"
-              data-focused={focusIdx === CHOICES.length ? 'true' : 'false'}
-              onMouseEnter={() => setFocusIdx(CHOICES.length)}
+              data-focused={focusIdx === choices.length ? 'true' : 'false'}
+              onMouseEnter={() => setFocusIdx(choices.length)}
               onClick={onClose}
               disabled={submitting}
               className={`tv-ring w-full px-4 py-3 rounded-xl border border-white/10 font-nunito transition-transform duration-150 ease-out ${
-                focusIdx === CHOICES.length
+                focusIdx === choices.length
                   ? 'bg-white/15 scale-[1.02] z-10'
                   : 'bg-white/5 hover:bg-white/10'
               }`}
@@ -640,7 +660,7 @@ const ReportChannelDialog = memo(({
 
         {!(dense && atStep('menu')) && (
           <p className="mt-4 text-xs text-brand-ice/60 font-nunito">
-            {t('live.report.footer')}
+            {isTitle ? t('live.report.vod.footer') : t('live.report.footer')}
           </p>
         )}
       </div>

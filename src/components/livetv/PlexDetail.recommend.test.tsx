@@ -102,6 +102,8 @@ describe('Recommend on the title page', () => {
     press('Enter', true);
     await wait(20);
     expect(h.ops).toHaveLength(1);
+    // Let go, then a new press.
+    release('Enter');
     press('Enter');
     await waitFor(() => expect(h.ops.map((o) => o.op)).toEqual(['insert:plex_recommendations', 'delete:plex_recommendations']));
     await waitFor(() => expect(h.toast).toHaveBeenCalledWith({ title: 'Removed', description: 'The Film' }));

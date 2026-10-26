@@ -45,7 +45,8 @@ const key = (init: KeyboardEventInit & { keyCode?: number }) => act(() => {
   if (init.keyCode != null) Object.defineProperty(e, 'keyCode', { get: () => init.keyCode });
   window.dispatchEvent(e);
 });
-const ok = () => key({ key: 'Enter', keyCode: 13 });
+// OK is pressed and let go, as a remote does (a held OK's repeats are not presses).
+const ok = () => { key({ key: 'Enter', keyCode: 13 }); act(() => { window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true })); }); };
 const back = () => key({ key: 'Escape', keyCode: 27 });
 const right = () => key({ key: 'ArrowRight' });
 const down = () => key({ key: 'ArrowDown' });

@@ -33,6 +33,7 @@ import { keepInView } from '@/utils/keepInView';
 import { onMediaKey } from '@/lib/mediaKeys';
 import { createSeekSkipper } from '@/lib/skipQueue';
 import { useTouchUI } from '@/lib/phoneMode';
+import { okIsRepeat, okPressMark, okSamePress } from '@/lib/okLatch';
 
 type Focus = VodBarId | 'timeline';
 type Menu = 'none' | 'cc' | 'audio' | 'vol';
@@ -273,6 +274,10 @@ export default function VodControlBar({
   }, [armHide]);
 
   useEffect(() => {
+    // The OK that started the film may still be held (a held OK on a poster
+    // or on Play): ignored until it is let go, and a held OK's repeats never
+    // toggle pause/play (okLatch: some WebViews send them with e.repeat false).
+    const openMark = okPressMark();
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
@@ -297,6 +302,8 @@ export default function VodControlBar({
       const ae = document.activeElement;
       if (c.blocked || (isOk && ae instanceof HTMLButtonElement && !!ae.closest('[data-vod-player]') && !ae.closest('[data-vod-bar]'))) return;
       stop();
+      if (isOk && okSamePress(e, openMark)) return;
+      const okRepeat = isOk && okIsRepeat(e);
 
       if (!c.visible) {
         // One jump per press: held, the key repeats many times a second.
@@ -315,7 +322,7 @@ export default function VodControlBar({
       if (c.menu === 'vol') {
         if (e.key === 'ArrowLeft') setVol(+(c.volume - 0.1).toFixed(2));
         else if (e.key === 'ArrowRight') setVol(stepVolume(c.volume, 0.1));
-        else if (isOk) setMenu('none');
+        else if (isOk && !okRepeat) setMenu('none');
         return;
       }
       if (c.menu === 'cc' || c.menu === 'audio') {
@@ -324,7 +331,7 @@ export default function VodControlBar({
         if (e.key === 'ArrowUp') setMenuIdx(Math.max(0, i - 1));
         else if (e.key === 'ArrowDown') setMenuIdx(Math.min(count - 1, i + 1));
         else if (e.key === 'ArrowLeft') setMenu('none');
-        else if (isOk) pickRow(i);
+        else if (isOk && !okRepeat) pickRow(i);
         return;
       }
 
@@ -356,7 +363,7 @@ export default function VodControlBar({
         setFocus(moveBarFocus(c.order, f, e.key === 'ArrowLeft' ? -1 : 1, c.disabled));
         return;
       }
-      if (isOk) act(f, e.repeat);
+      if (isOk) act(f, okRepeat);
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);

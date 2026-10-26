@@ -42,6 +42,12 @@ import { useWatchedShows } from '@/hooks/useWatchedVod';
 import TrailerButton from './TrailerButton';
 import TrailerOverlay from './TrailerOverlay';
 import { openTrailer, seriesTrailer } from '@/lib/trailer';
+import { okIsRepeat } from '@/lib/okLatch';
+import { useTitleHoldOk } from './useTitleHoldOk';
+import ReportChannelDialog from './ReportChannelDialog';
+
+/** What a held OK reports: the show, or one of its episodes. */
+interface HeldTitle { name: string; id: number | string; categoryId?: string }
 
 interface Props {
   creds: XtreamCreds;
@@ -148,6 +154,11 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
   // On-screen title: shows 4 s on play / episode change / any key, then hides.
   const [titleShown] = useTransientVisible(4000, { watchKeys: !!playing, deps: [playing?.title ?? null] });
   const [demoNotice, setDemoNotice] = useState(false);
+  // OK on a poster, Play or an episode: a press opens / plays it (when OK is
+  // let go); held, the show's options (Report a problem).
+  const {
+    menuFor: optionsFor, menuOpen: optionsOpen, okDown: titleOkDown, cancel: cancelTitleHold, closeMenu: closeOptions,
+  } = useTitleHoldOk<HeldTitle>(isActive && !playing);
   // The shared player volume (Live TV, Plex): 0..150%, never back at 0 on
   // a new start (VodPlayer's bar changes it).
   const [volume, setVolume] = useState(() => loadPlayerVolume());
@@ -474,6 +485,12 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
   // One handler for every tile, so PosterCard's memo holds as focus moves.
   const openSeriesRef = useRef(openSeries);
   useEffect(() => { openSeriesRef.current = openSeries; }, [openSeries]);
+  const playEpisodeRef = useRef(playEpisode);
+  useEffect(() => { playEpisodeRef.current = playEpisode; }, [playEpisode]);
+  const playFirstRef = useRef(playFirst);
+  useEffect(() => { playFirstRef.current = playFirst; }, [playFirst]);
+  const selectedSeriesRef = useRef(selectedSeries);
+  selectedSeriesRef.current = selectedSeries;
   const onTileFocus = useCallback((i: number) => { setGridIdx(i); setPane('grid'); }, []);
   const onTileActivate = useCallback((i: number) => {
     const s = visibleSeriesRef.current[i];
@@ -499,9 +516,12 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
       if (playingRef.current) return;
       // So does a trailer over the series' page (TrailerOverlay: OK pauses, Back closes it).
       if (trailerVideoRef.current) return;
+      // And a show's options menu (ReportChannelDialog: its own keys).
+      if (optionsOpen()) return;
 
       if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
         e.preventDefault(); e.stopPropagation();
+        cancelTitleHold();
         if (paneRef.current === 'detail') { openSeqRef.current++; setPane('grid'); setSelectedSeries(null); setSeriesInfo(null); }
         // A touch screen shows no highlight to walk back through (the
         // categories are on screen beside or over the posters): the search
@@ -515,6 +535,12 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
       const arrows = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '];
       if (!arrows.includes(e.key)) return;
       e.preventDefault();
+      // Moving away: a hold under way comes to nothing.
+      if (e.key !== 'Enter' && e.key !== ' ') cancelTitleHold();
+      const show = (): HeldTitle | null => {
+        const sel = selectedSeriesRef.current;
+        return sel ? { name: sel.name, id: sel.series_id, categoryId: sel.category_id } : null;
+      };
 
       if (paneRef.current === 'categories') {
         const cats = visibleCategoriesRef.current;
@@ -568,7 +594,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
         
         } else if (e.key === 'Enter' || e.key === ' ') {
           const s = list[i];
-          if (s) openSeries(s);
+          if (s) titleOkDown(e, { name: s.name, id: s.series_id, categoryId: s.category_id }, () => { void openSeriesRef.current(s); });
         }
         return;
       }
@@ -588,7 +614,10 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
       if (focus === 'play') {
         if (e.key === 'ArrowDown') setDetailFocus('autoplay');
         else if (e.key === 'ArrowRight') intoLists();
-        else if (e.key === 'Enter' || e.key === ' ') playFirst();
+        else if (e.key === 'Enter' || e.key === ' ') {
+          const held = show();
+          if (held) titleOkDown(e, held, () => playFirstRef.current());
+        }
       } else if (focus === 'autoplay') {
         if (e.key === 'ArrowUp') setDetailFocus('play');
         else if (e.key === 'ArrowDown') { if (trailerRef.current) setDetailFocus('trailer'); }
@@ -599,7 +628,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
         // buttons above, OK opens it.
         if (e.key === 'ArrowUp') setDetailFocus('autoplay');
         else if (e.key === 'ArrowRight') intoLists();
-        else if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) pressTrailer();
+        else if ((e.key === 'Enter' || e.key === ' ') && !okIsRepeat(e)) pressTrailer();
       } else if (focus === 'seasons') {
         if (e.key === 'ArrowDown') {
           if (sIdx + 1 < seas.length) { setSeasonIdx(sIdx + 1); setEpisodeIdx(0); }
@@ -616,13 +645,20 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
           if (eIdx > 0) setEpisodeIdx(eIdx - 1);
         } else if (e.key === 'ArrowLeft') setDetailFocus(seas.length > 1 ? 'seasons' : 'play');
         else if (e.key === 'Enter' || e.key === ' ') {
-          if (!e.repeat) playEpisode(sIdx, eIdx);
+          // Held on an episode: the show's menu, the episode named in it.
+          const sel = show();
+          const season = seas[sIdx];
+          const ep = season?.episodes[eIdx];
+          if (sel && ep) {
+            const held = { ...sel, name: `${sel.name} · S${season.number}E${ep.episode_num} · ${ep.title}` };
+            titleOkDown(e, held, () => playEpisodeRef.current(sIdx, eIdx));
+          }
         }
       }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [isActive, onExitLeft, onExitUp, openSeries, playEpisode, playFirst, pressTrailer]);
+  }, [isActive, onExitLeft, onExitUp, pressTrailer, optionsOpen, titleOkDown, cancelTitleHold]);
 
   // Virtualize series grid by row — measure row height from real layout so
   // virtual stride matches what's rendered at any TV resolution.
@@ -722,6 +758,18 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
   }, [demoNotice]);
+
+  // A show's options (held OK): Report a problem, Cancel.
+  const optionsOverlay = optionsFor ? (
+    <ReportChannelDialog
+      kind="series"
+      channelName={optionsFor.name}
+      channelId={optionsFor.id}
+      categoryName={categories.find((c) => String(c.category_id) === String(optionsFor.categoryId ?? ''))?.category_name}
+      line={creds}
+      onClose={closeOptions}
+    />
+  ) : null;
 
   const demoNoticeOverlay = demoNotice ? (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 px-6"
@@ -924,6 +972,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
           </div>
         </div>
         {demoNoticeOverlay}
+        {optionsOverlay}
         {trailerVideo && <TrailerOverlay video={trailerVideo} title={selectedSeries.name} kind="series" onClose={closeTrailer} />}
       </div>
     );
@@ -1064,6 +1113,7 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
         )}
       </div>
       {demoNoticeOverlay}
+        {optionsOverlay}
     </div>
   );
 });

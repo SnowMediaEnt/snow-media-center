@@ -271,3 +271,59 @@ describe('the menu', () => {
     await waitFor(() => expect(h.ops.map((o) => o.op)).toEqual(['insert:plex_recommendations']));
   });
 });
+
+describe('Report a problem (hold menu)', () => {
+  const openWith = (item: PlexItem) => {
+    const onClose = vi.fn(() => releasePlexHoldMenu());
+    const onReport = vi.fn();
+    setPlexKeyOwner('menu');
+    render(<PlexRecommendMenu item={item} server="srv-1" onReport={onReport} onClose={onClose} />);
+    return { onClose, onReport };
+  };
+
+  it('sits under Recommend; OK on it hands the title to the report (after the hold is let go)', async () => {
+    __resetPlexHoldForTests(true);
+    const { onClose, onReport } = openWith(film);
+    await screen.findByText('Recommend to others');
+    expect(screen.getByText('Report a problem')).toBeTruthy();
+    up();
+    press('ArrowDown');
+    down();
+    expect(onReport).toHaveBeenCalledWith(film);
+    expect(onClose).not.toHaveBeenCalled();
+    await tick(10);
+    expect(h.ops).toEqual([]);
+  });
+
+  it('a title that cannot be recommended (an episode whose show is not known) still has the menu: Report and Cancel', async () => {
+    const episode: PlexItem = { ratingKey: '555', title: 'Pilot', type: 'episode' };
+    const { onReport } = openWith(episode);
+    expect(await screen.findByText('Report a problem')).toBeTruthy();
+    expect(screen.getByText('Cancel')).toBeTruthy();
+    expect(screen.queryByText('Recommend to others')).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Recommend Pilot' })).toBeTruthy();
+    down();
+    expect(onReport).toHaveBeenCalledWith(episode);
+  });
+
+  it('the hold opens it on such a title too, and the held OK never opens the title', () => {
+    vi.useFakeTimers();
+    const episode: PlexItem = { ratingKey: '555', title: 'Pilot', type: 'episode' };
+    const hold = createPlexHoldOk();
+    const openTitle = vi.fn();
+    const menu = vi.fn();
+    const off = onPlexHoldMenu(menu);
+    const kd = (e: KeyboardEvent) => { if (e.key === 'Enter') hold.press(e, episode, openTitle); };
+    const ku = (e: KeyboardEvent) => hold.release(e);
+    window.addEventListener('keydown', kd);
+    window.addEventListener('keyup', ku);
+    down();
+    act(() => { vi.advanceTimersByTime(PLEX_HOLD_MS); });
+    down(true); down(true);
+    up();
+    expect(menu).toHaveBeenCalledWith(episode);
+    expect(openTitle).not.toHaveBeenCalled();
+    off(); window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku);
+    releasePlexHoldMenu();
+  });
+});

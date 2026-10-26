@@ -13,6 +13,7 @@ import { MEDIA_KEY_EVENT } from '@/lib/mediaKeys';
 const h = vi.hoisted(() => ({
   seek: vi.fn(),
   toast: vi.fn(),
+  toggle: vi.fn(),
   seekable: true,
 }));
 
@@ -59,7 +60,7 @@ vi.mock('@/hooks/use-toast', () => ({ toast: h.toast, useToast: () => ({ toast: 
 vi.mock('./VideoPlayer', async () => {
   const { useEffect } = await import('react');
   const ctrl = {
-    play: () => {}, pause: () => {}, togglePlay: () => {}, seek: (s: number) => { h.seek(s); },
+    play: () => {}, pause: () => {}, togglePlay: () => { h.toggle(); }, seek: (s: number) => { h.seek(s); },
     isPaused: () => false, isSeekable: () => h.seekable,
     getSubtitleTracks: () => [{ id: 0, label: 'English CC', active: false }],
     setSubtitleTrack: () => {},
@@ -104,7 +105,7 @@ const watchNewsOne = async () => {
 
 beforeEach(() => {
   localStorage.clear(); sessionStorage.clear();
-  h.seek.mockClear(); h.toast.mockClear(); h.seekable = true;
+  h.seek.mockClear(); h.toast.mockClear(); h.toggle.mockClear(); h.seekable = true;
 });
 afterEach(() => { document.documentElement.className = ''; });
 
@@ -193,5 +194,17 @@ describe('the Report button in the bar', () => {
     press('Enter');
     await until('[data-testid="report"]');
     expect(document.querySelector('[data-testid="report"]')?.textContent).toBe('News Two');
+  });
+});
+
+describe('a held OK on the bar', () => {
+  it('Pause once: the held OK\'s repeats (even with e.repeat false) never toggle pause/play back and forth', async () => {
+    await watchNewsOne();
+    act(() => { fireEvent.keyDown(window, { key: 'Enter', keyCode: 13 }); });
+    for (let i = 0; i < 5; i++) act(() => { fireEvent.keyDown(window, { key: 'Enter', keyCode: 13, repeat: i % 2 === 1 }); });
+    expect(h.toggle).toHaveBeenCalledTimes(1);
+    act(() => { fireEvent.keyUp(window, { key: 'Enter' }); });
+    press('Enter');
+    expect(h.toggle).toHaveBeenCalledTimes(2);
   });
 });

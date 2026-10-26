@@ -73,7 +73,8 @@ const key = (init: KeyboardEventInit & { keyCode?: number }) => act(() => {
   if (init.keyCode != null) Object.defineProperty(e, 'keyCode', { get: () => init.keyCode });
   window.dispatchEvent(e);
 });
-const ok = () => key({ key: 'Enter', keyCode: 13 });
+// OK is pressed and let go, as a remote does (a held OK's repeats are not presses).
+const ok = () => { key({ key: 'Enter', keyCode: 13 }); act(() => { window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true })); }); };
 const mediaKey = (k: string) => act(() => { window.dispatchEvent(new CustomEvent(MEDIA_KEY_EVENT, { detail: k })); });
 const wait = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
 
@@ -123,6 +124,28 @@ describe('Plex player: pausing shows the control bar and keeps it up', () => {
     expect(calls).toContain('play');
     await wait(5_500);
     expect(barShown()).toBe(false);
+  });
+
+  it('a held OK on Play/Pause pauses once: its repeats (even with e.repeat false) never toggle back and forth', async () => {
+    await mount();
+    ok();                       // the bar, focus on ▶❚❚
+    key({ key: 'Enter', keyCode: 13 });             // held: pause
+    for (let i = 0; i < 6; i++) key({ key: 'Enter', keyCode: 13, repeat: i % 2 === 0 });
+    expect(calls.filter((c) => c === 'pause')).toHaveLength(1);
+    expect(calls).not.toContain('play');
+    act(() => { window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true })); });
+    ok();                       // a new press: resume
+    expect(calls.filter((c) => c === 'play')).toHaveLength(1);
+  });
+
+  it('opened while the OK that started it is still held: that OK does nothing until let go', async () => {
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+    await mount();
+    for (let i = 0; i < 4; i++) key({ key: 'Enter', keyCode: 13 });
+    expect(barShown()).toBe(false);
+    act(() => { window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true })); });
+    ok();
+    expect(barShown()).toBe(true);
   });
 
   it('a pause from outside the app (phone remote, system) reported by the plugin', async () => {

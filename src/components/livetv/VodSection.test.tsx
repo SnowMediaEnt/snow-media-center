@@ -60,7 +60,8 @@ if (!('ResizeObserver' in globalThis)) {
 
 const creds = { host: 'http://panel.example:8080', username: 'user1', password: 'pass1', serverLabel: 'Test' };
 const settle = async () => { for (let i = 0; i < 8; i++) await act(async () => { await new Promise((r) => setTimeout(r, 0)); }); };
-const key = async (k: string) => { await act(async () => { fireEvent.keyDown(window, { key: k }); }); await settle(); };
+// OK is pressed and let go, as a remote does (a press runs on its release).
+const key = async (k: string) => { await act(async () => { fireEvent.keyDown(window, { key: k }); if (k === 'Enter' || k === ' ') fireEvent.keyUp(window, { key: k }); }); await settle(); };
 const focused = () => Array.from(document.querySelectorAll<HTMLElement>('[data-focused="true"]'));
 const card = (kind: string) => document.querySelector<HTMLElement>(`[data-vod-kind="${kind}"]`);
 /** keepInView was last asked to keep this element on screen, inside a list. */

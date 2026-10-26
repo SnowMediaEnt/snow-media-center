@@ -163,7 +163,8 @@ describe('VodPlayer on a box', () => {
 });
 
 const key = async (k: string, extra: Record<string, unknown> = {}) => {
-  await act(async () => { fireEvent.keyDown(window, { key: k, ...extra }); });
+  // OK is pressed and let go, as a remote does (a held OK's repeats are not presses).
+  await act(async () => { fireEvent.keyDown(window, { key: k, ...extra }); if (k === 'Enter' || k === ' ') fireEvent.keyUp(window, { key: k, ...extra }); });
   await settle();
 };
 const bar = () => q('[data-vod-bar]');
