@@ -19,7 +19,7 @@
 import i18n from '@/i18n';
 import { toast } from '@/hooks/use-toast';
 import type { PlexItem } from '@/lib/plex';
-import { type RecommendResult } from '@/lib/plexRecommend';
+import { canRecommend, type RecommendResult } from '@/lib/plexRecommend';
 import { isDemo } from '@/lib/demoMode';
 import { kidsLevel } from '@/lib/kidsFilter';
 import { getPlexKeyOwner, setPlexKeyOwner, type PlexKeyOwner } from './plexKeyOwner';
@@ -41,11 +41,16 @@ export function onPlexHoldMenu(fn: Opener): () => void {
   return () => { if (opener === fn) opener = null; };
 }
 
-/** The title has the hold menu: every title (Report a problem is offered
- *  on all of them, Recommend where it can be), but not in the demo or on a
- *  Kids profile, where OK opens it on the press as before. */
+/** Things you watch: a film, a show, a season, an episode. A collection,
+ *  a person, a track opens on the press as before (no "Report a problem"
+ *  on a collection). */
+const HOLD_TYPES = new Set(['movie', 'show', 'season', 'episode']);
+
+/** The title has the hold menu: Report a problem on anything you watch,
+ *  Recommend where it can be; not in the demo or on a Kids profile, where
+ *  OK opens it on the press as before. */
 export function hasPlexHoldMenu(it: PlexItem | null | undefined): it is PlexItem {
-  return !!it && !isDemo() && !kidsLevel();
+  return !!it && !isDemo() && !kidsLevel() && (HOLD_TYPES.has(it.type) || canRecommend(it));
 }
 
 /** Open the menu for a poster, taking the remote first. False when the

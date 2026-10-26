@@ -168,6 +168,7 @@ const ReportChannelDialog = memo(({
   const { createTicket } = useSupportTickets(user);
 
   const [step, setStep] = useState<Step>(outside ? 'menu' : initialChoice === 'Other' ? 'other' : initialChoice ? 'reasons' : 'menu');
+  const openedOnReasons = !outside && !!initialChoice && initialChoice !== 'Other';
   const atStep = (s: Step) => step === s;
   // Focus index:
   //   menu:   the row in menuItems, top to bottom
@@ -249,7 +250,8 @@ const ReportChannelDialog = memo(({
   // A long menu (a favourite with Move and Sort, a channel showing ⚠️, Record
   // and Refresh) is drawn tighter and without the footer, so every row still
   // fits the 540px TV screen.
-  const dense = menuItems.length > 6;
+  // Slim rows on a long menu, and on a film's or Plex title's short one (no bulky cards).
+  const dense = menuItems.length > 6 || isTitle;
 
   const submit = useCallback(
     async (choice: Choice, otherNote = '') => {
@@ -336,7 +338,9 @@ const ReportChannelDialog = memo(({
           setFocusIdx(CHOICES.indexOf('Channel buffering'));
           return;
         }
-        if (step === 'reasons' && !submitting) {
+        // Opened straight on the reasons (a preset: Plex's hold menu, Live
+        // TV's "Report it"): the menu was never seen, so Back closes.
+        if (step === 'reasons' && !submitting && !openedOnReasons) {
           // Back to the row this came from.
           setStep('menu');
           setFocusIdx(Math.max(0, menuItemsRef.current.findIndex((m) => m.id === 'report')));
@@ -482,7 +486,7 @@ const ReportChannelDialog = memo(({
       <div
         role="dialog"
         aria-modal="true"
-        className="w-[min(92vw,520px)] rounded-2xl bg-brand-navy/95 border border-brand-gold/40 shadow-[0_0_40px_rgba(245,200,80,0.25)] p-6 text-white"
+        className={`w-[92vw] max-w-[520px] rounded-2xl bg-brand-navy/95 border border-brand-gold/40 shadow-[0_0_40px_rgba(245,200,80,0.25)] ${isTitle ? 'p-4' : 'p-6'} text-white`}
       >
         <div className="flex items-center gap-3 mb-4">
           <AlertTriangle className="w-6 h-6 text-brand-gold flex-shrink-0" />

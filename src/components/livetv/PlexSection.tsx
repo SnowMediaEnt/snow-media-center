@@ -3034,6 +3034,14 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   useEffect(() => {
     if (!isActive || !recServer || status !== 'ready') { closeRecommend(); closeReport(); }
   }, [isActive, recServer, status, closeRecommend, closeReport]);
+  // A film going full screen under the report: the layer stops drawing
+  // (!fullscreen below), so close it properly — else the key owner stays
+  // the menu's and the panels are deaf once the film ends.
+  const reportOpenRef = useRef(false);
+  reportOpenRef.current = reportFor != null;
+  useEffect(() => {
+    if (fullscreen && reportOpenRef.current) closeReport();
+  }, [fullscreen, closeReport]);
 
   // Decided once per Plex visit: the menu does not reshuffle at midnight.
   const [season] = useState<Season | null>(() => activeSeason());

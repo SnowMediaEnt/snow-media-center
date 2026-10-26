@@ -54,8 +54,16 @@ export function useTitleHoldOk<T>(active: boolean): TitleHoldOk<T> {
       const k = hold.release();
       if (k) k.press();
     };
+    // The app lost focus mid-hold (Alexa, a system overlay): its keyup never
+    // comes here, so the hold comes to nothing rather than popping the menu.
+    const onBlur = () => hold.cancel();
     window.addEventListener('keyup', onUp, true);
-    return () => { window.removeEventListener('keyup', onUp, true); hold.cancel(); };
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.removeEventListener('keyup', onUp, true);
+      window.removeEventListener('blur', onBlur);
+      hold.cancel();
+    };
   }, [active]);
 
   return { menuFor, menuOpen, okDown, cancel, openMenu, closeMenu };
