@@ -2187,9 +2187,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     : nativePreviewActive && previewChannel
       ? buildNativeLiveUrl(lineFor(previewChannel), previewChannel.stream_id)
       : null;
-  // The Live buffer (lib/liveBuffer) for the channel on the main player:
-  // full screen, or the preview box (the same stream goes full screen
-  // without reloading, so it loads with the channel's own cushion).
+  // The Live buffer (lib/liveBuffer) for the channel on the main player. A
+  // preview stays quick (2.5 / 5 s); watched (full screen, held in the box,
+  // the box upright on a phone) it is raised to the channel's own in place.
   const cushionStream = directLiveUrl ? playingStream ?? null : nativePreviewActive ? previewChannel ?? null : null;
   const cushionLine = cushionStream ? (directLiveUrl ? playingLine : lineFor(cushionStream)) : null;
   const liveCushion = useLiveCushion(cushionStream && cushionLine
@@ -2198,13 +2198,13 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       name: cushionStream.name,
       category: categoryNameOn(cushionStream, cushionLine) ?? (directLiveUrl ? playingCat?.name : currentCat?.name) ?? null,
     }
-    : null);
+    : null, nativeActive || (nativePreviewActive && (heldPreview.held || upright)));
   const native = useNativePlayer({
     active: nativeActive || nativePreviewActive,
     url: nativeUrl,
     volume,
     engine: playerEngine,
-    liveBuffer: liveCushion.cushion,
+    liveBuffer: liveCushion.playing,
     onLiveStall: liveCushion.onStall,
     // A catch-up programme plays as a recording: it ends (back to live)
     // instead of reconnecting.
@@ -2220,8 +2220,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     // plain seek of the catch-up stream.
     skipKeys: false,
   });
-  const liveCushionRef = useRef(liveCushion.cushion);
-  liveCushionRef.current = liveCushion.cushion;
+  const liveCushionRef = useRef(liveCushion.playing);
+  liveCushionRef.current = liveCushion.playing;
   const rewindPausedChange = rewind.onPausedChange;
   useEffect(() => { rewindPausedChange(native.paused); }, [native.paused, rewindPausedChange]);
 
@@ -2989,7 +2989,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     busy: !!(warnFor || reportFor || reportCatFor || recordFor) || chOverlayOpen || recent.open
       || subMenuOpen || audioMenuOpen || volMenuOpen || choosingLayout,
     onGone: (why) => { if (why === 'error') bufferHelpGaveWayAtRef.current = Date.now(); },
-    cushion: catchupUrl ? null : liveCushion.cushion,
+    cushion: catchupUrl ? null : liveCushion.playing,
   });
   bufferHelpOpenRef.current = bufferHelp.open;
   // Over the picture with the bar down: Back from it leaves the picture as it was.
@@ -3962,7 +3962,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         {NATIVE_PLAYBACK && native.buffering && !native.error && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 pointer-events-none">
             {/* A bigger Live buffer takes longer: say so, so it doesn't look stuck. */}
-            <div className="w-full max-w-md"><SnowLoader size="lg" label={t(!catchupUrl && isBigCushion(liveCushion.cushion) ? 'live.player.biggerBuffer' : 'live.player.buffering')} /></div>
+            <div className="w-full max-w-md"><SnowLoader size="lg" label={t(!catchupUrl && isBigCushion(liveCushion.playing) ? 'live.player.biggerBuffer' : 'live.player.buffering')} /></div>
             {slowConn && (
               <p className="max-w-md px-4 text-center text-sm font-nunito text-brand-ice/80">
                 {t('live.player.slowConnection')}
