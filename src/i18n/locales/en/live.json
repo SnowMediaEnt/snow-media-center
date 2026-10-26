@@ -126,7 +126,16 @@
       "decodeAudio": "Decode audio on this box",
       "decodeAudioDesc": "For a TV or receiver that shows the film but plays no sound: Dolby and DTS are then decoded here instead of being passed through. Leave off for the best sound.",
       "on": "On",
-      "off": "Off"
+      "off": "Off",
+      "liveBuffer": "Live buffer",
+      "liveBufferDesc": "How much of a channel loads before it plays. Bigger rides out a slow server without stopping, but channels take longer to start. Auto: quick for normal channels, Large for 24/7 channels, and one size up for a channel that buffers.",
+      "buffer": {
+        "auto": "Auto",
+        "small": "Small",
+        "medium": "Medium",
+        "large": "Large",
+        "xlarge": "Extra large"
+      }
     },
     "shell": {
       "signingIn": "Signing you in with your account…",
@@ -257,7 +266,8 @@
       "skipForward": "{{sec}} s forward",
       "behindLive": "{{time}} behind live",
       "atLive": "Live",
-      "reportIt": "Report it"
+      "reportIt": "Report it",
+      "biggerBuffer": "Loading a bigger buffer…"
     },
     "failover": {
       "note": "{{channel}} is down on {{service}} — playing it from {{other}}",

@@ -37,6 +37,7 @@ import { trackEvent } from '@/lib/analytics';
 import { lineEventProps } from '@/lib/outsideSource';
 import { lastSeekAt } from '@/lib/playerSeek';
 import type { XtreamCreds } from '@/lib/xtream';
+import { DEFAULT_CUSHION, type LiveCushion } from '@/lib/liveBuffer';
 
 export type BufferHelpStep = 'restart' | 'vpn' | 'guide';
 export type BufferHelpTrigger = 'long' | 'stalls';
@@ -140,6 +141,15 @@ interface Args {
   /** It went by itself: the error card came up (`error`, which then has the
    *  remote) or the channel changed under it (`channel`). */
   onGone?: (why: 'error' | 'channel') => void;
+  /** The channel's Live buffer (lib/liveBuffer): a bigger one fills for that
+   *  much longer at the start, or after a stall, before "buffering too long". */
+  cushion?: LiveCushion | null;
+}
+
+/** The extra wait a bigger Live buffer's fill gets: at the start, or after a stall. */
+export function cushionExtraMs(cushion: LiveCushion | null | undefined, inStartUp: boolean): number {
+  if (!cushion) return 0;
+  return Math.max(0, inStartUp ? cushion.startMs - DEFAULT_CUSHION.startMs : cushion.rebufferMs - DEFAULT_CUSHION.rebufferMs);
 }
 
 export interface BufferingHelp {
@@ -155,7 +165,9 @@ export interface BufferingHelp {
   track: (step: BufferHelpStep, action: string) => void;
 }
 
-export function useBufferingHelp({ enabled, watching, loadKey, buffering, error, busy, onGone }: Args): BufferingHelp {
+export function useBufferingHelp({ enabled, watching, loadKey, buffering, error, busy, onGone, cushion }: Args): BufferingHelp {
+  const cushionRef = useRef(cushion);
+  cushionRef.current = cushion;
   const key = enabled && watching ? watching.key : null;
   const lineRef = useRef<XtreamCreds | null>(null);
   if (watching) lineRef.current = watching.line;
@@ -215,7 +227,8 @@ export function useBufferingHelp({ enabled, watching, loadKey, buffering, error,
   // stream its provider keeps dropping).
   useEffect(() => {
     if (!stalled || !key) { setDue(null); return; }
-    const long = window.setTimeout(() => setDue({ trigger: 'long', key }), LONG_STALL_MS);
+    const inStartUp = Date.now() - startAtRef.current < START_GRACE_MS;
+    const long = window.setTimeout(() => setDue({ trigger: 'long', key }), LONG_STALL_MS + cushionExtraMs(cushionRef.current, inStartUp));
     return () => window.clearTimeout(long);
   }, [stalled, key]);
 

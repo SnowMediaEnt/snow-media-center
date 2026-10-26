@@ -126,7 +126,16 @@
       "decodeAudio": "Ton auf diesem Gerät dekodieren",
       "decodeAudioDesc": "Für einen Fernseher oder Receiver, der den Film zeigt, aber keinen Ton spielt: Dolby und DTS werden dann hier dekodiert statt durchgereicht. Für den besten Ton ausgeschaltet lassen.",
       "on": "An",
-      "off": "Aus"
+      "off": "Aus",
+      "liveBuffer": "Live-Puffer",
+      "liveBufferDesc": "Wie viel eines Senders vor der Wiedergabe geladen wird. Größer übersteht einen langsamen Server ohne Anhalten, aber Sender starten langsamer. Auto: schnell bei normalen Sendern, Groß bei 24/7-Sendern und eine Stufe mehr bei einem Sender, der puffert.",
+      "buffer": {
+        "auto": "Auto",
+        "small": "Klein",
+        "medium": "Mittel",
+        "large": "Groß",
+        "xlarge": "Sehr groß"
+      }
     },
     "shell": {
       "signingIn": "Du wirst mit deinem Konto angemeldet…",
@@ -257,7 +266,8 @@
       "skipForward": "{{sec}} s vor",
       "behindLive": "{{time}} hinter live",
       "atLive": "Live",
-      "reportIt": "Melden"
+      "reportIt": "Melden",
+      "biggerBuffer": "Größerer Puffer wird geladen…"
     },
     "failover": {
       "note": "{{channel}} ist bei {{service}} gestört – läuft jetzt über {{other}}",

@@ -336,13 +336,13 @@ describe('SnowPlayerPlugin.kt — a stream that starts fine keeps playing', () =
   it('a 4K film (bugs/plex-4k.md): its own byte budget, and 10 s before it plays on after a stall; 1080p and Live TV as before', () => {
     const cls = plugin.slice(plugin.indexOf('private class SteadyLoadControl('), plugin.indexOf('/** Counts the bytes'));
     // 4K only for a film, told by load() before prepare(); decided when its tracks are selected, before the parent sizes the budget.
-    expect(body('fun load(call: PluginCall)')).toMatch(/s\.loadControl\?\.beginStream\(film = !live\)[\s\S]*p\.prepare\(\)/);
-    expect(cls).toMatch(/fun beginStream\(film: Boolean\) \{\s*vod = film\s*uhd = false/);
+    expect(body('fun load(call: PluginCall)')).toMatch(/s\.loadControl\?\.beginStream\(film = !live, liveStartMs = liveStartBufferMs, liveRebufferMs = liveRebufferMs\)[\s\S]*p\.prepare\(\)/);
+    expect(cls).toMatch(/fun beginStream\(film: Boolean, liveStartMs: Int = 0, liveRebufferMs: Int = 0\) \{\s*vod = film\s*uhd = false/);
     expect(cls).toMatch(/uhd = vod && trackSelections\.any \{[\s\S]*UhdBuffer\.isUhd\(f\.width, f\.height\)[\s\S]*super\.onTracksSelected\(parameters, trackGroups, trackSelections\)/);
     // The budget: the library's own unless 4K.
     expect(cls).toMatch(/val library = super\.calculateTargetBufferBytes\(trackSelectionArray\)\s*val bytes = if \(uhd && uhdBudgetBytes > library\) uhdBudgetBytes else library/);
     // After a stall: the parent first; a 4K film also waits for 10 s, or less when the buffer can't take more.
-    expect(cls).toMatch(/if \(!super\.shouldStartPlayback\(parameters\)\) return false\s*if \(!uhd \|\| !parameters\.rebuffering\) return true(?:\s*\/\/[^\n]*)*\s*return parameters\.bufferedDurationUs >= uhdRebufferUs \|\| !loadingNow/);
+    expect(cls).toMatch(/if \(!super\.shouldStartPlayback\(parameters\)\) return false[\s\S]*?if \(!vod\) \{[\s\S]*?LiveCushion\.startsNow\([\s\S]*?\n        \}\s*if \(!uhd \|\| !parameters\.rebuffering\) return true(?:\s*\/\/[^\n]*)*\s*return parameters\.bufferedDurationUs >= uhdRebufferUs \|\| !loadingNow/);
     expect(uhdRule).toContain('const val REBUFFER_MS = 10000');
     expect(uhdRule).toContain('const val MAX_BUDGET_BYTES = 256 * 1024 * 1024');
     expect(uhdRule).toContain('fun isUhd(width: Int, height: Int): Boolean = height >= MIN_HEIGHT || width >= MIN_WIDTH');

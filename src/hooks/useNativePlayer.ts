@@ -9,7 +9,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import i18n from '@/i18n';
 import { onMediaKey } from '@/lib/mediaKeys';
 import { SnowPlayer, type SnowSubtitle } from '@/capacitor/SnowPlayer';
-import { markJump, markPlaybackStart, markSeek } from '@/lib/playerSeek';
+import { lastSeekAt, markJump, markPlaybackStart, markSeek } from '@/lib/playerSeek';
+import type { LiveCushion } from '@/lib/liveBuffer';
 import { createNativeVideoController, type NativeControllerHandle } from '@/lib/nativeVideoController';
 import type { VideoController } from '@/components/livetv/VideoPlayer';
 import { enterQuiet, exitQuiet } from '@/utils/quietMode';
@@ -76,7 +77,22 @@ interface UseNativePlayerArgs {
    * VodPlayer, Recordings) keeps the plain seek mark and no mark on unpause.
    */
   jumpGrace?: boolean;
+  /**
+   * Live TV's cushion for this channel (lib/liveBuffer): how much the player
+   * holds before it starts and before it plays on after a stall. Goes with
+   * every live load of the stream; a change alone never reloads (the caller
+   * tells the player itself, SnowPlayer.setLiveBuffer). Absent: the player's own.
+   */
+  liveBuffer?: LiveCushion | null;
+  /**
+   * A live channel stalled after it had played (not its start-up fill, not
+   * right after a seek or a pause): Live TV's Auto may give it a bigger cushion.
+   */
+  onLiveStall?: () => void;
 }
+
+/** A buffering this soon after a seek, a Go live or a pause is the jump's, not a stall. */
+export const STALL_AFTER_SEEK_MS = 3000;
 
 export interface NativeRect { x: number; y: number; width: number; height: number }
 
@@ -144,7 +160,7 @@ async function positionNow(): Promise<number> {
   } catch { return 0; }
 }
 
-export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, engine = 'exo', rangeFetch = false, frameRate, maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded, onReload, rect, background = true, skipKeys = true, jumpGrace = false }: UseNativePlayerArgs): NativePlayerState {
+export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, engine = 'exo', rangeFetch = false, frameRate, maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded, onReload, rect, background = true, skipKeys = true, jumpGrace = false, liveBuffer, onLiveStall }: UseNativePlayerArgs): NativePlayerState {
   // While a stream is up, re-check memory every few minutes (apps opened
   // from the remote, or the box's own services, fill it up again).
   useEffect(() => {
@@ -187,6 +203,14 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   rangeFetchRef.current = rangeFetch;
   const frameRateRef = useRef(frameRate);
   frameRateRef.current = frameRate;
+  const liveBufferRef = useRef(liveBuffer);
+  liveBufferRef.current = liveBuffer;
+  const cbLiveStallRef = useRef(onLiveStall);
+  cbLiveStallRef.current = onLiveStall;
+  // This load has played (a stall after that is a real one), and a stall is
+  // under way (told once).
+  const playedThisLoadRef = useRef(false);
+  const inStallRef = useRef(false);
   // The next load is a reload of the stream being watched (a retry, or the
   // app coming back), not a new one. A film then picks up where the viewer
   // is: it used to start again from `startPosition` — the very beginning of
@@ -207,10 +231,13 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   // session lapse meanwhile, and the stall while it starts again is that,
   // never the server being too slow for the film.
   const pausedNowRef = useRef(false);
+  // When it last played on after a pause: its refill is not a stall either.
+  const unpausedAtRef = useRef(0);
   const jumpGraceRef = useRef(jumpGrace);
   jumpGraceRef.current = jumpGrace;
   const onPausedChange = useCallback((p: boolean) => {
     if (!p && pausedNowRef.current && !liveRef.current && jumpGraceRef.current) { markJump(); startPendingRef.current = true; }
+    if (!p && pausedNowRef.current) unpausedAtRef.current = Date.now();
     pausedNowRef.current = p;
     setPaused(p);
   }, []);
@@ -324,12 +351,21 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
         stateH = keep(await SnowPlayer.addListener('playerState', (data) => {
           if ((data as { screenId?: string }).screenId && (data as { screenId?: string }).screenId !== 'main') return;
           // Mirror stall state into the buffering diagnostics (never throws).
-          if (data.state === 'buffering') { setBuffering(true); try { diagBuffering(true); } catch { /* ignore */ } }
-          else if (data.state === 'ready') { setBuffering(false); try { diagBuffering(false); } catch { /* ignore */ } }
+          if (data.state === 'buffering') {
+            setBuffering(true); try { diagBuffering(true); } catch { /* ignore */ }
+            // A live channel that had played runs dry: a real stall (never the
+            // start-up fill, a seek's or Go live's refill, or after a pause).
+            if (liveRef.current && playedThisLoadRef.current && !inStallRef.current && !pausedNowRef.current
+              && Date.now() - Math.max(lastSeekAt(), unpausedAtRef.current) > STALL_AFTER_SEEK_MS) {
+              inStallRef.current = true;
+              try { cbLiveStallRef.current?.(); } catch { /* ignore */ }
+            }
+          }
+          else if (data.state === 'ready') { inStallRef.current = false; setBuffering(false); try { diagBuffering(false); } catch { /* ignore */ } }
           else if (data.state === 'ended') { markStreaming(false); quietOff(); try { diagEnd(); } catch { /* ignore */ } cbEndedRef.current?.(); }
           // Playing is authoritative — clear the spinner immediately.
           if (data.playing === true && startPendingRef.current) { startPendingRef.current = false; markPlaybackStart(); }
-          if (data.playing === true) { exhaustRetriedRef.current = false; setBuffering(false); quietOn(); try { diagBuffering(false); } catch { /* ignore */ } }
+          if (data.playing === true) { playedThisLoadRef.current = true; inStallRef.current = false; exhaustRetriedRef.current = false; setBuffering(false); quietOn(); try { diagBuffering(false); } catch { /* ignore */ } }
           if (typeof data.playing === 'boolean') markStreaming(data.playing);
         }));
         if (gone) return;
@@ -416,6 +452,8 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     let loadSent = false;
     const reload = reloadRef.current;
     reloadRef.current = false;
+    playedThisLoadRef.current = false;
+    inStallRef.current = false;
     setBuffering(true);
     // A new stream (or a reload) starts playing.
     setPaused(false);
@@ -463,7 +501,8 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
         void freeMemoryForPlayback();
         loadSent = true;
         loadedUrlRef.current = url;
-        await SnowPlayer.load({ url, live, isLive: live, subtitles, engine, ...(rangeFetchRef.current && !live ? { rangeFetch: true } : {}), ...(start > 0 ? { startPosition: start } : {}), ...nativeLoadExtras(live, frameRateRef.current) });
+        const cushion = live ? liveBufferRef.current : null;
+        await SnowPlayer.load({ url, live, isLive: live, subtitles, engine, ...(rangeFetchRef.current && !live ? { rangeFetch: true } : {}), ...(start > 0 ? { startPosition: start } : {}), ...(cushion ? { liveStartBufferMs: cushion.startMs, liveRebufferMs: cushion.rebufferMs } : {}), ...nativeLoadExtras(live, frameRateRef.current) });
         if (cancelled || myNonce !== nonceRef.current) return;
         await SnowPlayer.setVolume({ volume: Math.min(MAX_VOLUME, Math.max(0, volume)) });
         if (cancelled || myNonce !== nonceRef.current) return;

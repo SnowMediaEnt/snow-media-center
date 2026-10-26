@@ -32,7 +32,8 @@
         "recordingsHere": "Grabaciones en este equipo",
         "recordingsOn": "Grabaciones en {{name}}",
         "help": "¿Se traba? Empieza aquí",
-        "signedInAs": "Sesión iniciada: {{username}}"
+        "signedInAs": "Sesión iniciada: {{username}}",
+        "liveBuffer": "Búfer en vivo: {{size}}"
       }
     },
     "renewQr": {

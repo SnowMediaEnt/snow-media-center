@@ -126,7 +126,16 @@
       "decodeAudio": "Décoder le son sur ce boîtier",
       "decodeAudioDesc": "Pour une TV ou un ampli qui affiche le film sans son : le Dolby et le DTS sont alors décodés ici au lieu d'être transmis tels quels. Laissez désactivé pour le meilleur son.",
       "on": "Oui",
-      "off": "Non"
+      "off": "Non",
+      "liveBuffer": "Mémoire tampon en direct",
+      "liveBufferDesc": "La part d'une chaîne chargée avant la lecture. Plus grande, elle encaisse un serveur lent sans s'arrêter, mais les chaînes mettent plus de temps à démarrer. Auto : rapide pour les chaînes normales, Grande pour les chaînes 24/7, et une taille de plus pour une chaîne qui coupe.",
+      "buffer": {
+        "auto": "Auto",
+        "small": "Petite",
+        "medium": "Moyenne",
+        "large": "Grande",
+        "xlarge": "Très grande"
+      }
     },
     "shell": {
       "signingIn": "Connexion avec votre compte…",
@@ -257,7 +266,8 @@
       "skipForward": "{{sec}} s en avant",
       "behindLive": "{{time}} de retard sur le direct",
       "atLive": "En direct",
-      "reportIt": "Le signaler"
+      "reportIt": "Le signaler",
+      "biggerBuffer": "Chargement d'une mémoire tampon plus grande…"
     },
     "failover": {
       "note": "{{channel}} ne fonctionne pas sur {{service}} — lecture depuis {{other}}",

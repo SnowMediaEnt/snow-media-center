@@ -178,6 +178,10 @@ class SnowPlayerPlugin : Plugin() {
         var currentSubtitles: JSArray? = null
         // Read on the loading thread too (the load-error policy, DeadStreamRule).
         @Volatile var isLive: Boolean = true
+        // Live TV's cushion the last load asked for (LiveCushion), ms; Go
+        // live after a rewind gets it again. 0 = the player's own.
+        var liveStartMs: Int = 0
+        var liveRebufferMs: Int = 0
         var lastPositionMs: Long = 0L
         var reconnectAttempts: Int = 0
         // A Plex conversion the server answered with an error status, in this
@@ -895,7 +899,7 @@ class SnowPlayerPlugin : Plugin() {
         // A passthrough mute is worked out again from the new output.
         p.trackSelectionParameters = if (wasMuted) params.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false).build() else params
         s.trackSelector?.let { ts -> ts.setParameters(ts.buildUponParameters().setTunnelingEnabled(s.tunneled)) }
-        s.loadControl?.beginStream(film = !live)
+        s.loadControl?.let { lc -> lc.beginStream(film = !live, liveStartMs = lc.liveStartMs, liveRebufferMs = lc.liveRebufferMs) }
         s.firstFrameSeen = false
         setPassthrough(s, screenId, false)
         applyFormat(s)
@@ -1295,6 +1299,10 @@ class SnowPlayerPlugin : Plugin() {
     private fun loadProfileOf(s: PlayerSlot): String? {
         val base = s.loadProfile ?: return null
         val lc = s.loadControl
+        if (lc != null && s.isLive) {
+            val cushion = LiveCushion.label(lc.liveStartMs, lc.liveRebufferMs)
+            if (cushion != null) return "$base · $cushion"
+        }
         if (lc == null || !lc.uhd) return base
         val budget = if (lc.uhdBudgetBytes > 0 && lc.budgetBytes > 0) "${lc.budgetBytes / MIB} MB, " else ""
         return "$base · 4K: ${budget}${UhdBuffer.REBUFFER_MS / 1000} s restart"
@@ -2466,6 +2474,11 @@ class SnowPlayerPlugin : Plugin() {
         // Seconds; a film resumed part-way. Absent or 0: the player's own start.
         val startSec = call.getDouble("startPosition")
         val startMs = if (startSec != null && startSec > 0.0) (startSec * 1000.0).toLong() else 0L
+        // Live TV's cushion for this channel (LiveCushion; the WebView's
+        // "Live buffer"): the main player's live loads only. Absent: the
+        // player's own 2.5 s / 5 s, as before.
+        val liveStartBufferMs = if (live) LiveCushion.clamp(call.getDouble("liveStartBufferMs")) else 0
+        val liveRebufferMs = if (live) LiveCushion.clamp(call.getDouble("liveRebufferMs")) else 0
         val screenId = screenIdOf(call)
         val s = slotFor(screenId)
         // Counted here, as the call arrives, not on the main thread: a blank
@@ -2600,6 +2613,8 @@ class SnowPlayerPlugin : Plugin() {
             s.currentUrl = url
             s.currentSubtitles = subs
             s.isLive = live
+            s.liveStartMs = liveStartBufferMs
+            s.liveRebufferMs = liveRebufferMs
             s.lastPositionMs = startMs
             s.reconnectAttempts = 0
             s.transcodeHttpFails = 0
@@ -2680,7 +2695,7 @@ class SnowPlayerPlugin : Plugin() {
             val item = buildMediaItem(url, subs)
             // A film (not Live TV) on the main player may get the 4K budget,
             // start and restart; told before prepare() selects its tracks.
-            s.loadControl?.beginStream(film = !live)
+            s.loadControl?.beginStream(film = !live, liveStartMs = liveStartBufferMs, liveRebufferMs = liveRebufferMs)
             if (startMs > 0) p.setMediaItem(item, startMs) else p.setMediaItem(item)
             p.prepare()
             if (live) {
@@ -3127,6 +3142,27 @@ class SnowPlayerPlugin : Plugin() {
             }
             hideIdleMainBox()
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            call.resolve()
+        }
+    }
+
+    /**
+     * Live TV's cushion changed on the channel playing (a bigger one after a
+     * stall, lib/liveBuffer): from the next start or restart on, no reload.
+     * The main player's live channel only, never the on-box rewind buffer
+     * (Go live takes it up again).
+     */
+    @PluginMethod
+    fun setLiveBuffer(call: PluginCall) {
+        val startMs = LiveCushion.clamp(call.getDouble("liveStartBufferMs"))
+        val rebufferMs = LiveCushion.clamp(call.getDouble("liveRebufferMs"))
+        activity?.runOnUiThread {
+            val s = slots[MAIN]
+            if (s != null && s.isLive && s.currentUrl != null && s.engine == EngineChoice.EXO) {
+                s.liveStartMs = startMs
+                s.liveRebufferMs = rebufferMs
+                if (!tsBuffer) s.loadControl?.setLiveCushion(startMs, rebufferMs)
+            }
             call.resolve()
         }
     }
@@ -3683,7 +3719,9 @@ class SnowPlayerPlugin : Plugin() {
             )
             .build()
         val source = HlsMediaSource.Factory(DefaultDataSource.Factory(ctx)).createMediaSource(item)
-        // A live-style stream for the load control (not a film's budget or start), told before prepare().
+        // A live-style stream for the load control (not a film's budget or
+        // start), told before prepare(). The buffer is on this box: no
+        // cushion (it may hold only seconds ahead of where the viewer is).
         s.loadControl?.beginStream(film = false)
         p.setMediaSource(source, target - startAbs)
         p.prepare()
@@ -3699,7 +3737,8 @@ class SnowPlayerPlugin : Plugin() {
         val url = s.currentUrl ?: return
         val p = s.player ?: return
         s.firstFrameSeen = false
-        s.loadControl?.beginStream(film = false)
+        // The channel itself again, with the cushion its load asked for.
+        s.loadControl?.beginStream(film = false, liveStartMs = s.liveStartMs, liveRebufferMs = s.liveRebufferMs)
         p.setMediaItem(buildMediaItem(url, s.currentSubtitles))
         p.prepare()
         p.playWhenReady = true
@@ -4014,11 +4053,26 @@ private class SteadyLoadControl(
     @Volatile var uhd: Boolean = false
         private set
 
+    /** Live TV's cushion for this stream (LiveCushion), ms: before it
+     *  starts and before it plays on after a stall. 0 = the player's own. */
+    @Volatile var liveStartMs: Int = 0
+        private set
+    @Volatile var liveRebufferMs: Int = 0
+        private set
+
     /** A new stream on the main player (load(), main thread, before
-     *  prepare()): a film or Live TV. Not 4K until its tracks say so. */
-    fun beginStream(film: Boolean) {
+     *  prepare()): a film or Live TV, with Live TV's cushion (none for a
+     *  film or the on-box rewind buffer). Not 4K until its tracks say so. */
+    fun beginStream(film: Boolean, liveStartMs: Int = 0, liveRebufferMs: Int = 0) {
         vod = film
         uhd = false
+        setLiveCushion(if (film) 0 else liveStartMs, if (film) 0 else liveRebufferMs)
+    }
+
+    /** The cushion changed on the stream playing (a bigger one after a stall). */
+    fun setLiveCushion(startMs: Int, rebufferMs: Int) {
+        liveStartMs = startMs.coerceIn(0, LiveCushion.MAX_MS)
+        liveRebufferMs = rebufferMs.coerceIn(0, LiveCushion.MAX_MS)
     }
     /** The byte budget last worked out from the tracks (0: a fixed one). */
     @Volatile var budgetBytes: Int = 0
@@ -4056,6 +4110,18 @@ private class SteadyLoadControl(
 
     override fun shouldStartPlayback(parameters: LoadControl.Parameters): Boolean {
         if (!super.shouldStartPlayback(parameters)) return false
+        // Live TV: its own cushion on top of the player's 2.5 s / 5 s.
+        if (!vod) {
+            return LiveCushion.startsNow(
+                bufferedUs = parameters.bufferedDurationUs,
+                rebuffering = parameters.rebuffering,
+                startMs = liveStartMs,
+                rebufferMs = liveRebufferMs,
+                targetLiveOffsetUs = parameters.targetLiveOffsetUs,
+                stillLoading = loadingNow,
+                unset = C.TIME_UNSET,
+            )
+        }
         if (!uhd || !parameters.rebuffering) return true
         // Never waits on a buffer that has stopped growing: the budget is
         // spent (or the file ends, which the player starts on by itself).

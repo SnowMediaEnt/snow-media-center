@@ -438,3 +438,13 @@ describe('the review\'s cases', () => {
     expect(s.open()).toBe(true);
   });
 });
+
+describe('a bigger Live buffer', () => {
+  it('waits for its fill before "buffering too long"', async () => {
+    const { cushionExtraMs } = await import('./useBufferingHelp');
+    expect(cushionExtraMs(null, true)).toBe(0);
+    expect(cushionExtraMs({ startMs: 2500, rebufferMs: 5000 }, true)).toBe(0);
+    expect(cushionExtraMs({ startMs: 10000, rebufferMs: 12000 }, true)).toBe(7500);
+    expect(cushionExtraMs({ startMs: 10000, rebufferMs: 12000 }, false)).toBe(7000);
+  });
+});

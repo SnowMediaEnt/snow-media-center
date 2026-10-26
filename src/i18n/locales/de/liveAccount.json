@@ -30,7 +30,8 @@
         "recordingsHere": "Aufnahmen auf diesem Gerät",
         "recordingsOn": "Aufnahmen auf {{name}}",
         "help": "Ruckelt es? Hier starten",
-        "signedInAs": "Angemeldet als {{username}}"
+        "signedInAs": "Angemeldet als {{username}}",
+        "liveBuffer": "Live-Puffer: {{size}}"
       }
     },
     "renewQr": {

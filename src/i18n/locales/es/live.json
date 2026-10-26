@@ -126,7 +126,16 @@
       "decodeAudio": "Decodificar el audio en este equipo",
       "decodeAudioDesc": "Para una TV o receptor que muestra la película pero no da sonido: Dolby y DTS se decodifican aquí en lugar de enviarse tal cual. Déjalo apagado para el mejor sonido.",
       "on": "Sí",
-      "off": "No"
+      "off": "No",
+      "liveBuffer": "Búfer en vivo",
+      "liveBufferDesc": "Cuánto de un canal se carga antes de reproducirlo. Más grande aguanta un servidor lento sin pararse, pero los canales tardan más en empezar. Auto: rápido en canales normales, Grande en canales 24/7 y un tamaño más en un canal que se congela.",
+      "buffer": {
+        "auto": "Auto",
+        "small": "Pequeño",
+        "medium": "Mediano",
+        "large": "Grande",
+        "xlarge": "Muy grande"
+      }
     },
     "shell": {
       "signingIn": "Iniciando tu sesión con tu cuenta…",
@@ -257,7 +266,8 @@
       "skipForward": "{{sec}} s adelante",
       "behindLive": "{{time}} por detrás del en vivo",
       "atLive": "En vivo",
-      "reportIt": "Reportarlo"
+      "reportIt": "Reportarlo",
+      "biggerBuffer": "Cargando un búfer más grande…"
     },
     "failover": {
       "note": "{{channel}} no funciona en {{service}}: se reproduce desde {{other}}",

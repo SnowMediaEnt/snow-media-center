@@ -30,7 +30,8 @@
         "recordingsHere": "Recordings on this box",
         "recordingsOn": "Recordings on {{name}}",
         "help": "Buffering? Start here",
-        "signedInAs": "Signed in as {{username}}"
+        "signedInAs": "Signed in as {{username}}",
+        "liveBuffer": "Live buffer: {{size}}"
       }
     },
     "renewQr": {

@@ -4,6 +4,7 @@
  * pointer.
  */
 import { act, render, screen } from '@testing-library/react';
+import { loadLiveBuffer } from '@/lib/liveBuffer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
@@ -118,7 +119,7 @@ describe('PlaybackScreen', () => {
     const onBack = vi.fn();
     render(<PlaybackScreen embedded active onBack={onBack} />);
     await wait();
-    down(); // chips -> the first switch
+    down(); down(); // chips -> Live buffer -> the first switch
     const row = document.querySelector('[data-playback-toggle="matchFrameRate"]') as HTMLElement;
     expect(row.getAttribute('data-focused')).toBe('true');
     right();
@@ -133,7 +134,7 @@ describe('PlaybackScreen', () => {
     const row = () => document.querySelector('[data-playback-toggle="matchFrameRate"]') as HTMLElement;
     expect(row().textContent).toContain('Match frame rate');
     expect(row().getAttribute('data-on')).toBe('true');
-    down();
+    down(); down(); // past the Live buffer row
     expect(row().getAttribute('data-focused')).toBe('true');
     ok();
     expect(row().getAttribute('data-on')).toBe('false');
@@ -151,5 +152,37 @@ describe('PlaybackScreen', () => {
     expect(screen.queryByText('When a channel is down, play it from my other service')).toBeNull();
     down(); down(); down(); // chips -> Match frame rate -> Decode audio, the last row
     expect((document.querySelector('[data-playback-toggle="decodeAudio"]') as HTMLElement).getAttribute('data-focused')).toBe('true');
+  });
+});
+
+describe('Live buffer row', () => {
+  const row = () => document.querySelector('[data-playback-row="liveBuffer"]') as HTMLElement;
+  const selected = () => (row().querySelector('[data-selected="true"]') as HTMLElement).getAttribute('data-buffer-choice');
+
+  it('Auto by default; Down from the chips lands on it; ◀▶ and OK walk the choices inline', async () => {
+    render(<PlaybackScreen onBack={vi.fn()} />);
+    await wait();
+    expect(selected()).toBe('auto');
+    down();
+    expect(row().getAttribute('data-focused')).toBe('true');
+    right();
+    expect(selected()).toBe('small');
+    expect(loadLiveBuffer()).toBe('small');
+    right(); right(); right(); right();
+    expect(selected()).toBe('xlarge');
+    ok();
+    expect(selected()).toBe('auto');
+    up();
+    expect(chip('ExoPlayer').getAttribute('data-focused')).toBe('true');
+  });
+
+  it('beside the menu, ◀ on Auto goes back to the menu', async () => {
+    const onBack = vi.fn();
+    render(<PlaybackScreen onBack={onBack} embedded active />);
+    await wait();
+    down();
+    left();
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(loadLiveBuffer()).toBe('auto');
   });
 });

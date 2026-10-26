@@ -14,6 +14,7 @@ import { lineKey } from '@/lib/favoritesSync';
 import { LIVE_LAYOUTS, useLiveLayout } from '@/lib/liveLayout';
 import { HIDDEN_CATEGORIES_EVENT, loadHiddenCategories } from '@/lib/liveLines';
 import { REWIND_SETTINGS_EVENT, loadRewindSettings } from '@/lib/liveRewind';
+import { LIVE_BUFFER_EVENT, LIVE_BUFFER_LABEL_KEY, loadLiveBuffer } from '@/lib/liveBuffer';
 import { useLiveRowSize } from '@/lib/liveRows';
 import { readOutsideHere } from '@/lib/outsideActions';
 import { OUTSIDE_SOURCES_EVENT, outsideCreds } from '@/lib/outsideSource';
@@ -63,6 +64,7 @@ export function useHubStates(refresh: unknown): Record<HubRow, string> {
   const rowSize = useLiveRowSize();
   const [lines, setLines] = useState<LinesNow | null>(null);
   const [rewindOn, setRewindOn] = useState(() => loadRewindSettings().enabled);
+  const [liveBuffer, setLiveBuffer] = useState(loadLiveBuffer);
   /** Where recordings go: null on a box that doesn't record (or the demo), '' for the box itself. */
   const [recTo, setRecTo] = useState<string | null>(null);
 
@@ -78,6 +80,12 @@ export function useHubStates(refresh: unknown): Record<HubRow, string> {
     const read = () => setRewindOn(loadRewindSettings().enabled);
     window.addEventListener(REWIND_SETTINGS_EVENT, read);
     return () => window.removeEventListener(REWIND_SETTINGS_EVENT, read);
+  }, []);
+
+  useEffect(() => {
+    const read = () => setLiveBuffer(loadLiveBuffer());
+    window.addEventListener(LIVE_BUFFER_EVENT, read);
+    return () => window.removeEventListener(LIVE_BUFFER_EVENT, read);
   }, []);
 
   useEffect(() => {
@@ -122,8 +130,8 @@ export function useHubStates(refresh: unknown): Record<HubRow, string> {
       t(rewindOn ? 'liveAccount.hub.state.rewindOn' : 'liveAccount.hub.state.rewindOff'),
       recTo === null ? '' : recTo ? t('liveAccount.hub.state.recordingsOn', { name: recTo }) : t('liveAccount.hub.state.recordingsHere'),
     ].filter(Boolean).join(' · '),
-    // Product names, not translated.
-    player: engine === 'mpv' ? 'MPV' : 'ExoPlayer',
+    // Product names, not translated; then the Live buffer.
+    player: `${engine === 'mpv' ? 'MPV' : 'ExoPlayer'} · ${t('liveAccount.hub.state.liveBuffer', { size: t(LIVE_BUFFER_LABEL_KEY[liveBuffer]) })}`,
     help: t('liveAccount.hub.state.help'),
     signout: lines?.username ? t('liveAccount.hub.state.signedInAs', { username: lines.username }) : '',
   };

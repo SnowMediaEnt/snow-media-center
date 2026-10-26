@@ -127,9 +127,12 @@ describe('normal ExoPlayer playback reaches the rewind code only through guarded
   it('the load control is told it is a live stream before the buffer or the channel is prepared', () => {
     for (const fn of ['private fun tsSwitchToBuffer(', 'private fun tsGoLive(']) {
       const b = body(plugin, fn);
-      expect(b).toContain('s.loadControl?.beginStream(film = false)');
-      expect(b.indexOf('beginStream(film = false)')).toBeLessThan(b.indexOf('p.prepare()'));
+      expect(b).toContain('s.loadControl?.beginStream(film = false');
+      expect(b.indexOf('beginStream(film = false')).toBeLessThan(b.indexOf('p.prepare()'));
     }
+    // The buffer on the box gets no Live buffer cushion; Go live gets the channel's again.
+    expect(body(plugin, 'private fun tsSwitchToBuffer(')).toContain('s.loadControl?.beginStream(film = false)\n');
+    expect(body(plugin, 'private fun tsGoLive(')).toContain('beginStream(film = false, liveStartMs = s.liveStartMs, liveRebufferMs = s.liveRebufferMs)');
   });
 });
 

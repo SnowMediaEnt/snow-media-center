@@ -32,7 +32,8 @@
         "recordingsHere": "Enregistrements sur cet appareil",
         "recordingsOn": "Enregistrements sur {{name}}",
         "help": "Ça coupe ? Commencez ici",
-        "signedInAs": "Connecté : {{username}}"
+        "signedInAs": "Connecté : {{username}}",
+        "liveBuffer": "Tampon en direct : {{size}}"
       }
     },
     "renewQr": {

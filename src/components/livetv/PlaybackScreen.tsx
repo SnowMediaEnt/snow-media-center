@@ -6,6 +6,7 @@ import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import { usePlayerEngine, type PlayerEngine } from '@/hooks/usePlayerEngine';
 import { compareEngines, type EngineCompareRow } from '@/lib/engineCompare';
 import { loadDecodeAudioOnBox, loadMatchFrameRate, saveDecodeAudioOnBox, saveMatchFrameRate } from '@/lib/playerFlags';
+import { LIVE_BUFFER_CHOICES, LIVE_BUFFER_LABEL_KEY, loadLiveBuffer, saveLiveBuffer, type LiveBufferChoice } from '@/lib/liveBuffer';
 
 interface Props {
   onBack: () => void;
@@ -47,8 +48,9 @@ const TOGGLES: ToggleRow[] = [
 ];
 // The failover switch ("When a channel is down, play it from my other
 // service") moved to Live TV Settings › Channels (owner, 2026-10-20).
-/** Focus: 0 = Back, 1-2 = the engine chips, then one per toggle. */
-const FIRST_TOGGLE = 1 + CHIPS.length;
+/** Focus: 0 = Back, 1-2 = the engine chips, the Live buffer row, then one per toggle. */
+const BUFFER_ROW = 1 + CHIPS.length;
+const FIRST_TOGGLE = BUFFER_ROW + 1;
 
 const dash = (n: number | null, digits = 0, suffix = ''): string => (n == null ? '—' : `${n.toFixed(digits)}${suffix}`);
 
@@ -59,6 +61,9 @@ const PlaybackScreen = memo(({ onBack, embedded = false, active = true }: Props)
   const [mpvReason, setMpvReason] = useState<string | null>(null);
   const [rows, setRows] = useState<EngineCompareRow[]>([]);
   const [toggles, setToggles] = useState<Record<string, boolean>>(() => Object.fromEntries(TOGGLES.map((r) => [r.id, r.load()])));
+  // Live buffer (lib/liveBuffer): one compact row, its choices inline.
+  const [liveBuffer, setLiveBuffer] = useState<LiveBufferChoice>(loadLiveBuffer);
+  const pickBuffer = (c: LiveBufferChoice) => { saveLiveBuffer(c); setLiveBuffer(c); };
   const flip = (row: ToggleRow) => {
     const next = !row.load();
     row.save(next);
@@ -107,19 +112,29 @@ const PlaybackScreen = memo(({ onBack, embedded = false, active = true }: Props)
       // used to step through everything in a line, so Left on a switch went up
       // instead of to the menu (owner, 2026-10-16).
       const cur = focusRef.current;
-      const onChip = cur >= 1 && cur < FIRST_TOGGLE;
+      const onChip = cur >= 1 && cur < BUFFER_ROW;
+      // Live buffer: ◀▶ along the choices (◀ on the first one goes to the
+      // menu, as on every page), OK the next one.
+      if (cur === BUFFER_ROW && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Enter' || e.key === ' ')) {
+        const at = Math.max(0, LIVE_BUFFER_CHOICES.indexOf(loadLiveBuffer()));
+        const n = LIVE_BUFFER_CHOICES.length;
+        if (e.key === 'ArrowLeft' && at === 0) { if (embedded) onBack(); return; }
+        const next = e.key === 'ArrowLeft' ? at - 1 : e.key === 'ArrowRight' ? Math.min(n - 1, at + 1) : (at + 1) % n;
+        pickBuffer(LIVE_BUFFER_CHOICES[next]);
+        return;
+      }
       if (e.key === 'ArrowRight') {
-        if (onChip && cur + 1 < FIRST_TOGGLE) setFocusIdx(cur + 1);
+        if (onChip && cur + 1 < BUFFER_ROW) setFocusIdx(cur + 1);
       } else if (e.key === 'ArrowLeft') {
         if (onChip && cur > 1) setFocusIdx(cur - 1);
         else if (embedded) onBack();
         else setFocusIdx(0);
       } else if (e.key === 'ArrowDown') {
         const last = FIRST_TOGGLE + TOGGLES.length - 1;
-        setFocusIdx((i) => (i >= 1 && i < FIRST_TOGGLE ? FIRST_TOGGLE : Math.min(last, i + 1)));
+        setFocusIdx((i) => (i >= 1 && i < BUFFER_ROW ? BUFFER_ROW : Math.min(last, i + 1)));
       } else if (e.key === 'ArrowUp') {
-        // From the first switch up to the chips; from a chip up to Back (none embedded).
-        setFocusIdx((i) => (i > FIRST_TOGGLE ? i - 1 : i === FIRST_TOGGLE ? 1 : embedded ? i : 0));
+        // From the Live buffer row up to the chips; from a chip up to Back (none embedded).
+        setFocusIdx((i) => (i > BUFFER_ROW ? i - 1 : i === BUFFER_ROW ? 1 : embedded ? i : 0));
       } else if (e.key === 'Enter' || e.key === ' ') {
         // A toggle flips once per press (outside the state updater, which
         // React may run twice).
@@ -215,6 +230,31 @@ const PlaybackScreen = memo(({ onBack, embedded = false, active = true }: Props)
 
           <div className="space-y-3">
             <div className="text-xs uppercase tracking-wide text-white/70">{t('live.playback.settingsHeading')}</div>
+            <div
+              data-playback-row="liveBuffer"
+              data-focused={focusIdx === BUFFER_ROW ? 'true' : 'false'}
+              onClick={() => setFocusIdx(BUFFER_ROW)}
+              className={`tv-ring rounded-2xl px-4 py-2 border cursor-pointer bg-slate-900/60 border-white/10 ${focusIdx === BUFFER_ROW ? 'scale-[1.02] z-10' : ''}`}
+            >
+              <div className="flex items-center">
+                <p className="flex-1 min-w-0 text-sm font-quicksand font-bold text-white">{t('live.playback.liveBuffer')}</p>
+                <div className="ml-3 flex-shrink-0 whitespace-nowrap">
+                  {LIVE_BUFFER_CHOICES.map((c) => (
+                    <span
+                      key={c}
+                      data-buffer-choice={c}
+                      data-selected={liveBuffer === c ? 'true' : 'false'}
+                      onClick={(e) => { e.stopPropagation(); setFocusIdx(BUFFER_ROW); pickBuffer(c); }}
+                      className={`inline-block ml-1 px-2.5 py-0.5 rounded-lg font-nunito text-sm leading-5 whitespace-nowrap ${
+                        liveBuffer === c ? (focusIdx === BUFFER_ROW ? 'bg-brand-gold text-brand-navy font-bold' : 'bg-white/25 font-semibold') : 'text-brand-ice/75'}`}
+                    >
+                      {t(LIVE_BUFFER_LABEL_KEY[c])}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs font-nunito text-brand-ice/70 mt-1">{t('live.playback.liveBufferDesc')}</p>
+            </div>
             {TOGGLES.map((row, i) => toggleRow(row, FIRST_TOGGLE + i))}
           </div>
 

@@ -36,6 +36,7 @@ import { loadFavOrder, saveFavOrder } from '@/lib/favoritesOrder';
 import { saveLiveLayout } from '@/lib/liveLayout';
 import { saveLiveRowSize } from '@/lib/liveRows';
 import { saveRewindSettings } from '@/lib/liveRewind';
+import { saveLiveBuffer } from '@/lib/liveBuffer';
 import { formatDate } from '@/i18n/format';
 
 const DS = { host: 'http://dstreams.xyz:8080', username: 'jsmith', password: 'pw', output: 'm3u8', serverLabel: 'Dreamstreams' };
@@ -146,7 +147,9 @@ describe('Settings menu state lines', () => {
   it('Player, Fix a problem and Sign out', async () => {
     h.engine = 'mpv';
     const r = await render();
-    expect(r.result.current.player).toBe('MPV');
+    expect(r.result.current.player).toBe('MPV · Live buffer: Auto');
+    act(() => { saveLiveBuffer('large'); });
+    await waitFor(() => expect(r.result.current.player).toBe('MPV · Live buffer: Large'));
     expect(r.result.current.help).toBe('Buffering? Start here');
     expect(r.result.current.signout).toBe('Signed in as jsmith');
   });

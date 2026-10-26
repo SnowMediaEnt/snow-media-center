@@ -70,6 +70,13 @@ export interface SnowPlayerLoadOpts {
    *  Matroska file never states one to the player). Used before the
    *  stream's own and before an estimate from the first frames. */
   frameRate?: number;
+  /** Live TV's cushion (lib/liveBuffer, the "Live buffer" setting), ms: how
+   *  much of a live channel the main player holds before it starts, and
+   *  before it plays on after a stall. Live loads on the main player only
+   *  (tiles, films and the rewind buffer keep their own). Absent: the
+   *  player's own 2.5 s / 5 s. Older builds ignore them. */
+  liveStartBufferMs?: number;
+  liveRebufferMs?: number;
   /** The main player draws on a SurfaceView instead of a TextureView (the
    *  `video_surface_view` flag): its own display layer, the decoder's frame
    *  timing, HDR passed through. A change rebuilds the main player's views.
@@ -296,6 +303,10 @@ export interface SnowPlayerPlugin {
    *  has drawn); the rect is left as it is. Older builds ignore it. */
   setRect(opts: { x: number; y: number; width: number; height: number; cssW?: number; cssH?: number; fullscreen?: boolean; screenId?: string; blank?: boolean; unblank?: boolean }): Promise<void>;
   setVolume(opts: { volume: number; screenId?: string }): Promise<void>;
+  /** Live TV's cushion changed on the channel playing (a bigger one after a
+   *  stall): from its next start or restart on, no reload. Main player only;
+   *  older builds don't have it (callers catch). */
+  setLiveBuffer(opts: { liveStartBufferMs: number; liveRebufferMs: number }): Promise<void>;
   /** Screen format — see SCREEN_FORMATS. Native only; a no-op on web. */
   setResizeMode(opts: { mode: ScreenFormat; screenId?: string }): Promise<{ mode: string }>;
   getResizeMode(opts?: { screenId?: string }): Promise<{ mode: string }>;
@@ -394,6 +405,7 @@ const webFallback: SnowPlayerPlugin = {
   async getPosition() { return { position: 0, duration: 0, playing: false }; },
   async setRect() {},
   async setVolume() {},
+  async setLiveBuffer() {},
   async setResizeMode() { return { mode: 'fit' }; },
   async getResizeMode() { return { mode: 'fit' }; },
   async setAudioEnabled() {},
