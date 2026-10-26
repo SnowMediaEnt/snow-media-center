@@ -159,6 +159,10 @@ export interface PlayerStats {
   /** How far ahead the player reads, e.g. "steady · 50 s / 128 MB, 20 s floor",
    *  or for mpv "mpv · cache 32 MB · 10 s ahead". */
   loadProfile: string | null;
+  /** The last Live buffer catch-up (playing a little slow to fill a raised
+   *  cushion): "running", or how it ended ("filled after 40 s"); null when none ran.
+   *  Older builds leave it out. */
+  liveCatchUp?: string | null;
   /** How many connections the stream is being read over right now: the
    *  range reader's live count for a Plex file from a remote server
    *  (rangeFetch; 0 while its window is full and nothing is in flight),
@@ -229,7 +233,7 @@ export function emptyPlayerStats(): PlayerStats {
     nowKbps: null, avgKbps: null, minKbps: null, maxKbps: null, arrivalKbps: null,
     videoDecoder: null, videoFormat: null, renderedFrames: null, droppedFrames: null,
     audioDecoder: null, audioFormat: null,
-    restarts: 0, lastRestartReason: null, lastError: null, httpStatus: null, loadProfile: null, fetchConnections: null, lowRamBox: null,
+    restarts: 0, lastRestartReason: null, lastError: null, httpStatus: null, loadProfile: null, liveCatchUp: null, fetchConnections: null, lowRamBox: null,
     rangeFetch: false, connectionCap: 1,
     javaHeapMb: null, nativeHeapMb: null,
     engine: 'exo', firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
