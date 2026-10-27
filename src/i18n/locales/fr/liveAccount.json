@@ -84,7 +84,21 @@
       "countMovies_many": "{{num}} films",
       "countSeries_one": "{{num}} série",
       "countSeries_other": "{{num}} séries",
-      "countSeries_many": "{{num}} séries"
+      "countSeries_many": "{{num}} séries",
+      "pin": "PIN de connexion",
+      "pinBtn": "Obtenir mon PIN de connexion",
+      "pinShowBtn": "Afficher le PIN",
+      "pinHideBtn": "Masquer le PIN",
+      "pinLoading": "Récupération de votre PIN…",
+      "pinHint": "Gardez-le : sur vos autres appareils, choisissez Se connecter avec un PIN et saisissez-le. Il reste le même au renouvellement.",
+      "pinFail": {
+        "rate_limited": "Trop d'essais — attendez quelques minutes",
+        "line_refused": "Votre identifiant et mot de passe n'ont pas fonctionné — reconnectez-vous d'abord",
+        "expired": "Cette ligne a expiré — renouvelez-la pour obtenir votre PIN",
+        "panel_unreachable": "Impossible de joindre votre service — réessayez dans une minute",
+        "pin_off": "Votre PIN est désactivé — contactez le support",
+        "error": "Impossible d'obtenir votre PIN. Veuillez réessayer."
+      }
     },
     "playerCard": {
       "title": "Compte du lecteur",
@@ -312,7 +326,7 @@
         "subtitle": "Utilisez le PIN à 10 chiffres de votre ligne",
         "label": "PIN",
         "back": "Utiliser l'identifiant et le mot de passe",
-        "note": "Votre PIN figure dans votre e-mail de bienvenue, ou demandez-le au support.",
+        "note": "Votre PIN se trouve dans Paramètres TV en direct › Mon compte sur tout appareil déjà connecté, ou dans votre e-mail de bienvenue.",
         "invalidPin": "Un PIN compte 10 chiffres",
         "notFound": "Ce PIN n'est pas le bon",
         "expired": "Cette ligne a expiré — renouvelez-la pour continuer à regarder",

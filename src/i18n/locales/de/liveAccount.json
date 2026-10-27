@@ -77,7 +77,21 @@
       "countMovies_one": "{{num}} Film",
       "countMovies_other": "{{num}} Filme",
       "countSeries_one": "{{num}} Serie",
-      "countSeries_other": "{{num}} Serien"
+      "countSeries_other": "{{num}} Serien",
+      "pin": "Anmelde-PIN",
+      "pinBtn": "Meine Anmelde-PIN holen",
+      "pinShowBtn": "Anmelde-PIN zeigen",
+      "pinHideBtn": "Anmelde-PIN verbergen",
+      "pinLoading": "PIN wird geholt…",
+      "pinHint": "Speichern Sie sie: Wählen Sie auf Ihren anderen Geräten Mit PIN anmelden und geben Sie sie ein. Sie bleibt beim Verlängern gleich.",
+      "pinFail": {
+        "rate_limited": "Zu viele Versuche — warten Sie ein paar Minuten",
+        "line_refused": "Benutzername und Passwort haben nicht funktioniert — melden Sie sich zuerst erneut an",
+        "expired": "Diese Leitung ist abgelaufen — verlängern Sie sie, um Ihre PIN zu bekommen",
+        "panel_unreachable": "Ihr Dienst ist nicht erreichbar — versuchen Sie es in einer Minute erneut",
+        "pin_off": "Ihre PIN ist ausgeschaltet — wenden Sie sich an den Support",
+        "error": "Die PIN konnte nicht geholt werden. Bitte erneut versuchen."
+      }
     },
     "playerCard": {
       "title": "Player-Konto",
@@ -304,7 +318,7 @@
         "subtitle": "Nutze die 10-stellige PIN deiner Leitung",
         "label": "PIN",
         "back": "Benutzername und Passwort verwenden",
-        "note": "Deine PIN steht in deiner Willkommens-E-Mail, oder frag den Support.",
+        "note": "Ihre PIN finden Sie unter Live-TV-Einstellungen › Mein Konto auf jedem bereits angemeldeten Gerät oder in Ihrer Willkommens-E-Mail.",
         "invalidPin": "Eine PIN hat 10 Ziffern",
         "notFound": "Diese PIN stimmt nicht",
         "expired": "Diese Leitung ist abgelaufen — verlängere sie, um weiterzuschauen",
