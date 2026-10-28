@@ -189,7 +189,7 @@ describe('device-health: what is kept', () => {
     expect((out.body.ids as unknown[]).map((i) => typeof i)).toEqual(['string', 'object', 'object']);
   });
 
-  it('keeps at most 40 light events a day, and 300 in all in a deep check', async () => {
+  it('keeps at most 40 light events a day, and 3000 in all in a deep check', async () => {
     db.today = { all: 38, light: 38, checks: 0 };
     let out = await report(Array.from({ length: 5 }, () => event()));
     expect(out.body).toMatchObject({ ok: true, accepted: 5 });
@@ -201,10 +201,10 @@ describe('device-health: what is kept', () => {
     expect(out.body).toMatchObject({ ok: true, accepted: 1, ids: [null] });
     expect(queriesOf('device_health_events', 'insert')).toHaveLength(0);
 
-    // Deep: the light cap no longer applies, the daily 300 does.
+    // Deep: the light cap no longer applies, the daily 3000 does.
     state.queries.length = 0;
     db.deepUntil = new Date(Date.now() + 3 * DAY).toISOString();
-    db.today = { all: 297, light: 40, checks: 0 };
+    db.today = { all: 2997, light: 40, checks: 0 };
     out = await report(Array.from({ length: 5 }, () => event({ kind: 'sample', verdict: 'unknown' })));
     expect(out.body).toMatchObject({ ok: true, accepted: 5, deep_until: db.deepUntil });
     expect(inserted()).toHaveLength(3);

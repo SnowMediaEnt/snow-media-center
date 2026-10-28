@@ -11,14 +11,14 @@
 //       for another line → other_line). Up to 20 events per call, each at most
 //       4 KB. Strings that look like a URL, a query string with a password /
 //       token / username, or an IP address are dropped before anything is
-//       stored. A box keeps at most 300 events a day, and at most 40 of them
+//       stored. A box keeps at most 3000 events a day (a deep check samples every 10 s), and at most 40 of them
 //       while it is not in a deep check; app_start / sample are kept only in a
 //       deep check. Events over a cap or malformed are dropped silently but
 //       still counted in `accepted`, so the box never sends them again.
 //       A customer-run 30-second check (kind 'check') may carry `samples`
 //       (<= 30 rows of <= 8 numbers; ignored on other kinds), may be up to
 //       12 KB, works without a deep check, and has its own cap of 6 per box a
-//       day (it does not count against the 300 / 40). `ids` lines up with the
+//       day (it does not count against the 3000 / 40). `ids` lines up with the
 //       events sent: the stored event's id, or null for one that was dropped,
 //       so the app can quote "Device check: <id>" in a report.
 //       → {ok:true, accepted:n, ids:(string|null)[], deep_until: string|null}
@@ -76,7 +76,7 @@ const MAX_CHECK_BYTES = 12 * 1024;
 export const MAX_CHECKS_PER_DAY = 6;
 const MAX_SAMPLE_ROWS = 30;
 const MAX_SAMPLE_COLS = 8;
-export const MAX_EVENTS_PER_DAY = 300;
+export const MAX_EVENTS_PER_DAY = 3000;
 export const MAX_LIGHT_EVENTS_PER_DAY = 40;
 // Light: at most a call per 30 s; deep: a batch a minute plus light flushes.
 const REPORTS_PER_KEY_PER_HOUR = 180;
