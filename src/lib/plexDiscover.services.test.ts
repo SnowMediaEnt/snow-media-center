@@ -27,6 +27,7 @@ vi.mock('@/lib/plex', () => ({
     return [{ ratingKey: `${section}-a`, title: 'A', type: section === '1' ? 'movie' : 'show' }];
   }),
   getPlexRelated: vi.fn(async () => []),
+  getPlexRelatedHubs: vi.fn(async () => []),
 }));
 vi.mock('@/lib/watchHistory', () => ({ currentViewer: async () => 'device', loadWatchHistory: () => [] }));
 

@@ -7,7 +7,7 @@
 // with a single ternary.
 import { supabase } from '@/integrations/supabase/client';
 import type {
-  PlexLibrary, PlexItem, PlexLibraryPage, PlexMetadata, PlexSeason, PlexEpisode,
+  PlexLibrary, PlexItem, PlexLibraryPage, PlexMetadata, PlexSeason, PlexEpisode, PlexRelatedHub,
 } from '@/lib/plex';
 
 export interface DemoCatalog {
@@ -113,6 +113,19 @@ export async function demoGetActorItems(
   _personId: string,
 ): Promise<PlexItem[]> {
   return [];
+}
+
+/** A title page's related rows in the demo: one untitled row (the page
+ *  names it) of other titles from the same library, preferring a shared genre. */
+export async function demoGetRelatedHubs(_base: string, _token: string, ratingKey: string): Promise<PlexRelatedHub[]> {
+  const cat = await fetchDemoCatalog();
+  const lib = Object.values(cat.itemsByLibrary).find((items) => items.some((it) => it.ratingKey === ratingKey));
+  if (!lib) return [];
+  const genres = new Set(cat.metadataByRatingKey[ratingKey]?.genres ?? []);
+  const others = lib.filter((it) => it.ratingKey !== ratingKey && (it.type === 'movie' || it.type === 'show'));
+  const shared = (it: PlexItem) => (it.genres ?? []).some((g) => genres.has(g));
+  const items = [...others.filter(shared), ...others.filter((it) => !shared(it))].slice(0, 12);
+  return items.length ? [{ title: '', collection: false, items }] : [];
 }
 
 // ── a library's rows (PlexLibraryRows), from the same catalog ─────────────

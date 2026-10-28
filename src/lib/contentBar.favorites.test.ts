@@ -32,7 +32,7 @@ vi.mock('@/lib/favoritesSync', () => ({
 vi.mock('@/lib/plex', () => ({
   loadPlexServer: async () => (plexSignedIn ? { base: 'http://plex', token: 'tok' } : null),
   plexImageUrl: (_b: string, thumb?: string) => (thumb ? `img:${thumb}` : undefined),
-  getPlexLibraries: async () => [], getPlexRelated: async () => [], getPlexSectionRow: async () => [], getPlexFilterValues: async () => [], kidsOnly: (x: unknown[]) => x,
+  getPlexLibraries: async () => [], getPlexRelated: async () => [], getPlexRelatedHubs: async () => [], getPlexSectionRow: async () => [], getPlexFilterValues: async () => [], kidsOnly: (x: unknown[]) => x,
 }));
 vi.mock('@/lib/plexFavorites', () => ({
   myList: () => [{ ratingKey: '55', title: 'Moana', type: 'movie', thumb: '/library/metadata/55/thumb' }],

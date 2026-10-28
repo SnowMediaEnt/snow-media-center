@@ -257,6 +257,7 @@
       "lighterVersion": "a lighter version",
       "cast": "Cast",
       "noCast": "No cast info.",
+      "moreLikeThis": "More like this",
       "seasonsTitle": "{{title}} · Seasons",
       "noSeasons": "No seasons.",
       "seasonsHint": "◀ ▶ pick a season · OK to open · Back to detail",

@@ -93,6 +93,7 @@ vi.mock('@/lib/plex', async (orig) => ({
   getPlexSectionRow: h.row,
   getPlexFilterValues: async () => [],
   getPlexRelated: async () => [],
+  getPlexRelatedHubs: async () => [],
   getPlexAccount: async () => null,
   loadHiddenPlexLibs: async () => [],
   preloadImages: async () => undefined,

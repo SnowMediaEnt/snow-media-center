@@ -36,6 +36,7 @@ vi.mock('@/lib/plex', () => ({
     ...(withKidsLibrary ? [{ key: '3', title: 'Kids Movies', type: 'movie' }] : []),
   ],
   getPlexRelated: async () => related,
+  getPlexRelatedHubs: async () => [],
   getPlexFilterValues: async (_b: string, _t: string, path: string) => GENRES[path.split('/')[3]] ?? [],
   getPlexSectionRow: async (_b: string, _t: string, key: string, query: string) => {
     rowCalls.push({ key, query });

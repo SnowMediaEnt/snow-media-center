@@ -9,12 +9,12 @@ import { ArrowLeft, Clapperboard, Loader2, Play, RotateCw, List, Plus, Check, Ga
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
 import { getPlexMetadata as _getPlexMetadata, getPlexSeasons as _getPlexSeasons,
-  getPlexEpisodes as _getPlexEpisodes, getPlexActorItems as _getPlexActorItems, resolutionLabel, findPlexCopies, getPlexTrailer,
-  type PlexMetadata, type PlexSeason, type PlexEpisode, type PlexItem, type PlexPerson, type PlexVersion, type PlexTrailer } from '@/lib/plex';
+  getPlexEpisodes as _getPlexEpisodes, getPlexActorItems as _getPlexActorItems, getPlexRelatedHubs as _getPlexRelatedHubs, resolutionLabel, findPlexCopies, getPlexTrailer,
+  type PlexMetadata, type PlexSeason, type PlexEpisode, type PlexItem, type PlexPerson, type PlexVersion, type PlexTrailer, type PlexRelatedHub } from '@/lib/plex';
 import { cachedPlexSpeed, cachedPlexSpeedPart, defaultVersion, is4k, measurePlexSpeed, sortVersions, speedVerdict, speedWarning, startVersion, versionName, type PlexPlaySource } from '@/lib/plexVersions';
 import { startPresetFor } from '@/lib/plexAutoQuality';
 import { isDemo, isHowtoCapture } from '@/lib/demoMode';
-import { demoGetMetadata, demoGetSeasons, demoGetEpisodes, demoGetActorItems } from '@/lib/plexDemo';
+import { demoGetMetadata, demoGetSeasons, demoGetEpisodes, demoGetActorItems, demoGetRelatedHubs } from '@/lib/plexDemo';
 import PlexImage from './PlexImage';
 import PlexWatchedBadge from './PlexWatchedBadge';
 import { usePlexWatched } from './usePlexWatched';
@@ -58,7 +58,9 @@ interface Props {
 
 type Step = 'detail' | 'seasons' | 'episodes' | 'actorGrid';
 // 'trailer': Trailer, on its own line under the buttons.
-type DetailZone = 'buttons' | 'trailer' | 'versions' | 'cast';
+// 'related': the rows under the cast (the collection's sequels, similar
+// titles, more with an actor), relRow / relCol.
+type DetailZone = 'buttons' | 'trailer' | 'versions' | 'cast' | 'related';
 
 // Demo mode reads everything from the pre-built, scrubbed catalog instead of
 // a live PMS. Always false on native.
@@ -69,6 +71,7 @@ const getPlexMetadata = DEMO ? demoGetMetadata : _getPlexMetadata;
 const getPlexSeasons = DEMO ? demoGetSeasons : _getPlexSeasons;
 const getPlexEpisodes = DEMO ? demoGetEpisodes : _getPlexEpisodes;
 const getPlexActorItems = DEMO ? demoGetActorItems : _getPlexActorItems;
+const getPlexRelatedHubs = DEMO ? demoGetRelatedHubs : _getPlexRelatedHubs;
 
 const COLS = 6;
 const fmtRuntime = (ms?: number): string => {
@@ -235,6 +238,15 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   // page is already fighting a heap spike from getPlexMetadata's JSON parse.
   const [castReady, setCastReady] = useState(false);
 
+  // Related rows under the cast (Plex's /related hubs: the collection's
+  // sequels first, then similar titles, more with an actor…). Asked once the
+  // cast has mounted, so their posters never weigh on the first paint; kept
+  // per title so Back to it shows them at once. A failure is no rows.
+  const [related, setRelated] = useState<PlexRelatedHub[]>([]);
+  const [relRow, setRelRow] = useState(0);
+  const [relCol, setRelCol] = useState(0);
+  const relatedMemoRef = useRef(new Map<string, PlexRelatedHub[]>());
+
   // Versions (a 4K and a 1080p file of this title — two Media of one item,
   // or copies in other libraries) and which one Play starts. Nothing is
   // chosen until the viewer picks: the default is the version the clicked
@@ -285,6 +297,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
     setSeasonsLoading(false); setEpisodesLoading(false);
     setCopies([]); setChosenId(null); setVerIdx(0); setEpPref(null);
     setTrailer(null);
+    setRelated([]); setRelRow(0); setRelCol(0);
     const known = metaMemoRef.current.get(current.ratingKey);
     if (known) {
       setMeta(known); setMetaLoading(false); setCastReady(true);
@@ -436,6 +449,25 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
     return () => { cancelled = true; cancelIdle(); };
   }, [trailerAllowed, meta, current.ratingKey]);
   const shownTrailer = trailerAllowed && trailer && step === 'detail' ? trailer : null;
+
+  // The related rows: a film's or a show's, after the cast has mounted.
+  const relatedType = meta && meta.ratingKey === current.ratingKey ? meta.type : current.type;
+  useEffect(() => {
+    if (!castReady || (relatedType !== 'movie' && relatedType !== 'show')) return;
+    const rk = current.ratingKey;
+    const known = relatedMemoRef.current.get(rk);
+    if (known) { setRelated(known); return; }
+    let cancelled = false;
+    const cancelIdle = runWhenIdle(() => {
+      if (cancelled) return;
+      const { base, token } = connRef.current;
+      // Through a promise, so even a throw on the call is just no rows.
+      Promise.resolve().then(() => getPlexRelatedHubs(base, token, rk))
+        .then((rows) => { relatedMemoRef.current.set(rk, rows); if (!cancelled) setRelated(rows); })
+        .catch(() => { /* no rows */ });
+    }, 300);
+    return () => { cancelled = true; cancelIdle(); };
+  }, [castReady, relatedType, current.ratingKey]);
 
   // Measure the speed to the server for a 4K version (its own file, a few
   // seconds): one at a time, reused for five minutes, and not retried for a
@@ -689,6 +721,9 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   const epIdxRef = useRef(epIdx); useEffect(() => { epIdxRef.current = epIdx; }, [epIdx]);
   const actorItemsRef = useRef(actorItems); useEffect(() => { actorItemsRef.current = actorItems; }, [actorItems]);
   const actorCursorRef = useRef(actorCursor); useEffect(() => { actorCursorRef.current = actorCursor; }, [actorCursor]);
+  const relatedRef = useRef(related); useEffect(() => { relatedRef.current = related; }, [related]);
+  const relRowRef = useRef(relRow); useEffect(() => { relRowRef.current = relRow; }, [relRow]);
+  const relColRef = useRef(relCol); useEffect(() => { relColRef.current = relCol; }, [relCol]);
   const activateRef = useRef(activateDetail); useEffect(() => { activateRef.current = activateDetail; }, [activateDetail]);
   const loadEpisodesRef = useRef(loadEpisodes); useEffect(() => { loadEpisodesRef.current = loadEpisodes; }, [loadEpisodes]);
   const onPlayEpisodeRef = useRef(onPlayEpisode); useEffect(() => { onPlayEpisodeRef.current = onPlayEpisode; }, [onPlayEpisode]);
@@ -732,13 +767,29 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
 
       if (s === 'detail') {
         const z = zoneRef.current;
+        // ▼ onto the cast, else (no cast) the first related row.
+        const toRelated = (row: number) => {
+          const rows = relatedRef.current;
+          if (!rows[row]) return false;
+          setZone('related'); setRelRow(row); setRelCol(Math.min(relColRef.current, rows[row].items.length - 1));
+          return true;
+        };
+        const downToCastOrRelated = () => {
+          if (castRef.current.length > 0) { setZone('cast'); setCastIdx(0); }
+          else { relColRef.current = 0; toRelated(0); }
+        };
+        // ▲ off the first related row: the cast, else whatever is above it.
+        const upFromRelated = () => {
+          if (castRef.current.length > 0) setZone('cast');
+          else setZone(versionsRef.current.length > 1 ? 'versions' : trailerRef.current ? 'trailer' : 'buttons');
+        };
         // ▼ past the buttons (and Trailer's line): the versions, else the cast.
         const downToVersionsOrCast = () => {
           const vs = versionsRef.current;
           if (vs.length > 1) {
             const at = vs.findIndex((v) => v.id === effectiveRef.current?.id);
             setZone('versions'); setVerIdx(at >= 0 ? at : 0);
-          } else if (castRef.current.length > 0) { setZone('cast'); setCastIdx(0); }
+          } else downToCastOrRelated();
         };
         if (z === 'buttons') {
           const bs = btnsRef.current;
@@ -772,7 +823,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
           if (e.key === 'ArrowLeft') { if (vi > 0) setVerIdx(vi - 1); }
           else if (e.key === 'ArrowRight') { if (vi < vs.length - 1) setVerIdx(vi + 1); }
           else if (e.key === 'ArrowUp') { setZone(trailerRef.current ? 'trailer' : 'buttons'); }
-          else if (e.key === 'ArrowDown') { if (castRef.current.length > 0) { setZone('cast'); setCastIdx(0); } }
+          else if (e.key === 'ArrowDown') downToCastOrRelated();
           else if (e.key === 'Enter' || e.key === ' ') {
             if (e.repeat) return;
             const v = vs[vi];
@@ -780,11 +831,27 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
           }
           return;
         }
+        if (z === 'related') {
+          // ◀ ▶ along a row, ▲ ▼ between rows; OK opens the title on this
+          // page (Back comes back here); held, its menu.
+          const rows = relatedRef.current;
+          const r = relRowRef.current;
+          const col = relColRef.current;
+          const row = rows[r];
+          if (!row) { setZone('buttons'); return; }
+          if (e.key === 'ArrowLeft') { if (col > 0) setRelCol(col - 1); }
+          else if (e.key === 'ArrowRight') { if (col < row.items.length - 1) setRelCol(col + 1); }
+          else if (e.key === 'ArrowDown') { toRelated(r + 1); }
+          else if (e.key === 'ArrowUp') { if (r > 0) toRelated(r - 1); else upFromRelated(); }
+          else if (e.key === 'Enter' || e.key === ' ') hold.press(e, row.items[col], (it) => pushItemRef.current(it));
+          return;
+        }
         // cast zone
         const list = castRef.current;
         const c = castIdxRef.current;
         if (list.length === 0) { setZone('buttons'); return; }
-        if (e.key === 'ArrowUp') { setZone(versionsRef.current.length > 1 ? 'versions' : trailerRef.current ? 'trailer' : 'buttons'); }
+        if (e.key === 'ArrowDown') { relColRef.current = 0; toRelated(0); }
+        else if (e.key === 'ArrowUp') { setZone(versionsRef.current.length > 1 ? 'versions' : trailerRef.current ? 'trailer' : 'buttons'); }
         else if (e.key === 'ArrowLeft') { if (c > 0) setCastIdx(c - 1); }
         else if (e.key === 'ArrowRight') { if (c < list.length - 1) setCastIdx(c + 1); }
         else if (e.key === 'Enter' || e.key === ' ') { if (e.repeat) return; const p = list[c]; if (p) void openActorRef.current(p); }
@@ -1073,6 +1140,38 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                   </div>
                 )}
               </div>
+
+              {/* Related rows — the collection's sequels first, then Plex's
+                  other related hubs; focus zone 'related'. Slim posters,
+                  margins (no flex gap on old WebViews). */}
+              {related.map((hub, r) => (
+                <div key={`${hub.title}-${r}`} className="mt-3" data-plex-related-row={hub.collection ? 'collection' : 'related'}>
+                  <div className="plex-rail-head font-montserrat truncate">{hub.title || t('plex.detail.moreLikeThis')}</div>
+                  <div className="flex overflow-x-auto pb-2 pt-2 px-2 -mx-2">
+                    {hub.items.map((it, i) => {
+                      const focused = isActive && zone === 'related' && relRow === r && relCol === i;
+                      const label = resolutionLabel(it.videoResolution);
+                      const watched = plexItemWatched(it);
+                      return (
+                        <div
+                          key={it.ratingKey}
+                          ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
+                          {...tileHoldProps(it)}
+                          onClick={() => { if (tapIsHoldLift()) return; setZone('related'); setRelRow(r); setRelCol(i); pushItem(it); }}
+                          className="plex-tile flex-shrink-0 w-[96px] mr-3 cursor-pointer">
+                          <div data-focused={focused ? 'true' : 'false'} className="plex-art tv-ring h-0" style={{ paddingBottom: '150%' }}>
+                            <PlexImage base={base} path={it.thumb} token={token} w={160} h={240} focusExempt className="absolute inset-0 w-full h-full object-cover" />
+                            <span className="plex-sheen" aria-hidden="true" />
+                            {watched && <PlexWatchedBadge all={it.type === 'show'} />}
+                            {label && <div className={`absolute right-1 ${watched ? 'top-9' : 'top-1'}`}><ResBadge label={label} /></div>}
+                          </div>
+                          <div className={`plex-cap font-montserrat font-semibold truncate ${focused ? 'text-brand-gold' : 'text-white'}`}>{it.title}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
