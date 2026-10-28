@@ -84,7 +84,21 @@
       "countMovies_many": "{{num}} películas",
       "countSeries_one": "{{num}} serie",
       "countSeries_other": "{{num}} series",
-      "countSeries_many": "{{num}} series"
+      "countSeries_many": "{{num}} series",
+      "pin": "PIN de acceso",
+      "pinBtn": "Obtener mi PIN de acceso",
+      "pinShowBtn": "Mostrar PIN de acceso",
+      "pinHideBtn": "Ocultar PIN de acceso",
+      "pinLoading": "Obteniendo tu PIN…",
+      "pinHint": "Guárdalo: en tus otros dispositivos elige Iniciar sesión con un PIN y escríbelo. No cambia al renovar.",
+      "pinFail": {
+        "rate_limited": "Demasiados intentos — espera unos minutos",
+        "line_refused": "Tu usuario y contraseña no funcionaron — inicia sesión de nuevo primero",
+        "expired": "Esta línea ha vencido — renuévala para obtener tu PIN",
+        "panel_unreachable": "No se pudo contactar tu servicio — inténtalo en un minuto",
+        "pin_off": "Tu PIN está desactivado — contacta a soporte",
+        "error": "No se pudo obtener tu PIN. Inténtalo de nuevo."
+      }
     },
     "playerCard": {
       "title": "Cuenta del reproductor",
@@ -203,7 +217,8 @@
       "confirmLine": "Pulsa OK otra vez para eliminar {{name}} de este equipo.",
       "confirmCurrent": "Pulsa OK otra vez para eliminar {{name}} y cerrar la sesión de TV en vivo en este equipo.",
       "deletedTitle": "Eliminado",
-      "deletedLine": "{{name}} ya no está en este equipo."
+      "deletedLine": "{{name}} ya no está en este equipo.",
+      "pinLine": "Con PIN"
     },
     "channels": {
       "hide": "Ocultar categorías",
@@ -312,7 +327,7 @@
         "subtitle": "Usa el PIN de 10 dígitos de tu línea",
         "label": "PIN",
         "back": "Usar usuario y contraseña",
-        "note": "Tu PIN está en tu correo de bienvenida, o pídeselo a soporte.",
+        "note": "Tu PIN está en Ajustes de TV en vivo › Mi cuenta en cualquier dispositivo con la sesión iniciada, o en tu correo de bienvenida.",
         "invalidPin": "Un PIN tiene 10 dígitos",
         "notFound": "Ese PIN no es correcto",
         "expired": "Esta línea ha vencido — renuévala para seguir viendo",

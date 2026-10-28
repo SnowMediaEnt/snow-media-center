@@ -59,6 +59,7 @@ import {
 } from '@/lib/xtream';
 import { keepInView } from '@/utils/keepInView';
 import OutsideSourceScreen from './OutsideSourceScreen';
+import { isPinLine } from '@/lib/pinSignIn';
 
 interface Props {
   /** Back from the list: the remote returns to the Settings menu. */
@@ -565,7 +566,7 @@ const ServicesScreen = memo(({ onBack, onPicked, onAddAccount, onSignOut, active
           return (
             <div key={a.id} {...rowProps(id)} className={rowCls(id, 'items-center bg-slate-900/70 border-white/10')}>
               <Badge className="mr-3 shrink-0 bg-brand-gold/25 text-brand-gold border border-brand-gold/40">{serverDisplayName(a.serverLabel)}</Badge>
-              <span className="flex-1 min-w-0 font-nunito truncate">{a.username}</span>
+              <span className="flex-1 min-w-0 font-nunito truncate">{isPinLine(a) ? t('liveAccount.services.pinLine') : a.username}</span>
               {busyId === a.id && <Loader2 className="w-5 h-5 ml-3 animate-spin text-brand-gold shrink-0" />}
               {isCurrent ? (
                 <Badge data-watching-now="" className="ml-3 shrink-0 bg-emerald-600/30 text-emerald-100 border border-emerald-400/40">

@@ -31,7 +31,7 @@ import { isNativePlatform } from '@/utils/platform';
 import { useTranslation } from 'react-i18next';
 import { keepTypingFocus } from '@/utils/keepTypingFocus';
 import { PasswordRevealButton, PASSWORD_REVEAL_PAD } from '@/components/ui/PasswordRevealButton';
-import { pinSignIn, pinDigits, formatPin, PIN_LENGTH, type PinFailReason } from '@/lib/pinSignIn';
+import { markPinLine, pinSignIn, pinDigits, formatPin, PIN_LENGTH, type PinFailReason } from '@/lib/pinSignIn';
 
 // Sign-up for someone with no account yet: DreamStreams end to end on the TV,
 // Vibez handed off to their site. Loaded only when the viewer presses it.
@@ -208,6 +208,8 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
         return;
       }
       await saveCreds(result.creds);
+      // A PIN's line shows only its PIN from here on; typed credentials show all.
+      markPinLine(result.creds.host, result.creds.username, !!opts.fromPin);
       // Persist a Player Account snapshot from the panel response so the home
       // banner / Settings card can warn about expiration even without a main
       // Supabase account.

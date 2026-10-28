@@ -96,6 +96,7 @@ import { keepInView } from '@/utils/keepInView';
 import { usePhoneLayout, useTouchUI } from '@/lib/phoneMode';
 import PlayerPhoneTabs from './livetv/PlayerPhoneTabs';
 import { PlayerTabsSlot } from './livetv/playerTabs';
+import { isPinLine } from '@/lib/pinSignIn';
 
 // Demo latch (?demo=1) — module scope like PlexSection. Every demo behavior
 // below lives behind this flag so non-demo sessions stay byte-for-byte equal.
@@ -1328,7 +1329,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
       <div className="min-h-screen text-white bg-black/70">
         <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
           <CredentialsForm
-            initial={accountFormAdd ? null : creds}
+            initial={accountFormAdd || isPinLine(creds) ? null : creds}
             onChildOpenChange={(open) => { credsChildOpenRef.current = open; }}
             onSaved={(c) => {
               // A background auto sign-in must not save over this one.

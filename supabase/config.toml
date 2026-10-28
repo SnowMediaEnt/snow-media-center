@@ -148,3 +148,6 @@ verify_jwt = false
 # (has_role 'admin'), or x-internal-secret = INTERNAL_FN_SECRET for 'ensure'.
 [functions.signin-pins]
 verify_jwt = false
+
+[functions.my-signin-pin]
+verify_jwt = false

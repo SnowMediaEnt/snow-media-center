@@ -1,6 +1,6 @@
 /**
  * Live TV › Settings › Account info by remote: the actions stand in a column,
- * so Up / Down walk Back -> Show password -> Change login -> Renew -> Sign out
+ * so Up / Down walk Back -> Show password -> Sign-in PIN -> Change login -> Renew -> Sign out
  * (they used to be one row only Left / Right reached — owner, 2026-10-14).
  */
 import { act, fireEvent, render } from '@testing-library/react';
@@ -22,14 +22,21 @@ const bill = vi.hoisted(() => ({ serviceId: null as number | null, asked: [] as 
 vi.mock('@/lib/billing', () => ({ renewableServiceForLine: async (u: string) => { bill.asked.push(u); return bill.serviceId; } }));
 // The line's devices come from the server: stood in for.
 const dev = vi.hoisted(() => ({ props: null as null | Record<string, unknown> }));
+// The line's sign-in PIN comes from the server (my-signin-pin): stood in for.
+const pinReply = vi.hoisted(() => ({ value: { ok: true, pin: '1234567890' } as { ok: boolean; pin?: string; reason?: string }, asked: [] as unknown[] }));
+vi.mock('@/lib/pinSignIn', async (orig) => ({
+  ...(await orig<typeof import('@/lib/pinSignIn')>()),
+  fetchMyPin: async (line: unknown) => { pinReply.asked.push(line); return pinReply.value; },
+}));
 vi.mock('./LineDevicesPanel', () => ({ default: (p: Record<string, unknown>) => { dev.props = p; return <div data-testid="line-devices" />; } }));
 
 import AccountInfoScreen from './AccountInfoScreen';
+import { markPinLine } from '@/lib/pinSignIn';
 
 const key = (k: string) => { act(() => { fireEvent.keyDown(window, { key: k }); }); };
 const focused = (c: HTMLElement) => (c.querySelector('[data-focused="true"]')?.textContent ?? '').trim();
 
-beforeEach(() => { h.demo = false; bill.serviceId = null; bill.asked = []; });
+beforeEach(() => { h.demo = false; bill.serviceId = null; bill.asked = []; pinReply.value = { ok: true, pin: '1234567890' }; pinReply.asked = []; });
 const flush = () => act(async () => { for (let i = 0; i < 5; i += 1) await Promise.resolve(); });
 
 describe('Account info by remote', () => {
@@ -41,7 +48,7 @@ describe('Account info by remote', () => {
     expect(focused(container)).toMatch(/Back/i);
     key('ArrowUp'); // already at the top
     expect(focused(container)).toMatch(/Back/i);
-    key('ArrowDown'); key('ArrowDown');
+    key('ArrowDown'); key('ArrowDown'); key('ArrowDown');
     expect(focused(container)).toMatch(/Change/i);
     key('ArrowDown');
     expect(focused(container)).toMatch(/Renew/i);
@@ -60,8 +67,8 @@ describe('Account info by remote', () => {
   it('the actions are a column beside the details; Left goes sideways to Back, Right has nothing to go to', () => {
     const { container } = render(<AccountInfoScreen onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} />);
     const column = container.querySelector('[data-account-actions]')!;
-    expect(column.querySelectorAll('button')).toHaveLength(4); // Show password, Change login, Renew, Sign out
-    key('ArrowDown'); key('ArrowDown');
+    expect(column.querySelectorAll('button')).toHaveLength(5); // Show password, Sign-in PIN, Change login, Renew, Sign out
+    key('ArrowDown'); key('ArrowDown'); key('ArrowDown');
     expect(focused(container)).toMatch(/Renew/i);
     key('ArrowRight');
     expect(focused(container)).toMatch(/Renew/i);
@@ -87,7 +94,7 @@ describe('Account info by remote', () => {
     rerender(<AccountInfoScreen embedded active onBack={onBack} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} />);
     key('ArrowUp'); // already at the top: no Back button to reach
     expect(focused(container)).toMatch(/Show password/i);
-    key('ArrowDown'); key('ArrowDown');
+    key('ArrowDown'); key('ArrowDown'); key('ArrowDown');
     expect(focused(container)).toMatch(/Renew/i);
     key('ArrowLeft'); // straight out to the Settings menu, from any button
     expect(onBack).toHaveBeenCalledTimes(1);
@@ -99,8 +106,8 @@ describe('My Account: one Renew, and Plans & billing', () => {
 
   it('billing off: Renew shows the renewal QR, without asking billing', async () => {
     const { container, queryByTestId } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} />);
-    expect(labels(container)).toEqual(['Show password', 'Change credentials', 'Renew', 'Sign out']);
-    key('ArrowDown'); key('ArrowDown');
+    expect(labels(container)).toEqual(['Show password', 'Get my sign-in PIN', 'Change credentials', 'Renew', 'Sign out']);
+    key('ArrowDown'); key('ArrowDown'); key('ArrowDown');
     key('Enter');
     await flush();
     expect(queryByTestId('renew-qr')).toBeTruthy();
@@ -111,8 +118,8 @@ describe('My Account: one Renew, and Plans & billing', () => {
     bill.serviceId = 42;
     const onOpenBilling = vi.fn();
     const { container, queryByTestId } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} onOpenBilling={onOpenBilling} />);
-    expect(labels(container)).toEqual(['Show password', 'Change credentials', 'Renew', 'Plans & billing', 'Sign out']);
-    key('ArrowDown'); key('ArrowDown');
+    expect(labels(container)).toEqual(['Show password', 'Get my sign-in PIN', 'Change credentials', 'Renew', 'Plans & billing', 'Sign out']);
+    key('ArrowDown'); key('ArrowDown'); key('ArrowDown');
     expect(focused(container)).toBe('Renew');
     key('Enter');
     await flush();
@@ -125,7 +132,7 @@ describe('My Account: one Renew, and Plans & billing', () => {
     bill.serviceId = null;
     const onOpenBilling = vi.fn();
     const { queryByTestId } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} onOpenBilling={onOpenBilling} />);
-    key('ArrowDown'); key('ArrowDown');
+    key('ArrowDown'); key('ArrowDown'); key('ArrowDown');
     key('Enter');
     await flush();
     expect(onOpenBilling).not.toHaveBeenCalled();
@@ -135,7 +142,7 @@ describe('My Account: one Renew, and Plans & billing', () => {
   it('Plans & billing opens the billing view as it is (OK or a tap)', async () => {
     const onOpenBilling = vi.fn();
     const { container } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} onOpenBilling={onOpenBilling} />);
-    key('ArrowDown'); key('ArrowDown'); key('ArrowDown');
+    key('ArrowDown'); key('ArrowDown'); key('ArrowDown'); key('ArrowDown');
     expect(focused(container)).toBe('Plans & billing');
     key('Enter');
     expect(onOpenBilling).toHaveBeenCalledWith();
@@ -152,7 +159,7 @@ describe('My Account: one Renew, and Plans & billing', () => {
   it('billing turning on while the page is open: the highlight stays on its button', () => {
     const props = { embedded: true, active: true, onBack: vi.fn(), onSignOut: vi.fn(), onChangeCredentials: vi.fn() };
     const { container, rerender } = render(<AccountInfoScreen {...props} />);
-    key('ArrowDown'); key('ArrowDown'); key('ArrowDown');
+    key('ArrowDown'); key('ArrowDown'); key('ArrowDown'); key('ArrowDown');
     expect(focused(container)).toBe('Sign out');
     rerender(<AccountInfoScreen {...props} onOpenBilling={vi.fn()} />);
     expect(focused(container)).toBe('Sign out');
@@ -165,7 +172,7 @@ describe('My Account: Sign out asks once', () => {
     const onSignOut = vi.fn();
     const onBack = vi.fn();
     const { container } = render(<AccountInfoScreen embedded active onBack={onBack} onSignOut={onSignOut} onChangeCredentials={vi.fn()} />);
-    for (let i = 0; i < 4; i += 1) key('ArrowDown');
+    for (let i = 0; i < 5; i += 1) key('ArrowDown');
     expect(focused(container)).toBe('Sign out');
     key('Enter');
     expect(focused(container)).toBe('Press OK again to sign out');
@@ -198,8 +205,8 @@ describe('My Account: Devices on this line, inside the page', () => {
   it('with the line: a button before Sign out that opens its devices in the page; Back returns to the button', () => {
     const onBack = vi.fn();
     const { container, queryByTestId } = render(<AccountInfoScreen embedded active onBack={onBack} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} devicesLine={LINE} />);
-    expect(labels(container)).toEqual(['Show password', 'Change credentials', 'Renew', 'Devices on this line', 'Sign out']);
-    key('ArrowDown'); key('ArrowDown'); key('ArrowDown');
+    expect(labels(container)).toEqual(['Show password', 'Get my sign-in PIN', 'Change credentials', 'Renew', 'Devices on this line', 'Sign out']);
+    key('ArrowDown'); key('ArrowDown'); key('ArrowDown'); key('ArrowDown');
     expect(focused(container)).toBe('Devices on this line');
     key('Enter');
     expect(queryByTestId('line-devices')).toBeTruthy();
@@ -233,5 +240,58 @@ describe('My Account: Devices on this line, inside the page', () => {
   it('without a line: no Devices button', () => {
     const { container } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} />);
     expect(labels(container)).not.toContain('Devices on this line');
+  });
+});
+
+describe('My Account: the line\'s sign-in PIN', () => {
+  const labels = (c: HTMLElement) => Array.from(c.querySelectorAll('[data-account-actions] button')).map((b) => b.textContent?.trim());
+
+  it('asks for it with this line as the page opens, hidden until shown, then shows / hides it', async () => {
+    const { container, getByText, queryByText } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} />);
+    await flush();
+    expect(pinReply.asked).toEqual([{ host: 'http://h', username: 'jane', password: 'secret' }]);
+    expect(queryByText('12345 67890')).toBeNull();
+    expect(container.textContent).toMatch(/Sign in with a PIN/);
+    key('ArrowDown');
+    expect(focused(container)).toBe('Show sign-in PIN');
+    key('Enter');
+    expect(getByText('12345 67890')).toBeTruthy();
+    expect(focused(container)).toBe('Hide sign-in PIN');
+    key('Enter');
+    expect(queryByText('12345 67890')).toBeNull();
+    expect(pinReply.asked).toHaveLength(1); // asked once
+  });
+
+  it('says why when it can\'t get one, and a press asks again', async () => {
+    pinReply.value = { ok: false, reason: 'expired' };
+    const { container } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} />);
+    await flush();
+    expect(container.textContent).toMatch(/renew it to get your PIN/);
+    key('ArrowDown');
+    expect(focused(container)).toBe('Get my sign-in PIN');
+    key('Enter');
+    await flush();
+    expect(pinReply.asked).toHaveLength(2);
+  });
+
+  it('a line signed in with a PIN shows only the PIN: no username, no password, no Show password', async () => {
+    markPinLine('http://h', 'jane', true);
+    try {
+      const { container, queryByText } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} />);
+      await flush();
+      expect(labels(container)).not.toContain('Show password');
+      expect(focused(container)).toBe('Show sign-in PIN');
+      expect(queryByText('jane')).toBeNull();
+      expect(container.textContent).not.toMatch(/secret/);
+      expect(container.textContent).not.toMatch(/Username/);
+    } finally {
+      markPinLine('http://h', 'jane', false);
+    }
+  });
+
+  it('not in the demo', () => {
+    h.demo = true;
+    const { container } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} />);
+    expect(labels(container)).not.toContain('Get my sign-in PIN');
   });
 });

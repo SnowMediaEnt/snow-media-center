@@ -77,7 +77,21 @@
       "countMovies_one": "{{num}} movie",
       "countMovies_other": "{{num}} movies",
       "countSeries_one": "{{num}} series",
-      "countSeries_other": "{{num}} series"
+      "countSeries_other": "{{num}} series",
+      "pin": "Sign-in PIN",
+      "pinBtn": "Get my sign-in PIN",
+      "pinShowBtn": "Show sign-in PIN",
+      "pinHideBtn": "Hide sign-in PIN",
+      "pinLoading": "Getting your PIN…",
+      "pinHint": "Save it: on your other devices choose Sign in with a PIN and type it. It stays the same when you renew.",
+      "pinFail": {
+        "rate_limited": "Too many tries — wait a few minutes",
+        "line_refused": "Your username and password didn't work — sign in again first",
+        "expired": "This line has expired — renew it to get your PIN",
+        "panel_unreachable": "Couldn't reach your service — try again in a minute",
+        "pin_off": "Your PIN is turned off — contact support",
+        "error": "Couldn't get your PIN. Please try again."
+      }
     },
     "playerCard": {
       "title": "Player Account",
@@ -195,7 +209,8 @@
       "confirmLine": "Press OK again to delete {{name}} from this box.",
       "confirmCurrent": "Press OK again to delete {{name}} and sign this box out of Live TV.",
       "deletedTitle": "Deleted",
-      "deletedLine": "{{name}} is no longer on this box."
+      "deletedLine": "{{name}} is no longer on this box.",
+      "pinLine": "Signed in with a PIN"
     },
     "channels": {
       "hide": "Hide categories",
@@ -304,7 +319,7 @@
         "subtitle": "Use the 10-digit PIN for your line",
         "label": "PIN",
         "back": "Use username and password",
-        "note": "Your PIN is in your welcome email, or ask support for it.",
+        "note": "Your PIN is in Live TV Settings › My Account on any device already signed in, or in your welcome email.",
         "invalidPin": "A PIN is 10 digits",
         "notFound": "That PIN isn't right",
         "expired": "This line has expired — renew it to keep watching",

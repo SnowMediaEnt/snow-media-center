@@ -4,7 +4,9 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   ArrowLeft, Tv, Calendar, KeyRound, Users, Server, Clock, ShieldCheck, LogOut, Eye, EyeOff, RefreshCw, Library, CreditCard, MonitorSmartphone, Loader2,
+  Hash,
 } from 'lucide-react';
+import { fetchMyPin, formatPin, isPinLine, type MyPinFailReason } from '@/lib/pinSignIn';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { expDateToMs } from '@/lib/xtream';
 import { readCounts } from '@/lib/catalogCounts';
@@ -53,12 +55,15 @@ const fmtDay = (ms: number | null) => (ms ? formatDate(ms) : '—');
 interface Row { label: string; value: React.ReactNode; icon: typeof Tv; mono?: boolean }
 
 /** The column's buttons (Back only when the page has its own header). */
-type ActionId = 'back' | 'showPwd' | 'change' | 'renew' | 'plans' | 'devices' | 'signout';
+type ActionId = 'back' | 'showPwd' | 'pin' | 'change' | 'renew' | 'plans' | 'devices' | 'signout';
 
 /**
  * Read-only Xtream account info screen (Live TV Settings -> My Account).
+ * The line's sign-in PIN is fetched as the screen opens, so every line shows
+ * one; a line signed in WITH a PIN shows only that — no username, no password,
+ * no Show password (owner, 2026-10-28).
  * Back sits top-left; the actions stand in a column beside the details, so
- * the remote's Up / Down walk Back -> Show password -> Change login -> Renew
+ * the remote's Up / Down walk Back -> Show password -> Sign-in PIN -> Change login -> Renew
  * -> (Plans & billing) -> (Devices on this line) -> Sign out. (They were one
  * row across the top that only Left / Right reached, which viewers found
  * confusing — owner, 2026-10-14.) The highlight follows a button, not a
@@ -76,6 +81,10 @@ const AccountInfoScreen = memo(({
   const [showQR, setShowQR] = useState(false);
   const [devicesOpen, setDevicesOpen] = useState(() => initialDevicesOpen && !!devicesLine);
   const [confirmOut, setConfirmOut] = useState(false);
+  /** Signed in with a PIN: the PIN is all this screen shows of the login. */
+  const viaPin = isPinLine(account);
+  /** The line's sign-in PIN (my-signin-pin): fetched on open, then shown / hidden. */
+  const [pin, setPin] = useState<{ busy?: boolean; digits?: string; shown?: boolean; fail?: MyPinFailReason } | null>(null);
   /** Renew is finding out where it goes (the billing account's services). */
   const [renewBusy, setRenewBusy] = useState(false);
   const alive = useRef(true);
@@ -85,13 +94,15 @@ const AccountInfoScreen = memo(({
   const showRenew = !isDemo() && !!account?.username;
   const ids = useMemo<ActionId[]>(() => [
     ...(embedded ? [] : ['back' as const]),
-    'showPwd', 'change',
+    ...(viaPin ? [] : ['showPwd' as const]),
+    ...(isDemo() ? [] : ['pin' as const]),
+    'change',
     ...(showRenew ? ['renew' as const] : []),
     ...(onOpenBilling ? ['plans' as const] : []),
     ...(devicesLine ? ['devices' as const] : []),
     'signout',
-  ], [embedded, showRenew, onOpenBilling, devicesLine]);
-  const [focus, setFocusRaw] = useState<ActionId>(initialFocus ?? (initialDevicesOpen && devicesLine ? 'devices' : 'showPwd'));
+  ], [embedded, viaPin, showRenew, onOpenBilling, devicesLine]);
+  const [focus, setFocusRaw] = useState<ActionId>(initialFocus ?? (initialDevicesOpen && devicesLine ? 'devices' : viaPin && !isDemo() ? 'pin' : 'showPwd'));
   // Any move takes back Sign out's question.
   const setFocus = useCallback((id: ActionId) => { setFocusRaw(id); setConfirmOut(false); }, []);
   // A button that went away hands the highlight to the first one.
@@ -117,6 +128,28 @@ const AccountInfoScreen = memo(({
     }
     showRenewQr();
   };
+  /** Ask for the line's PIN; `show` reveals it straight away (a press, not the open). */
+  const loadPin = async (show: boolean) => {
+    if (!account?.host || !account.username || !account.password) return;
+    setPin({ busy: true });
+    const r = await fetchMyPin({ host: account.host, username: account.username, password: account.password });
+    if (!alive.current) return;
+    setPin(r.ok && r.pin ? { digits: r.pin, shown: show } : { fail: r.reason ?? 'error' });
+    try { trackEvent(r.ok ? 'signin_pin_shown' : 'signin_pin_failed', 'player', r.ok ? {} : { reason: r.reason ?? 'error' }); } catch { /* ignore */ }
+  };
+  // Every line gets its PIN on open, hidden like the password until asked.
+  const lineKey = account ? `${account.host}|${account.username}` : '';
+  useEffect(() => {
+    setPin(null);
+    if (lineKey && !isDemo()) void loadPin(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per line
+  }, [lineKey]);
+  /** Shows / hides the PIN; a PIN that didn't come asks again. */
+  const pinPressed = async () => {
+    if (pin?.busy) return;
+    if (pin?.digits) { setPin({ ...pin, shown: !pin.shown }); return; }
+    await loadPin(true);
+  };
   const signOutPressed = () => {
     if (!stateRef.current.confirmOut) { setConfirmOut(true); return; }
     setConfirmOut(false);
@@ -125,6 +158,7 @@ const AccountInfoScreen = memo(({
   const press = (id: ActionId) => {
     if (id === 'back') onBack();
     else if (id === 'showPwd') setShowPwd((v) => !v);
+    else if (id === 'pin') void pinPressed();
     else if (id === 'change') onChangeCredentials();
     else if (id === 'renew') void openRenew();
     else if (id === 'plans') onOpenBilling?.();
@@ -226,12 +260,24 @@ const AccountInfoScreen = memo(({
   })();
 
   const rows: Row[] = [
-    { label: t('liveAccount.account.username'),  icon: KeyRound, value: <span className="break-all">{account.username}</span> },
-    { label: t('liveAccount.account.password'),  icon: KeyRound, mono: true, value: (
-      <span className="font-mono tracking-widest break-all">
-        {showPwd ? account.password : '•'.repeat(Math.max(8, account.password.length))}
+    ...(viaPin ? [] : [
+      { label: t('liveAccount.account.username'),  icon: KeyRound, value: <span className="break-all">{account.username}</span> },
+      { label: t('liveAccount.account.password'),  icon: KeyRound, mono: true, value: (
+        <span className="font-mono tracking-widest break-all">
+          {showPwd ? account.password : '•'.repeat(Math.max(8, account.password.length))}
+        </span>
+      )},
+    ] as Row[]),
+    ...(pin ? [{ label: t('liveAccount.account.pin'), icon: Hash, mono: true, value: pin.busy ? (
+      <span className="text-white/70">{t('liveAccount.account.pinLoading')}</span>
+    ) : pin.digits ? (
+      <span>
+        <span className="font-mono tracking-widest text-brand-gold">{pin.shown ? formatPin(pin.digits) : '••••• •••••'}</span>
+        <span className="block text-xs text-white/70 mt-1">{t('liveAccount.account.pinHint')}</span>
       </span>
-    )},
+    ) : (
+      <span className="text-sm text-red-200">{t(`liveAccount.account.pinFail.${pin.fail ?? 'error'}`)}</span>
+    ) } as Row] : []),
     { label: t('liveAccount.account.status'),    icon: ShieldCheck, value: (
       <Badge className={`border ${statusBadge}`}>{statusLabel}</Badge>
     )},
@@ -253,6 +299,10 @@ const AccountInfoScreen = memo(({
 
   const ACTION_LOOK: Record<Exclude<ActionId, 'back'>, { icon: typeof Tv; label: string }> = {
     showPwd: { icon: showPwd ? EyeOff : Eye, label: showPwd ? t('liveAccount.account.hidePasswordBtn') : t('liveAccount.account.showPasswordBtn') },
+    pin: {
+      icon: pin?.busy ? Loader2 : Hash,
+      label: !pin?.digits ? t('liveAccount.account.pinBtn') : pin.shown ? t('liveAccount.account.pinHideBtn') : t('liveAccount.account.pinShowBtn'),
+    },
     change: { icon: KeyRound, label: t('liveAccount.account.changeCredentialsBtn') },
     renew: { icon: renewBusy ? Loader2 : RefreshCw, label: t('liveAccount.account.renewBtn') },
     plans: { icon: CreditCard, label: t('liveAccount.account.plansBtn') },
@@ -296,7 +346,7 @@ const AccountInfoScreen = memo(({
                   data-confirm={id === 'signout' && confirmOut ? 'true' : undefined}
                   className={`tv-ring w-full justify-start rounded-xl ${embedded ? 'h-12 px-4 text-sm' : 'h-14 px-5 text-base'} transition-transform duration-150 ease-out ${on ? 'scale-105 z-10' : ''}`}
                 >
-                  <Icon className={`w-5 h-5 mr-2 shrink-0 ${id === 'renew' && renewBusy ? 'animate-spin' : ''}`} />
+                  <Icon className={`w-5 h-5 mr-2 shrink-0 ${(id === 'renew' && renewBusy) || (id === 'pin' && pin?.busy) ? 'animate-spin' : ''}`} />
                   <span className="min-w-0 truncate">{label}</span>
                 </Button>
               );
