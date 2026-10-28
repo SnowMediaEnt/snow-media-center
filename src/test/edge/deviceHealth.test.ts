@@ -54,7 +54,7 @@ const hasOp = (q: QueryCall, op: string, ...args: unknown[]) =>
 let db: {
   device: { id: string; panel_host: string; panel_username: string } | null;
   deepUntil: string | null;
-  today: { all: number; light: number; checks: number };
+  today: { readings: number; problems: number; checks: number };
   event: Record<string, unknown> | null;
 };
 
@@ -75,7 +75,7 @@ beforeEach(() => {
   db = {
     device: { id: TV, panel_host: LINE.host, panel_username: LINE.username },
     deepUntil: null,
-    today: { all: 0, light: 0, checks: 0 },
+    today: { readings: 0, problems: 0, checks: 0 },
     event: null,
   };
   state.handlers = {
@@ -106,7 +106,9 @@ beforeEach(() => {
       if (q.table === 'device_health_events') {
         if (hasOp(q, 'select', 'id')) {
           if (eqValue(q, 'kind') === 'check') return { count: db.today.checks };
-          return { count: eqValue(q, 'deep') === false ? db.today.light : db.today.all };
+          if (hasOp(q, 'in', 'kind')) return { count: db.today.readings };
+          if (hasOp(q, 'not', 'kind', 'in')) return { count: db.today.problems };
+          throw new Error('unexpected count query');
         }
         if (hasOp(q, 'maybeSingle')) return { data: eqValue(q, 'id') === EV_ID ? db.event : null };
         return { data: [] };
@@ -175,6 +177,34 @@ describe('device-health: what is kept', () => {
     expect(JSON.stringify(row)).not.toMatch(/:\/\/|token=|password=|username=|203\.0\.113/);
   });
 
+  it('drops an Xtream path, IPv6 and host:port too, but keeps clock times and plain numbers', async () => {
+    await report([event({
+      summary: 'Unable to connect to [ip]/live/joe/s3cret/123.ts',
+      title: 'Stalled at 1:23:45 on Jeopardy! 10:30',
+      data: { stallSec: 4, a: 'fe80::1 refused', b: 'cdn.example.com:8080 timeout', c: '2001:db8:85a3:0:0:8a2e:370:7334', d: 'Wi-Fi -71 dBm', e: 'v1.9.8 build 76' },
+    })]);
+    const row = inserted()[0];
+    expect(row.summary).toBe('');
+    expect(row.title).toBe('Stalled at 1:23:45 on Jeopardy! 10:30');
+    expect(row.data).toEqual({ stallSec: 4, d: 'Wi-Fi -71 dBm', e: 'v1.9.8 build 76' });
+  });
+
+  it('admin_events can leave out deep-check readings, or ask for some kinds', async () => {
+    state.handlers.onQuery = ((orig) => (q: QueryCall) => {
+      if (q.table === 'device_health_events' && hasOp(q, 'order')) return { data: [] };
+      return orig?.(q);
+    })(state.handlers.onQuery);
+    await call({ action: 'admin_events', problems_only: true }, ADMIN.id);
+    let q = queriesOf('device_health_events', 'order')[0];
+    expect(q.ops.find((o) => o.op === 'not')?.args).toEqual(['kind', 'in', '(app_start,sample)']);
+    state.queries.length = 0;
+    await call({ action: 'admin_events', kinds: ['app_start', 'sample'] }, ADMIN.id);
+    q = queriesOf('device_health_events', 'order')[0];
+    expect(q.ops.find((o) => o.op === 'in')?.args).toEqual(['kind', ['app_start', 'sample']]);
+    expect((await call({ action: 'admin_events', kinds: ['bogus'] }, ADMIN.id)).status).toBe(400);
+    expect((await call({ action: 'admin_events', problems_only: 'yes' }, ADMIN.id)).status).toBe(400);
+  });
+
   it('trims the summary and title and drops an event over 4 KB (still counted)', async () => {
     const out = await report([
       event({ summary: 'x'.repeat(500), title: 'y'.repeat(500) }),
@@ -189,26 +219,34 @@ describe('device-health: what is kept', () => {
     expect((out.body.ids as unknown[]).map((i) => typeof i)).toEqual(['string', 'object', 'object']);
   });
 
-  it('keeps at most 40 light events a day, and 3000 in all in a deep check', async () => {
-    db.today = { all: 38, light: 38, checks: 0 };
+  it('keeps separate daily buckets: 40 problems (200 in a deep check), 3000 readings', async () => {
+    db.today = { readings: 0, problems: 38, checks: 0 };
     let out = await report(Array.from({ length: 5 }, () => event()));
     expect(out.body).toMatchObject({ ok: true, accepted: 5 });
     expect(inserted()).toHaveLength(2);
 
     state.queries.length = 0;
-    db.today = { all: 40, light: 40, checks: 0 };
+    db.today = { readings: 0, problems: 40, checks: 0 };
     out = await report([event()]);
     expect(out.body).toMatchObject({ ok: true, accepted: 1, ids: [null] });
     expect(queriesOf('device_health_events', 'insert')).toHaveLength(0);
 
-    // Deep: the light cap no longer applies, the daily 3000 does.
+    // Deep: problems get 200, and readings their own 3000 — a box whose
+    // readings are used up still reports its stalls.
     state.queries.length = 0;
     db.deepUntil = new Date(Date.now() + 3 * DAY).toISOString();
-    db.today = { all: 2997, light: 40, checks: 0 };
-    out = await report(Array.from({ length: 5 }, () => event({ kind: 'sample', verdict: 'unknown' })));
-    expect(out.body).toMatchObject({ ok: true, accepted: 5, deep_until: db.deepUntil });
-    expect(inserted()).toHaveLength(3);
-    expect(inserted()[0]).toMatchObject({ deep: true, kind: 'sample' });
+    db.today = { readings: 3000, problems: 40, checks: 0 };
+    out = await report([event({ kind: 'sample', verdict: 'unknown' }), event(), event({ kind: 'sample', verdict: 'unknown' })]);
+    expect(out.body).toMatchObject({ ok: true, accepted: 3, deep_until: db.deepUntil });
+    expect(out.body.ids).toEqual([null, expect.any(String), null]);
+    expect(inserted()).toHaveLength(1);
+    expect(inserted()[0]).toMatchObject({ deep: true, kind: 'stall' });
+
+    state.queries.length = 0;
+    db.today = { readings: 2997, problems: 200, checks: 0 };
+    out = await report([...Array.from({ length: 4 }, () => event({ kind: 'sample', verdict: 'unknown' })), event()]);
+    expect((out.body.ids as Array<string | null>).filter(Boolean)).toHaveLength(3);
+    expect(inserted().every((r: { kind: string }) => r.kind === 'sample')).toBe(true);
   });
 
   it('keeps app_start / sample only in a deep check', async () => {
@@ -268,7 +306,7 @@ describe('device-health: customer-run 30-second check', () => {
   });
 
   it('keeps at most 6 checks a box a day, apart from the light cap', async () => {
-    db.today = { all: 40, light: 40, checks: 5 };
+    db.today = { readings: 0, problems: 40, checks: 5 };
     const out = await report([check(), check(), event()]);
     expect(out.body).toMatchObject({ ok: true, accepted: 3 });
     expect((out.body.ids as unknown[]).map((i) => i !== null)).toEqual([true, false, false]);
@@ -385,5 +423,7 @@ describe('device-health: admin', () => {
     expect(JSON.stringify(out.body)).not.toContain(KEY_HASH);
     const rpc = state.rpcs.find((c) => c.name === 'device_health_box_summary')!;
     expect(rpc.args).toMatchObject({ p_host: 'strmz.xyz', p_username: 'family@example.com', p_customer_id: null });
+    expect(rpc.args.p_key_hashes).toBeNull();
+    expect(devices[0]).toMatchObject({ checks_30d: 0, restarts_30d: 0 });
   });
 });

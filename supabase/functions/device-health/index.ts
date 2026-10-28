@@ -10,15 +10,15 @@
 //       device-inbox checkin: a key not registered → unknown_key, registered
 //       for another line → other_line). Up to 20 events per call, each at most
 //       4 KB. Strings that look like a URL, a query string with a password /
-//       token / username, or an IP address are dropped before anything is
-//       stored. A box keeps at most 3000 events a day (a deep check samples every 10 s), and at most 40 of them
-//       while it is not in a deep check; app_start / sample are kept only in a
-//       deep check. Events over a cap or malformed are dropped silently but
+//       token / username, an IP address, host:port or an Xtream stream path are dropped before anything is
+//       stored. A box keeps, per 24 h, separate buckets:
+//       3000 readings (app_start / sample, kept only in a deep check), 40
+//       problems (200 in a deep check) and 6 checks; one never eats another. Events over a cap or malformed are dropped silently but
 //       still counted in `accepted`, so the box never sends them again.
 //       A customer-run 30-second check (kind 'check') may carry `samples`
 //       (<= 30 rows of <= 8 numbers; ignored on other kinds), may be up to
 //       12 KB, works without a deep check, and has its own cap of 6 per box a
-//       day (it does not count against the 3000 / 40). `ids` lines up with the
+//       day. `ids` lines up with the
 //       events sent: the stored event's id, or null for one that was dropped,
 //       so the app can quote "Device check: <id>" in a report.
 //       → {ok:true, accepted:n, ids:(string|null)[], deep_until: string|null}
@@ -32,7 +32,7 @@
 //   admin_stop_deep {device_ref | key_hash}                    → {ok:true, device_ref, deep_until:null}
 //       device_ref is the device_inbox row id device-inbox `devices` hands out.
 //       An unknown box → {ok:false, reason:'unknown_device'}.
-//   admin_events {host?, username?, customer_id?, device_ref?, since?, kind?, verdict?, limit?<=500 (100)}
+//   admin_events {host?, username?, customer_id?, device_ref?, since?, kind?, kinds?, problems_only?, verdict?, limit?<=500 (100)}
 //       → {ok:true, events:[{id, device_ref, label, host, username, customer_id, app_version,
 //           version_code, device_model, os_version, kind, verdict, summary, context, title, data,
 //           samples, deep, occurred_at, created_at}]} newest first
@@ -40,8 +40,10 @@
 //   admin_devices {host?, username?, customer_id?, device_ref?}
 //       → {ok:true, devices:[{device_ref, label, host, username, customer_id, customer_name,
 //           app_version, model, last_seen, deep_until, counts:{verdict:n}, problems_7d,
-//           problems_30d, last_event:{kind, verdict, summary, title, occurred_at}|null}]}
-//       Counts are problems (app_start / sample left out) in the last 30 days.
+//           problems_30d, checks_30d, restarts_30d, last_event:{kind, verdict, summary, title, occurred_at}|null}]}
+//       counts / problems_* / last_event are real stops in the last 30 days:
+//       stall, player_error, crash, killed, auth_error. Customer checks and box
+//       restarts (killed with exitReason box_restarted) are counted apart.
 //       Worst first. With no filter: every box with a problem in 30 days, plus
 //       boxes in a deep check now. With a line or a customer: also that line's /
 //       customer's boxes with nothing wrong.
@@ -76,8 +78,11 @@ const MAX_CHECK_BYTES = 12 * 1024;
 export const MAX_CHECKS_PER_DAY = 6;
 const MAX_SAMPLE_ROWS = 30;
 const MAX_SAMPLE_COLS = 8;
-export const MAX_EVENTS_PER_DAY = 3000;
-export const MAX_LIGHT_EVENTS_PER_DAY = 40;
+// Separate daily buckets, so a deep check's readings never crowd out a real
+// problem: readings (app_start / sample, deep only), problems, checks.
+export const MAX_READINGS_PER_DAY = 3000;
+export const MAX_PROBLEMS_PER_DAY = 40;
+export const MAX_DEEP_PROBLEMS_PER_DAY = 200;
 // Light: at most a call per 30 s; deep: a batch a minute plus light flushes.
 const REPORTS_PER_KEY_PER_HOUR = 180;
 // At start and every 10 minutes; restarts on top.
@@ -119,6 +124,15 @@ const SECRET_LIKE = [
   /:\/\//,
   /(?:^|[?&;\s])(?:password|passwd|pass|pwd|token|access_token|x-plex-token|username|user|pin|key|auth)=/i,
   /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/,
+  // An IPv6 address: one with a '::', or six or more groups (a clock time
+  // like 1:23:45 is neither).
+  /(?:[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4})?/i,
+  /\b(?:[0-9a-f]{1,4}:){5,7}[0-9a-f]{1,4}\b/i,
+  /\[[0-9a-f:]+\]/i,
+  // host:port
+  /\b[a-z0-9-]+(?:\.[a-z0-9-]+)+:\d{2,5}\b/i,
+  // An Xtream stream path carries the line's username and password.
+  /\/(?:live|movie|series|timeshift)\/[^/\s]+\/[^/\s]+/i,
 ];
 export const unsafeText = (s: string): boolean => SECRET_LIKE.some((re) => re.test(s));
 
@@ -298,18 +312,18 @@ async function customerForLine(admin: Db, line: Line): Promise<string | null> {
  * How many events this box sent in the last 24 h: all of them and the light
  * (non-deep) ones, both without checks, and its checks (their own cap).
  */
-async function countsToday(admin: Db, keyHash: string): Promise<{ all: number; light: number; checks: number }> {
+async function countsToday(admin: Db, keyHash: string): Promise<{ readings: number; problems: number; checks: number }> {
   const since = new Date(Date.now() - DAY_MS).toISOString();
   const count = () => admin.from('device_health_events').select('id', { count: 'exact', head: true })
     .eq('key_hash', keyHash).gte('created_at', since);
-  const [all, light, checks] = await Promise.all([
-    count().neq('kind', 'check'),
-    count().neq('kind', 'check').eq('deep', false),
+  const [readings, problems, checks] = await Promise.all([
+    count().in('kind', [...DEEP_ONLY_KINDS]),
+    count().not('kind', 'in', '(app_start,sample,check)'),
     count().eq('kind', 'check'),
   ]);
-  const err = all.error ?? light.error ?? checks.error;
+  const err = readings.error ?? problems.error ?? checks.error;
   if (err) throw new Error(`count: ${(err as { message?: string }).message ?? 'failed'}`);
-  return { all: all.count ?? 0, light: light.count ?? 0, checks: checks.count ?? 0 };
+  return { readings: readings.count ?? 0, problems: problems.count ?? 0, checks: checks.count ?? 0 };
 }
 
 async function report(admin: Db, body: Body): Promise<Response> {
@@ -338,20 +352,16 @@ async function report(admin: Db, body: Body): Promise<Response> {
   const keep: Array<EventRow & { id: string }> = [];
   if (cleaned.some((c) => c !== null)) {
     const today = await countsToday(admin, device.key_hash);
-    let room = Math.max(0, Math.min(
-      MAX_EVENTS_PER_DAY - today.all,
-      deep ? Infinity : MAX_LIGHT_EVENTS_PER_DAY - today.light,
-    ));
-    let checkRoom = Math.max(0, MAX_CHECKS_PER_DAY - today.checks);
+    const room = {
+      readings: Math.max(0, MAX_READINGS_PER_DAY - today.readings),
+      problems: Math.max(0, (deep ? MAX_DEEP_PROBLEMS_PER_DAY : MAX_PROBLEMS_PER_DAY) - today.problems),
+      checks: Math.max(0, MAX_CHECKS_PER_DAY - today.checks),
+    };
     cleaned.forEach((c, i) => {
       if (!c) return;
-      if (c.kind === 'check') {
-        if (checkRoom <= 0) return;
-        checkRoom--;
-      } else {
-        if (room <= 0) return;
-        room--;
-      }
+      const bucket = c.kind === 'check' ? 'checks' : DEEP_ONLY_KINDS.has(c.kind) ? 'readings' : 'problems';
+      if (room[bucket] <= 0) return;
+      room[bucket]--;
       const id = crypto.randomUUID();
       ids[i] = id;
       keep.push({ id, ...c });
@@ -519,6 +529,13 @@ async function adminEvents(admin: Db, body: Body): Promise<Response> {
     limit = Math.min(body.limit, EVENTS_MAX_LIMIT);
   }
   if (body.kind !== undefined && body.kind !== null && !KINDS.includes(body.kind as (typeof KINDS)[number])) return badRequest();
+  let kinds: string[] | null = null;
+  if (body.kinds !== undefined && body.kinds !== null) {
+    if (!Array.isArray(body.kinds) || !body.kinds.length || body.kinds.length > KINDS.length
+      || !body.kinds.every((k) => KINDS.includes(k as (typeof KINDS)[number]))) return badRequest();
+    kinds = [...new Set(body.kinds as string[])];
+  }
+  if (body.problems_only !== undefined && body.problems_only !== null && typeof body.problems_only !== 'boolean') return badRequest();
   if (body.verdict !== undefined && body.verdict !== null && !VERDICTS.includes(body.verdict as (typeof VERDICTS)[number])) return badRequest();
   let since: string | null = null;
   if (body.since !== undefined && body.since !== null) {
@@ -545,6 +562,9 @@ async function adminEvents(admin: Db, body: Body): Promise<Response> {
     q = hashes.length ? q.or(`customer_id.eq.${f.customerId},key_hash.in.(${hashes.join(',')})`) : q.eq('customer_id', f.customerId);
   }
   if (typeof body.kind === 'string') q = q.eq('kind', body.kind);
+  if (kinds) q = q.in('kind', kinds);
+  // A deep check's readings (one every 10 s) would bury the box's problems.
+  if (body.problems_only === true) q = q.not('kind', 'in', '(app_start,sample)');
   if (typeof body.verdict === 'string') q = q.eq('verdict', body.verdict);
   if (since) q = q.gte('occurred_at', since);
   const { data, error } = await q.order('occurred_at', { ascending: false }).limit(limit);
@@ -570,6 +590,7 @@ async function adminEvent(admin: Db, body: Body): Promise<Response> {
 type Summary = {
   key_hash: string; host: string; username: string; customer_id: string | null; device_model: string | null;
   app_version: string | null; counts: Record<string, number> | null; problems_7d: number; problems_30d: number;
+  checks_30d: number; restarts_30d: number;
   last_kind: string | null; last_verdict: string | null; last_summary: string | null; last_title: string | null; last_at: string | null;
 };
 
@@ -586,8 +607,10 @@ async function adminDevices(admin: Db, body: Body): Promise<Response> {
     onlyHash = box.key_hash; f.host = box.panel_host; f.username = box.panel_username; f.customerId = null;
   }
 
+  const customerHashes = f.customerId ? await customerBoxHashes(admin, f.customerId) : null;
   const { data: sum, error: sumErr } = await admin.rpc('device_health_box_summary', {
     p_host: f.host, p_username: f.username, p_customer_id: f.customerId, p_limit: MAX_DEVICES,
+    p_key_hashes: customerHashes,
   });
   if (sumErr) {
     console.error('[device-health] summary failed:', (sumErr as { message?: string }).message);
@@ -667,6 +690,8 @@ async function adminDevices(admin: Db, body: Body): Promise<Response> {
       counts: s?.counts ?? {},
       problems_7d: s?.problems_7d ?? 0,
       problems_30d: s?.problems_30d ?? 0,
+      checks_30d: s?.checks_30d ?? 0,
+      restarts_30d: s?.restarts_30d ?? 0,
       last_event: s && s.last_at
         ? { kind: s.last_kind, verdict: s.last_verdict, summary: s.last_summary ?? '', title: s.last_title, occurred_at: s.last_at }
         : null,
