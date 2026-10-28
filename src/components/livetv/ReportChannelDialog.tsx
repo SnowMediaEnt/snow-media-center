@@ -11,7 +11,6 @@ import { withAppInfo } from '@/lib/appInfo';
 import { isDemo, demoDialogMsg } from '@/lib/demoMode';
 import { isOutsideLine } from '@/lib/outsideSource';
 import type { XtreamCreds } from '@/lib/xtream';
-import type { HealthContext } from '@/lib/deviceHealth';
 import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { CheckView, useDeviceCheck } from './DeviceHealthParts';
 
@@ -105,8 +104,6 @@ const BUFFERING_OPTIONS = ['live.report.openGuide', 'live.report.submitTicket'] 
 
 type Step = 'menu' | 'reasons' | 'buffering' | 'other' | 'checking' | 'checkDone';
 
-// Device Health: the report's 30-second check (lib/deviceCheck) is about this kind.
-const CHECK_CONTEXT: Record<ReportKind, HealthContext> = { channel: 'live', movie: 'vod', series: 'series', plex: 'plex' };
 
 /** The How-to guide's hooks on the menu rows (data-howto; literals, so its check finds them). */
 const MENU_HOWTO: Record<string, string> = { report: 'menu.report', fav: 'menu.favorite', record: 'menu.record' };
@@ -290,10 +287,11 @@ const ReportChannelDialog = memo(({
         let checked = false;
         if (checkOffered && withCheck) {
           setStep('checking');
+          // A film / series / Plex report with nothing playing: no check (a
+          // live channel would be the wrong thing to measure).
           const res = await checkRef.current.start({
             channel: kind === 'channel' && channelId != null ? { line: line ?? null, streamId: channelId, name: channelName } : null,
-            context: CHECK_CONTEXT[kind],
-            title: channelName,
+            liveFallback: kind === 'channel',
           });
           checked = !!res;
           checkId = res?.id ?? null;

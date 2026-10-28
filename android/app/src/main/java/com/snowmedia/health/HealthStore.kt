@@ -4,6 +4,8 @@ import android.app.ActivityManager
 import android.app.ApplicationExitInfo
 import android.content.Context
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.Process
 import android.os.SystemClock
 import android.util.Log
@@ -21,7 +23,13 @@ import java.io.File
  *     was on screen: the viewer saw SMC stop. Dying in the background is how
  *     Android frees memory and is not reported (unless Android says crash/ANR).
  *   * The box's boot time goes with the marker: a different one now means the
- *     box itself restarted (power cut, reboot) while SMC was on screen.
+ *     box itself restarted (power cut, reboot) while SMC was on screen
+ *     (kind 'killed', exitReason 'box_restarted': the server does not count
+ *     it as a stop). The app's versionCode goes with it too: a different one
+ *     now means an install replaced the app while it was on screen (not
+ *     reported).
+ *   * A heartbeat every minute while on screen, so a death says how long it
+ *     had been on screen (onScreenSec, a minute's accuracy).
  *   * API >= 30: ApplicationExitInfo says why (low memory, ANR, crash, ...).
  *   * Older Fire OS (API 28): the marker, plus our own uncaught-exception
  *     handler, which writes the exception's class and top 5 frames (never its
@@ -37,6 +45,22 @@ object HealthStore {
     private const val CRASH_FILE = "health_crash.txt"
     private const val MAX_PENDING = 5
     private const val MIB = 1024L * 1024L
+    private const val BEAT_MS = 60_000L
+
+    private val main = Handler(Looper.getMainLooper())
+    @Volatile private var beatCtx: Context? = null
+    private val beat = object : Runnable {
+        override fun run() {
+            val c = beatCtx ?: return
+            try { prefs(c).edit().putLong("lastBeat", System.currentTimeMillis()).apply() } catch (_: Throwable) { /* ignore */ }
+            main.postDelayed(this, BEAT_MS)
+        }
+    }
+
+    private fun versionCode(ctx: Context): Long = try {
+        val pi = ctx.packageManager.getPackageInfo(ctx.packageName, 0)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) pi.longVersionCode else @Suppress("DEPRECATION") pi.versionCode.toLong()
+    } catch (_: Throwable) { -1L }
 
     @Volatile private var started = false
     @Volatile private var handlerInstalled = false
@@ -60,7 +84,10 @@ object HealthStore {
             val lastPid = p.getInt("pid", 0)
             val lastBoot = p.getLong("boot", 0L)
             val fgSince = p.getLong("fgSince", 0L)
-            val dirty = wasOnScreen && lastPid != Process.myPid()
+            val lastVc = p.getLong("vc", -1L)
+            // An install replaced the app while it was on screen: not a stop.
+            val updated = lastVc != -1L && lastVc != versionCode(app)
+            val dirty = wasOnScreen && lastPid != Process.myPid() && !updated
             val rebooted = dirty && lastBoot > 0 && Math.abs(bootWallMs() - lastBoot) > 120_000L
 
             val crashFile = File(app.filesDir, CRASH_FILE)
@@ -73,14 +100,14 @@ object HealthStore {
             val exitReason = exit?.optString("exitReason", "") ?: ""
             val exitForeground = exit?.optBoolean("foreground", false) ?: false
 
-            if (crashText != null || exitReason == "crash" || exitReason == "crash_native") {
+            if (crashText != null || ((exitReason == "crash" || exitReason == "crash_native") && !updated)) {
                 record = JSONObject()
                     .put("kind", "crash")
                     .put("exitReason", if (exitReason.isNotEmpty()) exitReason else "crash")
                     .put("stack", crashText ?: "")
                     .put("at", exit?.optLong("at", 0L) ?: p.getLong("crashAt", 0L))
             } else if (exit != null && exitReason in setOf("anr", "low_memory", "excessive_resource_usage")
-                && (dirty || exitForeground)) {
+                && (dirty || (exitForeground && !updated))) {
                 record = JSONObject().put("kind", "killed").put("exitReason", exitReason).put("at", exit.optLong("at", 0L))
             } else if (dirty) {
                 val skip = exitReason in setOf("user_requested", "user_stopped", "exit_self", "package_updated",
@@ -96,7 +123,8 @@ object HealthStore {
                 }
             }
             if (record != null) {
-                if (fgSince > 0) record.put("onScreenSec", ((p.getLong("lastBeat", fgSince) - fgSince) / 1000L).coerceAtLeast(0L))
+                val lastBeat = p.getLong("lastBeat", 0L)
+                if (fgSince > 0 && lastBeat >= fgSince) record.put("onScreenSec", ((lastBeat - fgSince) / 1000L).coerceAtLeast(0L))
                 exit?.let { e ->
                     if (e.has("pssMb")) record.put("pssMb", e.optLong("pssMb"))
                     if (e.has("status")) record.put("exitStatus", e.optInt("status"))
@@ -154,19 +182,37 @@ object HealthStore {
         try {
             val now = System.currentTimeMillis()
             val e = prefs(ctx).edit().putBoolean("fg", on).putInt("pid", Process.myPid()).putLong("boot", bootWallMs()).putLong("lastBeat", now)
-            if (on) e.putLong("fgSince", now)
+            if (on) e.putLong("fgSince", now).putLong("vc", versionCode(ctx))
             // commit() on the way off screen: the process may be gone the next moment.
             if (on) e.apply() else e.commit()
+            main.removeCallbacks(beat)
+            if (on) {
+                beatCtx = ctx.applicationContext
+                main.postDelayed(beat, BEAT_MS)
+            } else {
+                beatCtx = null
+            }
         } catch (_: Throwable) { /* telemetry only */ }
     }
 
-    /** The page's renderer died (MainActivity): kept for the next page. */
+    /** SMC is on screen in this process right now (the marker). */
+    fun isOnScreen(ctx: Context): Boolean = try {
+        val p = prefs(ctx)
+        p.getBoolean("fg", false) && p.getInt("pid", 0) == Process.myPid()
+    } catch (_: Throwable) { false }
+
+    /**
+     * The page's renderer died (MainActivity): kept for the next page. Only a
+     * crash, or a kill while SMC was on screen (Android freeing a background
+     * app's renderer is not a stop). A kill is kind 'killed' (renderer_killed).
+     */
     fun noteRendererGone(ctx: Context, didCrash: Boolean, playerActive: Boolean) {
+        if (!didCrash && !isOnScreen(ctx)) return
         try {
             val mem = ActivityManager.MemoryInfo()
             (ctx.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager)?.getMemoryInfo(mem)
             addPending(ctx, JSONObject()
-                .put("kind", "crash")
+                .put("kind", if (didCrash) "crash" else "killed")
                 .put("exitReason", if (didCrash) "renderer_crashed" else "renderer_killed")
                 .put("at", System.currentTimeMillis())
                 .put("playerActive", playerActive)

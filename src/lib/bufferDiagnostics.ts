@@ -478,11 +478,15 @@ function stopTicking() {
 interface ProbeResult { ttfbMs: number; kbps: number | null; bytes: number }
 
 /** Fetch `url`, read at most `maxBytes` of the body, then abort. Never throws — resolves null on failure. */
-async function measure(url: string, init: RequestInit, timeoutMs: number, maxBytes: number): Promise<ProbeResult | null> {
+async function measure(url: string, init: RequestInit, timeoutMs: number, maxBytes: number, outer?: AbortSignal): Promise<ProbeResult | null> {
   if (typeof fetch !== 'function') return null;
+  if (outer?.aborted) return null;
   const ac = new AbortController();
   probeAbort.push(ac);
   const timer = setTimeout(() => { try { ac.abort(); } catch { /* ignore */ } }, timeoutMs);
+  // The caller's own stop (a device check cancelled) ends it too.
+  const onOuter = () => { try { ac.abort(); } catch { /* ignore */ } };
+  outer?.addEventListener('abort', onOuter);
   const t0 = performance.now();
   try {
     const res = await fetch(url, { ...init, cache: 'no-store', signal: ac.signal });
@@ -511,6 +515,7 @@ async function measure(url: string, init: RequestInit, timeoutMs: number, maxByt
     return null;
   } finally {
     clearTimeout(timer);
+    outer?.removeEventListener('abort', onOuter);
     probeAbort = probeAbort.filter(a => a !== ac);
     try { ac.abort(); } catch { /* ignore */ }
   }
@@ -687,9 +692,9 @@ function reportStallOver(ended: boolean): void {
  * stall probe uses), for a device check. kbps, or null when it failed.
  * Never throws.
  */
-export async function measureInternetKbps(bytes = 2_000_000, timeoutMs = 10_000): Promise<number | null> {
+export async function measureInternetKbps(bytes = 2_000_000, timeoutMs = 10_000, signal?: AbortSignal): Promise<number | null> {
   const n = Math.max(65_536, Math.min(10_000_000, Math.round(bytes)));
-  const r = await measure(`https://speed.cloudflare.com/__down?bytes=${n}`, { method: 'GET' }, timeoutMs, n);
+  const r = await measure(`https://speed.cloudflare.com/__down?bytes=${n}`, { method: 'GET' }, timeoutMs, n, signal);
   return r && r.kbps != null ? r.kbps : null;
 }
 

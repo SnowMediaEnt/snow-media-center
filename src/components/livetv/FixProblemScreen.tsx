@@ -62,7 +62,7 @@ const FixProblemScreen = memo(({ onBack, active = true, onOpenBufferingGuide, on
 
   const activate = useCallback((id: RowId) => {
     if (id === 'guide') onOpenBufferingGuide?.();
-    else if (id === 'check') { if (!checkRef.current.running) void checkRef.current.start({ context: 'live' }); }
+    else if (id === 'check') { if (!checkRef.current.running) void checkRef.current.start(); }
     else onOpenSupportTool?.(id);
   }, [onOpenBufferingGuide, onOpenSupportTool]);
 

@@ -71,7 +71,8 @@ class MainActivity : BridgeActivity() {
                 }
                 // Kept for the next page to report once (src/lib/rendererGone.ts).
                 RendererGone.save(this@MainActivity, detail.didCrash(), detail.rendererPriorityAtExit(), playerActive)
-                // And for Device Health's next report (a 'crash').
+                // And for Device Health's next report: a crash, or a kill while
+                // SMC was on screen (HealthStore decides; a background kill is not a stop).
                 HealthStore.noteRendererGone(this@MainActivity, detail.didCrash(), playerActive)
                 // The activity is made again: a new WebView loads the app from
                 // its start, which opens on Home (useNavigation's first view;

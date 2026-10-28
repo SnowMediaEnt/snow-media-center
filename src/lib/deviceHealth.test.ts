@@ -59,7 +59,8 @@ vi.mock('@/capacitor/SnowPlayer', () => ({
 }));
 
 import {
-  ALL_PER_DAY, DEEP_BATCH_MS, DEEP_IDLE_SAMPLE_MS, DEEP_TICK_MS, FLUSH_DEBOUNCE_MS, LIGHT_PER_DAY, MIN_CALL_GAP_MS, QUEUE_MAX, STATUS_EVERY_MS,
+  CHECKS_PER_DAY, DEEP_BATCH_MS, DEEP_IDLE_SAMPLE_MS, DEEP_TICK_MS, FLUSH_DEBOUNCE_MS, MIN_CALL_GAP_MS, PROBLEMS_PER_DAY, PROBLEMS_PER_DAY_DEEP,
+  QUEUE_MAX, READINGS_PER_DAY, STATUS_EVERY_MS, bucketOf, droppedDelta, isUnsafeText,
   __resetDeviceHealthForTests, authReasonOf, cleanData, cleanEvent, compactStack, decideVerdict, deepUntil, exitEvents, flushNow,
   noteAuthError, notePlayerError, onStallOver, pendingHealthEvents, recordHealthEvent, scrubText, setNowPlaying, startDeviceHealth,
   type HealthEvent,
@@ -127,18 +128,34 @@ describe('verdict rules', () => {
     expect(v('stall', {}, { diagVerdict: 'server' })).toBe('server');
     expect(v('stall', { arrivalKbps: 9000, neededKbps: 6000, wifiRssi: -50 })).toBe('unknown');
   });
+  it('short means under 85 % of the bit rate AND it showed (a stall or the buffer running down)', () => {
+    // 90 % of the bit rate is not short.
+    expect(v('stall', { arrivalKbps: 5400, neededKbps: 6000, wifiRssi: -55 })).toBe('unknown');
+    // A sample under the bit rate with a full, steady buffer: the player resting.
+    expect(v('sample', { arrivalKbps: 2000, neededKbps: 6000, wifiRssi: -55, bufferedAheadSec: 40 })).toBe('unknown');
+    expect(v('sample', { arrivalKbps: 2000, neededKbps: 6000, wifiRssi: -55, bufferFalling: true })).toBe('server');
+    expect(v('check', { arrivalKbps: 2000, neededKbps: 6000, wifiRssi: -80, stalls: 2 })).toBe('internet');
+    expect(v('check', { arrivalKbps: 2000, neededKbps: 6000, wifiRssi: -80, stalls: 0 })).toBe('unknown');
+  });
 });
 
 describe('privacy', () => {
-  it('scrubText takes out addresses, query strings, secrets, IPs and host:port', () => {
-    const s = scrubText('Failed http://dstreams.xyz:8080/live/jsmith/pw123/55.ts?token=abc at 192.168.1.4 via cdn.example.com:8443 password=pw123 user: jsmith');
-    expect(s).not.toMatch(/:\/\//);
-    expect(s).not.toContain('pw123');
-    expect(s).not.toContain('jsmith');
-    expect(s).not.toContain('192.168');
-    expect(s).not.toContain('8443');
-    expect(s).not.toContain('token');
-    expect(scrubText('dstreams.xyz/live/a/b/1.ts')).toBe('[link]');
+  it('a string with an address, an IP, host:port, a credential or an Xtream path is dropped whole', () => {
+    for (const bad of [
+      'Failed http://dstreams.xyz:8080/live/jsmith/pw123/55.ts',
+      'rtmp://x', 'at 192.168.1.4 now', 'via fe80::1 now', 'via 2001:db8:0:0:0:0:2:1', 'cdn.example.com:8443 slow', 'localhost:8080',
+      'ok?token=abc', 'password=pw123', 'x&username=bob', 'GET /live/jsmith/pw123/55.ts', '/timeshift/u/p/60/2026-10-28:20-00/8.ts',
+      '/movie/a/b/1.mkv', '/series/a/b/2.mp4',
+    ]) {
+      expect(isUnsafeText(bad)).toBe(true);
+      expect(scrubText(`News ${bad}`)).toBe('');
+    }
+  });
+  it('plain words, clocks, versions and stack lines pass', () => {
+    for (const ok of ['Stalled 12 s on [USA] CNN', 'at 12:30:45', 'app 1.9.4', 'Sky Sports 1 HD', 'at a.b.SnowPlayerPlugin.load(SnowPlayerPlugin.kt:12)', 'Movie: The Live Show']) {
+      expect(isUnsafeText(ok)).toBe(false);
+      expect(scrubText(ok)).toBe(ok);
+    }
     expect(scrubText('x'.repeat(300)).length).toBeLessThanOrEqual(200);
   });
   it('keeps a crash stack line (a source file is not a host)', () => {
@@ -147,7 +164,7 @@ describe('privacy', () => {
   });
   it('cleanData keeps known keys only, flat values, scrubbed strings', () => {
     const d = cleanData({ arrivalKbps: 1234.567, url: 'http://x', password: 'pw', errorCode: 'see https://a.b/c?username=u&password=p', nested: { a: 1 }, nan: NaN, wired: true });
-    expect(d).toEqual({ arrivalKbps: 1234.6, errorCode: 'see [link]', wired: true });
+    expect(d).toEqual({ arrivalKbps: 1234.6, wired: true });
   });
   it('nothing that looks like an address or a login ever leaves the box', async () => {
     startDeviceHealth();
@@ -175,11 +192,14 @@ describe('queue + limits', () => {
     expect(reports()).toHaveLength(1);
     expect(pendingHealthEvents()).toHaveLength(0);
   });
-  it('keeps at most 50, dropping the oldest', () => {
-    for (let i = 0; i < QUEUE_MAX + 5; i += 1) recordHealthEvent(ev({ kind: 'crash', summary: `c${i}` }), { deep: true });
+  it('keeps at most 50: the oldest readings go first, problems stay', () => {
+    h.creds = null; // nothing goes out meanwhile
+    for (let i = 0; i < 20; i += 1) recordHealthEvent(ev({ kind: 'crash', summary: `c${i}` }));
+    for (let i = 0; i < QUEUE_MAX; i += 1) recordHealthEvent(ev({ kind: 'sample', summary: `s${i}` }), { deep: true });
     const q = pendingHealthEvents();
     expect(q).toHaveLength(QUEUE_MAX);
-    expect(q[0].summary).toBe('c5');
+    expect(q.filter((e) => e.kind === 'crash')).toHaveLength(20);
+    expect(q.find((e) => e.kind === 'sample')!.summary).toBe('s20');
   });
   it('a failed call keeps the queue, and no call comes sooner than 30 s after the last', async () => {
     h.reply = (b) => (b.action === 'report' ? { data: { ok: false, reason: 'error' }, error: null } : undefined);
@@ -200,11 +220,57 @@ describe('queue + limits', () => {
     await settle(DEEP_BATCH_MS);
     expect((reports()[0].body.events as unknown[]).length).toBe(20);
   });
-  it('40 light events a day, then the box stops queueing them', async () => {
+  it('independent daily caps: readings 3000, problems 40 (200 in a deep check), checks 6', async () => {
+    expect([READINGS_PER_DAY, PROBLEMS_PER_DAY, PROBLEMS_PER_DAY_DEEP, CHECKS_PER_DAY]).toEqual([3000, 40, 200, 6]);
+    expect(['sample', 'app_start', 'stall', 'player_error', 'crash', 'killed', 'auth_error', 'check'].map((k) => bucketOf(k as never)))
+      .toEqual(['readings', 'readings', 'problems', 'problems', 'problems', 'problems', 'problems', 'checks']);
+    h.creds = null;
     let kept = 0;
-    for (let i = 0; i < LIGHT_PER_DAY + 10; i += 1) if (recordHealthEvent(ev({ kind: 'crash' }))) kept += 1;
-    expect(kept).toBe(LIGHT_PER_DAY);
-    expect(ALL_PER_DAY).toBe(3000);
+    for (let i = 0; i < PROBLEMS_PER_DAY + 10; i += 1) if (recordHealthEvent(ev({ kind: 'crash' }))) kept += 1;
+    expect(kept).toBe(PROBLEMS_PER_DAY);
+    // Readings are their own bucket: problems being full does not stop them.
+    expect(recordHealthEvent(ev({ kind: 'sample' }), { deep: true })).toBe(true);
+  });
+  it('a deep box never stops sending stalls / crashes because of its samples (200 problems a day)', async () => {
+    const until = new Date(Date.now() + 7 * 24 * 3600_000).toISOString();
+    h.reply = (b) => (b.action === 'status' ? { data: { ok: true, deep_until: until }, error: null }
+      : { data: { ok: true, deep_until: until, ids: (b.events as unknown[]).map(() => 'x') }, error: null });
+    startDeviceHealth();
+    await settle();
+    h.creds = null;
+    for (let i = 0; i < 45; i += 1) recordHealthEvent(ev({ kind: 'sample' }), { deep: true });
+    let kept = 0;
+    for (let i = 0; i < 60; i += 1) if (recordHealthEvent(ev({ kind: 'crash' }))) kept += 1;
+    expect(kept).toBe(60);
+  });
+  it('a 400 (bad_request) drops the batch instead of retrying it forever', async () => {
+    h.reply = (b) => (b.action === 'report' ? { data: { ok: false, reason: 'bad_request' }, error: null } : undefined);
+    recordHealthEvent(ev());
+    await settle(FLUSH_DEBOUNCE_MS);
+    expect(reports()).toHaveLength(1);
+    expect(pendingHealthEvents()).toHaveLength(0);
+    await settle(MIN_CALL_GAP_MS * 4);
+    expect(reports()).toHaveLength(1);
+  });
+  it('a stall during a call is never merged into the event already on its way', async () => {
+    let release: (v: unknown) => void = () => {};
+    h.reply = (b) => (b.action === 'report' ? new Promise((res) => { release = res; }) : undefined);
+    recordHealthEvent(ev({ data: { stallSec: 5 } }));
+    await settle(FLUSH_DEBOUNCE_MS);
+    expect(reports()).toHaveLength(1);
+    recordHealthEvent(ev({ data: { stallSec: 7 } }));
+    release({ data: { ok: true, ids: ['a'] }, error: null });
+    await settle();
+    const q = pendingHealthEvents();
+    expect(q).toHaveLength(1);
+    expect(q[0].data).toMatchObject({ stallSec: 7 });
+  });
+  it('dropped frames are a recent delta, never the load\'s running total', () => {
+    const st = (dropped: number, rendered: number) => ({ droppedFrames: dropped, renderedFrames: rendered }) as never;
+    expect(droppedDelta(st(500, 10_000), 1_000)).toBeNull(); // no reading before
+    expect(droppedDelta(st(530, 10_300), 11_000)).toBe(30);
+    expect(droppedDelta(st(600, 10_600), 11_000 + 70_000)).toBeNull(); // too long ago
+    expect(droppedDelta(st(3, 100), 82_000)).toBeNull(); // a new load
   });
   it('a stall merges into one still waiting for the same title', () => {
     recordHealthEvent(ev({ data: { stallSec: 5 } }));
@@ -294,7 +360,8 @@ describe('what gets recorded', () => {
     startDeviceHealth();
     await settle();
     const q = pendingHealthEvents();
-    expect(q.map((e) => [e.kind, e.verdict])).toEqual([['killed', 'device_overload'], ['crash', 'app_crash'], ['crash', 'app_crash']]);
+    // A renderer Android shut for memory is a kill (overload), even from an older record saying crash.
+    expect(q.map((e) => [e.kind, e.verdict])).toEqual([['killed', 'device_overload'], ['crash', 'app_crash'], ['killed', 'device_overload']]);
     expect(q[0].summary).toBe('SMC stopped while on screen: Android ran out of memory');
     expect(q[1].summary).toContain('IllegalStateException');
     expect(q[2].summary).toMatch(/WebView\) was shut by Android, 40 MB free memory during playback/);

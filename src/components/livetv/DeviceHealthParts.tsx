@@ -79,7 +79,7 @@ export interface DeviceCheckState {
   progress: CheckProgress | null;
   result: CheckResult | null;
   unavailable: boolean;
-  /** Start one (nothing while one runs). Resolves with its result (null: cancelled / couldn't run). */
+  /** Start one (nothing while one runs). Resolves with its result (null: cancelled — at once — or couldn't run). */
   start: (opts?: CheckOpts) => Promise<CheckResult | null>;
   cancel: () => void;
   reset: () => void;
@@ -100,7 +100,10 @@ export function useDeviceCheck(): DeviceCheckState {
     const ac = new AbortController();
     abortRef.current = ac;
     setRunning(true); setResult(null); setUnavailable(false); setProgress({ second: 0, total: CHECK_SECONDS, stalled: false });
-    const r = await runDeviceCheck({ ...opts, signal: ac.signal, onProgress: (p) => { if (aliveRef.current && !ac.signal.aborted) setProgress(p); } }).catch(() => null);
+    const run = runDeviceCheck({ ...opts, signal: ac.signal, onProgress: (p) => { if (aliveRef.current && !ac.signal.aborted) setProgress(p); } }).catch(() => null);
+    // A stop answers at once (the check winds down by itself behind it).
+    const stopped = new Promise<null>((resolve) => { ac.signal.addEventListener('abort', () => resolve(null)); });
+    const r = await Promise.race([run, stopped]);
     if (abortRef.current === ac) abortRef.current = null;
     if (aliveRef.current) {
       setRunning(false);

@@ -15,6 +15,9 @@ const h = vi.hoisted(() => ({
   loads: [] as unknown[],
   stops: 0,
   demo: false,
+  onSpeedTest: null as null | (() => void),
+  sendHangs: false,
+  speedSignal: null as AbortSignal | null | undefined,
   creds: { host: 'http://dstreams.xyz:8080', username: 'jsmith', password: 'pw123', output: 'm3u8' } as Record<string, unknown> | null,
 }));
 
@@ -26,7 +29,7 @@ vi.mock('@/lib/xtream', () => ({
   buildNativeLiveUrl: (c: { host: string }, id: number) => `${c.host}/live/x/y/${id}.ts`,
 }));
 vi.mock('@/lib/bufferDiagnostics', () => ({
-  measureInternetKbps: async () => h.internetKbps,
+  measureInternetKbps: async (_b: number, _t: number, signal?: AbortSignal) => { h.speedSignal = signal; h.onSpeedTest?.(); return h.internetKbps; },
   formatMbps: (k: number | null) => (k == null ? '—' : `${(k / 1000).toFixed(1)} Mb/s`),
 }));
 vi.mock('@/capacitor/SnowPlayer', () => ({
@@ -51,7 +54,11 @@ vi.mock('@/lib/deviceHealth', async () => {
       i += 1;
       return s;
     },
-    sendCheckNow: async (e: unknown) => { h.sent.push(e); return { sent: true, id: '6f1c2d3e-0000-4000-8000-000000000001' }; },
+    sendCheckNow: async (e: unknown) => {
+      h.sent.push(e);
+      if (h.sendHangs) return new Promise(() => undefined);
+      return { sent: true, id: '6f1c2d3e-0000-4000-8000-000000000001' };
+    },
     __resetStatsIndex: () => { i = 0; },
   };
 });
@@ -66,6 +73,7 @@ const playing = (over: Record<string, unknown> = {}) => ({
 const noSleep = async () => undefined;
 
 beforeEach(() => {
+  h.onSpeedTest = null; h.sendHangs = false; h.speedSignal = null;
   h.stats = [playing()]; h.idleFirst = false; h.sent = []; h.allowed = true; h.internetKbps = 48_000; h.loads = []; h.stops = 0; h.demo = false;
   h.vitals = { memAvailMb: 800, memTotalMb: 1900, wifiRssi: -50 };
   (health as unknown as { __resetStatsIndex: () => void }).__resetStatsIndex();
@@ -107,7 +115,10 @@ describe('the 30-second check', () => {
     const r = await runDeviceCheck({ sleep: noSleep, durationSec: 2 });
     expect(h.loads).toEqual([{ url: 'http://dstreams.xyz:8080/live/x/y/77.ts', live: true }]);
     expect(h.stops).toBe(1);
-    expect((h.sent[0] as health.HealthEvent).data.source).toBe('started_for_check');
+    expect((h.sent[0] as health.HealthEvent).data.source).toBe('last_channel');
+    // Not named after anything it didn't play.
+    expect((h.sent[0] as health.HealthEvent).title).toBeUndefined();
+    expect((h.sent[0] as health.HealthEvent).summary).toContain('the last channel watched');
     // The address never goes into the event.
     expect(JSON.stringify(h.sent)).not.toContain('://');
     expect(r).not.toBeNull();
@@ -157,3 +168,45 @@ describe('summary and plain verdict', () => {
     expect(plainVerdict(judge(d).verdict, d, false).key).toBe('deviceHealth.check.verdict.notPlaying');
   });
 });
+
+describe('what the check measured, and stopping it', () => {
+  it('something already plays: named as the player names it (never the report\'s title)', async () => {
+    await runDeviceCheck({ sleep: noSleep, durationSec: 1, channel: { streamId: 12, name: 'News HD' } });
+    expect(h.loads).toHaveLength(0);
+    const e = h.sent[0] as health.HealthEvent;
+    expect(e.title).toBe('Sky Sports');
+    expect(e.data.source).toBe('already_playing');
+  });
+  it('a film / series / Plex report with nothing playing: no check at all', async () => {
+    h.idleFirst = true;
+    expect(await runDeviceCheck({ sleep: noSleep, durationSec: 2, liveFallback: false })).toBeNull();
+    expect(h.loads).toHaveLength(0);
+    expect(h.sent).toHaveLength(0);
+  });
+  it('the speed test gets the stop, and a stop during it sends nothing', async () => {
+    const ac = new AbortController();
+    h.onSpeedTest = () => ac.abort();
+    expect(await runDeviceCheck({ sleep: noSleep, durationSec: 2, signal: ac.signal })).toBeNull();
+    expect(h.speedSignal).toBe(ac.signal);
+    expect(h.sent).toHaveLength(0);
+  });
+  it('a send that hangs gives up after 8 s: the result has no id and the report can go on', async () => {
+    vi.useFakeTimers();
+    try {
+      h.sendHangs = true;
+      const p = runDeviceCheck({ sleep: noSleep, durationSec: 1 });
+      await vi.advanceTimersByTimeAsync(8_100);
+      const r = await p;
+      expect(r).toMatchObject({ sent: false, id: null });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it('the buffer running down over the check is counted as evidence', () => {
+    const rows = [30, 28, 25, 20, 15, 10].map((b) => ({ stats: playing({ bufferedAheadSec: b, arrivalKbps: 3000 }) as never, vitals: { wifiRssi: -50 }, stalled: false }));
+    const d = summarize(rows, 50_000);
+    expect(d.bufferFalling).toBe(true);
+    expect(judge(d)).toEqual({ verdict: 'server', fine: false });
+  });
+});
+

@@ -2,9 +2,13 @@
 // about 30 seconds and gather what the box is doing". From Fix a problem
 // (FixProblemScreen) and from the report flows (ReportChannelDialog).
 //
-//   * What plays: the stream already up on the main player; else the channel
-//     being reported, else the last channel watched (lib/xtream), loaded
-//     muted on the native player under the page and stopped again after.
+//   * What plays: the stream already up on the main player (named as the
+//     player names it, never as the report does); else the channel being
+//     reported, else the last channel watched (lib/xtream), loaded muted on
+//     the native player under the page and stopped again after. A film,
+//     series or Plex report with nothing playing has nothing to measure: no
+//     check (`liveFallback: false`). Cancelled = nothing sent; the send waits
+//     8 s at most (then the report goes on without the id).
 //   * Every second for 30 s: getStats + getDeviceVitals (one row each).
 //   * Then one ~2 MB internet speed test (bufferDiagnostics.measureInternetKbps).
 //   * A plain verdict (lib/deviceHealth decideVerdict) with 2-3 numbers in
@@ -17,7 +21,7 @@ import { buildNativeLiveUrl, loadCreds, loadLastChannelId, type XtreamCreds } fr
 import { isOutsideLine } from '@/lib/outsideSource';
 import { measureInternetKbps, formatMbps } from '@/lib/bufferDiagnostics';
 import {
-  checkAllowedToday, decideVerdict, getNowPlaying, neededKbpsOf, overloadReason, readStats, readVitals, sendCheckNow,
+  STARVED_SHARE, checkAllowedToday, decideVerdict, getNowPlaying, neededKbpsOf, overloadReason, readStats, readVitals, sendCheckNow,
   type HealthContext, type HealthEvent, type HealthValue, type HealthVerdict,
 } from '@/lib/deviceHealth';
 import { SnowPlayer, hasNativePlayer, type PlayerStats } from '@/capacitor/SnowPlayer';
@@ -25,6 +29,8 @@ import type { DeviceVitals } from '@/capacitor/DeviceHealth';
 
 export const CHECK_SECONDS = 30;
 const INTERNET_TEST_BYTES = 2_000_000;
+/** The send waits this long at most; then the report goes on without the id (the check stays queued). */
+export const SEND_TIMEOUT_MS = 8_000;
 
 export interface CheckProgress { second: number; total: number; stalled: boolean }
 
@@ -46,8 +52,9 @@ export interface CheckOpts {
   durationSec?: number;
   /** A channel to play when nothing is playing (the one being reported). */
   channel?: { line?: XtreamCreds | null; streamId: number | string | null | undefined; name?: string | null } | null;
-  context?: HealthContext;
-  title?: string | null;
+  /** When nothing plays: false = no check at all (a film / series / Plex
+   *  report: a live channel would be the wrong thing to measure). Default true. */
+  liveFallback?: boolean;
   onProgress?: (p: CheckProgress) => void;
   signal?: AbortSignal;
   /** Tests: the wait between samples. */
@@ -95,6 +102,9 @@ export function summarize(rows: Sampled[], internetKbps: number | null): Record<
   }
   const avg = (xs: number[]) => (xs.length ? round1(xs.reduce((a, b) => a + b, 0) / xs.length) : null);
   const v = last?.vitals ?? null;
+  // The buffer ran down over the check: its last third under its first by more than a second.
+  const third = Math.floor(buf.length / 3);
+  const bufferFalling = third >= 1 ? (avg(buf.slice(-third)) as number) < (avg(buf.slice(0, third)) as number) - 1 : null;
   return {
     seconds: rows.length,
     played,
@@ -106,6 +116,7 @@ export function summarize(rows: Sampled[], internetKbps: number | null): Record<
     neededKbps: needed,
     stalls,
     stallSec,
+    bufferFalling,
     droppedFrames: firstDropped != null && lastDropped != null ? Math.max(0, lastDropped - firstDropped) : null,
     cpuPctPeak: cpuPeak,
     memAvailMbMin: memMin === Infinity ? null : memMin,
@@ -160,29 +171,51 @@ export function judge(d: Record<string, HealthValue>): { verdict: HealthVerdict;
   const verdict = decideVerdict({ kind: 'check', data: d });
   const arrival = num(d.avgArrivalKbps);
   const needed = num(d.neededKbps);
-  const starved = arrival != null && needed != null && arrival < needed;
+  const starved = arrival != null && needed != null && arrival < STARVED_SHARE * needed && ((num(d.stalls) ?? 0) > 0 || d.bufferFalling === true);
   const fine = verdict === 'unknown' && (num(d.stalls) ?? 0) === 0 && !starved && !overloadReason(d) && d.played !== false;
   return { verdict, fine };
 }
 
-/** Start the stream to check when nothing plays. Returns its stop, or null (something already plays, or nothing to play). */
-async function ensurePlayback(opts: CheckOpts): Promise<{ stop: (() => Promise<void>) | null; title: string | null; context: HealthContext }> {
+interface Playback {
+  stop: (() => Promise<void>) | null;
+  /** What was measured, as named by whoever plays it; null when unnamed (the last channel). */
+  title: string | null;
+  context: HealthContext;
+  source: 'already_playing' | 'reported_channel' | 'last_channel' | 'nothing';
+}
+
+/** The stream to check: what plays, else one started for it. `null`: nothing to measure. */
+async function ensurePlayback(opts: CheckOpts): Promise<Playback | null> {
   const np = getNowPlaying();
   const now = await readStats();
-  if (now && now.state !== 'idle') return { stop: null, title: opts.title ?? np?.title ?? null, context: opts.context ?? np?.context ?? 'live' };
-  if (!hasNativePlayer()) return { stop: null, title: opts.title ?? null, context: opts.context ?? 'live' };
+  if (now && now.state !== 'idle') return { stop: null, title: np?.title ?? null, context: np?.context ?? 'live', source: 'already_playing' };
+  if (opts.liveFallback === false) return null;
+  if (!hasNativePlayer()) return { stop: null, title: null, context: 'app', source: 'nothing' };
   const creds = (opts.channel?.line ?? (await loadCreds().catch(() => null))) as XtreamCreds | null;
   const reported = Number(opts.channel?.streamId);
-  const id = Number.isFinite(reported) && reported > 0 ? reported : loadLastChannelId();
-  if (!creds?.host || !creds.username || isOutsideLine(creds) || !id) return { stop: null, title: opts.title ?? null, context: opts.context ?? 'live' };
+  const isReported = Number.isFinite(reported) && reported > 0;
+  const id = isReported ? reported : loadLastChannelId();
+  if (!creds?.host || !creds.username || isOutsideLine(creds) || !id) return { stop: null, title: null, context: 'app', source: 'nothing' };
   try {
     await SnowPlayer.load({ url: buildNativeLiveUrl(creds, id), live: true });
     await SnowPlayer.setVolume({ volume: 0 }).catch(() => undefined);
   } catch {
-    return { stop: null, title: null, context: 'live' };
+    return { stop: null, title: null, context: 'app', source: 'nothing' };
   }
-  const title = Number.isFinite(reported) && reported > 0 ? (opts.channel?.name ?? opts.title ?? null) : null;
-  return { stop: async () => { try { await SnowPlayer.stop(); } catch { /* ignore */ } }, title, context: 'live' };
+  return {
+    stop: async () => { try { await SnowPlayer.stop(); } catch { /* ignore */ } },
+    title: isReported ? (opts.channel?.name ?? null) : null,
+    context: 'live',
+    source: isReported ? 'reported_channel' : 'last_channel',
+  };
+}
+
+/** `p`, or `fallback` after `ms` (whichever is first). */
+function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise<T>((resolve) => {
+    const t = setTimeout(() => resolve(fallback), ms);
+    p.then((v) => { clearTimeout(t); resolve(v); }, () => { clearTimeout(t); resolve(fallback); });
+  });
 }
 
 /**
@@ -194,7 +227,8 @@ export async function runDeviceCheck(opts: CheckOpts = {}): Promise<CheckResult 
   if (isDemo() || !checkAllowedToday()) return null;
   const total = Math.max(1, Math.min(CHECK_SECONDS, opts.durationSec ?? CHECK_SECONDS));
   const sleep = opts.sleep ?? defaultSleep;
-  const play = await ensurePlayback(opts).catch(() => ({ stop: null, title: null, context: 'live' as HealthContext }));
+  const play = await ensurePlayback(opts).catch((): Playback => ({ stop: null, title: null, context: 'app', source: 'nothing' }));
+  if (!play) return null;
   const rows: Sampled[] = [];
   const samples: SampleRow[] = [];
   let played = false;
@@ -223,13 +257,14 @@ export async function runDeviceCheck(opts: CheckOpts = {}): Promise<CheckResult 
   }
   if (opts.signal?.aborted) return null;
   // After the stream: the test does not compete with it for the line.
-  const internetKbps = await measureInternetKbps(INTERNET_TEST_BYTES).catch(() => null);
+  const internetKbps = await measureInternetKbps(INTERNET_TEST_BYTES, 10_000, opts.signal).catch(() => null);
+  if (opts.signal?.aborted) return null;
   const data = summarize(rows, internetKbps);
-  data.source = play.stop ? 'started_for_check' : 'already_playing';
+  data.source = play.source;
   const { verdict, fine } = judge(data);
   data.fine = fine;
   const plain = plainVerdict(verdict, data, fine);
-  const what = play.title || (play.context === 'live' ? 'a channel' : 'a title');
+  const what = play.title || (play.source === 'last_channel' ? 'the last channel watched' : play.context === 'live' ? 'a channel' : 'a title');
   const event: HealthEvent = {
     kind: 'check',
     verdict,
@@ -241,6 +276,7 @@ export async function runDeviceCheck(opts: CheckOpts = {}): Promise<CheckResult 
     data,
     samples,
   };
-  const sent = await sendCheckNow(event).catch(() => ({ sent: false, id: null }));
+  if (opts.signal?.aborted) return null;
+  const sent = await withTimeout(sendCheckNow(event), SEND_TIMEOUT_MS, { sent: false, id: null as string | null });
   return { verdict, fine, plain, sent: sent.sent, id: sent.id, event };
 }

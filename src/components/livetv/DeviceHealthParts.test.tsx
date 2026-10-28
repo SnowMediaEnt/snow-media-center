@@ -144,7 +144,7 @@ describe('the report dialog offers the check', () => {
     key('Enter'); // Channel down
     await flush();
     expect(h.runs).toHaveLength(1);
-    expect(h.runs[0]).toMatchObject({ channel: { streamId: 11, name: 'TNT' }, context: 'live', title: 'TNT' });
+    expect(h.runs[0]).toMatchObject({ channel: { streamId: 11, name: 'TNT' }, liveFallback: true });
     expect(h.createTicket).not.toHaveBeenCalled();
     expect(document.querySelector('[data-check-view="running"]')).toBeTruthy();
     await act(async () => { h.finish?.(RESULT); });
@@ -173,15 +173,30 @@ describe('the report dialog offers the check', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it('Back during the check stops it; the report still goes, without an id', async () => {
+  it('Back during the check sends the report at once, without an id', async () => {
+    const { runDeviceCheck } = await import('@/lib/deviceCheck');
+    // A check that would take its time winding down: the report must not wait for it.
+    (runDeviceCheck as unknown as { mockImplementationOnce: (f: unknown) => void }).mockImplementationOnce((opts: { onProgress?: (p: unknown) => void }) => {
+      h.runs.push(opts as never);
+      opts.onProgress?.({ second: 3, total: 30, stalled: false });
+      return new Promise(() => undefined);
+    });
     const onClose = open();
     key('Enter');
     await flush();
+    expect(h.createTicket).not.toHaveBeenCalled();
     key('Escape');
     await flush();
     const message = (h.createTicket.mock.calls[0] as unknown as [string, string])[1];
     expect(message).not.toContain('Device check');
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('a film report: the check never falls back to a live channel', async () => {
+    open({ kind: 'movie', initialChoice: "Won't play" });
+    key('Enter');
+    await flush();
+    expect(h.runs[0]).toMatchObject({ channel: null, liveFallback: false });
   });
 
   it('not offered without the native player, or for an outside service', () => {

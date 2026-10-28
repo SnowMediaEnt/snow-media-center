@@ -63,8 +63,10 @@ export const DEEP_BATCH_MS = 60_000;
 export const DEEP_TICK_MS = 10_000;
 export const DEEP_IDLE_SAMPLE_MS = 5 * 60_000;
 export const MAX_EVENTS_PER_CALL = 20;
-export const LIGHT_PER_DAY = 40;
-export const ALL_PER_DAY = 3000;
+/** Daily caps per box, independent buckets (none eats another; DEVICE-HEALTH-SPEC "CONTRACT CHANGES"). */
+export const READINGS_PER_DAY = 3000;
+export const PROBLEMS_PER_DAY = 40;
+export const PROBLEMS_PER_DAY_DEEP = 200;
 export const CHECKS_PER_DAY = 6;
 const DAY_MS = 24 * 60 * 60_000;
 const SUMMARY_MAX = 200;
@@ -79,9 +81,13 @@ const HOLD_AFTER_REFUSAL_MS = 10 * 60_000;
 const AUTH_REPEAT_MS = 6 * 60 * 60_000;
 /** Dropped frames that mean the box can't keep up (with the data arriving fine). */
 export const DROPPED_MANY = 60;
+/** Arriving under this share of the stream's bit rate is "short". */
+export const STARVED_SHARE = 0.85;
+/** Dropped frames are counted over this window at most (a delta, never the load's total). */
+export const DROPPED_WINDOW_MS = 60_000;
 
 const QUEUE_STORE = 'smc-device-health-q-v1';
-const BUDGET_STORE = 'smc-device-health-sent-v1';
+const BUDGET_STORE = 'smc-device-health-sent-v2';
 const DEEP_STORE = 'smc-device-health-deep-v1';
 
 /** The data keys that may go out (DEVICE-HEALTH-SPEC `data` keys, plus the check's summary numbers). */
@@ -95,34 +101,41 @@ const DATA_KEYS = new Set([
   'firstFrameMs', 'streamKbps', 'internetKbps', 'hostMs', 'diagVerdict', 'reason', 'watching', 'ended',
   // the 30-second check's summary
   'avgBufferedAheadSec', 'minBufferedAheadSec', 'avgArrivalKbps', 'minArrivalKbps', 'cpuPctPeak', 'memAvailMbMin',
-  'seconds', 'played', 'source', 'fine',
+  'seconds', 'played', 'source', 'fine', 'bufferFalling', 'droppedFramesTotal',
 ]);
 
 // --- privacy -----------------------------------------------------------------------
 
-const URL_RE = /\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]*/gi;
-const QUERY_RE = /[?&][^\s=&]*=[^\s&]*/g;
-const SECRET_RE = /\b(user(name)?|pass(word)?|pwd|token|auth|key|pin|x-plex-token|sig|signature)\s*[=:]\s*[^\s&,;]+/gi;
-const IP_RE = /\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?\b/g;
-const HOSTPATH_RE = /\b(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?\/[^\s]*/gi;
-// Not a source file's line ("SnowPlayerPlugin.kt:12" in a crash's stack).
-const HOSTPORT_RE = /\b(?:[a-z0-9-]+\.)+(?!kt:|java:)[a-z]{2,}:\d+\b/gi;
+const IPV4_RE = /\b(?:\d{1,3}\.){3}\d{1,3}\b/;
+// Two or more colon groups of hex: an IPv6 address ("fe80::1", "2001:db8:0:0::7").
+// A clock ("12:30:45") has no hex letter and no "::", so it is not one.
+const IPV6_RE = /(?:^|[^\w:.])((?:[0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4})(?=$|[^\w:])/gi;
+// host:port — never a source file's line ("SnowPlayerPlugin.kt:12" in a crash's stack).
+const HOSTPORT_RE = /\b(?:[a-z0-9-]+\.)+(?!kt:|java:)[a-z]{2,}:\d{1,5}\b|\blocalhost:\d{1,5}\b/i;
+const CRED_RE = /(?:^|[?&;\s])(?:user(?:name)?|pass(?:word)?|pwd|token|access_token|auth|api_?key|key|pin|x-plex-token|sig|signature)\s*=/i;
+const XTREAM_PATH_RE = /\/(?:live|movie|series|timeshift)\/[^\s/]+\/[^\s/]+/i;
+
+/** The text holds something that must never leave the box (the whole string goes). */
+export function isUnsafeText(s: string): boolean {
+  if (s.includes('://')) return true;
+  if (IPV4_RE.test(s) || HOSTPORT_RE.test(s) || CRED_RE.test(s) || XTREAM_PATH_RE.test(s)) return true;
+  IPV6_RE.lastIndex = 0;
+  for (let m = IPV6_RE.exec(s); m; m = IPV6_RE.exec(s)) {
+    const g = m[1];
+    if (g.includes('::') || /[a-f]/i.test(g)) return true;
+  }
+  return false;
+}
 
 /**
- * Text safe to send: anything that looks like an address, a query string, an
- * IP, or `password=…`-style secret is replaced. Trimmed to `max`.
+ * Text safe to send, trimmed to `max`. A string holding an address, an IP,
+ * host:port, a credential parameter or an Xtream stream path is dropped
+ * WHOLE ('' comes back): never half-cleaned (same rule as the server).
  */
 export function scrubText(v: unknown, max = SUMMARY_MAX): string {
   if (typeof v !== 'string') return '';
-  const s = v
-    .replace(URL_RE, '[link]')
-    .replace(SECRET_RE, '[hidden]')
-    .replace(HOSTPATH_RE, '[link]')
-    .replace(HOSTPORT_RE, '[host]')
-    .replace(IP_RE, '[ip]')
-    .replace(QUERY_RE, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  if (isUnsafeText(v)) return '';
+  const s = v.replace(/\s+/g, ' ').trim();
   return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
 
@@ -196,7 +209,7 @@ export function overloadReason(d: Record<string, HealthValue>): string | null {
   const dropped = num(d.droppedFrames);
   const arrival = num(d.arrivalKbps);
   const needed = num(d.neededKbps);
-  if (dropped != null && dropped >= DROPPED_MANY && arrival != null && needed != null && arrival >= needed) return `box dropped ${Math.round(dropped)} frames with the data arriving fine`;
+  if (dropped != null && dropped >= DROPPED_MANY && arrival != null && needed != null && arrival >= needed) return `box dropped ${Math.round(dropped)} frames recently with the data arriving fine`;
   return null;
 }
 
@@ -220,7 +233,11 @@ export function decideVerdict({ kind, data: d, diagVerdict, dropped }: VerdictIn
   const rssi = num(d.wifiRssi);
   const wired = d.wired === true;
   const offline = d.online === false || dropped === true;
-  const starved = arrival != null && needed != null && arrival < needed;
+  // Short of what the stream needs, and it showed: a stall (a stall event is
+  // one by itself) or the buffer running down. A full buffer arriving slower
+  // than the bit rate is just the player resting.
+  const stalls = kind === 'stall' ? Math.max(1, num(d.stalls) ?? 1) : num(d.stalls) ?? 0;
+  const starved = arrival != null && needed != null && arrival < STARVED_SHARE * needed && (stalls > 0 || d.bufferFalling === true);
   const weakWifi = !wired && rssi != null && rssi <= -75;
   const slowNet = internetKbps != null && needed != null && internetKbps < needed;
   if (offline) return 'internet';
@@ -297,6 +314,21 @@ export function vitalsData(v: DeviceVitals | null): Record<string, HealthValue> 
   return d;
 }
 
+/** The last dropped-frames reading, to turn the load's running total into a recent delta. */
+let lastDropped: { at: number; dropped: number; rendered: number } | null = null;
+
+/** Frames dropped since the reading before (at most DROPPED_WINDOW_MS ago, same load), or null. */
+export function droppedDelta(s: PlayerStats | null, at = Date.now()): number | null {
+  if (!s || s.droppedFrames == null) return null;
+  const prev = lastDropped;
+  const rendered = s.renderedFrames ?? 0;
+  lastDropped = { at, dropped: s.droppedFrames, rendered };
+  if (!prev || at - prev.at > DROPPED_WINDOW_MS || at <= prev.at) return null;
+  // A new load starts its counts again.
+  if (s.droppedFrames < prev.dropped || rendered < prev.rendered) return null;
+  return s.droppedFrames - prev.dropped;
+}
+
 /** The data keys of the player's stats (no title, no address: the stats have none). */
 export function statsData(s: PlayerStats | null): Record<string, HealthValue> {
   if (!s || s.state === 'idle') return {};
@@ -305,7 +337,9 @@ export function statsData(s: PlayerStats | null): Record<string, HealthValue> {
     arrivalKbps: s.arrivalKbps ?? s.nowKbps ?? null,
     neededKbps: neededKbpsOf(s.videoFormat),
     fetchConnections: s.fetchConnections ?? null,
-    droppedFrames: s.droppedFrames,
+    // The recent delta (overload reads it); the load's total separately.
+    droppedFrames: droppedDelta(s),
+    droppedFramesTotal: s.droppedFrames,
     cpuPct: s.cpuPct,
     pssMb: s.pssMb,
     httpStatus: s.httpStatus ?? null,
@@ -351,22 +385,47 @@ function readQueue(): Item[] {
   try {
     const raw = localStorage.getItem(QUEUE_STORE);
     const p = raw ? JSON.parse(raw) : null;
-    if (Array.isArray(p)) queueHere = p.filter((i) => i && i.e && typeof i.e.kind === 'string').slice(-QUEUE_MAX);
+    if (Array.isArray(p)) queueHere = trimQueue(p.filter((i) => i && i.e && typeof i.e.kind === 'string'));
   } catch { /* fall through */ }
   if (!queueHere) queueHere = [];
   return queueHere;
 }
 
+const isReading = (k: HealthKind) => k === 'sample' || k === 'app_start';
+
+/** Over the cap: the oldest readings go first, then the oldest of the rest. */
+export function trimQueue(q: Item[]): Item[] {
+  const out = q.slice();
+  while (out.length > QUEUE_MAX) {
+    const i = out.findIndex((x) => isReading(x.e.kind));
+    out.splice(i >= 0 ? i : 0, 1);
+  }
+  return out;
+}
+
 function writeQueue(q: Item[]): void {
-  queueHere = q.slice(-QUEUE_MAX);
+  queueHere = trimQueue(q);
   try { localStorage.setItem(QUEUE_STORE, JSON.stringify(queueHere)); } catch { /* kept in memory */ }
 }
 
 /** The events waiting (a copy), for tests and the curious. */
 export function pendingHealthEvents(): HealthEvent[] { return readQueue().map((i) => i.e); }
 
-interface Budget { light: number[]; all: number[]; checks: number[] }
+type Bucket = 'readings' | 'problems' | 'checks';
+type Budget = Record<Bucket, number[]>;
 let budgetHere: Budget | null = null;
+
+/** Which daily cap an event counts against. */
+export function bucketOf(kind: HealthKind): Bucket {
+  if (kind === 'check') return 'checks';
+  return isReading(kind) ? 'readings' : 'problems';
+}
+
+function capOf(bucket: Bucket): number {
+  if (bucket === 'checks') return CHECKS_PER_DAY;
+  if (bucket === 'readings') return READINGS_PER_DAY;
+  return isDeep() ? PROBLEMS_PER_DAY_DEEP : PROBLEMS_PER_DAY;
+}
 
 function readBudget(): Budget {
   const cut = Date.now() - DAY_MS;
@@ -374,11 +433,11 @@ function readBudget(): Budget {
   if (!b) {
     try {
       const p = JSON.parse(localStorage.getItem(BUDGET_STORE) || 'null');
-      if (p && Array.isArray(p.light) && Array.isArray(p.all)) b = { light: p.light, all: p.all, checks: Array.isArray(p.checks) ? p.checks : [] };
+      if (p && typeof p === 'object') b = { readings: Array.isArray(p.readings) ? p.readings : [], problems: Array.isArray(p.problems) ? p.problems : [], checks: Array.isArray(p.checks) ? p.checks : [] };
     } catch { /* fall through */ }
   }
-  if (!b) b = { light: [], all: [], checks: [] };
-  b = { light: b.light.filter((t) => t > cut), all: b.all.filter((t) => t > cut), checks: b.checks.filter((t) => t > cut) };
+  if (!b) b = { readings: [], problems: [], checks: [] };
+  b = { readings: b.readings.filter((t) => t > cut), problems: b.problems.filter((t) => t > cut), checks: b.checks.filter((t) => t > cut) };
   budgetHere = b;
   return b;
 }
@@ -390,17 +449,15 @@ function writeBudget(b: Budget): void {
 
 const queuedCount = (pred: (i: Item) => boolean) => readQueue().filter(pred).length;
 
-/** Room for one more of this kind in today's budget (sent + waiting). */
-function roomFor(deep: boolean, kind: HealthKind): boolean {
-  const b = readBudget();
-  if (kind === 'check') return b.checks.length + queuedCount((i) => i.e.kind === 'check') < CHECKS_PER_DAY;
-  if (b.all.length + queuedCount((i) => i.e.kind !== 'check') >= ALL_PER_DAY) return false;
-  if (!deep && b.light.length + queuedCount((i) => !i.deep && i.e.kind !== 'check') >= LIGHT_PER_DAY) return false;
-  return true;
+/** Room for one more of this kind in its own bucket today (sent + waiting). */
+function roomFor(kind: HealthKind): boolean {
+  const bucket = bucketOf(kind);
+  const used = readBudget()[bucket].length + queuedCount((i) => bucketOf(i.e.kind) === bucket);
+  return used < capOf(bucket);
 }
 
 /** Whether another check may be run today (6 per box per 24 h). */
-export function checkAllowedToday(): boolean { return roomFor(false, 'check'); }
+export function checkAllowedToday(): boolean { return roomFor('check'); }
 
 // --- deep mode ------------------------------------------------------------------------
 
@@ -485,6 +542,8 @@ let holdUntil = 0;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let flushAt = 0;
 let flushing: Promise<SendOutcome> | null = null;
+/** The items of the call that is out now: a stall is never merged into one of them. */
+const inFlight = new Set<Item>();
 
 /** `ids`: the server's event ids, by position (null: that one was dropped). */
 export interface SendOutcome { ok: boolean; ids?: Array<string | null>; reason?: string }
@@ -526,6 +585,7 @@ async function doFlush(first: Item | null, force: boolean): Promise<SendOutcome>
   const v = await appVersion();
   lastCallAt = Date.now();
   const events = batch.map((i) => cleanEvent(i.e)).filter((e): e is HealthEvent => !!e);
+  batch.forEach((i) => inFlight.add(i));
   const res = await call({
     action: 'report',
     inbox_key: key,
@@ -537,6 +597,7 @@ async function doFlush(first: Item | null, force: boolean): Promise<SendOutcome>
     os_version: osVersion(),
     events,
   });
+  batch.forEach((i) => inFlight.delete(i));
   // What came in while the call was out stays (the queue as it is now).
   const isMine = (i: Item) => i.line == null || i.line === line.id;
   if (res.ok === true) {
@@ -545,24 +606,27 @@ async function doFlush(first: Item | null, force: boolean): Promise<SendOutcome>
     writeQueue(rest);
     const b = readBudget();
     const t = Date.now();
-    for (const i of batch) {
-      if (i.e.kind === 'check') b.checks.push(t);
-      else { b.all.push(t); if (!i.deep) b.light.push(t); }
-    }
+    for (const i of batch) b[bucketOf(i.e.kind)].push(t);
     writeBudget(b);
     if ('deep_until' in res) setDeepUntil(res.deep_until);
     if (rest.length) scheduleFlush(isDeep() ? DEEP_BATCH_MS : FLUSH_DEBOUNCE_MS);
     const ids = Array.isArray(res.ids) ? res.ids.map((x) => (typeof x === 'string' || typeof x === 'number' ? String(x) : null)) : [];
     return { ok: true, ids };
   }
+  const reason = typeof res.reason === 'string' ? res.reason : 'failed';
+  // The server can never take this batch (400): let it go, never retried.
+  if (reason === 'bad_request') {
+    const dropped = new Set(batch);
+    writeQueue(readQueue().filter((i) => isMine(i) && !dropped.has(i)));
+    return { ok: false, reason };
+  }
   // Kept for later (the check too).
   const kept = readQueue().filter(isMine);
   writeQueue(first ? [...kept, first] : kept);
-  const reason = typeof res.reason === 'string' ? res.reason : 'failed';
   if (reason === 'unknown_key' || reason === 'other_line') {
     holdUntil = Date.now() + HOLD_AFTER_REFUSAL_MS;
     if (line.creds?.password) void registerLine(line.creds, { again: true });
-  } else if (reason === 'rate_limited' || reason === 'bad_request') {
+  } else if (reason === 'rate_limited') {
     holdUntil = Date.now() + HOLD_AFTER_REFUSAL_MS;
   }
   return { ok: false, reason };
@@ -600,7 +664,7 @@ export function recordHealthEvent(e: HealthEvent, opts: RecordOpts = {}): boolea
   // A stall merges into one still waiting for the same title and verdict.
   if (clean.kind === 'stall') {
     const t = Date.parse(clean.occurredAt);
-    const same = [...q].reverse().find((i) => i.e.kind === 'stall' && i.e.title === clean.title && i.e.context === clean.context
+    const same = [...q].reverse().find((i) => !inFlight.has(i) && i.e.kind === 'stall' && i.e.title === clean.title && i.e.context === clean.context
       && i.e.verdict === clean.verdict && Math.abs(t - Date.parse(i.e.occurredAt)) < MERGE_WINDOW_MS);
     if (same) {
       const stalls = (num(same.e.data.stalls) ?? 1) + 1;
@@ -612,7 +676,7 @@ export function recordHealthEvent(e: HealthEvent, opts: RecordOpts = {}): boolea
       return true;
     }
   }
-  if (!roomFor(deep, clean.kind)) return false;
+  if (!roomFor(clean.kind)) return false;
   writeQueue([...q, { e: clean, line: opts.line ?? null, deep }]);
   scheduleFlush(deep || isDeep() ? (deep ? DEEP_BATCH_MS : FLUSH_DEBOUNCE_MS) : FLUSH_DEBOUNCE_MS);
   return true;
@@ -756,8 +820,8 @@ export function compactStack(stack: string | null | undefined): string | null {
 
 function exitSummary(x: LastExit): string {
   const r = x.exitReason || 'unknown';
+  if (r === 'renderer_killed') return `The app's screen (WebView) was shut by Android${x.memAvailMb != null ? `, ${x.memAvailMb} MB free memory` : ''}${x.playerActive ? ' during playback' : ''}`;
   if (x.kind === 'crash') {
-    if (r === 'renderer_killed') return `The app's screen (WebView) was shut by Android${x.memAvailMb != null ? `, ${x.memAvailMb} MB free memory` : ''}${x.playerActive ? ' during playback' : ''}`;
     if (r === 'renderer_crashed') return `The app's screen (WebView) crashed${x.playerActive ? ' during playback' : ''}`;
     const first = (x.stack || '').split('\n')[0];
     return `The app crashed${first ? ` (${first})` : ''}${r === 'crash_native' ? ' in native code' : ''}`;
@@ -774,6 +838,8 @@ export function exitEvents(exits: LastExit[], vitals: DeviceVitals | null): Heal
   const out: HealthEvent[] = [];
   for (const x of exits || []) {
     if (!x || (x.kind !== 'crash' && x.kind !== 'killed')) continue;
+    // A renderer Android shut for memory is a kill, not a crash (older records said crash).
+    const kind = x.exitReason === 'renderer_killed' ? 'killed' : x.kind;
     const data: Record<string, HealthValue> = {
       memTotalMb: vitals?.memTotalMb ?? null,
       sdk: vitals?.sdk ?? null,
@@ -789,9 +855,9 @@ export function exitEvents(exits: LastExit[], vitals: DeviceVitals | null): Heal
     if (x.lowMemory != null) data.lowMemory = x.lowMemory;
     const at = typeof x.at === 'number' && x.at > 0 ? x.at : Date.now();
     out.push({
-      kind: x.kind,
-      verdict: decideVerdict({ kind: x.kind, data }),
-      summary: exitSummary(x),
+      kind,
+      verdict: decideVerdict({ kind, data }),
+      summary: exitSummary({ ...x, kind }),
       occurredAt: new Date(at).toISOString(),
       context: 'app',
       data,
@@ -813,12 +879,17 @@ let deepTick: ReturnType<typeof setInterval> | null = null;
 let appStartSent = false;
 let lastIdleSampleAt = 0;
 let sampleCount = 0;
+/** The buffer at the last sample while watching (is it running down?). */
+let lastSampleBuffer: number | null = null;
 
 export async function takeSample(): Promise<HealthEvent | null> {
   const watching = isWatchingNow();
   sampleCount += 1;
   const [vitals, stats] = await Promise.all([readVitals(), watching ? readStats(sampleCount % 6 === 0) : Promise.resolve(null)]);
   const data: Record<string, HealthValue> = { ...vitalsData(vitals), ...statsData(stats), watching };
+  const buf = num(data.bufferedAheadSec);
+  if (buf != null && lastSampleBuffer != null) data.bufferFalling = buf < lastSampleBuffer - 1;
+  lastSampleBuffer = watching ? buf : null;
   const verdict = decideVerdict({ kind: 'sample', data });
   const np = nowPlaying;
   const mem = num(data.memAvailMb);
@@ -842,7 +913,7 @@ async function deepStep(): Promise<void> {
   const watching = isWatchingNow();
   if (!watching && Date.now() - lastIdleSampleAt < DEEP_IDLE_SAMPLE_MS) return;
   if (!watching) lastIdleSampleAt = Date.now();
-  if (!roomFor(true, 'sample')) return;
+  if (!roomFor('sample')) return;
   const e = await takeSample();
   if (e) recordHealthEvent(e, { deep: true });
 }
@@ -953,6 +1024,9 @@ export function __resetDeviceHealthForTests(): void {
   appStartSent = false;
   lastIdleSampleAt = 0;
   sampleCount = 0;
+  lastSampleBuffer = null;
+  lastDropped = null;
+  inFlight.clear();
   versionHere = null;
   modelHere = null;
   if (deepTick) { clearInterval(deepTick); deepTick = null; }
