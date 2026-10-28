@@ -258,6 +258,7 @@
       "lighterVersion": "une version plus légère",
       "cast": "Distribution",
       "noCast": "Aucune information sur la distribution.",
+      "moreLikeThis": "Dans le même genre",
       "seasonsTitle": "{{title}} · Saisons",
       "noSeasons": "Aucune saison.",
       "seasonsHint": "◀ ▶ choisir une saison · OK ouvrir · Retour aux détails",

@@ -1449,6 +1449,52 @@ export async function getPlexRelated(base: string, token: string, ratingKey: str
   return out;
 }
 
+/** One row of "related" titles on a title page: Plex's own hub title
+ *  (already in the server's language; '' when it sent none) and its titles. */
+export interface PlexRelatedHub {
+  title: string;
+  /** A collection hub ("Child's Play Collection"): the sequels. Shown first. */
+  collection: boolean;
+  items: PlexItem[];
+}
+
+type RawHub = { title?: unknown; hubIdentifier?: unknown; context?: unknown; type?: unknown; Metadata?: Array<Record<string, unknown>> };
+
+/** The related hubs as separate rows: movies and shows only, never the title
+ *  itself, each title once (in the first row that has it), collections first,
+ *  at most `rows` rows of `perRow` titles. Empty rows are dropped. */
+export function mapRelatedHubs(hubs: RawHub[], ratingKey: string, rows = 3, perRow = 12): PlexRelatedHub[] {
+  const isCollection = (h: RawHub) => /collection/i.test(`${h.hubIdentifier ?? ''} ${h.context ?? ''} ${h.type ?? ''}`);
+  // Stable: the server's order within each group.
+  const ordered = hubs.map((h, i) => ({ h, i, c: isCollection(h) }))
+    .sort((a, b) => (a.c === b.c ? a.i - b.i : a.c ? -1 : 1));
+  const seen = new Set<string>([String(ratingKey)]);
+  const out: PlexRelatedHub[] = [];
+  for (const { h, c } of ordered) {
+    if (out.length >= rows) break;
+    const items: PlexItem[] = [];
+    for (const it of mapMetadata(h.Metadata ?? [])) {
+      if (it.type !== 'movie' && it.type !== 'show') continue;
+      if (!it.ratingKey || seen.has(it.ratingKey)) continue;
+      seen.add(it.ratingKey);
+      items.push(it);
+      if (items.length >= perRow) break;
+    }
+    if (items.length) out.push({ title: typeof h.title === 'string' ? h.title : '', collection: c, items });
+  }
+  return out;
+}
+
+/** A title page's "related" rows (the sequels in its collection, similar
+ *  titles, more with an actor or by the director), each hub kept apart with
+ *  its title. getPlexRelated flattens the same hubs for the Home rails. */
+export async function getPlexRelatedHubs(base: string, token: string, ratingKey: string, rows = 3, perRow = 12): Promise<PlexRelatedHub[]> {
+  const data = await plexReq<{ MediaContainer?: { Hub?: RawHub[] } }>(
+    'GET', `${base}/hubs/metadata/${encodeURIComponent(ratingKey)}/related?count=${perRow + 2}&${RAIL_FIELDS}`, token, RAIL_TIMEOUT_MS,
+  );
+  return mapRelatedHubs(data?.MediaContainer?.Hub ?? [], ratingKey, rows, perRow);
+}
+
 /** What a rail needs from a list payload, and nothing else. Cast, crew,
  *  countries, collections and GUIDs are most of a movie's list entry and no
  *  rail shows any of them; the server drops them when asked, which halves

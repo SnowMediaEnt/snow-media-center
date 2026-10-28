@@ -258,6 +258,7 @@
       "lighterVersion": "una versión más ligera",
       "cast": "Reparto",
       "noCast": "Sin información del reparto.",
+      "moreLikeThis": "Más como este",
       "seasonsTitle": "{{title}} · Temporadas",
       "noSeasons": "Sin temporadas.",
       "seasonsHint": "◀ ▶ elegir temporada · OK abrir · Atrás a los detalles",
