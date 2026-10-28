@@ -151,3 +151,9 @@ verify_jwt = false
 
 [functions.my-signin-pin]
 verify_jwt = false
+
+# Device health (20261028120000_device_health.sql). A box has no session: its
+# device-inbox key is the credential for report / status. The admin_* actions
+# check the caller's JWT IN CODE (has_role 'admin').
+[functions.device-health]
+verify_jwt = false
