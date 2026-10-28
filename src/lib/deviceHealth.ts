@@ -10,7 +10,7 @@
 //     server, account, app_crash or unknown (decideVerdict below).
 //   * Queue: localStorage, 50 at most (oldest dropped), sent 10 s after the
 //     last event and at app start; a failure keeps it; never more than one
-//     call every 30 s. Mirrors the server's limits (40 light / 300 in all per
+//     call every 30 s. Mirrors the server's limits (40 light / 3000 in all per
 //     24 h) so a box over them stops calling instead of being refused.
 //   * Deep check (the owner turns it on per box from the admin side): the
 //     `status` ask at start and every 10 minutes on screen says until when.
@@ -64,7 +64,7 @@ export const DEEP_TICK_MS = 10_000;
 export const DEEP_IDLE_SAMPLE_MS = 5 * 60_000;
 export const MAX_EVENTS_PER_CALL = 20;
 export const LIGHT_PER_DAY = 40;
-export const ALL_PER_DAY = 300;
+export const ALL_PER_DAY = 3000;
 export const CHECKS_PER_DAY = 6;
 const DAY_MS = 24 * 60 * 60_000;
 const SUMMARY_MAX = 200;

@@ -204,7 +204,7 @@ describe('queue + limits', () => {
     let kept = 0;
     for (let i = 0; i < LIGHT_PER_DAY + 10; i += 1) if (recordHealthEvent(ev({ kind: 'crash' }))) kept += 1;
     expect(kept).toBe(LIGHT_PER_DAY);
-    expect(ALL_PER_DAY).toBe(300);
+    expect(ALL_PER_DAY).toBe(3000);
   });
   it('a stall merges into one still waiting for the same title', () => {
     recordHealthEvent(ev({ data: { stallSec: 5 } }));
