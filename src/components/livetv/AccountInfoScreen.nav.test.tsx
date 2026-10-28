@@ -31,6 +31,7 @@ vi.mock('@/lib/pinSignIn', async (orig) => ({
 vi.mock('./LineDevicesPanel', () => ({ default: (p: Record<string, unknown>) => { dev.props = p; return <div data-testid="line-devices" />; } }));
 
 import AccountInfoScreen from './AccountInfoScreen';
+import { markPinLine } from '@/lib/pinSignIn';
 
 const key = (k: string) => { act(() => { fireEvent.keyDown(window, { key: k }); }); };
 const focused = (c: HTMLElement) => (c.querySelector('[data-focused="true"]')?.textContent ?? '').trim();
@@ -245,31 +246,47 @@ describe('My Account: Devices on this line, inside the page', () => {
 describe('My Account: the line\'s sign-in PIN', () => {
   const labels = (c: HTMLElement) => Array.from(c.querySelectorAll('[data-account-actions] button')).map((b) => b.textContent?.trim());
 
-  it('asks for it with this line once, shows it with a hint, then shows / hides it', async () => {
+  it('asks for it with this line as the page opens, hidden until shown, then shows / hides it', async () => {
     const { container, getByText, queryByText } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} />);
+    await flush();
+    expect(pinReply.asked).toEqual([{ host: 'http://h', username: 'jane', password: 'secret' }]);
+    expect(queryByText('12345 67890')).toBeNull();
+    expect(container.textContent).toMatch(/Sign in with a PIN/);
+    key('ArrowDown');
+    expect(focused(container)).toBe('Show sign-in PIN');
+    key('Enter');
+    expect(getByText('12345 67890')).toBeTruthy();
+    expect(focused(container)).toBe('Hide sign-in PIN');
+    key('Enter');
+    expect(queryByText('12345 67890')).toBeNull();
+    expect(pinReply.asked).toHaveLength(1); // asked once
+  });
+
+  it('says why when it can\'t get one, and a press asks again', async () => {
+    pinReply.value = { ok: false, reason: 'expired' };
+    const { container } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} />);
+    await flush();
+    expect(container.textContent).toMatch(/renew it to get your PIN/);
     key('ArrowDown');
     expect(focused(container)).toBe('Get my sign-in PIN');
     key('Enter');
     await flush();
-    expect(pinReply.asked).toEqual([{ host: 'http://h', username: 'jane', password: 'secret' }]);
-    expect(getByText('12345 67890')).toBeTruthy();
-    expect(container.textContent).toMatch(/Sign in with a PIN/);
-    expect(focused(container)).toBe('Hide sign-in PIN');
-    key('Enter');
-    expect(queryByText('12345 67890')).toBeNull();
-    expect(focused(container)).toBe('Show sign-in PIN');
-    key('Enter');
-    expect(getByText('12345 67890')).toBeTruthy();
-    expect(pinReply.asked).toHaveLength(1); // asked once
+    expect(pinReply.asked).toHaveLength(2);
   });
 
-  it('says why when it can\'t get one', async () => {
-    pinReply.value = { ok: false, reason: 'expired' };
-    const { container } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} />);
-    key('ArrowDown'); key('Enter');
-    await flush();
-    expect(container.textContent).toMatch(/renew it to get your PIN/);
-    expect(focused(container)).toBe('Get my sign-in PIN');
+  it('a line signed in with a PIN shows only the PIN: no username, no password, no Show password', async () => {
+    markPinLine('http://h', 'jane', true);
+    try {
+      const { container, queryByText } = render(<AccountInfoScreen embedded active onBack={vi.fn()} onSignOut={vi.fn()} onChangeCredentials={vi.fn()} />);
+      await flush();
+      expect(labels(container)).not.toContain('Show password');
+      expect(focused(container)).toBe('Show sign-in PIN');
+      expect(queryByText('jane')).toBeNull();
+      expect(container.textContent).not.toMatch(/secret/);
+      expect(container.textContent).not.toMatch(/Username/);
+    } finally {
+      markPinLine('http://h', 'jane', false);
+    }
   });
 
   it('not in the demo', () => {

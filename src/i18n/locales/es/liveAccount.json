@@ -217,7 +217,8 @@
       "confirmLine": "Pulsa OK otra vez para eliminar {{name}} de este equipo.",
       "confirmCurrent": "Pulsa OK otra vez para eliminar {{name}} y cerrar la sesión de TV en vivo en este equipo.",
       "deletedTitle": "Eliminado",
-      "deletedLine": "{{name}} ya no está en este equipo."
+      "deletedLine": "{{name}} ya no está en este equipo.",
+      "pinLine": "Con PIN"
     },
     "channels": {
       "hide": "Ocultar categorías",

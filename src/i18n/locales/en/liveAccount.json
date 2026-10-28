@@ -209,7 +209,8 @@
       "confirmLine": "Press OK again to delete {{name}} from this box.",
       "confirmCurrent": "Press OK again to delete {{name}} and sign this box out of Live TV.",
       "deletedTitle": "Deleted",
-      "deletedLine": "{{name}} is no longer on this box."
+      "deletedLine": "{{name}} is no longer on this box.",
+      "pinLine": "Signed in with a PIN"
     },
     "channels": {
       "hide": "Hide categories",

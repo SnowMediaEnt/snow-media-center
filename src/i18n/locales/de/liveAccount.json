@@ -209,7 +209,8 @@
       "confirmLine": "Drück noch einmal OK, um {{name}} von diesem Gerät zu löschen.",
       "confirmCurrent": "Drück noch einmal OK, um {{name}} zu löschen und dieses Gerät von Live-TV abzumelden.",
       "deletedTitle": "Gelöscht",
-      "deletedLine": "{{name}} ist nicht mehr auf diesem Gerät."
+      "deletedLine": "{{name}} ist nicht mehr auf diesem Gerät.",
+      "pinLine": "Mit PIN angemeldet"
     },
     "channels": {
       "hide": "Kategorien ausblenden",

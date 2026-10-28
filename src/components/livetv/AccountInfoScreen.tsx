@@ -6,7 +6,7 @@ import {
   ArrowLeft, Tv, Calendar, KeyRound, Users, Server, Clock, ShieldCheck, LogOut, Eye, EyeOff, RefreshCw, Library, CreditCard, MonitorSmartphone, Loader2,
   Hash,
 } from 'lucide-react';
-import { fetchMyPin, formatPin, type MyPinFailReason } from '@/lib/pinSignIn';
+import { fetchMyPin, formatPin, isPinLine, type MyPinFailReason } from '@/lib/pinSignIn';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { expDateToMs } from '@/lib/xtream';
 import { readCounts } from '@/lib/catalogCounts';
@@ -59,6 +59,9 @@ type ActionId = 'back' | 'showPwd' | 'pin' | 'change' | 'renew' | 'plans' | 'dev
 
 /**
  * Read-only Xtream account info screen (Live TV Settings -> My Account).
+ * The line's sign-in PIN is fetched as the screen opens, so every line shows
+ * one; a line signed in WITH a PIN shows only that — no username, no password,
+ * no Show password (owner, 2026-10-28).
  * Back sits top-left; the actions stand in a column beside the details, so
  * the remote's Up / Down walk Back -> Show password -> Sign-in PIN -> Change login -> Renew
  * -> (Plans & billing) -> (Devices on this line) -> Sign out. (They were one
@@ -78,7 +81,9 @@ const AccountInfoScreen = memo(({
   const [showQR, setShowQR] = useState(false);
   const [devicesOpen, setDevicesOpen] = useState(() => initialDevicesOpen && !!devicesLine);
   const [confirmOut, setConfirmOut] = useState(false);
-  /** The line's sign-in PIN (my-signin-pin): asked for once, then shown / hidden. */
+  /** Signed in with a PIN: the PIN is all this screen shows of the login. */
+  const viaPin = isPinLine(account);
+  /** The line's sign-in PIN (my-signin-pin): fetched on open, then shown / hidden. */
   const [pin, setPin] = useState<{ busy?: boolean; digits?: string; shown?: boolean; fail?: MyPinFailReason } | null>(null);
   /** Renew is finding out where it goes (the billing account's services). */
   const [renewBusy, setRenewBusy] = useState(false);
@@ -89,15 +94,15 @@ const AccountInfoScreen = memo(({
   const showRenew = !isDemo() && !!account?.username;
   const ids = useMemo<ActionId[]>(() => [
     ...(embedded ? [] : ['back' as const]),
-    'showPwd',
+    ...(viaPin ? [] : ['showPwd' as const]),
     ...(isDemo() ? [] : ['pin' as const]),
     'change',
     ...(showRenew ? ['renew' as const] : []),
     ...(onOpenBilling ? ['plans' as const] : []),
     ...(devicesLine ? ['devices' as const] : []),
     'signout',
-  ], [embedded, showRenew, onOpenBilling, devicesLine]);
-  const [focus, setFocusRaw] = useState<ActionId>(initialFocus ?? (initialDevicesOpen && devicesLine ? 'devices' : 'showPwd'));
+  ], [embedded, viaPin, showRenew, onOpenBilling, devicesLine]);
+  const [focus, setFocusRaw] = useState<ActionId>(initialFocus ?? (initialDevicesOpen && devicesLine ? 'devices' : viaPin && !isDemo() ? 'pin' : 'showPwd'));
   // Any move takes back Sign out's question.
   const setFocus = useCallback((id: ActionId) => { setFocusRaw(id); setConfirmOut(false); }, []);
   // A button that went away hands the highlight to the first one.
@@ -123,16 +128,27 @@ const AccountInfoScreen = memo(({
     }
     showRenewQr();
   };
-  /** First press asks for the PIN; after that it shows / hides it. */
-  const pinPressed = async () => {
-    if (pin?.busy) return;
-    if (pin?.digits) { setPin({ ...pin, shown: !pin.shown }); return; }
+  /** Ask for the line's PIN; `show` reveals it straight away (a press, not the open). */
+  const loadPin = async (show: boolean) => {
     if (!account?.host || !account.username || !account.password) return;
     setPin({ busy: true });
     const r = await fetchMyPin({ host: account.host, username: account.username, password: account.password });
     if (!alive.current) return;
-    setPin(r.ok && r.pin ? { digits: r.pin, shown: true } : { fail: r.reason ?? 'error' });
+    setPin(r.ok && r.pin ? { digits: r.pin, shown: show } : { fail: r.reason ?? 'error' });
     try { trackEvent(r.ok ? 'signin_pin_shown' : 'signin_pin_failed', 'player', r.ok ? {} : { reason: r.reason ?? 'error' }); } catch { /* ignore */ }
+  };
+  // Every line gets its PIN on open, hidden like the password until asked.
+  const lineKey = account ? `${account.host}|${account.username}` : '';
+  useEffect(() => {
+    setPin(null);
+    if (lineKey && !isDemo()) void loadPin(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per line
+  }, [lineKey]);
+  /** Shows / hides the PIN; a PIN that didn't come asks again. */
+  const pinPressed = async () => {
+    if (pin?.busy) return;
+    if (pin?.digits) { setPin({ ...pin, shown: !pin.shown }); return; }
+    await loadPin(true);
   };
   const signOutPressed = () => {
     if (!stateRef.current.confirmOut) { setConfirmOut(true); return; }
@@ -244,12 +260,14 @@ const AccountInfoScreen = memo(({
   })();
 
   const rows: Row[] = [
-    { label: t('liveAccount.account.username'),  icon: KeyRound, value: <span className="break-all">{account.username}</span> },
-    { label: t('liveAccount.account.password'),  icon: KeyRound, mono: true, value: (
-      <span className="font-mono tracking-widest break-all">
-        {showPwd ? account.password : '•'.repeat(Math.max(8, account.password.length))}
-      </span>
-    )},
+    ...(viaPin ? [] : [
+      { label: t('liveAccount.account.username'),  icon: KeyRound, value: <span className="break-all">{account.username}</span> },
+      { label: t('liveAccount.account.password'),  icon: KeyRound, mono: true, value: (
+        <span className="font-mono tracking-widest break-all">
+          {showPwd ? account.password : '•'.repeat(Math.max(8, account.password.length))}
+        </span>
+      )},
+    ] as Row[]),
     ...(pin ? [{ label: t('liveAccount.account.pin'), icon: Hash, mono: true, value: pin.busy ? (
       <span className="text-white/70">{t('liveAccount.account.pinLoading')}</span>
     ) : pin.digits ? (

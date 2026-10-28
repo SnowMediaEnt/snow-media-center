@@ -124,10 +124,24 @@ const myPinFailure = (reason: unknown): MyPinOutcome => ({
  * sign in on their other devices with it. The function checks the username
  * and password on the line's panel first, then hands back the line's PIN
  * (made now if the line has none; the same digits on every device and every
- * renewal). The PIN is shown, never stored or logged here. Never throws.
+ * renewal). The PIN is shown, never logged, and kept only in memory for
+ * this run of the app (My Account fetches it on every open, and the function
+ * allows a line 6 asks per 5 minutes). Never throws.
  */
 export async function fetchMyPin(line: { host: string; username: string; password: string }): Promise<MyPinOutcome> {
   if (!line.host || !line.username || !line.password) return { ok: false, reason: 'error' };
+  const key = pinLineKey(line.host, line.username);
+  const known = pinMemory.get(key);
+  if (known) return { ok: true, pin: known };
+  const r = await askMyPin(line);
+  if (r.ok && r.pin) pinMemory.set(key, r.pin);
+  return r;
+}
+
+/** This run's PINs, by line. Gone when the app closes. */
+const pinMemory = new Map<string, string>();
+
+async function askMyPin(line: { host: string; username: string; password: string }): Promise<MyPinOutcome> {
   try {
     const { data, error } = await supabase.functions.invoke('my-signin-pin', {
       body: { host: line.host, username: line.username, password: line.password },
@@ -146,4 +160,38 @@ export async function fetchMyPin(line: { host: string; username: string; passwor
   } catch {
     return { ok: false, reason: 'error' };
   }
+}
+
+// ── lines signed in with a PIN ──────────────────────────────────────────────
+//
+// A line signed in with a PIN shows only its PIN — never the username and
+// password the PIN stands for (owner, 2026-10-28). The box still holds both
+// (it needs them to play), but the screens show the PIN instead. Typing the
+// username and password for the same line takes the mark off: they know them.
+
+const PIN_LINES_KEY = 'snow-pin-lines-v1';
+
+/** 'dstreams.xyz|joe': one line, whatever scheme or port the host came with. */
+export const pinLineKey = (host: string, username: string): string =>
+  `${hostNameOf(host)}|${String(username ?? '').trim().toLowerCase()}`;
+
+function readPinLines(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(PIN_LINES_KEY) || '[]');
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  } catch { return []; }
+}
+
+/** Remember how this line was signed in: with a PIN, or with its username and password. */
+export function markPinLine(host: string, username: string, viaPin: boolean): void {
+  if (!host || !username) return;
+  const key = pinLineKey(host, username);
+  const rest = readPinLines().filter((k) => k !== key);
+  try { localStorage.setItem(PIN_LINES_KEY, JSON.stringify(viaPin ? [...rest, key].slice(-20) : rest)); } catch { /* ignore */ }
+}
+
+/** Was this line signed in with a PIN (so only the PIN is shown)? */
+export function isPinLine(line: { host?: string | null; username?: string | null } | null | undefined): boolean {
+  if (!line?.host || !line.username) return false;
+  return readPinLines().includes(pinLineKey(line.host, line.username));
 }

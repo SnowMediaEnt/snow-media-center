@@ -2,7 +2,8 @@ import { Fragment, memo, type ReactNode } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tv, Calendar, KeyRound, Users, LogOut } from 'lucide-react';
+import { Tv, Calendar, KeyRound, Users, LogOut, Hash } from 'lucide-react';
+import { isPinLine } from '@/lib/pinSignIn';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { expDateToMs, serverDisplayName } from '@/lib/xtream';
 import { signOutPlayer } from '@/lib/playerSignOut';
@@ -70,8 +71,13 @@ const PlayerAccountCard = memo(({ compact = false, actions, panel = false, signO
   };
 
   const rows: Array<[typeof KeyRound, string, ReactNode]> = [
-    [KeyRound, t('liveAccount.account.username'), <span className="font-medium truncate">{account.username}</span>],
-    [KeyRound, t('liveAccount.account.password'), <span className="font-mono tracking-widest">••••••••</span>],
+    // A line signed in with a PIN shows the PIN's place, never the login behind it.
+    ...(isPinLine(account)
+      ? [[Hash, t('liveAccount.account.pin'), <span className="font-mono tracking-widest">••••• •••••</span>]] as Array<[typeof KeyRound, string, ReactNode]>
+      : [
+          [KeyRound, t('liveAccount.account.username'), <span className="font-medium truncate">{account.username}</span>],
+          [KeyRound, t('liveAccount.account.password'), <span className="font-mono tracking-widest">••••••••</span>],
+        ] as Array<[typeof KeyRound, string, ReactNode]>),
     [Calendar, t('liveAccount.account.expires'), <span className="font-medium">{expLabel}</span>],
     [Calendar, t('liveAccount.playerCard.daysLeftLabel'), <span className={`font-semibold ${daysColor}`}>{daysLabel}</span>],
     [Tv, t('liveAccount.account.status'), <span className="font-medium capitalize">{account.status || t('liveAccount.account.statusUnknown')}</span>],

@@ -217,7 +217,8 @@
       "confirmLine": "Appuyez de nouveau sur OK pour supprimer {{name}} de cet appareil.",
       "confirmCurrent": "Appuyez de nouveau sur OK pour supprimer {{name}} et déconnecter cet appareil de TV en direct.",
       "deletedTitle": "Supprimé",
-      "deletedLine": "{{name}} n'est plus sur cet appareil."
+      "deletedLine": "{{name}} n'est plus sur cet appareil.",
+      "pinLine": "Connecté par PIN"
     },
     "channels": {
       "hide": "Masquer des catégories",

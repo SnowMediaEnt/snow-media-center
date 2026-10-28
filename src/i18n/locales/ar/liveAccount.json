@@ -241,7 +241,8 @@
       "confirmLine": "اضغط OK مرة أخرى لحذف {{name}} من هذا الجهاز.",
       "confirmCurrent": "اضغط OK مرة أخرى لحذف {{name}} وتسجيل خروج هذا الجهاز من البث المباشر.",
       "deletedTitle": "تم الحذف",
-      "deletedLine": "لم يعد {{name}} على هذا الجهاز."
+      "deletedLine": "لم يعد {{name}} على هذا الجهاز.",
+      "pinLine": "تسجيل الدخول برمز PIN"
     },
     "channels": {
       "hide": "إخفاء الفئات",
