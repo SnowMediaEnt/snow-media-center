@@ -13,6 +13,8 @@ const h = vi.hoisted(() => ({
   allowed: true,
   internetKbps: 48_000 as number | null,
   loads: [] as unknown[],
+  lastId: 77 as number | null,
+  history: [] as unknown[],
   stops: 0,
   demo: false,
   onSpeedTest: null as null | (() => void),
@@ -25,8 +27,12 @@ vi.mock('@/lib/demoMode', () => ({ isDemo: () => h.demo }));
 vi.mock('@/lib/outsideSource', () => ({ isOutsideLine: (c: { outside?: boolean } | null) => !!c?.outside }));
 vi.mock('@/lib/xtream', () => ({
   loadCreds: async () => h.creds,
-  loadLastChannelId: () => 77,
+  loadLastChannelId: () => h.lastId,
   buildNativeLiveUrl: (c: { host: string }, id: number) => `${c.host}/live/x/y/${id}.ts`,
+}));
+vi.mock('@/lib/watchHistory', () => ({
+  currentViewer: async () => 'viewer-1',
+  loadWatchHistory: () => h.history,
 }));
 vi.mock('@/lib/bufferDiagnostics', () => ({
   measureInternetKbps: async (_b: number, _t: number, signal?: AbortSignal) => { h.speedSignal = signal; h.onSpeedTest?.(); return h.internetKbps; },
@@ -73,7 +79,7 @@ const playing = (over: Record<string, unknown> = {}) => ({
 const noSleep = async () => undefined;
 
 beforeEach(() => {
-  h.onSpeedTest = null; h.sendHangs = false; h.speedSignal = null;
+  h.onSpeedTest = null; h.sendHangs = false; h.speedSignal = null; h.lastId = 77; h.history = [];
   h.stats = [playing()]; h.idleFirst = false; h.sent = []; h.allowed = true; h.internetKbps = 48_000; h.loads = []; h.stops = 0; h.demo = false;
   h.vitals = { memAvailMb: 800, memTotalMb: 1900, wifiRssi: -50 };
   (health as unknown as { __resetStatsIndex: () => void }).__resetStatsIndex();
@@ -122,6 +128,28 @@ describe('the 30-second check', () => {
     // The address never goes into the event.
     expect(JSON.stringify(h.sent)).not.toContain('://');
     expect(r).not.toBeNull();
+  });
+
+  it('no saved last channel: the newest channel in watch history on this line is played', async () => {
+    h.idleFirst = true;
+    h.lastId = null;
+    const ch = (streamId: number, host: string) => ({ host, username: 'jsmith', streamId, num: 1, serverLabel: 'DS' });
+    h.history = [
+      { kind: 'channel', key: 'a', title: 'Old News', watchedAt: 1, channel: ch(5, 'http://dstreams.xyz:8080') },
+      { kind: 'plex', key: 'p', title: 'A Film', watchedAt: 9 },
+      { kind: 'channel', key: 'b', title: 'Other Line', watchedAt: 8, channel: ch(6, 'http://elsewhere.xyz') },
+      { kind: 'channel', key: 'c', title: 'Fresh Sports', watchedAt: 7, channel: ch(42, 'http://dstreams.xyz:8080') },
+    ];
+    await runDeviceCheck({ sleep: noSleep, durationSec: 2 });
+    expect(h.loads).toEqual([{ url: 'http://dstreams.xyz:8080/live/x/y/42.ts', live: true }]);
+    expect(h.stops).toBe(1);
+  });
+
+  it('no saved channel and no history: nothing is played, and the result says so', async () => {
+    h.idleFirst = true;
+    h.lastId = null;
+    await runDeviceCheck({ sleep: noSleep, durationSec: 2 });
+    expect(h.loads).toEqual([]);
   });
 
   it('the reported channel is the one played when nothing plays', async () => {

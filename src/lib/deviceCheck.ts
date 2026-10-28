@@ -19,6 +19,8 @@
 import { isDemo } from '@/lib/demoMode';
 import { buildNativeLiveUrl, loadCreds, loadLastChannelId, type XtreamCreds } from '@/lib/xtream';
 import { isOutsideLine } from '@/lib/outsideSource';
+import { currentViewer, loadWatchHistory } from '@/lib/watchHistory';
+import { recentChannelsFrom } from '@/lib/recentChannels';
 import { measureInternetKbps, formatMbps } from '@/lib/bufferDiagnostics';
 import {
   STARVED_SHARE, checkAllowedToday, decideVerdict, getNowPlaying, neededKbpsOf, overloadReason, readStats, readVitals, sendCheckNow,
@@ -184,6 +186,16 @@ interface Playback {
   source: 'already_playing' | 'reported_channel' | 'last_channel' | 'nothing';
 }
 
+/** The newest channel in this viewer's watch history on this line (the
+ *  Continue row's first channel); adult channels are never picked. */
+async function lastWatchedChannelId(creds: XtreamCreds | null): Promise<number | null> {
+  if (!creds?.host || !creds.username) return null;
+  try {
+    const [first] = recentChannelsFrom(loadWatchHistory(await currentViewer()), [creds], {}, 1);
+    return first ? Number(first.stream.stream_id) || null : null;
+  } catch { return null; }
+}
+
 /** The stream to check: what plays, else one started for it. `null`: nothing to measure. */
 async function ensurePlayback(opts: CheckOpts): Promise<Playback | null> {
   const np = getNowPlaying();
@@ -194,7 +206,7 @@ async function ensurePlayback(opts: CheckOpts): Promise<Playback | null> {
   const creds = (opts.channel?.line ?? (await loadCreds().catch(() => null))) as XtreamCreds | null;
   const reported = Number(opts.channel?.streamId);
   const isReported = Number.isFinite(reported) && reported > 0;
-  const id = isReported ? reported : loadLastChannelId();
+  const id = isReported ? reported : (loadLastChannelId() ?? (await lastWatchedChannelId(creds)));
   if (!creds?.host || !creds.username || isOutsideLine(creds) || !id) return { stop: null, title: null, context: 'app', source: 'nothing' };
   try {
     await SnowPlayer.load({ url: buildNativeLiveUrl(creds, id), live: true });
