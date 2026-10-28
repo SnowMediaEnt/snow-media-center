@@ -246,6 +246,13 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   const [relRow, setRelRow] = useState(0);
   const [relCol, setRelCol] = useState(0);
   const relatedMemoRef = useRef(new Map<string, PlexRelatedHub[]>());
+  // Asks still on the way, per title: Back to a title whose reply has not
+  // come yet waits for that one instead of asking again.
+  const relatedAskRef = useRef(new Map<string, Promise<PlexRelatedHub[]>>());
+  // Where the viewer was on each title they left for a related or actor
+  // title (by its place on the stack), put back when Back returns to it.
+  const leftFromRef = useRef<Array<{ zone: DetailZone; castIdx: number; relRow: number; relCol: number }>>([]);
+  const restoreRef = useRef<{ zone: DetailZone; castIdx: number; relRow: number; relCol: number } | null>(null);
 
   // Versions (a 4K and a 1080p file of this title — two Media of one item,
   // or copies in other libraries) and which one Play starts. Nothing is
@@ -298,6 +305,10 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
     setCopies([]); setChosenId(null); setVerIdx(0); setEpPref(null);
     setTrailer(null);
     setRelated([]); setRelRow(0); setRelCol(0);
+    // Back from a related or actor title: the tile the viewer left from.
+    const back = restoreRef.current;
+    restoreRef.current = null;
+    if (back) { setZone(back.zone); setCastIdx(back.castIdx); setRelRow(back.relRow); setRelCol(back.relCol); }
     const known = metaMemoRef.current.get(current.ratingKey);
     if (known) {
       setMeta(known); setMetaLoading(false); setCastReady(true);
@@ -462,8 +473,15 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
       if (cancelled) return;
       const { base, token } = connRef.current;
       // Through a promise, so even a throw on the call is just no rows.
-      Promise.resolve().then(() => getPlexRelatedHubs(base, token, rk))
-        .then((rows) => { relatedMemoRef.current.set(rk, rows); if (!cancelled) setRelated(rows); })
+      let ask = relatedAskRef.current.get(rk);
+      if (!ask) {
+        ask = Promise.resolve().then(() => getPlexRelatedHubs(base, token, rk));
+        relatedAskRef.current.set(rk, ask);
+        ask.then((rows) => { relatedMemoRef.current.set(rk, rows); })
+          .catch(() => { /* no rows */ })
+          .finally(() => { relatedAskRef.current.delete(rk); });
+      }
+      ask.then((rows) => { if (!cancelled) setRelated(rows); })
         .catch(() => { /* no rows */ });
     }, 300);
     return () => { cancelled = true; cancelIdle(); };
@@ -693,11 +711,15 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
   }, [playCurrent, resumeSec, loadSeasons, meta, isShow, toggleRecommend]);
 
   const pushItem = useCallback((next: PlexItem) => {
+    leftFromRef.current.push({ zone: zoneRef.current, castIdx: castIdxRef.current, relRow: relRowRef.current, relCol: relColRef.current });
     setStack((s) => [...s, next]);
   }, []);
   const popStackOrBack = useCallback(() => {
     setStack((s) => {
-      if (s.length > 1) return s.slice(0, -1);
+      if (s.length > 1) {
+        restoreRef.current = leftFromRef.current.pop() ?? null;
+        return s.slice(0, -1);
+      }
       // At the root — the only way out is the caller's onBack.
       window.setTimeout(() => onBack(), 0);
       return s;
@@ -1028,6 +1050,9 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                     <button
                       key={b.id}
                       type="button"
+                      // The related rows make the page taller than the screen:
+                      // ▲ back up must bring the buttons (and the title) back.
+                      ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'center' }); }}
                       data-focused={focused ? 'true' : 'false'}
                       data-howto={DETAIL_HOWTO[b.id]}
                       onClick={() => { setZone('buttons'); setBtn(i); activateDetail(b.id); }}
@@ -1059,6 +1084,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                     <button
                       type="button"
                       data-plex-trailer={shownTrailer.online ? 'online' : 'library'}
+                      ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
                       data-focused={focused ? 'true' : 'false'}
                       aria-label={t('plex.trailer.watch')}
                       onClick={() => { setZone('trailer'); playTrailer(); }}
@@ -1083,6 +1109,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                         <button
                           key={v.id}
                           type="button"
+                          ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
                           data-focused={focused ? 'true' : 'false'}
                           onClick={() => { setZone('versions'); setVerIdx(i); setChosenId(v.id); }}
                           className={`plex-chip tv-ring gap-2 font-nunito${focused ? ' z-10' : on ? ' plex-chip--set' : ''}`}>
@@ -1157,10 +1184,15 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                           key={it.ratingKey}
                           ref={(el) => { if (focused && el) el.scrollIntoView({ inline: 'nearest', block: 'nearest' }); }}
                           {...tileHoldProps(it)}
-                          onClick={() => { if (tapIsHoldLift()) return; setZone('related'); setRelRow(r); setRelCol(i); pushItem(it); }}
+                          onClick={() => {
+                            if (tapIsHoldLift()) return;
+                            // pushItem reads the refs, which update after this render.
+                            zoneRef.current = 'related'; relRowRef.current = r; relColRef.current = i;
+                            setZone('related'); setRelRow(r); setRelCol(i); pushItem(it);
+                          }}
                           className="plex-tile flex-shrink-0 w-[96px] mr-3 cursor-pointer">
                           <div data-focused={focused ? 'true' : 'false'} className="plex-art tv-ring h-0" style={{ paddingBottom: '150%' }}>
-                            <PlexImage base={base} path={it.thumb} token={token} w={160} h={240} focusExempt className="absolute inset-0 w-full h-full object-cover" />
+                            <PlexImage base={base} path={it.thumb} token={token} w={160} h={240} focusExempt eager={isActive && zone === 'related' && relRow === r && i > relCol && i <= relCol + 3} className="absolute inset-0 w-full h-full object-cover" />
                             <span className="plex-sheen" aria-hidden="true" />
                             {watched && <PlexWatchedBadge all={it.type === 'show'} />}
                             {label && <div className={`absolute right-1 ${watched ? 'top-9' : 'top-1'}`}><ResBadge label={label} /></div>}

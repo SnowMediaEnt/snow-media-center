@@ -128,18 +128,21 @@ describe('related rows on the title page', () => {
     expect(focusedText()).toEqual(['Play']);
   });
 
-  it('OK opens the sequel on the same page, and Back returns to the first title', async () => {
+  it('OK opens the sequel on the same page; Back returns to the first title and the poster left from', async () => {
     const onBack = renderDetail({ ratingKey: '101', title: "Child's Play", type: 'movie' });
     await screen.findByText("Child's Play Collection", undefined, { timeout: 5000 });
     press('ArrowDown');
     press('ArrowDown');
+    press('ArrowRight');
     press('Enter');
     release('Enter');
-    await waitFor(() => expect(title()).toBe("Child's Play 2"), { timeout: 5000 });
+    await waitFor(() => expect(title()).toBe("Child's Play 3"), { timeout: 5000 });
     press('Escape');
     await waitFor(() => expect(title()).toBe("Child's Play"), { timeout: 5000 });
-    // Its rows come back without asking the server again.
+    // Its rows come back without asking the server again, with the
+    // highlight on the poster the viewer left from.
     await screen.findByText("Child's Play Collection", undefined, { timeout: 5000 });
+    await waitFor(() => expect(focusedText()).toEqual(["Child's Play 3"]), { timeout: 5000 });
     expect(h.related.mock.calls.filter((c) => c[2] === '101')).toHaveLength(1);
     expect(onBack).not.toHaveBeenCalled();
   });
