@@ -5,7 +5,8 @@
 //
 // Keyed by the line, the refresh nonce ("Update Channels" means a fresh copy)
 // and the Kids level (the list comes back filtered for it). One entry only: a
-// second line or a refresh replaces it. A failed download is not kept.
+// second line or a refresh replaces it. A failed download is not kept, and
+// closing Movies lets it go (releaseVodCatalogue).
 import { getVodStreams, getXtreamRefreshNonce, type XtreamCreds, type XtreamVodStream } from '@/lib/xtream';
 import { kidsLevel } from '@/lib/kidsFilter';
 
@@ -31,5 +32,9 @@ export function loadFullVodCatalogue(c: XtreamCreds): Promise<XtreamVodStream[]>
 export function lowMemoryBox(): boolean {
   try { return document.documentElement.classList.contains('native-low-memory'); } catch { return false; }
 }
+
+/** Lets the catalogue go (Movies closed): tens of thousands of films are
+ *  not kept in memory behind Live TV, Plex or the home screen. */
+export function releaseVodCatalogue(): void { kept = null; }
 
 export function __resetVodCatalogueForTests(): void { kept = null; }

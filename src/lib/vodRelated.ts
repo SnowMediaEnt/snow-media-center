@@ -9,9 +9,10 @@
 
 type Named = { name: string; stream_id: number; stream_icon?: string; year?: string; category_id?: string };
 
-const ROMAN: Record<string, number> = { ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10 };
+// Not IX/X: "Malcolm X" is a name, not part 10.
+const ROMAN: Record<string, number> = { ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8 };
 const WORDS: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
-const ROMAN_RE = 'ii|iii|iv|v|vi|vii|viii|ix|x';
+const ROMAN_RE = 'ii|iii|iv|v|vi|vii|viii';
 const WORD_RE = Object.keys(WORDS).join('|');
 
 // A stem this generic matches unrelated films: no series row for it.
@@ -36,6 +37,9 @@ export interface CleanTitle {
   base: string;
   /** The release year found in the name, if any. */
   year: number | null;
+  /** The year was a bare trailing number ("Title 2049"), which may be part
+   *  of the name itself rather than the release year. */
+  yearFromTail: boolean;
 }
 
 /** A title without its provider prefix, tags, brackets and year. */
@@ -52,8 +56,9 @@ export function cleanTitle(name: string): CleanTitle {
   s = s.replace(/\[[^\]]*\]|\([^)]*\)|\{[^}]*\}/g, ' ').replace(QUALITY, ' ');
   // A trailing year: "Title - 1988", "Title 1988" (never a title that is only a year).
   const trailing = s.match(/^(.*\S)[\s\-–—:,.]+((?:19|20)\d{2})\s*$/);
+  let yearFromTail = false;
   if (trailing && /[a-z]/i.test(trailing[1])) {
-    if (year == null) year = Number(trailing[2]);
+    if (year == null) { year = Number(trailing[2]); yearFromTail = true; }
     s = trailing[1];
   }
   s = s.toLowerCase()
@@ -64,17 +69,28 @@ export function cleanTitle(name: string): CleanTitle {
     .replace(/\s*:\s*/g, ' : ')
     .replace(/\s+/g, ' ')
     .replace(/^[\s:]+|[\s:]+$/g, '');
-  return { base: s, year };
+  return { base: s, year, yearFromTail };
 }
 
 const flat = (s: string) => s.replace(/\s*:\s*/g, ' ').replace(/\s+/g, ' ').trim();
 
-interface Parsed { stem: string; num: number | null; full: string; year: number | null }
+interface Parsed { stem: string; num: number | null; full: string; year: number | null; yearFromTail: boolean }
 
 const PART_RE = new RegExp(`^(.+?)[\\s:]+(?:part|chapter|vol|volume)\\s+(\\d{1,2}|${ROMAN_RE}|${WORD_RE})(?:\\s*:.*)?$`);
 const END_RE = new RegExp(`^(.+?)\\s+(\\d{1,2}|${ROMAN_RE})(?:\\s*:.*)?$`);
 const MID_RE = /^(.+?)\s+(\d{1,2})\s+\S.*$/;
-const SUB_RE = /^(.+?)\s*:\s*.+$/;
+// The part before a subtitle: cut at the first ':' with at least two words
+// before it ("Mission: Impossible - Fallout" is "mission impossible", and
+// "The Mission" stays out of it).
+function beforeSubtitle(s: string): string {
+  const parts = s.split(/\s*:\s*/);
+  let head = parts[0];
+  for (let i = 1; i < parts.length; i++) {
+    if (head.replace(/^the\s+/, '').trim().split(/\s+/).length >= 2) break;
+    head = `${head} ${parts[i]}`;
+  }
+  return head;
+}
 
 const toNum = (t: string): number | null => {
   if (/^\d+$/.test(t)) { const n = Number(t); return n >= 1 && n <= 19 ? n : null; }
@@ -82,7 +98,7 @@ const toNum = (t: string): number | null => {
 };
 
 function parse(name: string): Parsed {
-  const { base, year } = cleanTitle(name);
+  const { base, year, yearFromTail } = cleanTitle(name);
   const full = flat(base);
   let stem = base;
   let num: number | null = null;
@@ -94,35 +110,40 @@ function parse(name: string): Parsed {
     stem = m[1]; num = n;
     break;
   }
-  if (num == null) {
-    const m = base.match(SUB_RE);
-    if (m && /[a-z]/.test(m[1])) stem = m[1];
+  if (/:/.test(stem)) {
+    const head = beforeSubtitle(stem);
+    if (/[a-z]/.test(head)) stem = head;
   }
   stem = flat(stem.replace(/:/g, ' ')).replace(/^the\s+(?=\S)/, '');
-  return { stem, num, full, year };
+  return { stem, num, full, year, yearFromTail };
 }
 
+// Small on purpose: the series index parses the whole catalogue without it,
+// so this only holds the few titles a page looks at.
 const parsedCache = new Map<string, Parsed>();
 const parsed = (name: string): Parsed => {
   const key = String(name ?? '');
   let p = parsedCache.get(key);
   if (!p) {
     p = parse(key);
-    if (parsedCache.size > 50000) parsedCache.clear();
+    if (parsedCache.size > 2000) parsedCache.clear();
     parsedCache.set(key, p);
   }
   return p;
+};
+
+const keyOfParsed = ({ stem }: Parsed): string => {
+  if (stem.replace(/[^a-z]/g, '').length < 4) return '';
+  if (!stem.includes(' ') && COMMON.has(stem)) return '';
+  if (/^[\d\s]+$/.test(stem)) return '';
+  return stem;
 };
 
 /** The series a title belongs to, or '' when its stem is too short or too
  *  common to say ("Doll Night", "Doll Night 2" and "EN - Doll Night III
  *  (1991)" all give "doll night"). */
 export function franchiseKey(name: string): string {
-  const { stem } = parsed(name);
-  if (stem.replace(/[^a-z]/g, '').length < 4) return '';
-  if (!stem.includes(' ') && COMMON.has(stem)) return '';
-  if (/^[\d\s]+$/.test(stem)) return '';
-  return stem;
+  return keyOfParsed(parsed(name));
 }
 
 /** Where a title sits in its series: 2 for "Part 2" / "II", null for none. */
@@ -134,24 +155,31 @@ const yearOf = (m: Named): number | null => {
   const y = String(m.year ?? '').match(/(?:19|20)\d{2}/);
   return y ? Number(y[0]) : parsed(m.name).year;
 };
+// A year read only off the end of the name ("Blade Runner 2049") may be the
+// name itself: such a title is a copy of another only when both years agree.
+const softYear = (m: Named): boolean => !/(?:19|20)\d{2}/.test(String(m.year ?? '')) && parsed(m.name).yearFromTail;
 
 /** One copy per film: the same title (and year, when both copies know it)
  *  is the same film; the copy with a poster wins. Copies of `skip` go. */
 function dedupe<T extends Named>(items: readonly T[], skip?: Named): T[] {
-  const seen = new Map<string, Array<{ year: number | null; item: T | null }>>();
-  const out: Array<{ year: number | null; item: T | null }> = [];
+  type Slot = { year: number | null; tail: boolean; item: T | null };
+  const seen = new Map<string, Slot[]>();
+  const out: Slot[] = [];
   const place = (m: Named, item: T | null) => {
     const full = parsed(m.name).full;
     const year = yearOf(m);
+    const tail = softYear(m);
     const group = seen.get(full) ?? [];
-    const same = group.find((g) => g.year == null || year == null || g.year === year);
+    const same = group.find((g) => g.year === year
+      || (g.year == null && year != null && !tail)
+      || (year == null && g.year != null && !g.tail));
     if (same) {
-      if (same.year == null) same.year = year;
+      if (same.year == null) { same.year = year; same.tail = tail; }
       // Same slot, the better copy.
       if (same.item && item && !same.item.stream_icon && item.stream_icon) same.item = item;
       return;
     }
-    const entry = { year, item };
+    const entry: Slot = { year, tail, item };
     group.push(entry);
     seen.set(full, group);
     out.push(entry);
@@ -164,20 +192,52 @@ function dedupe<T extends Named>(items: readonly T[], skip?: Named): T[] {
 // Each list's series index, built once per list (a catalogue is tens of
 // thousands of films; the page asks again for every film opened).
 const indexes = new WeakMap<readonly Named[], Map<string, Named[]>>();
+const building = new WeakMap<readonly Named[], Promise<void>>();
+function addTo(idx: Map<string, Named[]>, m: Named) {
+  if (!m || !m.name) return;
+  const k = keyOfParsed(parse(String(m.name)));
+  if (!k) return;
+  const arr = idx.get(k);
+  if (arr) arr.push(m); else idx.set(k, [m]);
+}
 function indexOf<T extends Named>(list: readonly T[]): Map<string, T[]> {
   let idx = indexes.get(list) as Map<string, T[]> | undefined;
   if (!idx) {
-    idx = new Map();
-    for (const m of list) {
-      if (!m || !m.name) continue;
-      const k = franchiseKey(m.name);
-      if (!k) continue;
-      const arr = idx.get(k);
-      if (arr) arr.push(m); else idx.set(k, [m]);
-    }
-    indexes.set(list, idx as Map<string, Named[]>);
+    const built = new Map<string, Named[]>();
+    for (const m of list) addTo(built, m);
+    indexes.set(list, built);
+    idx = built as Map<string, T[]>;
   }
   return idx;
+}
+
+/** Whether `list`'s series index is built (findFranchise is then quick). */
+export function seriesIndexReady(list: readonly Named[]): boolean {
+  return indexes.has(list);
+}
+
+/** Builds `list`'s series index a slice at a time, giving the remote back
+ *  between slices: a catalogue of tens of thousands of films in one go held
+ *  a Fire TV for seconds. */
+export function buildSeriesIndex(list: readonly Named[], slice = 1500): Promise<void> {
+  if (indexes.has(list)) return Promise.resolve();
+  const running = building.get(list);
+  if (running) return running;
+  const built = new Map<string, Named[]>();
+  const p = new Promise<void>((resolve) => {
+    let i = 0;
+    const step = () => {
+      const end = Math.min(i + slice, list.length);
+      for (; i < end; i++) addTo(built, list[i]);
+      if (i < list.length) { window.setTimeout(step, 0); return; }
+      indexes.set(list, built);
+      building.delete(list);
+      resolve();
+    };
+    step();
+  });
+  building.set(list, p);
+  return p;
 }
 
 /** The other films of `current`'s series in `all`, one copy each, in order:
@@ -186,7 +246,14 @@ export function findFranchise<T extends Named>(current: Named, all: readonly T[]
   if (!current || !all?.length) return [];
   const key = franchiseKey(current.name);
   if (!key) return [];
-  const same = (indexOf(all).get(key) ?? []).filter((m) => m.stream_id !== current.stream_id);
+  const group = indexOf(all).get(key) ?? [];
+  // A bare trailing 10-19 is only a part number when the series has a film
+  // without one (the first, or a "Part"/"II" title): "Orbit 11" and "Orbit
+  // 13" are names. Parts 2-9 stand on their own (a catalogue often lacks
+  // the first film).
+  const named = (n: string) => { const p = parsed(n); return p.num == null || p.num <= 9 || !/\s\d{1,2}(?:\s*:.*)?$/.test(p.full); };
+  if (!named(current.name) && !group.some((m) => named(m.name))) return [];
+  const same = group.filter((m) => m.stream_id !== current.stream_id);
   const kept = dedupe(same, current);
   const order = (m: T) => [sequelNumber(m.name) ?? 1, yearOf(m) ?? 9999] as const;
   return kept

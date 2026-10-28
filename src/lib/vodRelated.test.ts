@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { castNames, cleanTitle, findFranchise, findMoreLikeThis, franchiseKey, sequelNumber } from './vodRelated';
+import { buildSeriesIndex, castNames, cleanTitle, findFranchise, findMoreLikeThis, franchiseKey, sequelNumber, seriesIndexReady } from './vodRelated';
 
 let id = 0;
 const film = (name: string, extra: Partial<{ stream_icon: string; year: string; category_id: string; genre: string; stream_id: number }> = {}) =>
@@ -7,12 +7,12 @@ const film = (name: string, extra: Partial<{ stream_icon: string; year: string; 
 
 describe('cleanTitle', () => {
   it('strips provider prefixes, tags, brackets and the year', () => {
-    expect(cleanTitle('EN - Doll Night (1988)')).toEqual({ base: 'doll night', year: 1988 });
+    expect(cleanTitle('EN - Doll Night (1988)')).toEqual({ base: 'doll night', year: 1988, yearFromTail: false });
     expect(cleanTitle('|EN| Doll Night [4K]').base).toBe('doll night');
     expect(cleanTitle('4K-Doll Night').base).toBe('doll night');
     expect(cleanTitle('[MULTI] UHD | Doll Night 1080p HEVC').base).toBe('doll night');
-    expect(cleanTitle('FR: Doll Night - 1990')).toEqual({ base: 'doll night', year: 1990 });
-    expect(cleanTitle('Doll Night 1991')).toEqual({ base: 'doll night', year: 1991 });
+    expect(cleanTitle('FR: Doll Night - 1990')).toEqual({ base: 'doll night', year: 1990, yearFromTail: true });
+    expect(cleanTitle('Doll Night 1991')).toEqual({ base: 'doll night', year: 1991, yearFromTail: true });
   });
   it('keeps a title that is only a year', () => {
     expect(cleanTitle('1917').base).toBe('1917');
@@ -144,5 +144,44 @@ describe('castNames', () => {
     expect(castNames(' Ann Lee, Bo Park ,ann lee,, Cy Dorn')).toEqual(['Ann Lee', 'Bo Park', 'Cy Dorn']);
     expect(castNames('a, b, c', 2)).toEqual(['a', 'b']);
     expect(castNames(undefined)).toEqual([]);
+  });
+});
+
+describe('review cases (invented titles)', () => {
+  const mk = (stream_id: number, name: string, year?: string) => ({ stream_id, name, year });
+
+  it('a bare trailing 10-19 is a name unless the series has a first film', () => {
+    const list = [mk(1, 'Orbit 11'), mk(2, 'Orbit 13'), mk(3, 'Orbit 18')];
+    expect(findFranchise(list[1], list)).toEqual([]);
+    const withFirst = [mk(4, 'Doll Night'), mk(5, 'Doll Night 2'), mk(6, 'Doll Night 3')];
+    expect(findFranchise(withFirst[1], withFirst).map((m) => m.name)).toEqual(['Doll Night', 'Doll Night 3']);
+  });
+
+  it('a lone X is a name, not part 10', () => {
+    expect(sequelNumber('Marcus X')).toBeNull();
+  });
+
+  it('a sequel named by a trailing year is not a copy of the first film', () => {
+    const list = [mk(1, 'Glass Runner'), mk(2, 'Glass Runner 2049')];
+    expect(findFranchise(list[0], list).map((m) => m.name)).toEqual(['Glass Runner 2049']);
+    // A real copy with its year in brackets still folds into the plain one.
+    const copies = [mk(3, 'Glass Runner'), mk(4, 'Glass Runner (1982)'), mk(5, 'Glass Runner 2')];
+    expect(findFranchise(copies[2], copies)).toHaveLength(1);
+  });
+
+  it('never cuts a subtitle after a single word', () => {
+    expect(franchiseKey('Quest: Unbroken')).toBe(franchiseKey('Quest: Unbroken 2'));
+    expect(franchiseKey('Quest: Unbroken - Fallen Sky')).toBe(franchiseKey('Quest: Unbroken 2'));
+    expect(franchiseKey('The Quest')).not.toBe(franchiseKey('Quest: Unbroken'));
+    expect(franchiseKey('Sky Wars: Episode IV: A New Dawn')).toBe('sky wars');
+  });
+
+  it('builds a big index a slice at a time', async () => {
+    const list = Array.from({ length: 4000 }, (_, i) => mk(i + 1, `Film Number ${i}`));
+    list.push(mk(9001, 'Doll Night'), mk(9002, 'Doll Night 2'));
+    expect(seriesIndexReady(list)).toBe(false);
+    await buildSeriesIndex(list, 500);
+    expect(seriesIndexReady(list)).toBe(true);
+    expect(findFranchise(list[4000], list).map((m) => m.name)).toEqual(['Doll Night 2']);
   });
 });

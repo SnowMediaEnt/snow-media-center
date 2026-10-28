@@ -41,8 +41,8 @@ import { useWatchedFilms } from '@/hooks/useWatchedVod';
 import TrailerButton from './TrailerButton';
 import TrailerOverlay from './TrailerOverlay';
 import { movieTrailer, openTrailer } from '@/lib/trailer';
-import { castNames, findFranchise, findMoreLikeThis } from '@/lib/vodRelated';
-import { loadFullVodCatalogue, lowMemoryBox } from '@/lib/vodCatalogue';
+import { buildSeriesIndex, castNames, findFranchise, findMoreLikeThis, seriesIndexReady } from '@/lib/vodRelated';
+import { loadFullVodCatalogue, lowMemoryBox, releaseVodCatalogue } from '@/lib/vodCatalogue';
 import { adultCategoryIds, isAdultHit } from '@/lib/adultSearch';
 
 interface Props {
@@ -421,13 +421,15 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
   // Movies" holds, else one download, once the page's own info is in (never
   // two calls at once), shared with search after. Not on a box short of
   // memory: the series row then reads the categories already held.
-  const fullList = allMovies ?? moviesByCat.get(ALL_ID) ?? null;
+  // An empty list is a failed load (a panel always has films): not the catalogue.
+  const fullList = (allMovies?.length ? allMovies : null) ?? (moviesByCat.get(ALL_ID)?.length ? moviesByCat.get(ALL_ID)! : null);
+  useEffect(() => () => releaseVodCatalogue(), []);
   useEffect(() => {
     if (pane !== 'detail' || !selectedMovie || infoLoading || fullList || lowMemoryBox()) return;
     let cancelled = false;
     loadFullVodCatalogue(creds)
       .then((list) => {
-        if (cancelled || allMoviesRef.current) return;
+        if (cancelled || allMoviesRef.current?.length) return;
         setAllMovies(list);
         noteCounts({ total: list.length, byCat: tallyByCategory(list) });
       })
@@ -449,12 +451,15 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
   useEffect(() => {
     if (pane !== 'detail' || !selectedMovie || infoLoading) return;
     const cur = selectedMovie;
-    const timer = window.setTimeout(() => {
+    let cancelled = false;
+    const source = fullList ?? heldMovies;
+    const work = () => {
+      if (cancelled) return;
       try {
         const adultCats = adultCategoryIds(categories);
         const adult = (m: XtreamVodStream) => isAdultHit({ name: m.name, categoryId: m.category_id, row: m }, adultCats);
         if (adult(cur)) { setRelated({ forId: cur.stream_id, series: [], like: [] }); return; }
-        const series = findFranchise(cur, fullList ?? heldMovies).filter((m) => !adult(m));
+        const series = findFranchise(cur, source).filter((m) => !adult(m));
         const catId = cur.category_id != null && cur.category_id !== '' ? String(cur.category_id) : null;
         const fromCat = catId ? moviesByCat.get(catId) : undefined;
         const fromFull = !fromCat && catId && fullList ? fullList.filter((m) => String(m.category_id ?? '') === catId) : null;
@@ -465,8 +470,14 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
       } catch {
         setRelated(null);
       }
+    };
+    // The series index of a whole catalogue is built a slice at a time (the
+    // remote stays live); after that every film's rows are quick.
+    const timer = window.setTimeout(() => {
+      if (seriesIndexReady(source)) work();
+      else void buildSeriesIndex(source).then(work, () => { if (!cancelled) setRelated(null); });
     }, 0);
-    return () => window.clearTimeout(timer);
+    return () => { cancelled = true; window.clearTimeout(timer); };
   }, [pane, selectedMovie, infoLoading, fullList, heldMovies, moviesByCat, categories, currentCatId, pageGenre]);
 
   const relRows = useMemo<RelRow[]>(() => {
@@ -576,6 +587,9 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
         if (paneRef.current === 'detail') {
           // A film opened from a related row: back to the one before, its
           // highlight on the film just left. Else back to the list.
+          // Held Back: one film per press, never a burst of info calls
+          // (a panel bans an address that asks too much).
+          if (e.repeat && backStackRef.current.length) return;
           const prev = backStackRef.current.pop();
           if (prev) void openMovieRef.current(prev.movie, { keepStack: true, focusId: prev.focusId });
           else { setPane('grid'); setSelectedMovie(null); }
