@@ -266,6 +266,9 @@ interface State {
   held: ClassifyResult | null;
   holdUntil: number;
   reported: Set<Verdict>;
+  /** The stream has played since beginStream (a buffering after this is a
+   *  stall, not the start-up fill). */
+  played: boolean;
 }
 
 const freshState = (): State => ({
@@ -288,6 +291,7 @@ const freshState = (): State => ({
   held: null,
   holdUntil: 0,
   reported: new Set<Verdict>(),
+  played: false,
 });
 
 let state: State = freshState();
@@ -634,8 +638,64 @@ function pushSample(kbps: number) {
   if (state.samples.length > MAX_SAMPLES) state.samples.splice(0, state.samples.length - MAX_SAMPLES);
 }
 
+// ── Stall observer (Device Health) ──────────────────────────────────────────
+/** A stall that is over: playback picked up again, or the stream was left
+ *  (ended / replaced) while still stalled. Start-up fills are never one. */
+export interface StallReport {
+  durationMs: number;
+  /** The stream ended or was replaced mid-stall (it never recovered). */
+  ended: boolean;
+  kind: 'live' | 'vod';
+  /** This module's own verdict for it (the card's). */
+  verdict: Verdict;
+  dropped: boolean;
+  online: boolean;
+  /** Recent engine samples, kbps. */
+  streamKbps: number | null;
+  /** The player's own last arrival rate during the stall, kbps. */
+  nowKbps: number | null;
+  /** General internet (neutral probe), kbps. */
+  probeKbps: number | null;
+  hostMs: number | null;
+}
+let stallObserver: ((r: StallReport) => void) | null = null;
+/** One observer (lib/deviceHealth). Never throws into playback. */
+export function setStallObserver(fn: ((r: StallReport) => void) | null): void {
+  stallObserver = fn;
+}
+function reportStallOver(ended: boolean): void {
+  if (!stallObserver || !state.active || !state.buffering || !state.played) return;
+  try {
+    const snap = computeSnapshot();
+    stallObserver({
+      durationMs: Math.max(0, now() - state.bufferingSince),
+      ended,
+      kind: state.kind,
+      verdict: snap.verdict,
+      dropped: snap.dropped === true,
+      online: snap.online,
+      streamKbps: snap.streamKbps,
+      nowKbps: snap.nowKbps,
+      probeKbps: snap.probeKbps,
+      hostMs: snap.hostMs,
+    });
+  } catch { /* the observer's problem */ }
+}
+
+/**
+ * One general-internet speed test of `bytes` (the same neutral server the
+ * stall probe uses), for a device check. kbps, or null when it failed.
+ * Never throws.
+ */
+export async function measureInternetKbps(bytes = 2_000_000, timeoutMs = 10_000): Promise<number | null> {
+  const n = Math.max(65_536, Math.min(10_000_000, Math.round(bytes)));
+  const r = await measure(`https://speed.cloudflare.com/__down?bytes=${n}`, { method: 'GET' }, timeoutMs, n);
+  return r && r.kbps != null ? r.kbps : null;
+}
+
 // ── Public API ──────────────────────────────────────────────────────────────
 export function beginStream(url: string, kind: 'live' | 'vod'): void {
+  reportStallOver(true);
   clearAllTimers();
   state = freshState();
   state.active = true;
@@ -658,6 +718,7 @@ export function beginStream(url: string, kind: 'live' | 'vod'): void {
 }
 
 export function endStream(): void {
+  reportStallOver(true);
   clearAllTimers();
   state = freshState();
   snapshot = IDLE_SNAPSHOT;
@@ -730,7 +791,9 @@ export function recordEngineEstimate(bps: number): void {
 export function setBuffering(on: boolean): void {
   if (!state.active) return;
   if (on === state.buffering) return;
+  if (!on) reportStallOver(false);
   state.buffering = on;
+  if (!on) state.played = true;
   if (on) {
     state.bufferingSince = now();
     state.held = null;

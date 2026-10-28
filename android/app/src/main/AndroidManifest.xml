@@ -10,6 +10,9 @@
     <uses-sdk tools:overrideLibrary="dev.jdtech.mpv" />
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Device Health: Wi-Fi signal / link speed and wired-or-not (normal permissions, no prompt). -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <!-- Wi-Fi lock while a video plays (player setWakeMode). -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>

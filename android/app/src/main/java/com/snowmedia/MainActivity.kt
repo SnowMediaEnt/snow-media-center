@@ -26,6 +26,8 @@ import com.snowmedia.appmanager.AppManagerPlugin
 import com.snowmedia.billing.SmcBillingPlugin
 import com.snowmedia.capture.SnowCapturePlugin
 import com.snowmedia.dvr.RecorderPlugin
+import com.snowmedia.health.DeviceHealthPlugin
+import com.snowmedia.health.HealthStore
 import com.snowmedia.notify.SnowNotifyPlugin
 import com.snowmedia.player.SnowPlayerPlugin
 import com.snowmedia.security.TamperGuard
@@ -48,6 +50,10 @@ class MainActivity : BridgeActivity() {
         registerPlugin(SnowCapturePlugin::class.java)
         registerPlugin(SmcBillingPlugin::class.java)
         registerPlugin(RecorderPlugin::class.java)
+        registerPlugin(DeviceHealthPlugin::class.java)
+        // Device Health: how the last run ended, read before this one marks
+        // itself on screen; and the crash handler (HealthStore).
+        HealthStore.onProcessStart(this)
         bridgeBuilder.addWebViewListener(object : WebViewListener() {
             override fun onRenderProcessGone(webView: WebView, detail: RenderProcessGoneDetail): Boolean {
                 Log.e("SMC-WebView", "Renderer process gone. didCrash=${detail.didCrash()} priority=${detail.rendererPriorityAtExit()}")
@@ -65,6 +71,8 @@ class MainActivity : BridgeActivity() {
                 }
                 // Kept for the next page to report once (src/lib/rendererGone.ts).
                 RendererGone.save(this@MainActivity, detail.didCrash(), detail.rendererPriorityAtExit(), playerActive)
+                // And for Device Health's next report (a 'crash').
+                HealthStore.noteRendererGone(this@MainActivity, detail.didCrash(), playerActive)
                 // The activity is made again: a new WebView loads the app from
                 // its start, which opens on Home (useNavigation's first view;
                 // nothing brings back the channel that was playing).
@@ -124,6 +132,18 @@ class MainActivity : BridgeActivity() {
                 Log.i("SMC-Back", "Back with no page handler: SMC stays open")
             }
         })
+    }
+
+    // Device Health's on-screen marker: a process that dies between these two
+    // died while the viewer was looking at it (HealthStore).
+    override fun onStart() {
+        super.onStart()
+        HealthStore.setOnScreen(this, true)
+    }
+
+    override fun onStop() {
+        HealthStore.setOnScreen(this, false)
+        super.onStop()
     }
 
     // The remote's media buttons never reach the page: Android's WebView keeps
