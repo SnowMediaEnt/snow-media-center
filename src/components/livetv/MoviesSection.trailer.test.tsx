@@ -124,8 +124,14 @@ describe('Trailer on a film\'s page (TV)', { timeout: 30000 }, () => {
     press('ArrowDown');
     expect(lit(trailer())).toBe(true);
     expect(lit(play())).toBe(false);
-    // ◀ ▶ on the Trailer line do nothing; ▼ stays.
-    press('ArrowRight'); press('ArrowLeft'); press('ArrowDown');
+    // ◀ ▶ on the Trailer line do nothing; ▼ goes on to the related row
+    // under it (MoviesSection.related), ▲ comes back.
+    press('ArrowRight'); press('ArrowLeft');
+    expect(lit(trailer())).toBe(true);
+    await until(() => !!q('[data-related]'));
+    press('ArrowDown');
+    expect(lit(trailer())).toBe(false);
+    press('ArrowUp');
     expect(lit(trailer())).toBe(true);
     press('Enter');
     await settle();
@@ -255,7 +261,11 @@ describe('Kids profile: no Trailer', { timeout: 30000 }, () => {
     await settle(20);
     expect(trailer()).toBeNull();
     expect(q('[data-movie-trailer-line]')).toBeNull();
+    // ▼ skips the missing Trailer line: straight to the related row, ▲ back to Play.
+    await until(() => !!q('[data-related]'));
     press('ArrowDown');
+    expect(lit(play())).toBe(false);
+    press('ArrowUp');
     expect(lit(play())).toBe(true);
     press('Enter');
     expect(await until(() => !!player())).toBe(true);

@@ -41,6 +41,9 @@ import { useWatchedFilms } from '@/hooks/useWatchedVod';
 import TrailerButton from './TrailerButton';
 import TrailerOverlay from './TrailerOverlay';
 import { movieTrailer, openTrailer } from '@/lib/trailer';
+import { castNames, findFranchise, findMoreLikeThis } from '@/lib/vodRelated';
+import { loadFullVodCatalogue, lowMemoryBox } from '@/lib/vodCatalogue';
+import { adultCategoryIds, isAdultHit } from '@/lib/adultSearch';
 
 interface Props {
   creds: XtreamCreds;
@@ -65,6 +68,26 @@ const GRID_COLS_TV = 5;
 const GRID_COLS_UPRIGHT = 3;
 // Demo latch (?demo=1) — canned catalog; play shows the demo dialog instead.
 const DEMO = isDemo();
+// A film's page: the related rows under it ("More in this series", "More like
+// this"). One row shows at a time, the next one's label peeking under it.
+const REL_ROW_H = 164;
+const REL_CARD_W = 84;
+const REL_PEEK = 22;
+// Films opened from a related row, for Back (one step per film).
+const MAX_BACK_STACK = 20;
+type DetailFocus = 'play' | 'trailer' | 'related';
+type RelRow = { kind: 'series' | 'like'; items: XtreamVodStream[] };
+// A related card's index for PosterCard: its row and column in one number.
+const REL_STRIDE = 1000;
+
+// A row's highlighted card stays in view, by its own scrollLeft only.
+function keepInViewX(container: HTMLElement, el: HTMLElement, pad = 12): void {
+  if (fingerIsDriving()) return;
+  const left = el.offsetLeft;
+  const right = left + el.offsetWidth;
+  if (left - pad < container.scrollLeft) container.scrollLeft = Math.max(0, left - pad);
+  else if (right + pad > container.scrollLeft + container.clientWidth) container.scrollLeft = right + pad - container.clientWidth;
+}
 
 const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex, onBack }: Props) => {
   // Upright on a phone: three posters a row and the categories as a row of
@@ -128,9 +151,21 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
   // The film page's buttons: Play, and Trailer on its own line under it once
   // the page's info is in (its video, else a search; none on a Kids profile).
   // ▼ from Play reaches it, ▲ goes back (Tronix 1039497).
-  const [detailFocus, setDetailFocus] = useState<'play' | 'trailer'>('play');
+  const [detailFocus, setDetailFocus] = useState<DetailFocus>('play');
   const detailFocusRef = useRef(detailFocus);
   detailFocusRef.current = detailFocus;
+  // Under the page: the film's series and more from its category (owner,
+  // 2026-10-27: open a film, go straight to its sequel). Worked out on the
+  // box from lists already held, never by asking the panel about each film.
+  const [related, setRelated] = useState<{ forId: number; series: XtreamVodStream[]; like: XtreamVodStream[] } | null>(null);
+  const [relPos, setRelPos] = useState({ row: 0, col: 0 });
+  const relPosRef = useRef(relPos);
+  relPosRef.current = relPos;
+  // The related film highlighted, by id: kept when the rows are worked out
+  // again (the whole catalogue arriving adds the series row above).
+  const relFocusIdRef = useRef<number | null>(null);
+  // Films opened from a related row: Back reopens the one before.
+  const backStackRef = useRef<Array<{ movie: XtreamVodStream; focusId: number | null }>>([]);
   const trailer = useMemo(() => (selectedMovie && !infoLoading ? movieTrailer(selectedMovie, movieInfo) : null), [selectedMovie, movieInfo, infoLoading]);
   const trailerRef = useRef(trailer);
   trailerRef.current = trailer;
@@ -260,7 +295,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
     setLoadingCat(key);
     // Search already holds the whole catalogue: never download it twice.
     const p = key === ALL_ID
-      ? (allMoviesRef.current ? Promise.resolve(allMoviesRef.current) : getVodStreams(creds))
+      ? (allMoviesRef.current ? Promise.resolve(allMoviesRef.current) : loadFullVodCatalogue(creds))
       : getVodStreams(creds, key);
     p.then(list => {
       if (cancelled) return;
@@ -298,7 +333,7 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
     if (have) { setAllMovies(have); return; }
     setAllMoviesLoading(true);
     let cancelled = false;
-    getVodStreams(creds)
+    loadFullVodCatalogue(creds)
       .then(list => {
         if (cancelled) return;
         setAllMovies(list);
@@ -349,11 +384,17 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
   // Load detail
   // A slow answer for an earlier film must not fill in a newer one's page.
   const openSeqRef = useRef(0);
-  const openMovie = useCallback(async (m: XtreamVodStream) => {
+  // `keepStack`: opened from a related row, or Back to one (the back stack
+  // stays); `focusId`: the related film to highlight once the rows are in.
+  const openMovie = useCallback(async (m: XtreamVodStream, opts?: { keepStack?: boolean; focusId?: number | null }) => {
     const seq = ++openSeqRef.current;
+    if (!opts?.keepStack) backStackRef.current = [];
     setSelectedMovie(m);
     setMovieInfo(null);
-    setDetailFocus('play');
+    setRelated(null);
+    relFocusIdRef.current = opts?.focusId ?? null;
+    setRelPos({ row: 0, col: 0 });
+    setDetailFocus(opts?.focusId != null ? 'related' : 'play');
     setPane('detail');
     setInfoLoading(true);
     try {
@@ -375,6 +416,111 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
     setPlaying({ url, title: selectedMovie.name, streamId: selectedMovie.stream_id });
     try { trackEvent('movie_play', 'player', { title: selectedMovie.name }); } catch { /* ignore */ }
   }, [creds, selectedMovie, movieInfo]);
+
+  // The whole catalogue for "More in this series": the copy search or "All
+  // Movies" holds, else one download, once the page's own info is in (never
+  // two calls at once), shared with search after. Not on a box short of
+  // memory: the series row then reads the categories already held.
+  const fullList = allMovies ?? moviesByCat.get(ALL_ID) ?? null;
+  useEffect(() => {
+    if (pane !== 'detail' || !selectedMovie || infoLoading || fullList || lowMemoryBox()) return;
+    let cancelled = false;
+    loadFullVodCatalogue(creds)
+      .then((list) => {
+        if (cancelled || allMoviesRef.current) return;
+        setAllMovies(list);
+        noteCounts({ total: list.length, byCat: tallyByCategory(list) });
+      })
+      .catch(() => { /* no series row from the catalogue: the held lists still give one */ });
+    return () => { cancelled = true; };
+  }, [pane, selectedMovie, infoLoading, fullList, creds, noteCounts]);
+
+  // Every category list held, as one (for the series row without the catalogue).
+  const heldMovies = useMemo(() => {
+    const out: XtreamVodStream[] = [];
+    for (const list of moviesByCat.values()) out.push(...list);
+    return out;
+  }, [moviesByCat]);
+
+  // The rows, worked out after the page is drawn (its info in first), off
+  // the key's own frame. An adult film gets none; an adult title never shows
+  // in them (as in search). Any failure: no rows.
+  const pageGenre = movieInfo?.info?.genre ?? null;
+  useEffect(() => {
+    if (pane !== 'detail' || !selectedMovie || infoLoading) return;
+    const cur = selectedMovie;
+    const timer = window.setTimeout(() => {
+      try {
+        const adultCats = adultCategoryIds(categories);
+        const adult = (m: XtreamVodStream) => isAdultHit({ name: m.name, categoryId: m.category_id, row: m }, adultCats);
+        if (adult(cur)) { setRelated({ forId: cur.stream_id, series: [], like: [] }); return; }
+        const series = findFranchise(cur, fullList ?? heldMovies).filter((m) => !adult(m));
+        const catId = cur.category_id != null && cur.category_id !== '' ? String(cur.category_id) : null;
+        const fromCat = catId ? moviesByCat.get(catId) : undefined;
+        const fromFull = !fromCat && catId && fullList ? fullList.filter((m) => String(m.category_id ?? '') === catId) : null;
+        const browsed = currentCatId ? moviesByCat.get(currentCatId) : undefined;
+        const catList = (fromCat ?? fromFull ?? browsed ?? []).filter((m) => !adult(m));
+        const like = findMoreLikeThis(cur, catList, pageGenre, series.map((m) => m.stream_id));
+        setRelated({ forId: cur.stream_id, series, like });
+      } catch {
+        setRelated(null);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [pane, selectedMovie, infoLoading, fullList, heldMovies, moviesByCat, categories, currentCatId, pageGenre]);
+
+  const relRows = useMemo<RelRow[]>(() => {
+    if (!related || !selectedMovie || related.forId !== selectedMovie.stream_id) return [];
+    const rows: RelRow[] = [];
+    if (related.series.length) rows.push({ kind: 'series', items: related.series });
+    if (related.like.length) rows.push({ kind: 'like', items: related.like });
+    return rows;
+  }, [related, selectedMovie]);
+  const relRowsRef = useRef(relRows);
+  relRowsRef.current = relRows;
+  // New rows: the same film stays highlighted if it is still there, else
+  // the nearest card.
+  useEffect(() => {
+    const want = relFocusIdRef.current;
+    if (want != null) {
+      for (let r = 0; r < relRows.length; r++) {
+        const c = relRows[r].items.findIndex((m) => m.stream_id === want);
+        if (c >= 0) { setRelPos({ row: r, col: c }); return; }
+      }
+    }
+    if (!relRows.length) return;
+    setRelPos((p) => {
+      const row = Math.min(p.row, relRows.length - 1);
+      const col = Math.min(p.col, relRows[row].items.length - 1);
+      return row === p.row && col === p.col ? p : { row, col };
+    });
+  }, [relRows]);
+  useEffect(() => {
+    if (detailFocus !== 'related') return;
+    const m = relRowsRef.current[relPos.row]?.items[relPos.col];
+    if (m) relFocusIdRef.current = m.stream_id;
+  }, [relPos, detailFocus]);
+
+  // OK on a related film: its page, the one left on the back stack.
+  const openRelated = useCallback((m: XtreamVodStream) => {
+    const from = selectedMovie;
+    if (!from || m.stream_id === from.stream_id) return;
+    const stack = backStackRef.current;
+    stack.push({ movie: from, focusId: m.stream_id });
+    if (stack.length > MAX_BACK_STACK) stack.shift();
+    try { trackEvent('movie_related_open', 'player', { title: m.name }); } catch { /* ignore */ }
+    void openMovie(m, { keepStack: true });
+  }, [selectedMovie, openMovie]);
+  const openRelatedRef = useRef(openRelated);
+  openRelatedRef.current = openRelated;
+  const onRelFocus = useCallback((i: number) => {
+    setRelPos({ row: Math.floor(i / REL_STRIDE), col: i % REL_STRIDE });
+    setDetailFocus('related');
+  }, []);
+  const onRelActivate = useCallback((i: number) => {
+    const m = relRowsRef.current[Math.floor(i / REL_STRIDE)]?.items[i % REL_STRIDE];
+    if (m) openRelatedRef.current(m);
+  }, []);
 
   // player_search — debounce
   useEffect(() => {
@@ -427,7 +573,13 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
 
       if (e.key === 'Escape' || e.keyCode === 4 || e.key === 'Backspace') {
         e.preventDefault(); e.stopPropagation();
-        if (paneRef.current === 'detail') { setPane('grid'); setSelectedMovie(null); }
+        if (paneRef.current === 'detail') {
+          // A film opened from a related row: back to the one before, its
+          // highlight on the film just left. Else back to the list.
+          const prev = backStackRef.current.pop();
+          if (prev) void openMovieRef.current(prev.movie, { keepStack: true, focusId: prev.focusId });
+          else { setPane('grid'); setSelectedMovie(null); }
+        }
         // A touch screen shows no highlight to walk back through (the
         // categories are on screen beside or over the posters): the search
         // closes first, then Back leaves (Tronix 93ecbf4).
@@ -507,9 +659,32 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
       if (paneRef.current === 'detail') {
         // Play, and Trailer on the line under it (owner via Tronix, 2026-10-10:
         // "you cant just drop down from 'play movie' to go to trailer"): ▼
-        // reaches it, ▲ goes back to Play, ◀ ▶ there do nothing.
+        // reaches it, ▲ goes back to Play, ◀ ▶ there do nothing. Under them
+        // the related rows: ▼ into the first, ▲ ▼ between rows, ◀ ▶ along a
+        // row, ▲ from the first back to the buttons, OK opens that film.
+        const rows = relRowsRef.current;
+        if (detailFocusRef.current === 'related' && rows.length) {
+          const { row, col } = relPosRef.current;
+          const r = Math.min(row, rows.length - 1);
+          const len = rows[r].items.length;
+          if (e.key === 'ArrowLeft') { if (col > 0) setRelPos({ row: r, col: col - 1 }); }
+          else if (e.key === 'ArrowRight') { if (col + 1 < len) setRelPos({ row: r, col: col + 1 }); }
+          else if (e.key === 'ArrowDown') {
+            if (r + 1 < rows.length) setRelPos({ row: r + 1, col: Math.min(col, rows[r + 1].items.length - 1) });
+          } else if (e.key === 'ArrowUp') {
+            if (r > 0) setRelPos({ row: r - 1, col: Math.min(col, rows[r - 1].items.length - 1) });
+            else { relFocusIdRef.current = null; setDetailFocus(trailerRef.current ? 'trailer' : 'play'); }
+          } else if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) {
+            const m = rows[r].items[Math.min(col, len - 1)];
+            if (m) openRelatedRef.current(m);
+          }
+          return;
+        }
         const onTrailer = detailFocusRef.current === 'trailer' && !!trailerRef.current;
-        if (e.key === 'ArrowDown' && trailerRef.current) setDetailFocus('trailer');
+        if (e.key === 'ArrowDown') {
+          if (!onTrailer && trailerRef.current) setDetailFocus('trailer');
+          else if (rows.length) { setRelPos({ row: 0, col: 0 }); setDetailFocus('related'); }
+        }
         else if (e.key === 'ArrowUp') setDetailFocus('play');
         else if (e.key === 'Enter' || e.key === ' ') {
           if (onTrailer) { if (!e.repeat) pressTrailer(); }
@@ -608,6 +783,21 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
     if (node && el) keepInView(node, el, 8);
   }, [detailFocus, trailer, pane]);
 
+  // The related strip shows the highlighted row (one at a time, the next
+  // one's label peeking), and the row keeps its highlighted card in view.
+  const relStripRef = useRef<HTMLDivElement | null>(null);
+  const relLitNow = detailFocus === 'related' && relRows.length > 0;
+  useEffect(() => {
+    const strip = relStripRef.current;
+    if (!strip || fingerIsDriving()) return;
+    const row = relLitNow ? Math.min(relPos.row, relRows.length - 1) : 0;
+    strip.scrollTop = row * REL_ROW_H;
+    if (!relLitNow) return;
+    const scroller = strip.querySelector<HTMLElement>(`[data-related-row="${relRows[row]?.kind}"] [data-related-scroll]`);
+    const card = scroller?.querySelector<HTMLElement>(`[data-related-col="${relPos.col}"]`);
+    if (scroller && card) keepInViewX(scroller, card);
+  }, [relPos, relLitNow, relRows]);
+
   const demoNoticeOverlay = demoNotice ? (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 px-6"
       role="dialog" aria-modal="true">
@@ -651,16 +841,22 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
   if (pane === 'detail' && selectedMovie) {
     const info = movieInfo?.info;
     const cover = tmdbSized(info?.movie_image || info?.cover_big || selectedMovie.stream_icon, 'w500');
-    // Play keeps the highlight unless it is on a Trailer that is drawn.
-    const playLit = isActive && !demoNotice && (detailFocus !== 'trailer' || !trailer);
+    // Play keeps the highlight unless it is on a Trailer or a related film
+    // that is drawn.
     const trailerLit = isActive && !demoNotice && detailFocus === 'trailer' && !!trailer;
+    const relLit = isActive && !demoNotice && relLitNow;
+    const playLit = isActive && !demoNotice && !trailerLit && !relLit;
+    const hasRows = relRows.length > 0;
+    const cast = castNames(info?.cast);
+    const director = String(info?.director ?? '').trim();
+    const litRow = Math.min(relPos.row, Math.max(0, relRows.length - 1));
     return (
       <div data-movie-detail="" className="flex-1 min-h-0 min-w-0 flex flex-col text-white bg-black/40">
         {/* No Back button of its own: the screen's top bar has one, and the
             remote's Back returns to the list. The space goes to the info. */}
         {/* The cover takes the row's height (FitPoster), with a margin above
             the bottom edge; the text beside it scrolls if it ever must. */}
-        <div className="flex-1 min-h-0 flex px-8 pt-4 pb-6" data-detail-body="">
+        <div className={`flex-1 min-h-0 flex px-8 pt-4 ${hasRows ? 'pb-2' : 'pb-6'}`} data-detail-body="">
           <FitPoster src={cover} maxWidth={300} className="mr-8" />
           <div ref={detailTextRef} className="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden max-w-3xl px-2 py-2">
             <h2 className="text-3xl font-quicksand font-bold leading-tight line-clamp-2 mb-3">{selectedMovie.name}</h2>
@@ -680,10 +876,21 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
               {info?.genre && <span className="mr-3">{info.genre}</span>}
               {info?.duration && <span>{info.duration}</span>}
             </div>
+            {/* Who is in it: names only (the panel sends no photos), one line. */}
+            {!infoLoading && (cast.length > 0 || director) && (
+              <p data-movie-cast="" className="text-sm font-nunito text-brand-ice/80 mb-3 truncate">
+                {director && (
+                  <span className="mr-3"><span className="text-brand-ice/50 mr-1">{t('live.vod.directorLabel')}</span>{director}</span>
+                )}
+                {cast.length > 0 && (
+                  <span><span className="text-brand-ice/50 mr-1">{t('live.vod.castLabel')}</span>{cast.join(', ')}</span>
+                )}
+              </p>
+            )}
             {infoLoading ? (
               <Loader2 className="w-6 h-6 mb-6 animate-spin text-brand-gold" />
             ) : (
-              <ScrollLines text={info?.plot || t('live.vod.noDescription')} maxLines={7} className="text-brand-ice/90 font-nunito leading-snug max-w-3xl mb-6" />
+              <ScrollLines text={info?.plot || t('live.vod.noDescription')} maxLines={hasRows ? 4 : 7} className={`text-brand-ice/90 font-nunito leading-snug max-w-3xl ${hasRows ? 'mb-4' : 'mb-6'}`} />
             )}
             <Button
               variant="gold"
@@ -710,6 +917,43 @@ const MoviesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onOpenPlex,
             )}
           </div>
         </div>
+        {/* Related films, the TV's whole width: one slim row at a time. */}
+        {hasRows && (
+          <div
+            ref={relStripRef}
+            data-related=""
+            className={`flex-shrink-0 px-6 ${isTouchUI() ? 'overflow-y-auto' : 'overflow-hidden'}`}
+            style={{ height: relRows.length > 1 ? REL_ROW_H + REL_PEEK : REL_ROW_H }}
+          >
+            {relRows.map((r, ri) => (
+              <div key={r.kind} data-related-row={r.kind} style={{ height: REL_ROW_H }}>
+                <div className={`h-6 px-2 text-sm font-quicksand font-semibold truncate ${relLit && litRow === ri ? 'text-brand-gold' : 'text-brand-ice/80'}`}>
+                  {r.kind === 'series' ? t('live.vod.moreInSeries') : t('live.vod.moreLikeThis')}
+                </div>
+                <div
+                  data-related-scroll=""
+                  className={`relative flex px-2 py-2 ${isTouchUI() ? 'overflow-x-auto' : 'overflow-x-hidden'} overflow-y-hidden`}
+                >
+                  {r.items.map((m, ci) => (
+                    <div key={m.stream_id} data-related-col={ci} data-related-id={m.stream_id} className="flex-shrink-0 mr-3" style={{ width: REL_CARD_W }}>
+                      <PosterCard
+                        title={m.name}
+                        image={tmdbSized(m.stream_icon, 'w185')}
+                        year={m.year}
+                        isFocused={relLit && litRow === ri && relPos.col === ci}
+                        variant="movie"
+                        watched={watchedFilms.has(Number(m.stream_id)) ? watchedLabel : null}
+                        index={ri * REL_STRIDE + ci}
+                        onFocus={onRelFocus}
+                        onActivate={onRelActivate}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         {demoNoticeOverlay}
         {trailerVideo && <TrailerOverlay video={trailerVideo} title={selectedMovie.name} kind="movie" onClose={closeTrailer} />}
       </div>
