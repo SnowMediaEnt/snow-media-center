@@ -18,6 +18,8 @@ const h = vi.hoisted(() => ({
   invoke: vi.fn(async (_fn: string, _opts: { body: { subject: string; message: string } }) => ({ error: null })),
 }));
 
+// The report dialog's 30-second check (Device Health) is not what these test: it can't run here.
+vi.mock('@/lib/deviceCheck', () => ({ CHECK_SECONDS: 30, runDeviceCheck: async () => null }));
 vi.mock('@/capacitor/SnowPlayer', () => ({ hasNativePlayer: () => true }));
 vi.mock('@/hooks/useNativePlayer', () => ({
   useNativePlayer: (a: { active: boolean; url: string | null }) => {

@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { keepInView } from '@/utils/keepInView';
 import { useHubStates, type HubRow } from './useHubStates';
 import type { SupportTool } from './FixProblemScreen';
+import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 
 // Demo latch (?demo=1) — account actions are inert; the demo account is fixed.
 const DEMO = isDemo();
@@ -258,7 +259,7 @@ const SettingsHub = memo(({
       case 'appearance': return <AppearanceScreen {...common} onTryLayout={onTryLayout} />;
       case 'rewind': return <RewindSettingsScreen {...common} />;
       case 'player': return <PlaybackScreen {...common} />;
-      case 'help': return <FixProblemScreen active={inPage} onBack={toMenu} onOpenBufferingGuide={onOpenBufferingGuide} onOpenSupportTool={onNavigate ? openTool : undefined} deviceCheck />;
+      case 'help': return <FixProblemScreen active={inPage} onBack={toMenu} onOpenBufferingGuide={onOpenBufferingGuide} onOpenSupportTool={onNavigate ? openTool : undefined} deviceCheck={hasNativePlayer()} />;
       case 'signout': return <PageHint text={signOutAsk ? t('liveAccount.hub.signOutConfirm') : t('liveAccount.hub.signOutHint')} />;
       default: return null;
     }

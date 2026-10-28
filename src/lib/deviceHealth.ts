@@ -537,9 +537,11 @@ async function doFlush(first: Item | null, force: boolean): Promise<SendOutcome>
     os_version: osVersion(),
     events,
   });
+  // What came in while the call was out stays (the queue as it is now).
+  const isMine = (i: Item) => i.line == null || i.line === line.id;
   if (res.ok === true) {
     const sent = new Set(batch);
-    const rest = mine.filter((i) => !sent.has(i));
+    const rest = readQueue().filter((i) => isMine(i) && !sent.has(i));
     writeQueue(rest);
     const b = readBudget();
     const t = Date.now();
@@ -554,7 +556,8 @@ async function doFlush(first: Item | null, force: boolean): Promise<SendOutcome>
     return { ok: true, ids };
   }
   // Kept for later (the check too).
-  writeQueue(first ? [...mine, first] : mine);
+  const kept = readQueue().filter(isMine);
+  writeQueue(first ? [...kept, first] : kept);
   const reason = typeof res.reason === 'string' ? res.reason : 'failed';
   if (reason === 'unknown_key' || reason === 'other_line') {
     holdUntil = Date.now() + HOLD_AFTER_REFUSAL_MS;

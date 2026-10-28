@@ -790,6 +790,8 @@ export function recordEngineEstimate(bps: number): void {
 
 export function setBuffering(on: boolean): void {
   if (!state.active) return;
+  // A "not buffering" is the stream playing (or able to): a stall after it counts.
+  if (!on && !state.buffering) { state.played = true; return; }
   if (on === state.buffering) return;
   if (!on) reportStallOver(false);
   state.buffering = on;

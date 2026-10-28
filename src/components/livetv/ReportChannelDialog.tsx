@@ -12,6 +12,7 @@ import { isDemo, demoDialogMsg } from '@/lib/demoMode';
 import { isOutsideLine } from '@/lib/outsideSource';
 import type { XtreamCreds } from '@/lib/xtream';
 import type { HealthContext } from '@/lib/deviceHealth';
+import { hasNativePlayer } from '@/capacitor/SnowPlayer';
 import { CheckView, useDeviceCheck } from './DeviceHealthParts';
 
 /** What the menu is for: a Live TV channel (the default), or a title held
@@ -185,7 +186,8 @@ const ReportChannelDialog = memo(({
   // "Run a 30-second check and send it with your report" (Device Health):
   // on by default, a row on the reasons to switch it off. Never for an
   // outside service's channel or in the demo.
-  const checkOffered = !outside && !isDemo();
+  // Only where the native player is (the check reads it).
+  const checkOffered = !outside && !isDemo() && hasNativePlayer();
   const [withCheck, setWithCheck] = useState(true);
   const check = useDeviceCheck();
   const checkRef = useRef(check);

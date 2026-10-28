@@ -14,6 +14,8 @@ const CH = [
   { stream_id: 102, name: 'News Two', num: 2, category_id: '1' },
 ];
 
+// The report dialog's 30-second check (Device Health) is not what these test: it can't run here.
+vi.mock('@/lib/deviceCheck', () => ({ CHECK_SECONDS: 30, runDeviceCheck: async () => null }));
 vi.mock('@/lib/xtream', async (orig) => ({
   ...(await orig<typeof import('@/lib/xtream')>()),
   loadSavedAccounts: async () => [],
