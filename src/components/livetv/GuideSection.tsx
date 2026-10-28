@@ -65,7 +65,7 @@ import { channelRowLabels } from './channelRowLabels';
 import ChannelWarningDialog from './ChannelWarningDialog';
 import { noteWatchAnyway, warnedRecently } from './channelWarning';
 import { trackEvent } from '@/lib/analytics';
-import { lineEventProps } from '@/lib/outsideSource';
+import { isOutsideLine, lineEventProps } from '@/lib/outsideSource';
 import { nameClasses } from '@/lib/channelName';
 import { useViewSize } from '@/lib/viewSize';
 import { usePhoneLayout, useTouchUI } from '@/lib/phoneMode';
@@ -702,6 +702,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
     engine: playerEngine,
     rect: nativeActive ? undefined : previewRect,
     background: nativeActive,
+    health: { context: 'live', title: isOutsideLine(creds) ? null : channels.find((c) => c.stream_id === (nativeActive ? playingChannelId : previewChannelId))?.name ?? null },
   });
 
   // mpv couldn't start on this box: told once per fallback (see LiveSection).

@@ -56,6 +56,7 @@ import ProfileGate from '@/components/profiles/ProfileGate';
 import LazyVoiceCommandHost from '@/components/voice/LazyVoiceCommandHost';
 import GameReminderHost from '@/components/GameReminderHost';
 import DeviceMessageHost from '@/components/DeviceMessageHost';
+import { startDeviceHealth } from '@/lib/deviceHealth';
 import PhoneTypingHint from '@/components/remote/PhoneTypingHint';
 import { startPhoneRemote } from '@/lib/phoneRemote';
 import { useRemoteHome } from '@/hooks/useRemoteHome';
@@ -642,6 +643,8 @@ const Index = () => {
   const isAdmin = isAdminRole && !kids;
   const kidsRef = useRef(kids);
   useEffect(() => { kidsRef.current = kids; }, [kids]);
+  // Device Health (lib/deviceHealth): the light log of what goes wrong on this box.
+  useEffect(() => startDeviceHealth(), []);
   const [profileGateOpen, setProfileGateOpen] = useState(true);
   const { unreadCount: unreadTicketCount } = useUnreadTickets();
   const { badgeCount: unreadMailCount } = useSnowMail({ announce: true });

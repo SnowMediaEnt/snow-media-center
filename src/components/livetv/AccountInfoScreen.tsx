@@ -18,6 +18,7 @@ import { isDemo } from '@/lib/demoMode';
 import RenewQR from './RenewQR';
 import LineDevicesPanel from './LineDevicesPanel';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
+import { DeepCheckNote } from './DeviceHealthParts';
 
 interface Props {
   onBack: () => void;
@@ -329,6 +330,8 @@ const AccountInfoScreen = memo(({
       )}
 
       <div className={embedded ? 'flex-1 overflow-auto p-1' : 'flex-1 overflow-auto p-6'}>
+        {/* Device Health: one slim line while the owner's deep check is on for this box. */}
+        <DeepCheckNote className="mx-auto w-full max-w-5xl mb-3" />
         {/* Margins, not flex gap: older box WebViews (Chrome < 84) ignore gap. */}
         <div className="mx-auto w-full max-w-5xl flex flex-col md:flex-row md:items-start">
           {/* Beside the Settings menu the columns are narrower, so the details keep two columns at 960 px. */}

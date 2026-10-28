@@ -1,0 +1,31 @@
+{
+  "deviceHealth": {
+    "deep": {
+      "note": "Snow Media vérifie ce boîtier jusqu'au {{date}}"
+    },
+    "check": {
+      "rowTitle": "Lancer un test de 30 secondes",
+      "rowDesc": "Lit ta dernière chaîne pendant 30 secondes, examine ton boîtier, ton internet et le flux, puis envoie le résultat à Snow Media.",
+      "withReport": "Faire un test de 30 secondes et l'envoyer avec le signalement",
+      "title": "Test de 30 secondes",
+      "running": "Vérification… {{seconds}} s",
+      "finishing": "Test de ton internet…",
+      "sent": "Envoyé à Snow Media.",
+      "notSent": "Envoi impossible pour l'instant : il sera envoyé plus tard.",
+      "unavailable": "Le test ne peut pas être lancé maintenant (6 par jour au maximum).",
+      "backToSkip": "Retour arrête le test ; ton signalement est quand même envoyé.",
+      "verdict": {
+        "fine": "Aucun problème trouvé : le flux arrivait à {{arrival}} et ton internet est à {{internet}}.",
+        "unclear": "Impossible de trancher : le flux arrivait à {{arrival}} et ton internet est à {{internet}}. Snow Media va regarder les détails.",
+        "notPlaying": "Rien n'a été lu pendant le test. Ton internet est à {{internet}}.",
+        "overloadMemory": "Ton boîtier est surchargé : seulement {{mem}} Mo de mémoire libre. Redémarrer le boîtier aide souvent.",
+        "overloadCpu": "Ton boîtier est surchargé : son processeur tournait à {{cpu}} %. Redémarrer le boîtier aide souvent.",
+        "internet": "Le problème vient de ton internet : {{internet}}, alors que le flux a besoin de {{needed}}.",
+        "weakWifi": "Ton signal Wi-Fi est faible (internet {{internet}}). Rapproche le routeur ou utilise un câble.",
+        "offline": "Ton boîtier a perdu la connexion internet pendant le test.",
+        "server": "Ton boîtier va bien et ton internet est à {{internet}}, mais le serveur du flux n'a envoyé que {{arrival}} sur les {{needed}} nécessaires.",
+        "account": "Le service a refusé ta ligne. Vérifie ton abonnement."
+      }
+    }
+  }
+}

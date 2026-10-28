@@ -241,7 +241,7 @@ function NativeVod({ src, onError, onEnded, onProgress, bar }: { src: string; on
   const onReload = useCallback(() => { pickedForRef.current = null; }, []);
   const onAudioPicked = useCallback((id: number) => { chosenRef.current = { src: srcRef.current, id }; }, []);
 
-  const player = useNativePlayer({ active: true, url: src, live: false, volume: bar.volume, onEnded, onTracksChanged: onTracks, onReload });
+  const player = useNativePlayer({ active: true, url: src, live: false, volume: bar.volume, onEnded, onTracksChanged: onTracks, onReload, health: { context: bar.onNext ? 'series' : 'vod', title: bar.title ?? null } });
   ctlRef.current = player.controller;
   useProgressFeed(src, player.getPosition, onProgress);
 

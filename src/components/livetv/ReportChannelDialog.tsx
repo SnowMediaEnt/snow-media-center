@@ -11,6 +11,8 @@ import { withAppInfo } from '@/lib/appInfo';
 import { isDemo, demoDialogMsg } from '@/lib/demoMode';
 import { isOutsideLine } from '@/lib/outsideSource';
 import type { XtreamCreds } from '@/lib/xtream';
+import type { HealthContext } from '@/lib/deviceHealth';
+import { CheckView, useDeviceCheck } from './DeviceHealthParts';
 
 /** What the menu is for: a Live TV channel (the default), or a title held
  *  in the line's Movies / Series or in Plex (the title's options: Report a
@@ -100,7 +102,10 @@ const KIND_WORD: Record<ReportKind, string> = { channel: 'Channel', movie: 'Movi
 // us. Both are offered; neither is assumed.
 const BUFFERING_OPTIONS = ['live.report.openGuide', 'live.report.submitTicket'] as const;
 
-type Step = 'menu' | 'reasons' | 'buffering' | 'other';
+type Step = 'menu' | 'reasons' | 'buffering' | 'other' | 'checking' | 'checkDone';
+
+// Device Health: the report's 30-second check (lib/deviceCheck) is about this kind.
+const CHECK_CONTEXT: Record<ReportKind, HealthContext> = { channel: 'live', movie: 'vod', series: 'series', plex: 'plex' };
 
 /** The How-to guide's hooks on the menu rows (data-howto; literals, so its check finds them). */
 const MENU_HOWTO: Record<string, string> = { report: 'menu.report', fav: 'menu.favorite', record: 'menu.record' };
@@ -177,6 +182,14 @@ const ReportChannelDialog = memo(({
   const [focusIdx, setFocusIdx] = useState(outside ? 0 : initialChoice && initialChoice !== 'Other' ? Math.max(0, choices.indexOf(initialChoice)) : initialChoice === 'Other' ? 1 : 0);
   const [note, setNote] = useState(initialNote ?? '');
   const [submitting, setSubmitting] = useState(false);
+  // "Run a 30-second check and send it with your report" (Device Health):
+  // on by default, a row on the reasons to switch it off. Never for an
+  // outside service's channel or in the demo.
+  const checkOffered = !outside && !isDemo();
+  const [withCheck, setWithCheck] = useState(true);
+  const check = useDeviceCheck();
+  const checkRef = useRef(check);
+  checkRef.current = check;
 
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const submittedRef = useRef(false);
@@ -186,7 +199,7 @@ const ReportChannelDialog = memo(({
 
   // The ticket text below is for the support staff, so it stays in English.
   const buildMessage = useCallback(
-    (choice: Choice, otherNote: string) => {
+    (choice: Choice, otherNote: string, checkId: string | null = null) => {
       const trimmedNote = otherNote.trim();
       const issue = choice === 'Other'
         ? (trimmedNote || 'Other')
@@ -205,6 +218,8 @@ const ReportChannelDialog = memo(({
         lines.push(`Player account: ${account.username}${account.serverLabel ? ' @ ' + account.serverLabel : ''}`);
       }
       lines.push('Reported from the player.');
+      // Device Health: support opens the box's 30-second check by this id.
+      if (checkId) lines.push(`Device check: ${checkId}`);
       return lines.join('\n');
     },
     [channelId, channelName, categoryName, account, serviceLabel, kind, isTitle],
@@ -267,6 +282,20 @@ const ReportChannelDialog = memo(({
           onClose();
           return;
         }
+        // The 30-second check first, when it is on: its id goes in the ticket.
+        // Back during it stops it and the report goes without.
+        let checkId: string | null = null;
+        let checked = false;
+        if (checkOffered && withCheck) {
+          setStep('checking');
+          const res = await checkRef.current.start({
+            channel: kind === 'channel' && channelId != null ? { line: line ?? null, streamId: channelId, name: channelName } : null,
+            context: CHECK_CONTEXT[kind],
+            title: channelName,
+          });
+          checked = !!res;
+          checkId = res?.id ?? null;
+        }
         if (choice === 'Channel down') { try { onReportedDown?.(); } catch { /* ignore */ } }
         if (choice === 'Channel buffering') { try { onReportedBuffering?.(); } catch { /* ignore */ } }
         if (choice === 'Channel down' || choice === 'Channel buffering') {
@@ -274,7 +303,7 @@ const ReportChannelDialog = memo(({
         }
         const subject = `${KIND_WORD[kind]} issue: ${channelName}`;
         // App version, build and device lead the message; the report's own fields follow as they were.
-        const message = await withAppInfo(buildMessage(choice, otherNote), line ? { lines: [line] } : {});
+        const message = await withAppInfo(buildMessage(choice, otherNote, checkId), line ? { lines: [line] } : {});
         if (user) {
           await createTicket(subject, message, { discordKind: 'channel_report' });
         } else {
@@ -288,10 +317,13 @@ const ReportChannelDialog = memo(({
         }
         try { trackEvent('ticket_create', 'support', { source: 'player_report', has_user: !!user }); } catch { void 0; }
         toast({ title: t('live.report.sentTitle') });
+        // The check's verdict stays up until OK.
+        if (checked) { setStep('checkDone'); setFocusIdx(0); setSubmitting(false); return; }
         onClose();
       } catch (e) {
         submittedRef.current = false;
         setSubmitting(false);
+        setStep((st) => (st === 'checking' || st === 'checkDone' ? 'reasons' : st));
         toast({
           title: t('live.report.failedTitle'),
           description: (e as Error)?.message || t('live.report.failedDesc'),
@@ -299,7 +331,7 @@ const ReportChannelDialog = memo(({
         });
       }
     },
-    [createTicket, buildMessage, channelName, kind, line, onClose, onReportedDown, onReportedBuffering, outside, serviceLabel, submitting, toast, user, t],
+    [createTicket, buildMessage, channelName, channelId, kind, line, onClose, onReportedDown, onReportedBuffering, outside, serviceLabel, submitting, toast, user, t, checkOffered, withCheck],
   );
 
   const onPick = useCallback(
@@ -324,6 +356,17 @@ const ReportChannelDialog = memo(({
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const isBack = e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
+      // The check under way: Back stops it (the report goes on without it).
+      if (step === 'checking') {
+        e.preventDefault(); e.stopPropagation();
+        if (isBack) checkRef.current.cancel();
+        return;
+      }
+      if (step === 'checkDone') {
+        e.preventDefault(); e.stopPropagation();
+        if (isBack || ((e.key === 'Enter' || e.key === ' ') && !e.repeat)) onClose();
+        return;
+      }
       if (isBack) {
         e.preventDefault();
         e.stopPropagation();
@@ -411,7 +454,9 @@ const ReportChannelDialog = memo(({
 
       // REASONS
       if (step === 'reasons') {
-        const count = choices.length + 1;
+        // The choices, the check row (when offered), Cancel.
+        const checkIdx = checkOffered ? choices.length : -1;
+        const count = choices.length + (checkOffered ? 2 : 1);
         if (e.key === 'ArrowDown') {
           e.preventDefault(); e.stopPropagation();
           setFocusIdx(i => (i + 1) % count);
@@ -425,6 +470,7 @@ const ReportChannelDialog = memo(({
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault(); e.stopPropagation();
           if (focusIdx < choices.length) onPick(choices[focusIdx]);
+          else if (focusIdx === checkIdx) setWithCheck((v) => !v);
           else onClose();
           return;
         }
@@ -463,7 +509,7 @@ const ReportChannelDialog = memo(({
       window.removeEventListener('keydown', handler, true);
       window.removeEventListener('keyup', onKeyUp, true);
     };
-  }, [step, focusIdx, note, onPick, onClose, submit, submitting, onToggleFavorite, onOpenBufferingGuide, canRefresh, refreshNow, choices]);
+  }, [step, focusIdx, note, onPick, onClose, submit, submitting, onToggleFavorite, onOpenBufferingGuide, canRefresh, refreshNow, choices, checkOffered]);
 
   // Auto-blur textarea so D-pad navigation works again
   useEffect(() => {
@@ -474,6 +520,7 @@ const ReportChannelDialog = memo(({
     step === 'menu' ? (isTitle ? t('live.report.vod.menuTitle') : t('live.report.menuTitle'))
     : step === 'reasons' ? t('live.report.reasonsTitle')
     : step === 'buffering' ? t('live.report.bufferingTitle')
+    : step === 'checking' || step === 'checkDone' ? t('deviceHealth.check.title')
     : t('live.report.otherTitle');
 
   return (
@@ -551,14 +598,31 @@ const ReportChannelDialog = memo(({
               );
             })}
 
+            {checkOffered && (
+              <button
+                type="button"
+                data-check-toggle={withCheck ? 'on' : 'off'}
+                data-focused={focusIdx === choices.length ? 'true' : 'false'}
+                onMouseEnter={() => setFocusIdx(choices.length)}
+                onClick={() => setWithCheck((v) => !v)}
+                disabled={submitting}
+                className={`tv-ring w-full text-left px-4 h-10 rounded-xl border border-white/10 font-nunito text-sm transition-transform duration-150 ease-out flex items-center ${
+                  focusIdx === choices.length ? 'bg-brand-gold/25 scale-[1.02] z-10' : 'bg-white/5 hover:bg-white/10'
+                }`}
+              >
+                {withCheck ? <CheckCircle2 className="w-4 h-4 mr-2 text-brand-gold flex-shrink-0" /> : <Circle className="w-4 h-4 mr-2 text-brand-ice/60 flex-shrink-0" />}
+                <span className="min-w-0 truncate">{t('deviceHealth.check.withReport')}</span>
+              </button>
+            )}
+
             <button
               type="button"
-              data-focused={focusIdx === choices.length ? 'true' : 'false'}
-              onMouseEnter={() => setFocusIdx(choices.length)}
+              data-focused={focusIdx === choices.length + (checkOffered ? 1 : 0) ? 'true' : 'false'}
+              onMouseEnter={() => setFocusIdx(choices.length + (checkOffered ? 1 : 0))}
               onClick={onClose}
               disabled={submitting}
               className={`tv-ring w-full px-4 py-3 rounded-xl border border-white/10 font-nunito transition-transform duration-150 ease-out ${
-                focusIdx === choices.length
+                focusIdx === choices.length + (checkOffered ? 1 : 0)
                   ? 'bg-white/15 scale-[1.02] z-10'
                   : 'bg-white/5 hover:bg-white/10'
               }`}
@@ -659,6 +723,23 @@ const ReportChannelDialog = memo(({
                 {t('common.cancel')}
               </button>
             </div>
+          </div>
+        )}
+
+        {(atStep('checking') || atStep('checkDone')) && (
+          <div className="space-y-2" data-report-check="">
+            <CheckView progress={check.progress} result={check.result} unavailable={check.unavailable} />
+            {atStep('checking') && <p className="text-xs text-brand-ice/60 font-nunito">{t('deviceHealth.check.backToSkip')}</p>}
+            {atStep('checkDone') && (
+              <button
+                type="button"
+                data-focused="true"
+                onClick={onClose}
+                className="tv-ring w-full h-10 px-4 rounded-xl border border-brand-gold/40 bg-brand-gold/25 font-nunito font-semibold"
+              >
+                {t('common.ok')}
+              </button>
+            )}
           </div>
         )}
 

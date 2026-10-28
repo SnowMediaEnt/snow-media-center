@@ -2207,6 +2207,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     engine: playerEngine,
     liveBuffer: liveCushion.playing,
     onLiveStall: liveCushion.onStall,
+    // Device Health's lines name the channel (never an outside service's).
+    health: { context: catchupUrl ? 'catchup' : 'live', title: cushionStream && cushionLine && !isOutsideLine(cushionLine) ? cushionStream.name : null },
     // A catch-up programme plays as a recording: it ends (back to live)
     // instead of reconnecting.
     live: !catchupUrl,

@@ -1,0 +1,31 @@
+{
+  "deviceHealth": {
+    "deep": {
+      "note": "Snow Media is checking this box until {{date}}"
+    },
+    "check": {
+      "rowTitle": "Run a 30-second check",
+      "rowDesc": "Plays your last channel for 30 seconds, looks at your box, internet and the stream, and sends the result to Snow Media.",
+      "withReport": "Run a 30-second check and send it with your report",
+      "title": "30-second check",
+      "running": "Checking… {{seconds}} s",
+      "finishing": "Testing your internet…",
+      "sent": "Sent to Snow Media.",
+      "notSent": "Couldn't send it now — it will be sent later.",
+      "unavailable": "The check can't run right now (6 a day at most).",
+      "backToSkip": "Back stops the check; your report is still sent.",
+      "verdict": {
+        "fine": "No problem found: the stream came in at {{arrival}} and your internet is {{internet}}.",
+        "unclear": "We couldn't pin it down: the stream came in at {{arrival}} and your internet is {{internet}}. Snow Media will look at the details.",
+        "notPlaying": "Nothing played during the check. Your internet is {{internet}}.",
+        "overloadMemory": "Your box is overloaded: only {{mem}} MB of memory was free. Restarting the box usually helps.",
+        "overloadCpu": "Your box is overloaded: its processor ran at {{cpu}}%. Restarting the box usually helps.",
+        "internet": "Your internet is the problem: {{internet}}, and the stream needs {{needed}}.",
+        "weakWifi": "Your Wi-Fi signal is weak (internet {{internet}}). Move the router closer or use a cable.",
+        "offline": "Your box lost its internet connection during the check.",
+        "server": "Your box is fine and your internet is {{internet}}, but the stream server only sent {{arrival}} of the {{needed}} it needs.",
+        "account": "The service refused your line. Check your subscription."
+      }
+    }
+  }
+}

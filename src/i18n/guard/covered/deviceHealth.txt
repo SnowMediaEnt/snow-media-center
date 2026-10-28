@@ -1,0 +1,2 @@
+# Device Health (2026-10-28)
+src/components/livetv/DeviceHealthParts.tsx

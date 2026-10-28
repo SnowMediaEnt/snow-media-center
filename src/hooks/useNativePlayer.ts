@@ -18,6 +18,7 @@ import { beginStream as diagBegin, endStream as diagEnd, setBuffering as diagBuf
 import { MAX_VOLUME } from '@/utils/volume';
 import { nativeLoadExtras } from '@/lib/playerFlags';
 import { setAudioPassthrough } from '@/lib/audioOutput';
+import { notePlayerError, setNowPlaying, type HealthContext } from '@/lib/deviceHealth';
 
 interface UseNativePlayerArgs {
   active: boolean;
@@ -89,6 +90,10 @@ interface UseNativePlayerArgs {
    * right after a seek or a pause): Live TV's Auto may give it a bigger cushion.
    */
   onLiveStall?: () => void;
+  /** What plays, for Device Health's stall and error lines (lib/deviceHealth):
+   *  the kind and the channel's or title's name (never an address). Left
+   *  out: 'live' or 'vod' by `live`, no name. */
+  health?: { context: HealthContext; title?: string | null } | null;
 }
 
 /** A buffering this soon after a seek, a Go live or a pause is the jump's, not a stall. */
@@ -160,7 +165,7 @@ async function positionNow(): Promise<number> {
   } catch { return 0; }
 }
 
-export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, engine = 'exo', rangeFetch = false, frameRate, maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded, onReload, rect, background = true, skipKeys = true, jumpGrace = false, liveBuffer, onLiveStall }: UseNativePlayerArgs): NativePlayerState {
+export function useNativePlayer({ active, url, volume, live = true, subtitles, startPosition, engine = 'exo', rangeFetch = false, frameRate, maxRetries = MAX_RETRIES_DEFAULT, onTracksChanged, onPlayStateChange, onEnded, onReload, rect, background = true, skipKeys = true, jumpGrace = false, liveBuffer, onLiveStall, health }: UseNativePlayerArgs): NativePlayerState {
   // While a stream is up, re-check memory every few minutes (apps opened
   // from the remote, or the box's own services, fill it up again).
   useEffect(() => {
@@ -207,6 +212,16 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   liveBufferRef.current = liveBuffer;
   const cbLiveStallRef = useRef(onLiveStall);
   cbLiveStallRef.current = onLiveStall;
+  const healthRef = useRef(health);
+  healthRef.current = health;
+  const healthNow = () => ({ context: healthRef.current?.context ?? (liveRef.current ? 'live' as const : 'vod' as const), title: healthRef.current?.title ?? null });
+  // The name can arrive after the load (a list still loading): kept current.
+  const healthKey = active ? `${health?.context ?? ''}|${health?.title ?? ''}` : '';
+  useEffect(() => {
+    if (!healthKey) return;
+    try { setNowPlaying(healthNow()); } catch { /* ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [healthKey]);
   // This load has played (a stall after that is a real one), and a stall is
   // under way (told once).
   const playedThisLoadRef = useRef(false);
@@ -407,6 +422,8 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
             || isOffAirAnswer(code, httpStatus, liveRef.current)
             || (code === 'RECONNECT_EXHAUSTED' && exhaustRetriedRef.current)) {
             const forUrl = loadedUrlRef.current ?? undefined;
+            // Device Health: the player gave up (code and status only, never the address).
+            try { void notePlayerError({ code, message: msg, httpStatus }); } catch { /* ignore */ }
             setError(httpStatus ? { code, message: msg, httpStatus, forUrl } : { code, message: msg, forUrl });
             return;
           }
@@ -469,6 +486,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     // module samples the stream host itself (VOD / opt-in) and probes general
     // internet during stalls. Retries re-enter here and count as a new stream.
     try { diagBegin(url, live ? 'live' : 'vod'); diagBuffering(true); } catch { /* ignore */ }
+    try { setNowPlaying(healthNow()); } catch { /* ignore */ }
 
     (async () => {
       try {

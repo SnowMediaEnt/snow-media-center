@@ -3,13 +3,19 @@
 // Submit a Ticket open in Support (as from Live TV's Report dialog), and a
 // short "restart your box and router" tip sits under them.
 //
-// The remote: Up / Down walk the three, OK opens one; Back (or Left) returns
+// Device Health (2026-10-28): "Run a 30-second check" (lib/deviceCheck) as
+// the last row when `deviceCheck` is on: it plays the last channel (or what
+// plays) for 30 s, shows the plain verdict and sends it to Snow Media; Back
+// while it runs stops it. The owner's deep check shows as one slim line.
+//
+// The remote: Up / Down walk the rows, OK opens one; Back (or Left) returns
 // to the Settings menu. Chrome 66: margins and space-y, no flex gap.
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Gauge, LifeBuoy, Power, Ticket } from 'lucide-react';
+import { Activity, Gauge, LifeBuoy, Power, Ticket } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { fingerIsDriving } from '@/lib/phoneMode';
 import { keepInView } from '@/utils/keepInView';
+import { CheckView, DeepCheckNote, useDeviceCheck } from './DeviceHealthParts';
 
 /** A Support tool this page opens. */
 export type SupportTool = 'speedtest' | 'tickets';
@@ -23,32 +29,40 @@ interface Props {
   onOpenBufferingGuide?: () => void;
   /** Support, on one of its tools (absent: those are not offered). */
   onOpenSupportTool?: (tool: SupportTool) => void;
+  /** Offer "Run a 30-second check" (Device Health). */
+  deviceCheck?: boolean;
 }
 
-type RowId = 'guide' | SupportTool;
+type RowId = 'guide' | SupportTool | 'check';
 
 const ROW_TEXT: Record<RowId, { icon: typeof Gauge; title: string; desc: string }> = {
   guide: { icon: LifeBuoy, title: 'support.cards.guide.title', desc: 'support.cards.guide.desc' },
   speedtest: { icon: Gauge, title: 'support.cards.speedTest.title', desc: 'support.cards.speedTest.desc' },
   tickets: { icon: Ticket, title: 'support.cards.tickets.title', desc: 'support.cards.tickets.desc' },
+  check: { icon: Activity, title: 'deviceHealth.check.rowTitle', desc: 'deviceHealth.check.rowDesc' },
 };
 
 const isBackKey = (e: KeyboardEvent) => e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4;
 const isOkKey = (e: KeyboardEvent) => e.key === 'Enter' || e.key === ' ' || e.keyCode === 23;
 const swallow = (e: KeyboardEvent) => { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); };
 
-const FixProblemScreen = memo(({ onBack, active = true, onOpenBufferingGuide, onOpenSupportTool }: Props) => {
+const FixProblemScreen = memo(({ onBack, active = true, onOpenBufferingGuide, onOpenSupportTool, deviceCheck = false }: Props) => {
   const { t } = useTranslation();
   const rows = useMemo<RowId[]>(() => [
     ...(onOpenBufferingGuide ? ['guide' as const] : []),
     ...(onOpenSupportTool ? ['speedtest' as const, 'tickets' as const] : []),
-  ], [onOpenBufferingGuide, onOpenSupportTool]);
+    ...(deviceCheck ? ['check' as const] : []),
+  ], [onOpenBufferingGuide, onOpenSupportTool, deviceCheck]);
+  const check = useDeviceCheck();
+  const checkRef = useRef(check);
+  checkRef.current = check;
   const [focus, setFocus] = useState<RowId>('guide');
   const stateRef = useRef({ rows, focus });
   stateRef.current = { rows, focus };
 
   const activate = useCallback((id: RowId) => {
     if (id === 'guide') onOpenBufferingGuide?.();
+    else if (id === 'check') { if (!checkRef.current.running) void checkRef.current.start({ context: 'live' }); }
     else onOpenSupportTool?.(id);
   }, [onOpenBufferingGuide, onOpenSupportTool]);
 
@@ -57,7 +71,13 @@ const FixProblemScreen = memo(({ onBack, active = true, onOpenBufferingGuide, on
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
-      if (isBackKey(e) || e.key === 'ArrowLeft') { swallow(e); onBack(); return; }
+      if (isBackKey(e) || e.key === 'ArrowLeft') {
+        swallow(e);
+        // A check under way: Back stops it (and stays here).
+        if (checkRef.current.running) { checkRef.current.cancel(); return; }
+        onBack();
+        return;
+      }
       const ok = isOkKey(e);
       if (!ok && e.key !== 'ArrowUp' && e.key !== 'ArrowDown' && e.key !== 'ArrowRight') return;
       swallow(e);
@@ -92,6 +112,7 @@ const FixProblemScreen = memo(({ onBack, active = true, onOpenBufferingGuide, on
       <div ref={listRef} className="flex-1 overflow-auto p-1">
         <div className="w-full max-w-3xl">
           <p className="text-brand-ice/85 font-nunito mb-3">{t('liveAccount.help.intro')}</p>
+          <DeepCheckNote className="mb-3" />
           <div className="space-y-3">
             {rows.map((id) => {
               const { icon: Icon, title, desc } = ROW_TEXT[id];
@@ -113,6 +134,9 @@ const FixProblemScreen = memo(({ onBack, active = true, onOpenBufferingGuide, on
               );
             })}
           </div>
+          {(check.running || check.result || check.unavailable) && (
+            <CheckView className="mt-3" progress={check.progress} result={check.result} unavailable={check.unavailable} />
+          )}
           {/* Not a row the remote lands on: the first thing to try, before any of these. */}
           <div data-fix-tip className="mt-4 flex items-start rounded-2xl px-4 py-3 border border-white/10 bg-black/30">
             <Power className="w-5 h-5 mr-3 mt-0.5 text-brand-ice shrink-0" />

@@ -4061,6 +4061,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       setPlexKeyOwner(detailRef.current ? 'detail' : 'browse'); setFullscreen(false); setStreamUrl(null); setUseTranscode(false);
     },
     onReload: () => { armSlowLoadTimerRef.current?.(); },
+    health: { context: 'plex', title: playingTitle || playing?.title || null },
   });
   // Reset the safety-net guard whenever the underlying title changes.
   useEffect(() => { audioSafetyRef.current = null; }, [playing?.ratingKey]);

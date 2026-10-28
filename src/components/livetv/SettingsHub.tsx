@@ -258,7 +258,7 @@ const SettingsHub = memo(({
       case 'appearance': return <AppearanceScreen {...common} onTryLayout={onTryLayout} />;
       case 'rewind': return <RewindSettingsScreen {...common} />;
       case 'player': return <PlaybackScreen {...common} />;
-      case 'help': return <FixProblemScreen active={inPage} onBack={toMenu} onOpenBufferingGuide={onOpenBufferingGuide} onOpenSupportTool={onNavigate ? openTool : undefined} />;
+      case 'help': return <FixProblemScreen active={inPage} onBack={toMenu} onOpenBufferingGuide={onOpenBufferingGuide} onOpenSupportTool={onNavigate ? openTool : undefined} deviceCheck />;
       case 'signout': return <PageHint text={signOutAsk ? t('liveAccount.hub.signOutConfirm') : t('liveAccount.hub.signOutHint')} />;
       default: return null;
     }

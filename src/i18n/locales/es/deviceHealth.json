@@ -1,0 +1,31 @@
+{
+  "deviceHealth": {
+    "deep": {
+      "note": "Snow Media está revisando este equipo hasta el {{date}}"
+    },
+    "check": {
+      "rowTitle": "Hacer una prueba de 30 segundos",
+      "rowDesc": "Reproduce tu último canal durante 30 segundos, revisa tu equipo, tu internet y la transmisión, y envía el resultado a Snow Media.",
+      "withReport": "Hacer una prueba de 30 segundos y enviarla con el reporte",
+      "title": "Prueba de 30 segundos",
+      "running": "Revisando… {{seconds}} s",
+      "finishing": "Probando tu internet…",
+      "sent": "Enviado a Snow Media.",
+      "notSent": "No se pudo enviar ahora; se enviará más tarde.",
+      "unavailable": "La prueba no se puede hacer ahora (6 al día como máximo).",
+      "backToSkip": "Atrás detiene la prueba; tu reporte se envía igual.",
+      "verdict": {
+        "fine": "No encontramos ningún problema: la transmisión llegó a {{arrival}} y tu internet tiene {{internet}}.",
+        "unclear": "No pudimos determinarlo: la transmisión llegó a {{arrival}} y tu internet tiene {{internet}}. Snow Media revisará los detalles.",
+        "notPlaying": "No se reprodujo nada durante la prueba. Tu internet tiene {{internet}}.",
+        "overloadMemory": "Tu equipo está sobrecargado: solo quedaban {{mem}} MB de memoria libre. Reiniciar el equipo suele ayudar.",
+        "overloadCpu": "Tu equipo está sobrecargado: el procesador estuvo al {{cpu}} %. Reiniciar el equipo suele ayudar.",
+        "internet": "El problema es tu internet: {{internet}}, y la transmisión necesita {{needed}}.",
+        "weakWifi": "La señal de tu wifi es débil (internet {{internet}}). Acerca el router o usa un cable.",
+        "offline": "Tu equipo perdió la conexión a internet durante la prueba.",
+        "server": "Tu equipo está bien y tu internet tiene {{internet}}, pero el servidor de la transmisión solo envió {{arrival}} de los {{needed}} que necesita.",
+        "account": "El servicio rechazó tu línea. Revisa tu suscripción."
+      }
+    }
+  }
+}

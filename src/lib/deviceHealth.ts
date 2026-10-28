@@ -94,7 +94,7 @@ const DATA_KEYS = new Set([
   'sdk', 'lowRamDevice', 'online', 'restarts', 'stack', 'onScreenSec', 'exitStatus', 'playerActive',
   'firstFrameMs', 'streamKbps', 'internetKbps', 'hostMs', 'diagVerdict', 'reason', 'watching', 'ended',
   // the 30-second check's summary
-  'avgBufferSec', 'minBufferSec', 'avgArrivalKbps', 'minArrivalKbps', 'cpuPctPeak', 'memAvailMbMin',
+  'avgBufferedAheadSec', 'minBufferedAheadSec', 'avgArrivalKbps', 'minArrivalKbps', 'cpuPctPeak', 'memAvailMbMin',
   'seconds', 'played', 'source', 'fine',
 ]);
 
@@ -105,7 +105,8 @@ const QUERY_RE = /[?&][^\s=&]*=[^\s&]*/g;
 const SECRET_RE = /\b(user(name)?|pass(word)?|pwd|token|auth|key|pin|x-plex-token|sig|signature)\s*[=:]\s*[^\s&,;]+/gi;
 const IP_RE = /\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?\b/g;
 const HOSTPATH_RE = /\b(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?\/[^\s]*/gi;
-const HOSTPORT_RE = /\b(?:[a-z0-9-]+\.)+[a-z]{2,}:\d+\b/gi;
+// Not a source file's line ("SnowPlayerPlugin.kt:12" in a crash's stack).
+const HOSTPORT_RE = /\b(?:[a-z0-9-]+\.)+(?!kt:|java:)[a-z]{2,}:\d+\b/gi;
 
 /**
  * Text safe to send: anything that looks like an address, a query string, an
@@ -134,8 +135,10 @@ export function cleanData(d: Record<string, unknown> | null | undefined, maxByte
     if (v == null) continue;
     if (typeof v === 'number') { if (Number.isFinite(v)) out[k] = Math.round(v * 10) / 10; continue; }
     if (typeof v === 'boolean') { out[k] = v; continue; }
-    if (typeof v === 'string') { const s = scrubText(v, k === 'stack' ? 600 : 120); if (s) out[k] = s; }
+    if (typeof v === 'string') { const s = scrubText(v, 120); if (s) out[k] = s; }
   }
+  // The server keeps 48 keys at most.
+  for (const k of Object.keys(out).slice(48)) delete out[k];
   // Too big: the longest strings go first.
   while (JSON.stringify(out).length > maxBytes) {
     const longest = Object.keys(out).filter((k) => typeof out[k] === 'string').sort((a, b) => String(out[b]).length - String(out[a]).length)[0];
@@ -483,7 +486,8 @@ let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let flushAt = 0;
 let flushing: Promise<SendOutcome> | null = null;
 
-export interface SendOutcome { ok: boolean; ids?: string[]; reason?: string }
+/** `ids`: the server's event ids, by position (null: that one was dropped). */
+export interface SendOutcome { ok: boolean; ids?: Array<string | null>; reason?: string }
 
 function scheduleFlush(delayMs: number): void {
   if (isDemo()) return;
@@ -546,7 +550,7 @@ async function doFlush(first: Item | null, force: boolean): Promise<SendOutcome>
     writeBudget(b);
     if ('deep_until' in res) setDeepUntil(res.deep_until);
     if (rest.length) scheduleFlush(isDeep() ? DEEP_BATCH_MS : FLUSH_DEBOUNCE_MS);
-    const ids = Array.isArray(res.ids) ? res.ids.map((x) => String(x)) : [];
+    const ids = Array.isArray(res.ids) ? res.ids.map((x) => (typeof x === 'string' || typeof x === 'number' ? String(x) : null)) : [];
     return { ok: true, ids };
   }
   // Kept for later (the check too).
@@ -576,7 +580,7 @@ export async function sendCheckNow(e: HealthEvent): Promise<{ sent: boolean; id:
   const p = doFlush(item, true).catch(() => ({ ok: false } as SendOutcome));
   flushing = p.finally(() => { flushing = null; });
   const r = await p;
-  return { sent: r.ok, id: r.ok && r.ids && r.ids.length ? r.ids[0] : null };
+  return { sent: r.ok, id: r.ok && r.ids && r.ids.length ? r.ids[0] ?? null : null };
 }
 
 // --- recording ------------------------------------------------------------------------
@@ -695,6 +699,14 @@ export async function notePlayerError(err: PlayerErrorInfo): Promise<void> {
 
 export type AuthReason = 'expired' | 'disabled' | 'banned' | 'wrong_login' | 'max_connections' | string;
 
+/** The reason word for a refused sign-in check (lib/xtream authenticateRouted's result). */
+export function authReasonOf(res: { invalidLogin?: boolean; authedButBlocked?: boolean; userInfo?: { status?: unknown } | null }): AuthReason {
+  if (res.invalidLogin) return 'wrong_login';
+  const st = String(res.userInfo?.status ?? '').toLowerCase();
+  if (st === 'expired' || st === 'disabled' || st === 'banned') return st;
+  return res.authedButBlocked ? 'disabled' : 'refused';
+}
+
 /**
  * The panel refused the line (a reconcile's sign-in check, or a stream's
  * 401/403/509). `host`/`username`: the line it is about; left out, the line
@@ -730,6 +742,15 @@ export async function noteAuthError(a: { reason: AuthReason; host?: string; user
 
 // --- how the last run ended ---------------------------------------------------------------
 
+/** A crash's stack in the 120 characters the server keeps: the class, then the frames, shortest form. */
+export function compactStack(stack: string | null | undefined): string | null {
+  if (!stack) return null;
+  const parts = stack.split('\n').map((l) => l.trim().replace(/^at\s+/, '').replace(/^caused by\s+/, '<- ')).filter(Boolean);
+  if (!parts.length) return null;
+  const short = parts.map((p, i) => (i === 0 ? p.replace(/^(?:[a-z0-9_]+\.)+/i, '') : p.replace(/^(?:[a-z0-9_]+\.)+(?=[A-Z])/, '')));
+  return short.join(' | ').slice(0, 120);
+}
+
 function exitSummary(x: LastExit): string {
   const r = x.exitReason || 'unknown';
   if (x.kind === 'crash') {
@@ -754,7 +775,7 @@ export function exitEvents(exits: LastExit[], vitals: DeviceVitals | null): Heal
       memTotalMb: vitals?.memTotalMb ?? null,
       sdk: vitals?.sdk ?? null,
       exitReason: x.exitReason ?? 'unknown',
-      stack: x.stack ?? null,
+      stack: compactStack(x.stack),
       onScreenSec: x.onScreenSec ?? null,
       pssMb: x.pssMb ?? null,
       exitStatus: x.exitStatus ?? null,

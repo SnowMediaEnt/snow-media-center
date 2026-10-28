@@ -1,0 +1,31 @@
+{
+  "deviceHealth": {
+    "deep": {
+      "note": "Snow Media prüft diese Box bis {{date}}"
+    },
+    "check": {
+      "rowTitle": "30-Sekunden-Test starten",
+      "rowDesc": "Spielt deinen letzten Sender 30 Sekunden lang ab, prüft Box, Internet und Stream und sendet das Ergebnis an Snow Media.",
+      "withReport": "30-Sekunden-Test machen und mit der Meldung senden",
+      "title": "30-Sekunden-Test",
+      "running": "Prüfe… {{seconds}} s",
+      "finishing": "Teste dein Internet…",
+      "sent": "An Snow Media gesendet.",
+      "notSent": "Jetzt nicht gesendet – es wird später gesendet.",
+      "unavailable": "Der Test geht gerade nicht (höchstens 6 pro Tag).",
+      "backToSkip": "Zurück beendet den Test; deine Meldung wird trotzdem gesendet.",
+      "verdict": {
+        "fine": "Kein Problem gefunden: Der Stream kam mit {{arrival}} an und dein Internet hat {{internet}}.",
+        "unclear": "Wir konnten es nicht eingrenzen: Der Stream kam mit {{arrival}} an, dein Internet hat {{internet}}. Snow Media sieht sich die Details an.",
+        "notPlaying": "Während des Tests lief nichts. Dein Internet hat {{internet}}.",
+        "overloadMemory": "Deine Box ist überlastet: Nur {{mem}} MB Speicher waren frei. Ein Neustart der Box hilft meistens.",
+        "overloadCpu": "Deine Box ist überlastet: Der Prozessor lief bei {{cpu}} %. Ein Neustart der Box hilft meistens.",
+        "internet": "Dein Internet ist das Problem: {{internet}}, der Stream braucht {{needed}}.",
+        "weakWifi": "Dein WLAN-Signal ist schwach (Internet {{internet}}). Stell den Router näher oder nutze ein Kabel.",
+        "offline": "Deine Box hat während des Tests die Internetverbindung verloren.",
+        "server": "Deine Box ist in Ordnung und dein Internet hat {{internet}}, aber der Stream-Server schickte nur {{arrival}} von den nötigen {{needed}}.",
+        "account": "Der Dienst hat deine Leitung abgelehnt. Prüfe dein Abo."
+      }
+    }
+  }
+}

@@ -97,6 +97,7 @@ import { usePhoneLayout, useTouchUI } from '@/lib/phoneMode';
 import PlayerPhoneTabs from './livetv/PlayerPhoneTabs';
 import { PlayerTabsSlot } from './livetv/playerTabs';
 import { isPinLine } from '@/lib/pinSignIn';
+import { authReasonOf, noteAuthError } from '@/lib/deviceHealth';
 
 // Demo latch (?demo=1) — module scope like PlexSection. Every demo behavior
 // below lives behind this flag so non-demo sessions stay byte-for-byte equal.
@@ -345,6 +346,8 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           // The panel says the login is wrong now: an outside service on this
           // line is hidden until a check passes again (lib/outsideSource).
           if (res.invalidLogin) markLineRefused(creds);
+          // Device Health: the panel refused the line this box is signed into.
+          if (res.invalidLogin || res.authedButBlocked) void noteAuthError({ reason: authReasonOf(res), host: creds.host, username: creds.username });
           // Expired/disabled/banned lines: sign-in stays refused, but the
           // panel DID authenticate the account — so keep recording the TRUE
           // state (fresh expDate/status) instead of bailing. This is what lets
