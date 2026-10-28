@@ -336,6 +336,37 @@ describe('device-health: admin', () => {
     expect((await call({ action: 'admin_event', id: 'nope' }, ADMIN.id)).status).toBe(400);
   });
 
+  it("a customer's events include their boxes' events a report could not tie to them", async () => {
+    state.handlers.onQuery = ((orig) => (q: QueryCall) => {
+      if (q.table === 'player_signins' && eqValue(q, 'matched_customer_id') === CUSTOMER) {
+        return { data: [{ panel_host: LINE.host, panel_username: LINE.username }] };
+      }
+      if (q.table === 'device_inbox' && eqValue(q, 'panel_host') === LINE.host) return { data: [{ key_hash: KEY_HASH }] };
+      if (q.table === 'device_health_events' && hasOp(q, 'order')) return { data: [] };
+      return orig?.(q);
+    })(state.handlers.onQuery);
+    expect((await call({ action: 'admin_events', customer_id: CUSTOMER }, ADMIN.id)).body).toEqual({ ok: true, events: [] });
+    const q = queriesOf('device_health_events', 'order')[0];
+    expect(q.ops.find((o) => o.op === 'or')?.args[0]).toBe(`customer_id.eq.${CUSTOMER},key_hash.in.(${KEY_HASH})`);
+  });
+
+  it('admin_devices by device_ref returns just that box, even with nothing wrong', async () => {
+    db.device = { id: TV, panel_host: LINE.host, panel_username: LINE.username };
+    state.handlers.onQuery = ((orig) => (q: QueryCall) => {
+      if (q.table === 'device_inbox' && eqValue(q, 'panel_host') === LINE.host && hasOp(q, 'order')) {
+        return { data: [{ id: TV, key_hash: KEY_HASH, panel_host: LINE.host, panel_username: LINE.username, device_label: 'Bedroom', app_version: '1.9.8', last_seen_at: new Date().toISOString() },
+          { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', key_hash: 'b'.repeat(64), panel_host: LINE.host, panel_username: LINE.username, device_label: 'Kitchen', app_version: '1.9.8', last_seen_at: null }] };
+      }
+      return orig?.(q);
+    })(state.handlers.onQuery);
+    const out = await call({ action: 'admin_devices', device_ref: TV }, ADMIN.id);
+    expect(out.body.ok).toBe(true);
+    const devices = out.body.devices as Array<Record<string, unknown>>;
+    expect(devices.map((d) => d.device_ref)).toEqual([TV]);
+    expect(devices[0]).toMatchObject({ label: 'Bedroom', problems_30d: 0 });
+    expect((await call({ action: 'admin_devices', device_ref: 'nope' }, ADMIN.id)).status).toBe(400);
+  });
+
   it('summarises boxes per device ref, worst first, with a line\'s quiet boxes', async () => {
     state.handlers.onRpc = (c) => {
       if (c.name === 'has_role') return { data: c.args._user_id === ADMIN.id };

@@ -37,7 +37,7 @@
 //           version_code, device_model, os_version, kind, verdict, summary, context, title, data,
 //           samples, deep, occurred_at, created_at}]} newest first
 //   admin_event {id}  → {ok:true, event} (shaped as in admin_events) | {ok:false, reason:'not_found'}
-//   admin_devices {host?, username?, customer_id?}
+//   admin_devices {host?, username?, customer_id?, device_ref?}
 //       → {ok:true, devices:[{device_ref, label, host, username, customer_id, customer_name,
 //           app_version, model, last_seen, deep_until, counts:{verdict:n}, problems_7d,
 //           problems_30d, last_event:{kind, verdict, summary, title, occurred_at}|null}]}
@@ -494,6 +494,22 @@ async function withRefs(admin: Db, rows: EventDbRow[]): Promise<Array<Record<str
   });
 }
 
+/** key_hashes of the boxes on a customer's lines (player_signins), seen in 30 days; at most 200. */
+async function customerBoxHashes(admin: Db, customerId: string): Promise<string[]> {
+  const { data: signins, error } = await admin.from('player_signins')
+    .select('panel_host, panel_username').eq('matched_customer_id', customerId).limit(20);
+  if (error) throw new Error(`customer lines: ${(error as { message?: string }).message}`);
+  const seenSince = new Date(Date.now() - SEEN_WITHIN_MS).toISOString();
+  const out = new Set<string>();
+  for (const s of (signins ?? []) as Array<{ panel_host: string; panel_username: string }>) {
+    const { data, error: boxErr } = await admin.from('device_inbox').select('key_hash')
+      .eq('panel_host', s.panel_host).eq('panel_username', s.panel_username).gte('last_seen_at', seenSince).limit(MAX_DEVICES);
+    if (boxErr) throw new Error(`customer boxes: ${(boxErr as { message?: string }).message}`);
+    for (const r of (data ?? []) as Array<{ key_hash: string }>) if (KEY_HASH.test(r.key_hash)) out.add(r.key_hash);
+  }
+  return [...out].slice(0, 200);
+}
+
 async function adminEvents(admin: Db, body: Body): Promise<Response> {
   const f = adminFilters(body);
   if (!f) return badRequest();
@@ -522,7 +538,12 @@ async function adminEvents(admin: Db, body: Body): Promise<Response> {
   if (keyHash) q = q.eq('key_hash', keyHash);
   if (f.host) q = q.eq('host', f.host);
   if (f.username) q = q.eq('username', f.username);
-  if (f.customerId) q = q.eq('customer_id', f.customerId);
+  if (f.customerId) {
+    // The customer's boxes on their lines (player_signins), even where a
+    // report could not tell whose line it was: by box as well as by customer.
+    const hashes = await customerBoxHashes(admin, f.customerId);
+    q = hashes.length ? q.or(`customer_id.eq.${f.customerId},key_hash.in.(${hashes.join(',')})`) : q.eq('customer_id', f.customerId);
+  }
   if (typeof body.kind === 'string') q = q.eq('kind', body.kind);
   if (typeof body.verdict === 'string') q = q.eq('verdict', body.verdict);
   if (since) q = q.gte('occurred_at', since);
@@ -555,6 +576,15 @@ type Summary = {
 async function adminDevices(admin: Db, body: Body): Promise<Response> {
   const f = adminFilters(body);
   if (!f) return badRequest();
+  // One box by its ref (a box with nothing wrong and no deep check is in no
+  // unfiltered list): its line's list, narrowed to it.
+  let onlyHash: string | null = null;
+  if (body.device_ref !== undefined && body.device_ref !== null) {
+    const box = await boxOf(admin, { device_ref: body.device_ref });
+    if (box === 'bad') return badRequest();
+    if (!box) return json({ ok: true, devices: [] });
+    onlyHash = box.key_hash; f.host = box.panel_host; f.username = box.panel_username; f.customerId = null;
+  }
 
   const { data: sum, error: sumErr } = await admin.rpc('device_health_box_summary', {
     p_host: f.host, p_username: f.username, p_customer_id: f.customerId, p_limit: MAX_DEVICES,
@@ -607,6 +637,7 @@ async function adminDevices(admin: Db, body: Body): Promise<Response> {
   const hashes = [...new Set([...summaries.map((s) => s.key_hash), ...extraHashes])]
     // A filtered list shows only that line's / customer's boxes.
     .filter((h) => byHash.has(h) || inbox.has(h))
+    .filter((h) => !onlyHash || h === onlyHash)
     .slice(0, MAX_DEVICES);
 
   // Customer names for the list (the line → customer link as report stored it).
