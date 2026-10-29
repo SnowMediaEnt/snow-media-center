@@ -63,9 +63,13 @@ interface Props {
   title?: string;
   /** Back with the bar down: leave the player. */
   onClose?: () => void;
-  /** A series: the bar's Next episode button (greyed out when !hasNext). */
-  onNext?: () => void;
+  /** A series: the bar's Next episode button (greyed out when !hasNext).
+   *  `finished`: taken from Up Next at the end (the episode was watched). */
+  onNext?: (opts?: { finished?: boolean }) => void;
   hasNext?: boolean;
+  /** A series with an episode after this one: Up Next near the end (see
+   *  VodControlBar). */
+  upNext?: { detail: string; autoplay: boolean } | null;
   /** For analytics: an address-free message. */
   onError?: (msg: string) => void;
   onEnded?: () => void;
@@ -82,11 +86,13 @@ interface BarProps {
   volume: number;
   onVolume: (v: number) => void;
   onClose?: () => void;
-  onNext?: () => void;
+  onNext?: (opts?: { finished?: boolean }) => void;
   hasNext?: boolean;
+  upNext?: { detail: string; autoplay: boolean } | null;
+  srcKey?: string;
 }
 
-export default function VodPlayer({ src, volume: volumeProp, onVolumeChange, title, onClose, onNext, hasNext, onError, onEnded, onProgress, children }: Props) {
+export default function VodPlayer({ src, volume: volumeProp, onVolumeChange, title, onClose, onNext, hasNext, upNext, onError, onEnded, onProgress, children }: Props) {
   const { t } = useTranslation();
   // Fixed for the life of the player: a box never changes engine mid-film.
   const [native] = useState(() => hasNativePlayer());
@@ -116,7 +122,7 @@ export default function VodPlayer({ src, volume: volumeProp, onVolumeChange, tit
     onVolumeChangeRef.current?.(v);
   }, []);
 
-  const bar: BarProps = { title, volume, onVolume: changeVolume, onClose, onNext, hasNext };
+  const bar: BarProps = { title, volume, onVolume: changeVolume, onClose, onNext, hasNext, upNext, srcKey: src };
 
   return (
     <div

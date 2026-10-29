@@ -65,7 +65,7 @@ import PlexPosterTile from './PlexPosterTile';
 import PlexWatchedBadge from './PlexWatchedBadge';
 import { usePlexWatched } from './usePlexWatched';
 import PlexDetail from './PlexDetail';
-import PlexPlayerOverlay, { type PlayerPrompt, type SubtitleSearchContext } from './PlexPlayerOverlay';
+import PlexPlayerOverlay, { type NextAction, type PlayerPrompt, type SubtitleSearchContext } from './PlexPlayerOverlay';
 import EpisodeAutoplay, { type NextEpisode } from './EpisodeAutoplay';
 import PlexProgressReporter from './PlexProgressReporter';
 import PlexTrailerControls from './PlexTrailerControls';
@@ -3825,6 +3825,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // from the start, with the same subtitle search context an episode opened
   // from its show would have.
   const [playerPrompt, setPlayerPrompt] = useState<PlayerPrompt | null>(null);
+  // The control bar's Next episode button, while the episode has one.
+  const [nextAction, setNextAction] = useState<NextAction | null>(null);
   // What is playing, once EpisodeAutoplay has read it (for PlexProgressReporter).
   const [playInfo, setPlayInfo] = useState<PlexPlayInfo | null>(null);
   const autoNextRef = useRef<(() => boolean) | null>(null);
@@ -3836,6 +3838,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     }
     const ctx: SubtitleSearchContext = { title: ep.title, grandparentTitle: info.showTitle, season: ep.seasonIndex, episode: ep.index };
     setPlayerPrompt(null);
+    setNextAction(null);
     // The same version as the episode before (the 1080p one stays 1080p).
     const want = playVersionRef.current?.label;
     const version = want ? ep.versions?.find((v) => v.label === want) : undefined;
@@ -5651,6 +5654,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             onChangeVolume={changeVolume}
             onFixAudio={fixAudioTranscode}
             prompt={playerPrompt}
+            nextAction={nextAction}
             paused={native.paused}
             statsSession={statsSession}
             httpStatus={convertRefusal?.status ?? null}
@@ -5677,6 +5681,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             seekTo={plexSeekTo}
             onPrompt={setPlayerPrompt}
             onPlayNext={playNextEpisode}
+            onNextAction={setNextAction}
             onInfo={setPlayInfo}
             registerEnded={registerAutoNext}
           />

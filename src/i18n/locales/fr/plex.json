@@ -202,6 +202,8 @@
       "osdlUnreachable": "Impossible de joindre OpenSubtitles.",
       "upNext": "À suivre",
       "upNextIn": "À suivre · lecture dans {{seconds}}",
+      "nextEpisode": "Épisode suivant",
+      "hintNextEpisode": "Épisode suivant : {{episode}} — OK le lance maintenant",
       "promptOkBack": "OK · RETOUR pour continuer à regarder",
       "seekBar": "Barre de progression",
       "back10": "Reculer de 10 secondes",

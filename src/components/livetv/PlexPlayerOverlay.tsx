@@ -8,7 +8,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAudioPassthrough } from '@/lib/audioOutput';
 import i18n from '@/i18n';
-import { Play, Pause, Rewind, FastForward, Subtitles, AudioLines, Download, Loader2, Gauge, Maximize, LifeBuoy, Volume2, VolumeX } from 'lucide-react';
+import { Play, Pause, Rewind, FastForward, Subtitles, AudioLines, Download, Loader2, Gauge, Maximize, LifeBuoy, Volume2, VolumeX, SkipForward } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { searchOpenSubtitles, downloadOpenSubtitle, type OpenSubResult } from '@/lib/opensubtitles';
@@ -30,8 +30,11 @@ import { okIsRepeat, okPressMark, okSamePress } from '@/lib/okLatch';
 
 // 'scrub' is the progress bar itself — reached with ▲ from any control, ◀ ▶
 // move a preview marker (accelerating on repeated presses), OK jumps there.
-type Row = 'scrub' | 'seek-10' | 'play' | 'seek+30' | 'audio' | 'subs' | 'quality' | 'format' | 'volume' | 'buffering';
+type Row = 'scrub' | 'seek-10' | 'play' | 'seek+30' | 'next' | 'audio' | 'subs' | 'quality' | 'format' | 'volume' | 'buffering';
 const ROWS: Row[] = ['seek-10', 'play', 'seek+30', 'audio', 'subs', 'quality', 'format', 'volume', 'buffering'];
+// An episode with one after it: Next episode after the skips, as in Live TV's
+// VOD bar (vodBar.ts).
+const ROWS_NEXT: Row[] = ['seek-10', 'play', 'seek+30', 'next', 'audio', 'subs', 'quality', 'format', 'volume', 'buffering'];
 // Scrub step (seconds) by acceleration level; every 4 quick presses (< 700 ms
 // apart) bump one level — 10 s taps, then 30 s, 1 min, 2 min, 5 min holds.
 const SCRUB_STEPS = [10, 30, 60, 120, 300];
@@ -61,6 +64,13 @@ export interface PlayerPrompt {
   countdown?: number;
   onOk: () => void;
   onBack?: () => void;
+}
+
+/** The control bar's "Next episode" button (EpisodeAutoplay's onNextAction). */
+export interface NextAction {
+  /** e.g. "S1 · E2  The Title" */
+  detail: string;
+  run: () => void;
 }
 
 interface Props {
@@ -105,6 +115,8 @@ interface Props {
   onFixAudio?: (resumeSec: number) => void;
   /** Skip Intro / Up Next, drawn over the picture (see PlayerPrompt). */
   prompt?: PlayerPrompt | null;
+  /** An episode with one after it: the bar's Next episode button. */
+  nextAction?: NextAction | null;
   /** Paused on purpose (useNativePlayer's `paused`, not a stall). The bar
    *  comes up on a pause however it was made and stays until playing again. */
   paused?: boolean;
@@ -138,7 +150,7 @@ const fmtTime = (sec: number) => {
   return h > 0 ? `${h}:${pad2(m)}:${pad2(ss)}` : `${pad2(m)}:${pad2(ss)}`;
 };
 
-const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, routeLabel, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, versions, versionId, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume, onFixAudio, prompt, paused, statsSession, serverName, needKbps, httpStatus }: Props) => {
+const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, routeLabel, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, versions, versionId, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume, onFixAudio, prompt, nextAction, paused, statsSession, serverName, needKbps, httpStatus }: Props) => {
   // The Quality menu: every version as it is (when there are several), then
   // the converted presets. `selected` is the entry now in effect.
   const { t } = useTranslation();
@@ -345,6 +357,13 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   useEffect(() => () => { skipper.clear(); if (noteTimer.current) window.clearTimeout(noteTimer.current); }, [skipper]);
 
   const doAction = useCallback(async (r: Row) => {
+    if (r === 'next') {
+      // The next episode starts in place; the bar goes down for it.
+      if (!nextAction) return;
+      clearHide(); setVisible(false); setRow('play'); setMenu('none');
+      nextAction.run();
+      return;
+    }
     if (!controller && r !== 'volume' && r !== 'buffering') return;
     if (r === 'play') controller?.togglePlay();
     else if (r === 'seek-10') skipper.push(-BACK_SEC);
@@ -355,7 +374,14 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
     else if (r === 'format') { openFormatRef.current(); }
     else if (r === 'volume') { setMenu('volume'); setMenuIdx(0); }
     else if (r === 'buffering') { setMenu('help'); setMenuIdx(0); }
-  }, [controller, skipper, auds, openSubs, openQuality]);
+  }, [controller, skipper, auds, openSubs, openQuality, nextAction]);
+
+  // The bar's buttons, left to right: Next episode only while there is one.
+  const rows = nextAction ? ROWS_NEXT : ROWS;
+  const rowsRef = useRef(rows); rowsRef.current = rows;
+  // Next episode went (the last episode, or the next one is loading): the
+  // highlight steps back onto Forward 30 s instead of nowhere.
+  useEffect(() => { if (!nextAction && row === 'next') setRow('seek+30'); }, [nextAction, row]);
 
   // Refs for key handler
   const rowRef = useRef(row); useEffect(() => { rowRef.current = row; }, [row]);
@@ -614,9 +640,10 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
       if (e.key === 'ArrowUp') { setScrubPos(null); setRow('scrub'); return; }
 
       // main control row (horizontal)
-      const idx = ROWS.indexOf(r);
-      if (e.key === 'ArrowLeft') { if (idx > 0) setRow(ROWS[idx - 1]); }
-      else if (e.key === 'ArrowRight') { if (idx < ROWS.length - 1) setRow(ROWS[idx + 1]); }
+      const order = rowsRef.current;
+      const idx = order.indexOf(r);
+      if (e.key === 'ArrowLeft') { if (idx > 0) setRow(order[idx - 1]); }
+      else if (e.key === 'ArrowRight') { if (idx < order.length - 1) setRow(order[idx + 1]); }
       // Held, only the skips repeat; Play/Pause and the menus once per press.
       else if (isOk && (!okRepeat || r === 'seek-10' || r === 'seek+30')) void doActionRef.current(r);
     };
@@ -669,11 +696,11 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
       }}
     />
   ) : null;
-  // A tap on a control-row button (its place in ROWS) or a menu row.
+  // A tap on a control-row button (its place in the row order) or a menu row.
   const onControlsTap = touch ? (e: React.MouseEvent) => {
     const btn = (e.target as HTMLElement).closest('button');
     const all = Array.from((e.currentTarget as HTMLElement).querySelectorAll('button'));
-    const r = btn ? ROWS[all.indexOf(btn)] : undefined;
+    const r = btn ? rowsRef.current[all.indexOf(btn)] : undefined;
     if (!r) return;
     e.stopPropagation(); e.preventDefault();
     armHide();
@@ -788,6 +815,17 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
               {(paused ?? pollPaused) ? <Play className="w-7 h-7 fill-current" /> : <Pause className="w-7 h-7 fill-current" />}
             </button>
             <button type="button" data-focused={row === 'seek+30' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek+30')}`} aria-label={t('plex.player.forward30')}><FastForward className="w-6 h-6" /></button>
+            {nextAction && (
+              <button
+                type="button"
+                data-pp-next=""
+                data-focused={row === 'next' ? 'true' : 'false'}
+                className={`flex items-center h-10 px-4 rounded-full font-quicksand font-bold text-sm whitespace-nowrap transition-transform duration-150 ${focusVis('next')}`}
+                aria-label={t('plex.player.nextEpisode')}
+              >
+                {t('plex.player.nextEpisode')}<SkipForward className="w-4 h-4 ml-2 fill-current" />
+              </button>
+            )}
             <button type="button" data-focused={btnFocused('audio')} data-howto="pp.audio" className={`${btnBase} w-12 h-12 ${focusVis('audio')}`} aria-label={t('plex.player.audio')}><AudioLines className="w-6 h-6" /></button>
             <button type="button" data-focused={btnFocused('subs')} data-howto="pp.subs" className={`${btnBase} w-12 h-12 ${focusVis('subs')}`} aria-label={t('plex.player.subtitles')}><Subtitles className="w-6 h-6" /></button>
             <button type="button" data-focused={btnFocused('quality')} className={`${btnBase} w-12 h-12 ${focusVis('quality')}`} aria-label={t('plex.player.quality')}><Gauge className="w-6 h-6" /></button>
@@ -813,6 +851,8 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           <p data-remote-hint="" className="text-center text-xs text-brand-ice/60 font-nunito mt-4">
             {row === 'scrub'
               ? t('plex.player.hintScrub')
+              : row === 'next' && nextAction
+                ? t('plex.player.hintNextEpisode', { episode: nextAction.detail })
               : row === 'buffering'
                 ? t('plex.player.hintHelp')
                 : row === 'volume'

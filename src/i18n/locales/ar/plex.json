@@ -205,6 +205,8 @@
       "osdlUnreachable": "تعذّر الوصول إلى OpenSubtitles.",
       "upNext": "التالي",
       "upNextIn": "التالي · يبدأ خلال {{seconds}}",
+      "nextEpisode": "الحلقة التالية",
+      "hintNextEpisode": "الحلقة التالية: {{episode}} — اضغط OK لتشغيلها الآن",
       "promptOkBack": "موافق · رجوع لمتابعة المشاهدة",
       "seekBar": "شريط التقدم",
       "back10": "إرجاع 10 ثوانٍ",

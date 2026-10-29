@@ -786,6 +786,14 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
 
   // Fullscreen episode player with autoplay next
   if (playing) {
+    // The episode after this one (into the next season after a season's
+    // last), for the bar's Next episode and Up Next.
+    const nextAt = nextEpisode(seasons, playing.seasonIdx, playing.episodeIdx);
+    const nextSeason = nextAt ? seasons[nextAt.season] : undefined;
+    const nextEp = nextAt ? nextSeason?.episodes[nextAt.episode] : undefined;
+    const upNextEp = nextAt && nextSeason
+      ? { detail: `${nextEp?.episode_num != null && String(nextEp.episode_num).trim() ? `${t('plex.episode.code', { season: nextSeason.number, episode: nextEp.episode_num })}  ` : ''}${nextEp?.title ?? ''}`.trim() }
+      : null;
     return (
       <VodPlayer
         src={playing.url}
@@ -793,11 +801,14 @@ const SeriesSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack }: P
         onVolumeChange={setVolume}
         title={playing.title}
         onClose={() => setPlaying(null)}
-        onNext={() => {
+        onNext={(opts) => {
+          // Taken from Up Next (its last minute): this one was watched.
+          if (opts?.finished) { try { noteEpisodeFinished(creds, playing.seriesId, playing.episode); } catch { /* ignore */ } }
           const next = nextEpisode(seasonsRef.current, playing.seasonIdx, playing.episodeIdx);
           if (next) playEpisode(next.season, next.episode);
         }}
-        hasNext={!!nextEpisode(seasons, playing.seasonIdx, playing.episodeIdx)}
+        hasNext={!!upNextEp}
+        upNext={upNextEp ? { detail: upNextEp.detail, autoplay: autoplayNext } : null}
         onError={(msg) => {
           try { trackEvent('player_error', 'player', { kind: 'series', channel_or_title: playing.title, server: creds.serverLabel, message: msg.slice(0, 200) }); } catch { /* ignore */ }
         }}
