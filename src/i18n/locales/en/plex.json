@@ -104,6 +104,7 @@
     "buffering": {
       "checking": "Checking…",
       "headline": "Buffering…",
+      "serverBusy": "The Plex server isn't sending right now (busy) — retrying…",
       "measuring": "Measuring your connection…",
       "backToNormal": "Back to normal",
       "timer": "Buffering · {{seconds}}s",

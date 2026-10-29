@@ -156,6 +156,10 @@ export interface PlayerStats {
    *  (e.g. 503), when the server sent one; null otherwise. Older builds
    *  leave it out. */
   httpStatus?: number | null;
+  /** An error status (e.g. 503) any request of this stream got in the last
+   *  90 s, the player's own quiet retries included (it can be set while the
+   *  film still plays from its buffer). Older builds leave it out. */
+  recentHttpStatus?: number | null;
   /** How far ahead the player reads, e.g. "steady · 50 s / 128 MB, 20 s floor",
    *  or for mpv "mpv · cache 32 MB · 10 s ahead". */
   loadProfile: string | null;
@@ -233,7 +237,7 @@ export function emptyPlayerStats(): PlayerStats {
     nowKbps: null, avgKbps: null, minKbps: null, maxKbps: null, arrivalKbps: null,
     videoDecoder: null, videoFormat: null, renderedFrames: null, droppedFrames: null,
     audioDecoder: null, audioFormat: null,
-    restarts: 0, lastRestartReason: null, lastError: null, httpStatus: null, loadProfile: null, liveCatchUp: null, fetchConnections: null, lowRamBox: null,
+    restarts: 0, lastRestartReason: null, lastError: null, httpStatus: null, recentHttpStatus: null, loadProfile: null, liveCatchUp: null, fetchConnections: null, lowRamBox: null,
     rangeFetch: false, connectionCap: 1,
     javaHeapMb: null, nativeHeapMb: null,
     engine: 'exo', firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
@@ -355,6 +359,10 @@ export interface SnowPlayerPlugin {
       /** playerState 'buffering': a native reconnect's refill (`reconnect`) or
        *  the on-box rewind buffer's (`rewindBuffer`), not the channel stalling. */
       reconnect?: boolean; rewindBuffer?: boolean;
+      /** playerState 'buffering' with `reconnect`: a film's server refusing
+       *  with a server error (`httpStatus`, 5xx); the plugin keeps retrying
+       *  quietly for a few minutes. Older builds never send it. */
+      serverBusy?: boolean;
       /** playerError: the player's own ERROR_CODE_* name, AUDIO_DECODE, or
        *  RECONNECT_EXHAUSTED once the plugin has given up (a channel after
        *  20 restarts in a row, a film or episode after 3). A film's message

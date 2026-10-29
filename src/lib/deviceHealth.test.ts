@@ -376,6 +376,44 @@ describe('what gets recorded', () => {
     expect(sentEvents()).toHaveLength(3);
     expect(exitEvents([{ kind: 'nope' } as never], null)).toEqual([]);
   });
+  it('a stall while the server refuses (5xx) is the server, in plain words, even before the player gives up', async () => {
+    // The player still retrying quietly: no give-up status yet, only a recent 503.
+    h.stats = { state: 'buffering', playing: false, bufferedAheadSec: 0, arrivalKbps: 0, nowKbps: 0, videoFormat: 'HEVC 3840x2160', lastError: null, httpStatus: null, recentHttpStatus: 503, engine: 'exo', restarts: 1 };
+    h.vitals = { memAvailMb: 600, memTotalMb: 1900, wifiRssi: -72 };
+    setNowPlaying({ context: 'plex', title: 'Episode 4' });
+    await onStallOver(stall({ durationMs: 9000, kind: 'vod' }) as never);
+    const [e] = pendingHealthEvents();
+    expect(e).toMatchObject({ kind: 'stall', verdict: 'server', context: 'plex' });
+    expect(e.data).toMatchObject({ httpStatus: 503 });
+    expect(e.summary).toBe('Stalled 9 s on Episode 4: the server refused (503)');
+  });
+  it('a player that gave up on a 5xx says the server refused', async () => {
+    setNowPlaying({ context: 'plex', title: 'Episode 4' });
+    await notePlayerError({ code: 'RECONNECT_EXHAUSTED', httpStatus: 503 });
+    expect(pendingHealthEvents()[0].summary).toBe('Player gave up on Episode 4 (RECONNECT_EXHAUSTED): the server refused (503)');
+  });
+  it("a Plex stall without a 5xx is judged against the file's own bit rate (the stats can't say it)", async () => {
+    h.stats = { state: 'buffering', playing: false, bufferedAheadSec: 0.4, arrivalKbps: 9000, nowKbps: 9000, videoFormat: 'HEVC 3840x2160', lastError: null, engine: 'exo', restarts: 0 };
+    h.vitals = { memAvailMb: 600, memTotalMb: 1900, wifiRssi: -60 };
+    // Without the file's rate: cause not clear.
+    setNowPlaying({ context: 'plex', title: 'Episode 4' });
+    await onStallOver(stall({ durationMs: 10000, kind: 'vod', nowKbps: 9000 }) as never);
+    expect(pendingHealthEvents()[0]).toMatchObject({ verdict: 'unknown' });
+    expect(pendingHealthEvents()[0].data.neededKbps ?? null).toBeNull();
+    // With it (PlexSection's stallNeedKbps): the server sent less than it needs on good Wi-Fi.
+    localStorage.clear(); __resetDeviceHealthForTests();
+    setNowPlaying({ context: 'plex', title: 'Episode 4', neededKbps: 19_400 });
+    await onStallOver(stall({ durationMs: 10000, kind: 'vod', nowKbps: 9000 }) as never);
+    const [e] = pendingHealthEvents();
+    expect(e).toMatchObject({ verdict: 'server' });
+    expect(e.data).toMatchObject({ neededKbps: 19_400, arrivalKbps: 9000 });
+    expect(e.summary).toBe('Stalled 10 s on Episode 4: server sent 9.0 Mb/s of 19.4 Mb/s needed');
+    // The player's own figure, when it has one, comes first.
+    localStorage.clear(); __resetDeviceHealthForTests();
+    h.stats = { ...h.stats, videoFormat: 'H264 1920x1080 6.0 Mb/s' };
+    await onStallOver(stall({ durationMs: 10000, kind: 'vod', nowKbps: 2000 }) as never);
+    expect(pendingHealthEvents()[0].data.neededKbps).toBe(6000);
+  });
   it('cleanEvent keeps samples on a check only (30 rows x 8 numbers)', () => {
     const rows = Array.from({ length: 40 }, (_, i) => [i, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
     expect(cleanEvent(ev({ kind: 'check', samples: rows }))!.samples).toHaveLength(30);

@@ -4061,7 +4061,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       setPlexKeyOwner(detailRef.current ? 'detail' : 'browse'); setFullscreen(false); setStreamUrl(null); setUseTranscode(false);
     },
     onReload: () => { armSlowLoadTimerRef.current?.(); },
-    health: { context: 'plex', title: playingTitle || playing?.title || null },
+    health: { context: 'plex', title: playingTitle || playing?.title || null, neededKbps: stallNeedKbps ?? null },
   });
   // Reset the safety-net guard whenever the underlying title changes.
   useEffect(() => { audioSafetyRef.current = null; }, [playing?.ratingKey]);
@@ -4337,6 +4337,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     arrivalRef.current = { samples: [], native: null };
   }, [playing?.ratingKey, playSeq]);
   const bufferingRef = useRef(false); bufferingRef.current = native.buffering;
+  // The server refusing (5xx) while the plugin retries: no quality move on it
+  // (a lighter file or a conversion comes from the same busy server).
+  const serverBusyRef = useRef<number | null>(null); serverBusyRef.current = native.serverBusy;
   // The one measurement: the player's arrival rate, polled every window
   // from getStats (arrivalKbps, bytes as they arrive from the network). A
   // plugin that does not report it (built before it) leaves the bandwidth
@@ -4506,6 +4509,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   useEffect(() => {
     if (!(nativeActive && native.buffering)) return;
     if (stillLoadingRef.current) return;
+    if (native.serverBusy != null) return;
     const st = autoQRef.current;
     if (!st.key || st.key !== playingKeyRef.current) return;
     const at = Date.now();
@@ -4524,6 +4528,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     let done = false;
     const check = () => {
       if (done || autoQRef.current !== st || st.key !== playingKeyRef.current) return;
+      if (serverBusyRef.current != null) { timer = window.setTimeout(check, RATE_TICK_MS); return; }
       const need = needNowRef.current();
       const d = st.aq.delivery(rates(), Date.now(), stallCtx(at), at, need);
       // To the best rung that delivery carries, never under the floor.
@@ -4534,7 +4539,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     };
     check();
     return () => { done = true; window.clearTimeout(timer); };
-  }, [native.buffering, nativeActive, autoLadder, applyAutoMove, stallCtx, rates]);
+  }, [native.buffering, native.serverBusy, nativeActive, autoLadder, applyAutoMove, stallCtx, rates]);
   // The way back up, checked every 15 s while playing smoothly. When the
   // player's own downloads can't show the speed (a converted stream arrives
   // only as fast as the server converts it), a short read of the file itself
@@ -5574,6 +5579,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           </div>
         )}
         {NATIVE_PLAYBACK && !native.error && !slowLoad && nativeActive && preBufferActive && <PreBufferIndicator />}
+        {/* The server refusing (5xx) while the player retries quietly: one slim plain line, not a card. */}
+        {NATIVE_PLAYBACK && !shownError && nativeActive && native.serverBusy != null && (
+          <div className="absolute inset-x-0 bottom-10 flex justify-center pointer-events-none" role="status" aria-live="polite" data-server-busy>
+            <p className="px-3 py-1.5 rounded-lg bg-black/70 text-sm text-white/90 font-nunito">{t('plex.buffering.serverBusy')}</p>
+          </div>
+        )}
         {NATIVE_PLAYBACK && !native.error && slowLoad && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 p-6 text-center">
             <div className="w-full max-w-md mb-3">

@@ -333,7 +333,7 @@ describe('SnowPlayerPlugin.kt — a stream that starts fine keeps playing', () =
     expect(cls).toContain('private val floorUs = floorMs * 1000L');
   });
 
-  it('a 4K film (bugs/plex-4k.md): its own byte budget, and 10 s before it plays on after a stall; 1080p and Live TV as before', () => {
+  it('a 4K film (bugs/plex-4k.md): its own byte budget, and 18 s before it plays on after a stall; 1080p and Live TV as before', () => {
     const cls = plugin.slice(plugin.indexOf('private class SteadyLoadControl('), plugin.indexOf('/** Counts the bytes'));
     // 4K only for a film, told by load() before prepare(); decided when its tracks are selected, before the parent sizes the budget.
     expect(body('fun load(call: PluginCall)')).toMatch(/s\.loadControl\?\.beginStream\(film = !live, liveStartMs = liveStartBufferMs, liveRebufferMs = liveRebufferMs\)[\s\S]*p\.prepare\(\)/);
@@ -341,9 +341,9 @@ describe('SnowPlayerPlugin.kt — a stream that starts fine keeps playing', () =
     expect(cls).toMatch(/uhd = vod && trackSelections\.any \{[\s\S]*UhdBuffer\.isUhd\(f\.width, f\.height\)[\s\S]*super\.onTracksSelected\(parameters, trackGroups, trackSelections\)/);
     // The budget: the library's own unless 4K.
     expect(cls).toMatch(/val library = super\.calculateTargetBufferBytes\(trackSelectionArray\)\s*val bytes = if \(uhd && uhdBudgetBytes > library\) uhdBudgetBytes else library/);
-    // After a stall: the parent first; a 4K film also waits for 10 s, or less when the buffer can't take more.
+    // After a stall: the parent first; a 4K film also waits for 18 s, or less when the buffer can't take more.
     expect(cls).toMatch(/if \(!super\.shouldStartPlayback\(parameters\)\) return false[\s\S]*?if \(!vod\) \{[\s\S]*?LiveCushion\.startsNow\([\s\S]*?\n        \}\s*if \(!uhd \|\| !parameters\.rebuffering\) return true(?:\s*\/\/[^\n]*)*\s*return parameters\.bufferedDurationUs >= uhdRebufferUs \|\| !loadingNow/);
-    expect(uhdRule).toContain('const val REBUFFER_MS = 10000');
+    expect(uhdRule).toContain('const val REBUFFER_MS = 18000');
     expect(uhdRule).toContain('const val MAX_BUDGET_BYTES = 256 * 1024 * 1024');
     expect(uhdRule).toContain('fun isUhd(width: Int, height: Int): Boolean = height >= MIN_HEIGHT || width >= MIN_WIDTH');
     // A released player lets its control go; tiles never have one.
@@ -381,7 +381,7 @@ describe('SnowPlayerPlugin.kt — a stream that starts fine keeps playing', () =
     expect(err.indexOf('"AUDIO_DECODE"')).toBeLessThan(err.indexOf('vodSpent'));
     expect(err).toMatch(/\.put\("code", error\.errorCodeName\)[^\n]*\n\s*\}\s*$/);
     // Live channels keep their 20.
-    expect(body('private fun reconnect(')).toContain('if (s.reconnectAttempts >= MAX_RECONNECTS) {');
+    expect(body('private fun reconnect(')).toContain('if (busyStatus == null && s.reconnectAttempts >= MAX_RECONNECTS) {');
   });
 
   it('a film that gives up says how its server failed, and never with a URL', () => {
@@ -468,7 +468,7 @@ describe('SnowPlayerPlugin.kt — a stream that starts fine keeps playing', () =
     expect(err.slice(0, reconnectAt).match(/releaseWifiIfStopped/g)).toHaveLength(2);
     expect(err).toMatch(/releaseWifiIfStopped\(s\)\s*val ev = JSObject\(\)\.put\("screenId", screenId\)\s*\.put\("code", "PLEX_TRANSCODE_HTTP"\)/);
     // The plugin's own give-up (a channel's 20, or a Backups film's watchdog).
-    expect(body('private fun reconnect(')).toMatch(/if \(s\.reconnectAttempts >= MAX_RECONNECTS\) \{\s*releaseWifiIfStopped\(s\)\s*notifyListeners\(/);
+    expect(body('private fun reconnect(')).toMatch(/if \(busyStatus == null && s\.reconnectAttempts >= MAX_RECONNECTS\) \{\s*releaseWifiIfStopped\(s\)\s*notifyListeners\(/);
   });
 });
 
@@ -520,7 +520,7 @@ describe('SnowPlayerPlugin.kt — the start-up hold of a film started part-way (
   it('the hold decides by PreBufferRule, every tick, from the player\'s own numbers', () => {
     const hold = plugin.slice(plugin.indexOf('private fun schedulePreBuffer('), plugin.indexOf('private fun buildMediaItem('));
     expect(hold).toContain('flowAt = PreBufferRule.flowStart(flowAt, now, midFile, bufMs, ready)');
-    expect(hold).toMatch(/PreBufferRule\.isDone\(\s*midFile, elapsed, flowAt, now, bufMs, ready,\s*loading = p\.isLoading, ended = state == Player\.STATE_ENDED, uhd = uhd,\s*\)/);
+    expect(hold).toMatch(/PreBufferRule\.isDone\(\s*midFile, elapsed, flowAt, now, bufMs, ready,\s*loading = PreBufferRule\.loadingFor\(uhd, p\.isLoading, s\.loadControl\?\.wantsMore == true\),\s*ended = state == Player\.STATE_ENDED, uhd = uhd,\s*\)/);
     // 4K: from the load control, and the indicator gets its longer limit.
     expect(hold).toContain('val uhd = s.loadControl?.uhd == true');
     expect(hold).toContain('.put("maxWaitMs", PreBufferRule.maxWaitMs(uhd))');
@@ -535,12 +535,51 @@ describe('SnowPlayerPlugin.kt — the start-up hold of a film started part-way (
     expect(rule).toContain('return flowAt > 0L && now - flowAt >= MAX_WAIT_MS');
     expect(rule).toContain('return if (bufferedMs > 0L || ready) now else 0L');
   });
-  it('a 4K film waits for a steady buffer: after the same 10 s of filling, 20 s in hand, or 30 s of filling at most (45 s in all part-way)', () => {
-    expect(rule).toContain('const val UHD_START_MS = 20000L');
-    expect(rule).toContain('const val UHD_MAX_WAIT_MS = 30000L');
-    expect(rule).toContain('const val UHD_MID_FILE_CAP_MS = 45000L');
+  it('a 4K film waits for a steady buffer: 25 s in hand, or 40 s of filling at most (55 s in all part-way)', () => {
+    expect(rule).toContain('const val UHD_START_MS = 25000L');
+    expect(rule).toContain('const val UHD_MAX_WAIT_MS = 40000L');
+    expect(rule).toContain('const val UHD_MID_FILE_CAP_MS = 55000L');
+    // A server pausing between bursts is not a full buffer for a 4K film: only the load control stopping is.
+    expect(rule).toContain('playerLoading || (uhd && controlWantsMore)');
+    const hold = plugin.slice(plugin.indexOf('private fun schedulePreBuffer('), plugin.indexOf('private fun buildMediaItem('));
+    expect(hold).toContain('loading = PreBufferRule.loadingFor(uhd, p.isLoading, s.loadControl?.wantsMore == true)');
     expect(rule).toMatch(/if \(uhd\) \{\s*val filling = if \(!midFile\) sinceLoadMs else if \(flowAt > 0L\) now - flowAt else 0L\s*if \(filling >= MAX_WAIT_MS && bufferedMs >= UHD_START_MS\) return true\s*if \(filling >= UHD_MAX_WAIT_MS\) return true\s*return midFile && sinceLoadMs >= UHD_MID_FILE_CAP_MS\s*\}/);
     // The target and the "full" rule come first, for 4K too.
     expect(rule.indexOf('if (ready && !loading && bufferedMs >= FULL_MIN_MS) return true')).toBeLessThan(rule.indexOf('if (uhd) {'));
+  });
+});
+
+describe('a film whose server refuses with a 5xx (ServerBusyRule.kt)', () => {
+  it('the hook says the server is busy while the plugin retries, and clears it when it plays again', async () => {
+    const { result } = mount({ url: FILM, live: false });
+    await waitFor(() => expect(loads()).toHaveLength(1));
+    await waitFor(() => expect(listeners.get('playerState')?.length).toBeGreaterThan(0));
+    expect(result.current.serverBusy).toBeNull();
+    fire('playerState', { screenId: 'main', state: 'buffering', reconnect: true, serverBusy: true, httpStatus: 503 });
+    expect(result.current.serverBusy).toBe(503);
+    // A plain reconnect (no 5xx) is not the server being busy.
+    fire('playerState', { screenId: 'main', state: 'buffering', reconnect: true });
+    expect(result.current.serverBusy).toBeNull();
+    fire('playerState', { screenId: 'main', state: 'buffering', reconnect: true, serverBusy: true, httpStatus: 502 });
+    fire('playerState', { screenId: 'main', playing: true });
+    expect(result.current.serverBusy).toBeNull();
+    // No extra loads: the plugin retries by itself.
+    expect(loads()).toHaveLength(1);
+  });
+
+  it('the plugin retries a film\'s 5xx quietly, uncounted, with a growing wait, before the usual give-up', () => {
+    const err = plugin.slice(plugin.indexOf('override fun onPlayerError('), plugin.indexOf('override fun onTracksChanged('));
+    const busy = err.indexOf('ServerBusyRule.isServerError(httpStatus)');
+    expect(busy).toBeGreaterThan(0);
+    expect(busy).toBeLessThan(err.indexOf('val vodSpent'));
+    expect(err).toMatch(/if \(!s\.isLive && s\.currentUrl != null && ServerBusyRule\.isServerError\(httpStatus\)\) \{[\s\S]*?ServerBusyRule\.keepsTrying\(live = false, httpStatus = httpStatus, sinceFirstMs = now - s\.busySinceMs\)[\s\S]*?reconnect\(s, screenId, httpRestartReason\(error, httpStatus\), ServerBusyRule\.retryDelayMs\(s\.busyTries\), busyStatus = httpStatus\)\s*return/);
+    const rc = plugin.slice(plugin.indexOf('private fun reconnect('), plugin.indexOf('private fun giveUpOffAir('));
+    expect(rc).toContain('if (busyStatus == null) s.reconnectAttempts++');
+    expect(rc).toContain('if (busyStatus != null) ev.put("serverBusy", true).put("httpStatus", busyStatus)');
+    // The connection cap the refusals lowered comes back for the try.
+    expect(rc).toContain('if (busyStatus != null && s.rangeFetch) s.rangeShared?.newLoad()');
+    // A picture ends the run.
+    const ff = plugin.slice(plugin.indexOf('override fun onRenderedFirstFrame('), plugin.indexOf('override fun onPlayerError('));
+    expect(ff).toContain('s.busySinceMs = 0L');
   });
 });

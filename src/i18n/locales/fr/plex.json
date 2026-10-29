@@ -105,6 +105,7 @@
     "buffering": {
       "checking": "Vérification…",
       "headline": "Mise en mémoire tampon…",
+      "serverBusy": "Le serveur Plex n'envoie rien pour l'instant (occupé) — nouvel essai…",
       "measuring": "Mesure de votre connexion…",
       "backToNormal": "Retour à la normale",
       "timer": "Mise en mémoire tampon · {{seconds}} s",

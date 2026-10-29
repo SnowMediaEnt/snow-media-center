@@ -92,8 +92,10 @@ interface UseNativePlayerArgs {
   onLiveStall?: () => void;
   /** What plays, for Device Health's stall and error lines (lib/deviceHealth):
    *  the kind and the channel's or title's name (never an address). Left
-   *  out: 'live' or 'vod' by `live`, no name. */
-  health?: { context: HealthContext; title?: string | null } | null;
+   *  out: 'live' or 'vod' by `live`, no name. `neededKbps`: what the stream
+   *  needs, when the section knows it (a Plex file's bit rate), so a stall
+   *  can be judged against it. */
+  health?: { context: HealthContext; title?: string | null; neededKbps?: number | null } | null;
 }
 
 /** A buffering this soon after a seek, a Go live or a pause is the jump's, not a stall. */
@@ -116,6 +118,10 @@ export const isOffAirAnswer = (code: string | undefined, httpStatus: number | nu
 export interface NativePlayerState {
   controller: VideoController | null;
   buffering: boolean;
+  /** A film's server is refusing with a server error (5xx, e.g. 503 busy)
+   *  and the player keeps retrying quietly: the HTTP status, else null.
+   *  Cleared when it plays again (or on a new load). */
+  serverBusy: number | null;
   /** Paused on purpose — by any remote, the phone, or the system. Unlike the
    *  controller's play state this stays false through a stall. */
   paused: boolean;
@@ -174,6 +180,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     return () => window.clearInterval(id);
   }, [active]);
   const [buffering, setBuffering] = useState(false);
+  const [serverBusy, setServerBusy] = useState<number | null>(null);
   const [paused, setPaused] = useState(false);
   const [error, setError] = useState<NativePlayerError | null>(null);
   // The stream whose load went out last: what an error is stamped with (the
@@ -214,9 +221,9 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   cbLiveStallRef.current = onLiveStall;
   const healthRef = useRef(health);
   healthRef.current = health;
-  const healthNow = () => ({ context: healthRef.current?.context ?? (liveRef.current ? 'live' as const : 'vod' as const), title: healthRef.current?.title ?? null });
-  // The name can arrive after the load (a list still loading): kept current.
-  const healthKey = active ? `${health?.context ?? ''}|${health?.title ?? ''}` : '';
+  const healthNow = () => ({ context: healthRef.current?.context ?? (liveRef.current ? 'live' as const : 'vod' as const), title: healthRef.current?.title ?? null, neededKbps: healthRef.current?.neededKbps ?? null });
+  // The name (and the bit rate) can arrive after the load (a list still loading): kept current.
+  const healthKey = active ? `${health?.context ?? ''}|${health?.title ?? ''}|${health?.neededKbps ?? ''}` : '';
   useEffect(() => {
     if (!healthKey) return;
     try { setNowPlaying(healthNow()); } catch { /* ignore */ }
@@ -371,6 +378,9 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
           const notOwnStall = data.reconnect === true || data.rewindBuffer === true;
           if (data.state === 'buffering') {
             setBuffering(true); try { diagBuffering(true); } catch { /* ignore */ }
+            // A film's server refusing (5xx): the plugin retries quietly; the
+            // section shows a slim line instead of only the spinner.
+            if (data.reconnect === true) setServerBusy(data.serverBusy === true && typeof data.httpStatus === 'number' ? data.httpStatus : null);
             // A live channel that had played runs dry: a real stall (never the
             // start-up fill, a seek's or Go live's refill, or after a pause).
             if (liveRef.current && !notOwnStall && playedThisLoadRef.current && !inStallRef.current && !pausedNowRef.current
@@ -379,16 +389,17 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
               try { cbLiveStallRef.current?.(); } catch { /* ignore */ }
             }
           }
-          else if (data.state === 'ready') { inStallRef.current = false; setBuffering(false); try { diagBuffering(false); } catch { /* ignore */ } }
+          else if (data.state === 'ready') { inStallRef.current = false; setServerBusy(null); setBuffering(false); try { diagBuffering(false); } catch { /* ignore */ } }
           else if (data.state === 'ended') { markStreaming(false); quietOff(); try { diagEnd(); } catch { /* ignore */ } cbEndedRef.current?.(); }
           // Playing is authoritative — clear the spinner immediately.
           if (data.playing === true && startPendingRef.current) { startPendingRef.current = false; markPlaybackStart(); }
-          if (data.playing === true) { playedThisLoadRef.current = true; inStallRef.current = false; exhaustRetriedRef.current = false; setBuffering(false); quietOn(); try { diagBuffering(false); } catch { /* ignore */ } }
+          if (data.playing === true) { playedThisLoadRef.current = true; inStallRef.current = false; exhaustRetriedRef.current = false; setServerBusy(null); setBuffering(false); quietOn(); try { diagBuffering(false); } catch { /* ignore */ } }
           if (typeof data.playing === 'boolean') markStreaming(data.playing);
         }));
         if (gone) return;
         errH = keep(await SnowPlayer.addListener('playerError', (data) => {
           if ((data as { screenId?: string }).screenId && (data as { screenId?: string }).screenId !== 'main') return;
+          setServerBusy(null);
           markStreaming(false);
           quietOff();
           try { diagEnd(); } catch { /* ignore */ }
@@ -475,6 +486,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     playedThisLoadRef.current = false;
     inStallRef.current = false;
     setBuffering(true);
+    setServerBusy(null);
     // A new stream (or a reload) starts playing.
     setPaused(false);
     pausedNowRef.current = false;
@@ -625,6 +637,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
       setController(null);
     }
     setBuffering(false);
+    setServerBusy(null);
     setPaused(false);
     pausedNowRef.current = false;
     setError(null);
@@ -728,7 +741,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   }, [active, background, live, skipKeys]);
 
   return useMemo(
-    () => ({ controller, buffering, paused, error, audioWarning, engineNotice, retry, loads: retryNonce, seekTo, getPosition }),
-    [controller, buffering, paused, error, audioWarning, engineNotice, retry, retryNonce, seekTo, getPosition],
+    () => ({ controller, buffering, serverBusy, paused, error, audioWarning, engineNotice, retry, loads: retryNonce, seekTo, getPosition }),
+    [controller, buffering, serverBusy, paused, error, audioWarning, engineNotice, retry, retryNonce, seekTo, getPosition],
   );
 }

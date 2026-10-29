@@ -278,6 +278,7 @@ export function verdictWords(v: HealthVerdict, d: Record<string, HealthValue>): 
     }
     case 'server': {
       const http = num(d.httpStatus);
+      if (http != null && http >= 500 && http <= 599) return `the server refused (${http})`;
       if (http != null) return `stream server answered ${http}`;
       return `server sent ${mbps(num(d.arrivalKbps))}${num(d.neededKbps) != null ? ` of ${mbps(num(d.neededKbps))} needed` : ''}`;
     }
@@ -354,7 +355,9 @@ export function statsData(s: PlayerStats | null): Record<string, HealthValue> {
     droppedFramesTotal: s.droppedFrames,
     cpuPct: s.cpuPct,
     pssMb: s.pssMb,
-    httpStatus: s.httpStatus ?? null,
+    // The player's give-up status, or one a request got recently (a stall
+    // while the server refuses, before the player gives up).
+    httpStatus: s.httpStatus ?? s.recentHttpStatus ?? null,
     errorCode: s.lastError,
     engine: s.engine,
     loadProfile: s.loadProfile,
@@ -367,12 +370,19 @@ export function statsData(s: PlayerStats | null): Record<string, HealthValue> {
 
 // --- what is playing ----------------------------------------------------------------
 
-interface NowPlaying { context: HealthContext; title: string | null }
+interface NowPlaying {
+  context: HealthContext;
+  title: string | null;
+  /** What the stream needs (kbps), when the section knows it and the
+   *  player's stats can't say (a Plex file's own bit rate). */
+  neededKbps?: number | null;
+}
 let nowPlaying: NowPlaying | null = null;
 
 /** The players say what they play (useNativePlayer's `health`), for the stall and error lines. */
 export function setNowPlaying(np: NowPlaying | null): void {
-  nowPlaying = np ? { context: np.context, title: np.title ? np.title.slice(0, TITLE_MAX) : null } : null;
+  const need = np && typeof np.neededKbps === 'number' && Number.isFinite(np.neededKbps) && np.neededKbps > 0 ? Math.round(np.neededKbps) : null;
+  nowPlaying = np ? { context: np.context, title: np.title ? np.title.slice(0, TITLE_MAX) : null, ...(need != null ? { neededKbps: need } : {}) } : null;
 }
 export function getNowPlaying(): NowPlaying | null { return nowPlaying; }
 
@@ -725,6 +735,9 @@ export async function onStallOver(r: StallReport): Promise<void> {
     hostMs: r.hostMs,
     diagVerdict: r.verdict,
   };
+  // The player's stats can't always tell what the stream needs (a Plex file
+  // played as it is): the section's own figure then.
+  if (data.neededKbps == null && np?.neededKbps != null) data.neededKbps = np.neededKbps;
   // The player's rate mid-stall is the arrival that counted.
   if (r.nowKbps != null) data.arrivalKbps = r.nowKbps;
   if (r.probeKbps != null) data.internetMbps = Math.round(r.probeKbps / 100) / 10;
@@ -761,7 +774,9 @@ export async function notePlayerError(err: PlayerErrorInfo): Promise<void> {
       return;
     }
     const [stats, vitals] = await Promise.all([readStats(), readVitals()]);
-    const data: Record<string, HealthValue> = { ...vitalsData(vitals), ...statsData(stats), httpStatus: http, errorCode: err.code ?? null };
+    const sd = statsData(stats);
+    const data: Record<string, HealthValue> = { ...vitalsData(vitals), ...sd, httpStatus: http ?? sd.httpStatus ?? null, errorCode: err.code ?? null };
+    if (data.neededKbps == null && np?.neededKbps != null) data.neededKbps = np.neededKbps;
     const verdict = decideVerdict({ kind: 'player_error', data });
     const what = np?.title || CONTEXT_WORD[context];
     recordHealthEvent({

@@ -269,6 +269,16 @@ class SnowPlayerPlugin : Plugin() {
         // The HTTP status behind the last ERROR_CODE_IO_BAD_HTTP_STATUS (a
         // number only, never the address), with lastError; null otherwise.
         var lastHttpStatus: Int? = null
+        // The last server error (5xx) any request of this stream got (the
+        // player's own quiet retries included, which never reach
+        // onPlayerError) and when: a stall while the server refuses is the server's
+        // (deviceHealth), even before the player gives up. Loader thread.
+        @Volatile var recentHttpStatus: Int? = null
+        @Volatile var recentHttpAtMs: Long = 0L
+        // A film's run of server errors (5xx) while it plays: when the first
+        // came and how many quiet retries since (ServerBusyRule). 0: none.
+        var busySinceMs: Long = 0L
+        var busyTries: Int = 0
         // Frames of this load: the decoder sessions that have ended, plus
         // the running one's own counters (see the analytics listener).
         var framesRendered: Long = 0L
@@ -453,6 +463,8 @@ class SnowPlayerPlugin : Plugin() {
         // error each time (a customer's box: 6 restarts, "Buffer 0.0 s").
         private const val TRANSCODE_HTTP_TRIES = 2
         private const val RECONNECT_DELAY_MS = 500L
+        /** How long a request's error status counts as "recent" in the stats. */
+        private const val RECENT_HTTP_MS = 90_000L
         /** How often a Live buffer catch-up looks at what is buffered (LiveCushion). */
         private const val CATCH_UP_TICK_MS = 500L
         private const val FIRST_FRAME_TIMEOUT_MS = 8000L
@@ -633,6 +645,10 @@ class SnowPlayerPlugin : Plugin() {
             s.lastRestartReason = null
             s.lastError = null
             s.lastHttpStatus = null
+            s.recentHttpStatus = null
+            s.recentHttpAtMs = 0L
+            s.busySinceMs = 0L
+            s.busyTries = 0
         }
     }
 
@@ -666,6 +682,10 @@ class SnowPlayerPlugin : Plugin() {
         s.lastRestartReason = null
         s.lastError = null
         s.lastHttpStatus = null
+        s.recentHttpStatus = null
+        s.recentHttpAtMs = 0L
+        s.busySinceMs = 0L
+        s.busyTries = 0
         s.videoDecoderName = null
         s.audioDecoderName = null
         s.videoFormatOf = null
@@ -1027,8 +1047,8 @@ class SnowPlayerPlugin : Plugin() {
      *  before 25 s — or the file is shorter), or has had its time to fill
      *  (PreBufferRule: 10 s from load() for a start from 0:00; for a start
      *  part-way into the file, `midFile`, 10 s from the first video at the
-     *  resume point, 30 s in all at most; a 4K film until it has 20 s, or
-     *  30 s of filling at most). Live streams keep the legacy
+     *  resume point, 30 s in all at most; a 4K film until it has 25 s, or
+     *  40 s of filling at most). Live streams keep the legacy
      *  behavior (start at once). The main slot reports progress as
      *  'preBuffer' events every tick, so the WebView can show "Getting
      *  ready…" instead of a still frame. */
@@ -1057,7 +1077,8 @@ class SnowPlayerPlugin : Plugin() {
                 // the screen alone, never the start-up buffer rules.
                 val done = (modeOnly || PreBufferRule.isDone(
                     midFile, elapsed, flowAt, now, bufMs, ready,
-                    loading = p.isLoading, ended = state == Player.STATE_ENDED, uhd = uhd,
+                    loading = PreBufferRule.loadingFor(uhd, p.isLoading, s.loadControl?.wantsMore == true),
+                    ended = state == Player.STATE_ENDED, uhd = uhd,
                 )) && !(s.modeWaitUntilMs != 0L && now < s.modeWaitUntilMs)
                 if (screenId == MAIN) {
                     // The indicator's clock: the filling time, which for a
@@ -1115,10 +1136,14 @@ class SnowPlayerPlugin : Plugin() {
     }
 
     /** `reason` is what the stats panel shows as the last restart; `delayMs`
-     *  the wait before it (a dead-looking channel's are spread out, DeadStreamRule). */
-    private fun reconnect(s: PlayerSlot, screenId: String, reason: String, delayMs: Long = RECONNECT_DELAY_MS) {
+     *  the wait before it (a dead-looking channel's are spread out, DeadStreamRule).
+     *  `busyStatus`: a film's server refusing with this 5xx (ServerBusyRule):
+     *  not counted against the reconnects, told to the WebView (its slim
+     *  "server isn't sending" line), and the connection cap the refusals
+     *  lowered is restored for the try. */
+    private fun reconnect(s: PlayerSlot, screenId: String, reason: String, delayMs: Long = RECONNECT_DELAY_MS, busyStatus: Int? = null) {
         val url = s.currentUrl ?: return
-        if (s.reconnectAttempts >= MAX_RECONNECTS) {
+        if (busyStatus == null && s.reconnectAttempts >= MAX_RECONNECTS) {
             releaseWifiIfStopped(s)
             notifyListeners(
                 "playerError",
@@ -1128,12 +1153,14 @@ class SnowPlayerPlugin : Plugin() {
             )
             return
         }
-        s.reconnectAttempts++
+        if (busyStatus == null) s.reconnectAttempts++
         s.restarts++
         s.lastRestartReason = reason
         s.reconnecting = true
         endCatchUp(s, "reconnect")
-        notifyListeners("playerState", JSObject().put("screenId", screenId).put("state", "buffering").put("reconnect", true))
+        val ev = JSObject().put("screenId", screenId).put("state", "buffering").put("reconnect", true)
+        if (busyStatus != null) ev.put("serverBusy", true).put("httpStatus", busyStatus)
+        notifyListeners("playerState", ev)
         s.reconnectRunnable?.let { mainHandler.removeCallbacks(it) }
         val r = Runnable {
             val p = s.player ?: return@Runnable
@@ -1146,6 +1173,7 @@ class SnowPlayerPlugin : Plugin() {
                 p.playWhenReady = true
                 scheduleWatchdog(s, screenId)
             } else {
+                if (busyStatus != null && s.rangeFetch) s.rangeShared?.newLoad()
                 resumeVod(s, screenId, p, url)
                 scheduleWatchdog(s, screenId) // not for Plex (see there)
             }
@@ -1316,7 +1344,8 @@ class SnowPlayerPlugin : Plugin() {
 
     /** What the stats panel shows as "how far ahead the player reads": the
      *  profile, and for a 4K film what it gets on top (its own byte budget
-     *  where the heap allows one, and the 10 s restart after a stall). */
+     *  where the heap allows one, its 25 s start and its 18 s restart
+     *  after a stall). */
     private fun loadProfileOf(s: PlayerSlot): String? {
         val base = s.loadProfile ?: return null
         val lc = s.loadControl
@@ -1326,7 +1355,7 @@ class SnowPlayerPlugin : Plugin() {
         }
         if (lc == null || !lc.uhd) return base
         val budget = if (lc.uhdBudgetBytes > 0 && lc.budgetBytes > 0) "${lc.budgetBytes / MIB} MB, " else ""
-        return "$base · 4K: ${budget}${UhdBuffer.REBUFFER_MS / 1000} s restart"
+        return "$base · 4K: ${budget}${PreBufferRule.UHD_START_MS / 1000} s start, ${UhdBuffer.REBUFFER_MS / 1000} s restart"
     }
 
     private fun isLowRamBox(ctx: Context): Boolean {
@@ -1975,6 +2004,10 @@ class SnowPlayerPlugin : Plugin() {
                                 val address = data.dataType == C.DATA_TYPE_MANIFEST ||
                                     (data.dataType == C.DATA_TYPE_MEDIA && data.trackFormat == null)
                                 s.lastHttpAddress = address
+                                if (ServerBusyRule.isServerError(e.responseCode)) {
+                                    s.recentHttpStatus = e.responseCode
+                                    s.recentHttpAtMs = SystemClock.elapsedRealtime()
+                                }
                                 if (DeadStreamRule.skipLoaderRetry(s.isLive, s.playedThisLoad, e.responseCode, address)) return C.TIME_UNSET
                             }
                             return super.getRetryDelayMsFor(loadErrorInfo)
@@ -2180,6 +2213,8 @@ class SnowPlayerPlugin : Plugin() {
                 s.deadStreak = 0
                 openShutterIfReady(s)
                 s.reconnectAttempts = 0
+                s.busySinceMs = 0L
+                s.busyTries = 0
                 s.watchdogRunnable?.let { mainHandler.removeCallbacks(it) }
                 s.watchdogRunnable = null
             }
@@ -2286,6 +2321,23 @@ class SnowPlayerPlugin : Plugin() {
                     }
                     if (kind != null && !s.playedThisLoad && s.reconnectAttempts < MAX_RECONNECTS) {
                         reconnect(s, screenId, httpRestartReason(error, httpStatus), DeadStreamRule.retryDelayMs(s.deadStreak, sinceLoad))
+                        return
+                    }
+                }
+                // A film whose server refuses with a server error (5xx: busy,
+                // overloaded, a proxy in front of it failing) once its buffer
+                // has run out: the same place again, quietly, with a growing
+                // wait, for up to ServerBusyRule.MAX_MS from the first one,
+                // without spending the reconnects below. A busy remote Plex
+                // server answered 503 for about two minutes and then sent
+                // again by itself (2026-10-28). The WebView shows a slim line
+                // saying so (playerState serverBusy).
+                if (!s.isLive && s.currentUrl != null && ServerBusyRule.isServerError(httpStatus)) {
+                    val now = SystemClock.elapsedRealtime()
+                    if (s.busySinceMs == 0L) { s.busySinceMs = now; s.busyTries = 0 }
+                    if (ServerBusyRule.keepsTrying(live = false, httpStatus = httpStatus, sinceFirstMs = now - s.busySinceMs)) {
+                        s.busyTries++
+                        reconnect(s, screenId, httpRestartReason(error, httpStatus), ServerBusyRule.retryDelayMs(s.busyTries), busyStatus = httpStatus)
                         return
                     }
                 }
@@ -2739,7 +2791,7 @@ class SnowPlayerPlugin : Plugin() {
                 p.playWhenReady = true
             } else {
                 // VOD: pre-buffer up to 25 s (at most 10 s wall-clock; a 4K
-                // film until 20 s, 30 s at most) before
+                // film until 25 s, 40 s at most) before
                 // starting so slow Plex servers don't cause the "playing →
                 // immediate rebuffer" flash (see schedulePreBuffer).
                 s.holding = true
@@ -2948,6 +3000,10 @@ class SnowPlayerPlugin : Plugin() {
         o.put("lastRestartReason", s?.lastRestartReason ?: JSONObject.NULL)
         o.put("lastError", s?.lastError ?: JSONObject.NULL)
         o.put("httpStatus", s?.lastHttpStatus ?: JSONObject.NULL)
+        // A server error (5xx) a request of this stream got in the last 90 s, the
+        // player's own quiet retries included (deviceHealth's stall verdict).
+        val recentHttp = s?.recentHttpStatus?.takeIf { SystemClock.elapsedRealtime() - s.recentHttpAtMs <= RECENT_HTTP_MS }
+        o.put("recentHttpStatus", recentHttp ?: JSONObject.NULL)
         o.put("loadProfile", s?.let { loadProfileOf(it) } ?: JSONObject.NULL)
         // A raised Live buffer caught up by playing at 0.93x: "running", or
         // how the last one ended and after how long ("filled after 96 s").
@@ -4102,8 +4158,9 @@ class SnowPlayerPlugin : Plugin() {
  * selected; see UhdBuffer) gets on top:
  * - its own byte budget, `uhdBudgetBytes`, where the library's own budget is
  *   in use (calculateTargetBufferBytes; 0 keeps the library's);
- * - after a stall, 10 s buffered before it plays on instead of 5 s, or less
- *   when the buffer can't take more (the budget spent).
+ * - after a stall, UhdBuffer.REBUFFER_MS (18 s) buffered before it plays on
+ *   instead of 5 s, or less when the buffer can't take more (the budget
+ *   spent).
  * Anything else — 1080p, a conversion, Live TV — behaves exactly as the
  * DefaultLoadControl (or the floored one) built here before.
  */
@@ -4162,6 +4219,9 @@ private class SteadyLoadControl(
         private set
     /** What shouldContinueLoading last answered. */
     @Volatile private var loadingNow: Boolean = true
+    /** Whether this load control still wants more buffered (main thread
+     *  reads it for the start-up hold, PreBufferRule.loadingFor). */
+    val wantsMore: Boolean get() = loadingNow
 
     override fun onTracksSelected(
         parameters: LoadControl.Parameters,

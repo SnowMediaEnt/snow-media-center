@@ -105,6 +105,7 @@
     "buffering": {
       "checking": "Comprobando…",
       "headline": "Cargando…",
+      "serverBusy": "El servidor de Plex no está enviando ahora mismo (ocupado) — reintentando…",
       "measuring": "Midiendo tu conexión…",
       "backToNormal": "Todo normal otra vez",
       "timer": "Cargando · {{seconds}} s",

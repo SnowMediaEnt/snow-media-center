@@ -104,6 +104,7 @@
     "buffering": {
       "checking": "Wird geprüft…",
       "headline": "Puffert…",
+      "serverBusy": "Der Plex-Server sendet gerade nicht (ausgelastet) — neuer Versuch…",
       "measuring": "Deine Verbindung wird gemessen…",
       "backToNormal": "Wieder normal",
       "timer": "Puffert · {{seconds}} s",
