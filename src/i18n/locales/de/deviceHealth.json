@@ -17,6 +17,7 @@
       "verdict": {
         "fine": "Kein Problem gefunden: Der Stream kam mit {{arrival}} an und dein Internet hat {{internet}}.",
         "unclear": "Wir konnten es nicht eingrenzen: Der Stream kam mit {{arrival}} an, dein Internet hat {{internet}}. Snow Media sieht sich die Details an.",
+        "neverStarted": "Der Sender ist nie gestartet: Der Stream-Server hat in 30 Sekunden nichts gesendet. Dein Internet hat {{internet}}, es liegt also am Stream, nicht an deiner Box.",
         "notPlaying": "Während des Tests lief nichts. Dein Internet hat {{internet}}.",
         "overloadMemory": "Deine Box ist überlastet: Nur {{mem}} MB Speicher waren frei. Ein Neustart der Box hilft meistens.",
         "overloadCpu": "Deine Box ist überlastet: Der Prozessor lief bei {{cpu}} %. Ein Neustart der Box hilft meistens.",

@@ -17,6 +17,7 @@
       "verdict": {
         "fine": "No encontramos ningún problema: la transmisión llegó a {{arrival}} y tu internet tiene {{internet}}.",
         "unclear": "No pudimos determinarlo: la transmisión llegó a {{arrival}} y tu internet tiene {{internet}}. Snow Media revisará los detalles.",
+        "neverStarted": "El canal nunca empezó: el servidor de la emisión no envió nada en 30 segundos. Tu internet va a {{internet}}, así que es la emisión, no tu equipo.",
         "notPlaying": "No se reprodujo nada durante la prueba. Tu internet tiene {{internet}}.",
         "overloadMemory": "Tu equipo está sobrecargado: solo quedaban {{mem}} MB de memoria libre. Reiniciar el equipo suele ayudar.",
         "overloadCpu": "Tu equipo está sobrecargado: el procesador estuvo al {{cpu}} %. Reiniciar el equipo suele ayudar.",

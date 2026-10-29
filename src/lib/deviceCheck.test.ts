@@ -191,6 +191,20 @@ describe('summary and plain verdict', () => {
     expect(verdict).toBe('internet');
     expect(plainVerdict(verdict, d, false).key).toBe('deviceHealth.check.verdict.weakWifi');
   });
+  it('a channel that loaded but never started is the stream server, not the box (seen on a Fire TV: 174% CPU across 4 cores)', () => {
+    const rows = Array.from({ length: 30 }, () => ({
+      stats: { state: 'buffering', playing: false, bufferedAheadSec: 0, arrivalKbps: 0, nowKbps: 0, videoFormat: null, droppedFrames: null, cpuPct: 174 } as never,
+      vitals: { memAvailMb: 900, memTotalMb: 1900, wifiRssi: -55, cpuCores: 4 },
+      stalled: false,
+    }));
+    const d = summarize(rows, 125_400);
+    expect(d.neverStarted).toBe(true);
+    const j = judge(d);
+    expect(j.verdict).toBe('server');
+    expect(j.fine).toBe(false);
+    expect(plainVerdict(j.verdict, d, j.fine)).toEqual({ key: 'deviceHealth.check.verdict.neverStarted', params: { internet: '125.4 Mb/s' } });
+  });
+
   it('nothing played at all says so', () => {
     const d = summarize([{ stats: null, vitals: {}, stalled: false }], 20_000);
     expect(plainVerdict(judge(d).verdict, d, false).key).toBe('deviceHealth.check.verdict.notPlaying');

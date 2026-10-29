@@ -23,7 +23,7 @@ import { currentViewer, loadWatchHistory } from '@/lib/watchHistory';
 import { recentChannelsFrom } from '@/lib/recentChannels';
 import { measureInternetKbps, formatMbps } from '@/lib/bufferDiagnostics';
 import {
-  STARVED_SHARE, checkAllowedToday, decideVerdict, getNowPlaying, neededKbpsOf, overloadReason, readStats, readVitals, sendCheckNow,
+  STARVED_SHARE, checkAllowedToday, cpuShare, decideVerdict, getNowPlaying, neededKbpsOf, overloadReason, readStats, readVitals, sendCheckNow,
   type HealthContext, type HealthEvent, type HealthValue, type HealthVerdict,
 } from '@/lib/deviceHealth';
 import { SnowPlayer, hasNativePlayer, type PlayerStats } from '@/capacitor/SnowPlayer';
@@ -131,6 +131,9 @@ export function summarize(rows: Sampled[], internetKbps: number | null): Record<
     wifiFreqMhz: v?.wifiFreqMhz ?? null,
     wired: v?.wired ?? null,
     online: v?.online ?? null,
+    cpuCores: v?.cpuCores ?? null,
+    // A stream was up (loaded) the whole time but never played or got data.
+    neverStarted: buf.length > 0 && !played && Math.max(0, ...buf) < 1 && (arr.length === 0 || Math.max(...arr) < 100),
     internetMbps: internetKbps != null ? round1(internetKbps / 1000) : null,
     engine: last?.stats?.engine ?? null,
     httpStatus: last?.stats?.httpStatus ?? null,
@@ -145,12 +148,13 @@ export function plainVerdict(verdict: HealthVerdict, d: Record<string, HealthVal
   const internet = num(d.internetMbps) != null ? formatMbps((num(d.internetMbps) as number) * 1000) : '—';
   const arrival = mb(d.avgArrivalKbps);
   const needed = mb(d.neededKbps);
+  if (d.neverStarted === true) return { key: 'deviceHealth.check.verdict.neverStarted', params: { internet } };
   if (d.played === false && num(d.avgArrivalKbps) == null) return { key: 'deviceHealth.check.verdict.notPlaying', params: { internet } };
   switch (verdict) {
     case 'device_overload': {
       const mem = num(d.memAvailMbMin);
-      const cpu = num(d.cpuPctPeak);
-      if (cpu != null && cpu >= 90 && !(d.lowMemory === true)) return { key: 'deviceHealth.check.verdict.overloadCpu', params: { cpu: String(Math.round(cpu)) } };
+      const cpu = cpuShare(d);
+      if (cpu && cpu.share >= 90 && !(d.lowMemory === true)) return { key: 'deviceHealth.check.verdict.overloadCpu', params: { cpu: String(Math.round(cpu.share)) } };
       return { key: 'deviceHealth.check.verdict.overloadMemory', params: { mem: mem != null ? String(Math.round(mem)) : '—' } };
     }
     case 'internet': {

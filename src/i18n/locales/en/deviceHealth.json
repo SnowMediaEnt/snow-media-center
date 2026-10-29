@@ -17,6 +17,7 @@
       "verdict": {
         "fine": "No problem found: the stream came in at {{arrival}} and your internet is {{internet}}.",
         "unclear": "We couldn't pin it down: the stream came in at {{arrival}} and your internet is {{internet}}. Snow Media will look at the details.",
+        "neverStarted": "The channel never started: the stream server sent nothing in 30 seconds. Your internet is {{internet}}, so it's the stream, not your box.",
         "notPlaying": "Nothing played during the check. Your internet is {{internet}}.",
         "overloadMemory": "Your box is overloaded: only {{mem}} MB of memory was free. Restarting the box usually helps.",
         "overloadCpu": "Your box is overloaded: its processor ran at {{cpu}}%. Restarting the box usually helps.",

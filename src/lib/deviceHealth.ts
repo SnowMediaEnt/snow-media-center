@@ -101,7 +101,7 @@ const DATA_KEYS = new Set([
   'firstFrameMs', 'streamKbps', 'internetKbps', 'hostMs', 'diagVerdict', 'reason', 'watching', 'ended',
   // the 30-second check's summary
   'avgBufferedAheadSec', 'minBufferedAheadSec', 'avgArrivalKbps', 'minArrivalKbps', 'cpuPctPeak', 'memAvailMbMin',
-  'seconds', 'played', 'source', 'fine', 'bufferFalling', 'droppedFramesTotal',
+  'seconds', 'played', 'source', 'fine', 'bufferFalling', 'droppedFramesTotal', 'cpuCores', 'neverStarted',
 ]);
 
 // --- privacy -----------------------------------------------------------------------
@@ -198,14 +198,24 @@ export interface VerdictInput {
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
+/** The busiest the processor got as a share of the whole box (cpuPct adds
+ *  up every core, so 174% on a 4-core box is 44%); cores unknown → 4. */
+export function cpuShare(d: Record<string, HealthValue>): { share: number; cores: number } | null {
+  const cpu = num(d.cpuPctPeak) ?? num(d.cpuPct);
+  if (cpu == null) return null;
+  const c = num(d.cpuCores);
+  const cores = c != null && c >= 1 ? Math.round(c) : 4;
+  return { share: Math.min(100, cpu / cores), cores };
+}
+
 /** Why the box looks overloaded, or null. */
 export function overloadReason(d: Record<string, HealthValue>): string | null {
   const avail = num(d.memAvailMb);
   const total = num(d.memTotalMb);
   if (d.lowMemory === true) return `box was low on memory${avail != null ? ` (${Math.round(avail)} MB free)` : ''}`;
   if (avail != null && total != null && total > 0 && avail < 0.12 * total) return `box had ${Math.round(avail)} MB free memory of ${Math.round(total)} MB`;
-  const cpu = num(d.cpuPctPeak) ?? num(d.cpuPct);
-  if (cpu != null && cpu >= 90) return `box CPU at ${Math.round(cpu)}%`;
+  const cpu = cpuShare(d);
+  if (cpu && cpu.share >= 90) return `box processor at ${Math.round(cpu.share)}% of its ${cpu.cores} cores`;
   const dropped = num(d.droppedFrames);
   const arrival = num(d.arrivalKbps);
   const needed = num(d.neededKbps);
@@ -225,6 +235,8 @@ export function decideVerdict({ kind, data: d, diagVerdict, dropped }: VerdictIn
     if (['low_memory', 'anr', 'excessive_resource_usage', 'renderer_killed'].includes(exitReason)) return 'device_overload';
     return overloadReason(d) ? 'device_overload' : 'unknown';
   }
+  // A check whose stream never got going: the stream server sent nothing.
+  if (kind === 'check' && d.neverStarted === true) return 'server';
   if (overloadReason(d)) return 'device_overload';
 
   const arrival = num(d.arrivalKbps);
@@ -309,7 +321,7 @@ export async function readStats(memory = false): Promise<PlayerStats | null> {
 export function vitalsData(v: DeviceVitals | null): Record<string, HealthValue> {
   if (!v) return {};
   const d: Record<string, HealthValue> = {};
-  const keys: Array<keyof DeviceVitals> = ['memAvailMb', 'memTotalMb', 'lowMemory', 'lowRamDevice', 'storageFreeMb', 'wifiRssi', 'wifiLinkMbps', 'wifiFreqMhz', 'wired', 'online', 'uptimeSec', 'appUptimeSec', 'sdk'];
+  const keys: Array<keyof DeviceVitals> = ['memAvailMb', 'memTotalMb', 'lowMemory', 'lowRamDevice', 'storageFreeMb', 'wifiRssi', 'wifiLinkMbps', 'wifiFreqMhz', 'wired', 'online', 'uptimeSec', 'appUptimeSec', 'sdk', 'cpuCores'];
   for (const k of keys) { const x = v[k]; if (x != null) d[k] = x as HealthValue; }
   return d;
 }

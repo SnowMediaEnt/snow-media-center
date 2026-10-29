@@ -6,6 +6,8 @@ import { registerPlugin } from '@capacitor/core';
 export interface DeviceVitals {
   model?: string;
   sdk?: number;
+  /** Processor cores: cpuPct adds them all up. */
+  cpuCores?: number;
   memAvailMb?: number;
   memTotalMb?: number;
   lowMemory?: boolean;

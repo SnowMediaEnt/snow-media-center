@@ -108,7 +108,12 @@ describe('verdict rules', () => {
     expect(v('stall', { lowMemory: true })).toBe('device_overload');
     expect(v('stall', { memAvailMb: 100, memTotalMb: 1000 })).toBe('device_overload');
     expect(v('stall', { memAvailMb: 130, memTotalMb: 1000 })).toBe('unknown');
-    expect(v('stall', { cpuPct: 90 })).toBe('device_overload');
+    // cpuPct adds up every core: judged as a share of the whole box (4 cores when unknown).
+    expect(v('stall', { cpuPct: 90 })).toBe('unknown');
+    expect(v('stall', { cpuPct: 174, cpuCores: 4 })).toBe('unknown');
+    expect(v('stall', { cpuPct: 370, cpuCores: 4 })).toBe('device_overload');
+    expect(v('stall', { cpuPct: 95, cpuCores: 1 })).toBe('device_overload');
+    expect(v('stall', { cpuPct: 360 })).toBe('device_overload');
     expect(v('stall', { droppedFrames: 80, arrivalKbps: 9000, neededKbps: 6000 })).toBe('device_overload');
     expect(v('stall', { droppedFrames: 80, arrivalKbps: 3000, neededKbps: 6000, wired: true })).toBe('server');
   });

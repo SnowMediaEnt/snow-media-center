@@ -50,6 +50,8 @@ class DeviceHealthPlugin : Plugin() {
             val o = JSObject()
             o.put("model", "${Build.MANUFACTURER} ${Build.MODEL}".take(80))
             o.put("sdk", Build.VERSION.SDK_INT)
+            // cpuPct adds up every core (a 4-core box can read 400%).
+            o.put("cpuCores", Runtime.getRuntime().availableProcessors())
             try {
                 val am = ctx.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
                 val mem = ActivityManager.MemoryInfo()

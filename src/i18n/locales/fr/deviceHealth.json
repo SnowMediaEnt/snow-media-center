@@ -17,6 +17,7 @@
       "verdict": {
         "fine": "Aucun problème trouvé : le flux arrivait à {{arrival}} et ton internet est à {{internet}}.",
         "unclear": "Impossible de trancher : le flux arrivait à {{arrival}} et ton internet est à {{internet}}. Snow Media va regarder les détails.",
+        "neverStarted": "La chaîne n'a jamais démarré : le serveur du flux n'a rien envoyé en 30 secondes. Votre internet est à {{internet}}, c'est donc le flux, pas votre boîtier.",
         "notPlaying": "Rien n'a été lu pendant le test. Ton internet est à {{internet}}.",
         "overloadMemory": "Ton boîtier est surchargé : seulement {{mem}} Mo de mémoire libre. Redémarrer le boîtier aide souvent.",
         "overloadCpu": "Ton boîtier est surchargé : son processeur tournait à {{cpu}} %. Redémarrer le boîtier aide souvent.",
