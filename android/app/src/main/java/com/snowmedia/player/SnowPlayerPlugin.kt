@@ -326,6 +326,11 @@ class SnowPlayerPlugin : Plugin() {
         // it is still going once the grace is over (stallStartedAtMs is
         // then the grace's end).
         var stallUncounted: Boolean = false
+        // A film buffering with the film in hand (StuckBufferRule): since
+        // when, the steps taken this run, and the steps of this load (stats).
+        var stuckSinceMs: Long = 0L
+        var stuckSteps: Int = 0
+        var stuckRescues: Int = 0
         // The frame rate the WebView knows for this load (Plex's metadata:
         // a Matroska file never states one to the player); 0 = none. Which
         // source the rate came from is logged once per load.
@@ -697,6 +702,9 @@ class SnowPlayerPlugin : Plugin() {
         s.stallSec = 0.0
         s.stallStartedAtMs = 0L
         s.stallUncounted = false
+        s.stuckSinceMs = 0L
+        s.stuckSteps = 0
+        s.stuckRescues = 0
     }
 
     /**
@@ -749,11 +757,39 @@ class SnowPlayerPlugin : Plugin() {
                     val pos = p.currentPosition
                     if (pos > 0) s.lastPositionMs = pos
                 }
+                if (p != null && slots[MAIN] === s && s.engine == EngineChoice.EXO && checkStuck(s, p)) return
                 mainHandler.postDelayed(this, POSITION_TICK_MS)
             }
         }
         s.positionTickRunnable = r
         mainHandler.postDelayed(r, POSITION_TICK_MS)
+    }
+
+    /** A film buffering with the film in hand (StuckBufferRule), looked at
+     *  on the position tick: a seek to the same place, then a rebuild there.
+     *  True when it rebuilt (the new player has its own tick). */
+    private fun checkStuck(s: PlayerSlot, p: ExoPlayer): Boolean {
+        val buffering = p.playbackState == Player.STATE_BUFFERING
+        if (!buffering) { s.stuckSinceMs = 0L; s.stuckSteps = 0; return false }
+        val aheadMs = (p.bufferedPosition - p.currentPosition).coerceAtLeast(0L)
+        val stuck = StuckBufferRule.stuck(
+            live = s.isLive, playWhenReady = p.playWhenReady, buffering = true,
+            firstFrameSeen = s.firstFrameSeen, holding = s.holding || inModeSwitch(s),
+            loading = p.isLoading, aheadMs = aheadMs,
+        )
+        if (!stuck) { s.stuckSinceMs = 0L; return false }
+        val now = SystemClock.elapsedRealtime()
+        if (s.stuckSinceMs == 0L) { s.stuckSinceMs = now; return false }
+        val step = StuckBufferRule.step(now - s.stuckSinceMs, s.stuckSteps)
+        if (step == StuckBufferRule.Step.NONE) return false
+        Log.w(TAG, "Stuck buffering with ${aheadMs / 1000} s in hand (loading=${p.isLoading}): $step")
+        s.stuckSteps++
+        s.stuckRescues++
+        s.stuckSinceMs = now
+        return when (step) {
+            StuckBufferRule.Step.SEEK -> { p.seekTo(p.currentPosition); false }
+            else -> { rebuildForPicture(s, MAIN); true }
+        }
     }
 
     /** No picture within 8 s → reconnect. Not for a Plex film or episode:
@@ -3036,6 +3072,7 @@ class SnowPlayerPlugin : Plugin() {
         // A rebuffer that began in a switch's grace counts once it outlasts it.
         o.put("stalls", (s?.stalls ?: 0) + (if (s != null && s.stallUncounted && SystemClock.elapsedRealtime() > s.stallStartedAtMs) 1 else 0))
         o.put("stallSec", s?.let { Math.round(it.stallSec * 10.0) / 10.0 } ?: 0.0)
+        o.put("stuckRescues", s?.stuckRescues ?: 0)
         o.put("cpuPct", s?.let { cpuPctSince(it) }?.let { Math.round(it * 10.0) / 10.0 } ?: JSONObject.NULL)
         o.put("pssMb", if (memory) cachedPssMb() else JSONObject.NULL)
         // The screen's refresh rate now, next to the video's frame rate:
