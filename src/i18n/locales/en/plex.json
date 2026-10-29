@@ -202,6 +202,8 @@
       "osdlUnreachable": "Could not reach OpenSubtitles.",
       "upNext": "Up next",
       "upNextIn": "Up next · playing in {{seconds}}",
+      "nextEpisode": "Next episode",
+      "hintNextEpisode": "Next episode: {{episode}} — OK plays it now",
       "promptOkBack": "OK · BACK to keep watching",
       "seekBar": "Seek bar",
       "back10": "Back 10 seconds",

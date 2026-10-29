@@ -4,10 +4,11 @@
 // credits are (Plex's markers, present when the server's intro/credits
 // detection has run) and which episode comes next, watches the playhead, and
 // hands the player one prompt at a time: "Skip Intro" during the intro, then
-// "Up next · playing in 10" at the credits (or 20 s before the end when the
-// server has no credits marker). OK takes it; Back on Up Next keeps watching
-// the credits. When the episode ends with Up Next still standing, the next
-// one starts instead of the player closing.
+// "Up next · playing in 10" at the credits (or, when the server has no
+// credits marker, a minute before the end: upNextLeadSeconds). OK takes it;
+// Back on Up Next keeps watching the credits. When the episode ends with Up
+// Next still standing, the next one starts instead of the player closing.
+// It also hands the control bar its "Next episode" button (onNextAction).
 //
 // Its own component so the once-a-second playhead check re-renders this, not
 // the whole Plex screen. Near the intro and the end it checks every second,
@@ -16,7 +17,8 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import i18n from '@/i18n';
 import { getNextPlexEpisode, getPlexPlayInfo, type PlexEpisode, type PlexPlayInfo } from '@/lib/plex';
 import { noteEpisodeFinishing, noteProgressDiag } from '@/lib/plexProgress';
-import type { PlayerPrompt } from './PlexPlayerOverlay';
+import { upNextLeadSeconds } from '@/lib/upNextLead';
+import type { NextAction, PlayerPrompt } from './PlexPlayerOverlay';
 
 export type NextEpisode = PlexEpisode & { seasonIndex?: number };
 
@@ -35,21 +37,23 @@ interface Props {
   /** Receives the function the player runs when the episode ends: true when
    *  it started the next episode (so the player must not close). */
   registerEnded: (fn: (() => boolean) | null) => void;
+  /** The control bar's "Next episode" button: what it plays and what OK on
+   *  it does, or null while there is no next episode (or not known yet). */
+  onNextAction?: (action: NextAction | null) => void;
 }
 
 const UP_NEXT_SECONDS = 10;
 /** When what is playing could not be read, ask again after these; the last
  *  repeats for as long as the title stays up. */
 const INFO_RETRY_MS = [5_000, 15_000, 30_000, 60_000];
-/** Without a credits marker, Up Next shows this long before the end. */
-const NO_CREDITS_LEAD = 20;
+// Without a credits marker, Up Next shows upNextLeadSeconds before the end.
 
 const episodeLabel = (ep: NextEpisode): string => {
   const se = ep.seasonIndex != null && ep.index != null ? `${i18n.t('plex.episode.code', { season: ep.seasonIndex, episode: ep.index })}  ` : '';
   return `${se}${ep.title}`.trim();
 };
 
-const EpisodeAutoplay = memo(({ active, base, token, ratingKey, getPosition, seekTo, onPrompt, onPlayNext, onInfo, registerEnded }: Props) => {
+const EpisodeAutoplay = memo(({ active, base, token, ratingKey, getPosition, seekTo, onPrompt, onPlayNext, onInfo, registerEnded, onNextAction }: Props) => {
   const [info, setInfo] = useState<PlexPlayInfo | null>(null);
   const [next, setNext] = useState<NextEpisode | null>(null);
   const [pos, setPos] = useState<{ at: number; dur: number; playing: boolean } | null>(null);
@@ -62,6 +66,7 @@ const EpisodeAutoplay = memo(({ active, base, token, ratingKey, getPosition, see
   const onPromptRef = useRef(onPrompt); useEffect(() => { onPromptRef.current = onPrompt; }, [onPrompt]);
   const onPlayNextRef = useRef(onPlayNext); useEffect(() => { onPlayNextRef.current = onPlayNext; }, [onPlayNext]);
   const onInfoRef = useRef(onInfo); useEffect(() => { onInfoRef.current = onInfo; }, [onInfo]);
+  const onNextActionRef = useRef(onNextAction); useEffect(() => { onNextActionRef.current = onNextAction; }, [onNextAction]);
 
   // What this episode is and what follows it. A new title starts clean.
   // What is playing is also handed up (onInfo): PlexSection passes it to
@@ -100,7 +105,7 @@ const EpisodeAutoplay = memo(({ active, base, token, ratingKey, getPosition, see
   // Plex can mark credits at the start of a cold open too; only the ones in
   // the second half are the end credits.
   const credits = useMemo(() => info?.markers.find((m) => m.type === 'credits' && (!info.duration || m.start > info.duration / 2)) ?? null, [info]);
-  const upNextAt = next && pos && pos.dur > 0 ? (credits ? credits.start : pos.dur - NO_CREDITS_LEAD) : null;
+  const upNextAt = next && pos && pos.dur > 0 ? (credits ? credits.start : pos.dur - upNextLeadSeconds(pos.dur)) : null;
 
   // Playhead: every second near the intro and the end, every five otherwise.
   const watching = active && !!info && (!!intro || !!next);
@@ -157,6 +162,27 @@ const EpisodeAutoplay = memo(({ active, base, token, ratingKey, getPosition, see
     return () => window.clearInterval(id);
   }, [inUpNext]);
   useEffect(() => { if (countdown === 0) go(); }, [countdown, go]);
+
+  // The bar's Next episode, any time. Past the Up Next point it is Up Next
+  // taken early (the episode counts as watched, as there); before it, the
+  // reporter's closing save keeps the place the viewer left, as Back would.
+  const skipToNext = useCallback(async () => {
+    if (startedRef.current || !next || !info) return;
+    let at = -1;
+    let dur = 0;
+    try { const p = await getPositionRef.current(); at = p.position; dur = p.duration > 0 ? p.duration : (info.duration ?? 0); } catch { /* unknown: a plain skip */ }
+    if (startedRef.current) return;
+    const cut = credits ? credits.start : dur > 0 ? dur - upNextLeadSeconds(dur) : null;
+    if (cut != null && at >= cut) { go(); return; }
+    startedRef.current = true;
+    onPlayNextRef.current(next, info);
+  }, [next, info, credits, go]);
+  const nextAction = useMemo<NextAction | null>(
+    () => (next && info ? { detail: episodeLabel(next), run: () => { void skipToNext(); } } : null),
+    [next, info, skipToNext],
+  );
+  useEffect(() => { onNextActionRef.current?.(nextAction); }, [nextAction]);
+  useEffect(() => () => onNextActionRef.current?.(null), []);
 
   // The episode ran out with Up Next still standing: straight on.
   useEffect(() => {

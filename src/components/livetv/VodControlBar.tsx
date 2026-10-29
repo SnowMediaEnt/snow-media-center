@@ -17,6 +17,11 @@
 //   mounted; the section behind leaves every key to it while a film plays.
 //   The remote's media keys stay the player's (onMediaKey); Next skips to
 //   the next episode here.
+// - Up Next (a series with an episode after this one, `upNext`): a minute
+//   before the end (5% of a short episode, at least 20 s; upNextLeadSeconds,
+//   as on Plex without a credits marker) "Up next · playing in 10" over the
+//   picture. OK takes it, Back keeps watching; with the series' autoplay off
+//   it waits for OK. Taken, onNext({ finished: true }).
 //
 // Chrome 66: no inset, no aspect-ratio, no gap beyond gap-1..4.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -34,6 +39,7 @@ import { onMediaKey } from '@/lib/mediaKeys';
 import { createSeekSkipper } from '@/lib/skipQueue';
 import { useTouchUI } from '@/lib/phoneMode';
 import { okIsRepeat, okPressMark, okSamePress } from '@/lib/okLatch';
+import { upNextLeadSeconds } from '@/lib/upNextLead';
 
 type Focus = VodBarId | 'timeline';
 type Menu = 'none' | 'cc' | 'audio' | 'vol';
@@ -47,6 +53,10 @@ export const VOD_SCRUB_COMMIT_MS = 1000;
 const SCRUB_STEPS = [10, 30, 60, 120, 300];
 const SCRUB_REPEAT_MS = 700;
 const SEEK_NOTE_MS = 1500;
+/** Up Next counts down this long (while playing) before the next episode. */
+export const VOD_UP_NEXT_SECONDS = 10;
+/** Readings this soon after the episode changed are the last one's. */
+const UP_NEXT_SETTLE_MS = 3000;
 
 const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
 const fmtTime = (sec: number) => {
@@ -74,9 +84,15 @@ interface Props {
   onVolume: (v: number) => void;
   /** Back with nothing else open. Left out: Back passes through. */
   onClose?: () => void;
-  /** A series: the Next episode button (greyed out on the last one). */
-  onNext?: () => void;
+  /** A series: the Next episode button (greyed out on the last one).
+   *  `finished`: taken from Up Next at the end (the episode was watched). */
+  onNext?: (opts?: { finished?: boolean }) => void;
   hasNext?: boolean;
+  /** A series with an episode after this one: the Up Next prompt near the
+   *  end. `detail` names it; `autoplay` false waits for OK. */
+  upNext?: { detail: string; autoplay: boolean } | null;
+  /** Changes with the episode (its stream): Up Next starts over. */
+  srcKey?: string;
   /** The Stats button and panel (the native player's numbers). */
   stats?: boolean;
   /** An error card is up: OK is its Retry's, and the bar stays down. */
@@ -87,7 +103,7 @@ interface Props {
 
 export default function VodControlBar({
   title, controller, tracksTick, paused, getPosition, seekTo, volume, maxVolume, onVolume,
-  onClose, onNext, hasNext = false, stats = false, blocked = false, onAudioPicked,
+  onClose, onNext, hasNext = false, stats = false, blocked = false, onAudioPicked, upNext = null, srcKey,
 }: Props) {
   const { t } = useTranslation();
   // Dolby / DTS passed through to the TV or receiver: no volume here acts on it.
@@ -112,6 +128,16 @@ export default function VodControlBar({
   // ◀ ▶ with the bar hidden: which way, and where the film is now.
   const [seekNote, setSeekNote] = useState<{ dir: 1 | -1; at: number; dur: number } | null>(null);
 
+  // Up Next: where the episode is (read on its own slow timer while there is
+  // a next one), whether the viewer said Back to it, and its countdown.
+  const [upPos, setUpPos] = useState<{ at: number; dur: number } | null>(null);
+  const [upDismissed, setUpDismissed] = useState(false);
+  const [upCount, setUpCount] = useState<number | null>(null);
+  const upStarted = useRef(false);
+  const upPlaying = useRef(true);
+  const upSince = useRef(Date.now());
+  const upNextOn = !!upNext && !!onNext && hasNext && !blocked;
+
   void tracksTick; // the lists below are re-read on every render
   const subs: VideoTrackInfo[] = controller?.getSubtitleTracks() ?? [];
   const auds: VideoTrackInfo[] = controller?.getAudioTracks() ?? [];
@@ -135,11 +161,68 @@ export default function VodControlBar({
   const cur = useRef({
     visible, focus, menu, menuIdx, statsOn, pos, dur, scrubPos, subs, auds, order, disabled,
     controller, getPosition, seekTo, volume, maxVolume, onVolume, onClose, onNext, blocked, onAudioPicked,
+    inUpNext: false,
   });
+  // Up Next stands: the episode is in its last minute (or 5%) and the viewer
+  // has not said Back to it.
+  const inUpNext = upNextOn && !!upPos && upPos.dur > 0 && upPos.at >= upPos.dur - upNextLeadSeconds(upPos.dur) && !upDismissed;
   cur.current = {
     visible, focus, menu, menuIdx, statsOn, pos, dur, scrubPos, subs, auds, order, disabled,
     controller, getPosition, seekTo, volume, maxVolume, onVolume, onClose, onNext, blocked, onAudioPicked,
+    inUpNext,
   };
+
+  // A new episode: Up Next starts over.
+  useEffect(() => {
+    upSince.current = Date.now();
+    upStarted.current = false;
+    setUpPos(null);
+    setUpDismissed(false);
+  }, [srcKey]);
+
+  // The playhead for Up Next: every second near the end, every five before.
+  useEffect(() => {
+    if (!upNextOn) { setUpPos(null); return; }
+    let alive = true;
+    let timer = 0;
+    const tick = async () => {
+      let near = false;
+      try {
+        const p = await cur.current.getPosition();
+        if (!alive) return;
+        upPlaying.current = p.playing;
+        if (Date.now() - upSince.current >= UP_NEXT_SETTLE_MS && p.duration > 0) {
+          setUpPos({ at: p.position, dur: p.duration });
+          near = p.position >= p.duration - upNextLeadSeconds(p.duration) - 15;
+        }
+      } catch { /* not ready yet */ }
+      if (!alive) return;
+      timer = window.setTimeout(() => { void tick(); }, near ? 1000 : 5000);
+    };
+    void tick();
+    return () => { alive = false; window.clearTimeout(timer); };
+  }, [upNextOn, srcKey]);
+
+  const takeUpNext = useCallback(() => {
+    if (upStarted.current) return;
+    upStarted.current = true;
+    setUpCount(null);
+    cur.current.onNext?.({ finished: true });
+  }, []);
+
+  // The countdown runs while the picture plays (a pause holds it); with the
+  // series' autoplay off there is none, Up Next waits for OK.
+  const autoplay = upNext?.autoplay !== false;
+  useEffect(() => {
+    if (!inUpNext || !autoplay) { setUpCount(null); return; }
+    setUpCount(VOD_UP_NEXT_SECONDS);
+    const id = window.setInterval(() => {
+      if (!upPlaying.current) return;
+      setUpCount((n) => (n == null ? n : Math.max(0, n - 1)));
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [inUpNext, autoplay]);
+  useEffect(() => { if (upCount === 0) takeUpNext(); }, [upCount, takeUpNext]);
 
   // Where the film is, once a second while the bar is up.
   useEffect(() => {
@@ -293,6 +376,8 @@ export default function VodControlBar({
         if (c.menu !== 'none') { stop(); setMenu('none'); armHide(); return; }
         if (c.statsOn) { stop(); setStatsOn(false); if (c.visible) armHide(); return; }
         if (c.visible && !touchRef.current) { stop(); clearTimer(scrubTimer); setScrubPos(null); setVisible(false); return; }
+        // Up Next first: Back keeps watching the end.
+        if (c.inUpNext) { stop(); setUpDismissed(true); return; }
         if (!c.onClose) return;
         stop();
         c.onClose();
@@ -306,6 +391,8 @@ export default function VodControlBar({
       const okRepeat = isOk && okIsRepeat(e);
 
       if (!c.visible) {
+        // OK takes Up Next while it stands over the picture.
+        if (isOk && c.inUpNext) { if (!okRepeat) takeUpNext(); return; }
         // One jump per press: held, the key repeats many times a second.
         if (e.key === 'ArrowLeft') { if (!e.repeat) seekBy(-VOD_BACK_SEC, true); return; }
         if (e.key === 'ArrowRight') { if (!e.repeat) seekBy(VOD_FWD_SEC, true); return; }
@@ -367,7 +454,7 @@ export default function VodControlBar({
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [armHide, seekBy, commitScrub, act, setVol]);
+  }, [armHide, seekBy, commitScrub, act, setVol, takeUpNext]);
 
   // The remote's Next: the next episode (Play/Pause and skips are the player's).
   useEffect(() => {
@@ -401,7 +488,24 @@ export default function VodControlBar({
   // A touch screen: the picture takes taps (under the bar and its menus).
   const tapEl = touch && !blocked ? <div data-vod-tap="" className="absolute left-0 top-0 w-full h-full z-10" onClick={onPictureTap} /> : null;
 
-  if (!visible) return statsEl || noteEl || tapEl ? <>{tapEl}{statsEl}{noteEl}</> : null;
+  // Up Next over the picture, bottom-right; above the bar while that is up,
+  // out of the way while a menu is open.
+  const upNextEl = inUpNext && upNext && (!visible || menu === 'none') ? (
+    <div data-vod-upnext="" className={`absolute right-12 ${visible ? 'bottom-44' : 'bottom-12'} z-30 pointer-events-none animate-fade-in`}>
+      <div className="rounded-2xl bg-black/85 border-2 border-brand-gold px-6 py-4 max-w-md">
+        <p className="text-xs uppercase tracking-wider text-brand-gold font-nunito mb-1">
+          {upCount != null ? t('plex.player.upNextIn', { seconds: upCount }) : t('plex.player.upNext')}
+        </p>
+        {upNext.detail && <p className="text-white font-quicksand font-semibold text-lg leading-tight mb-2 truncate">{upNext.detail}</p>}
+        <div className="flex items-center">
+          <span className="rounded-xl bg-brand-gold text-brand-navy font-bold font-quicksand px-5 py-2 text-base">{t('plex.player.playNext')}</span>
+          <span className="ml-4 text-xs text-brand-ice/80 font-nunito">{visible ? '' : t('plex.player.promptOkBack')}</span>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  if (!visible) return statsEl || noteEl || tapEl || upNextEl ? <>{tapEl}{statsEl}{noteEl}{upNextEl}</> : null;
 
   const vol = Math.round(volume * 100);
   const boost = volume > 1.0001;
@@ -435,6 +539,7 @@ export default function VodControlBar({
     <>
       {tapEl}
       {statsEl}
+      {upNextEl}
       <div data-vod-bar className="absolute left-0 right-0 bottom-0 z-20 px-8 pt-12 pb-3 bg-gradient-to-t from-black/95 via-black/80 to-transparent animate-fade-in pointer-events-none">
         <div className="max-w-6xl mx-auto pointer-events-auto">
           {title && <p className="text-lg font-quicksand font-bold text-white truncate leading-tight mb-2">{title}</p>}
