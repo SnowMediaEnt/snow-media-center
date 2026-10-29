@@ -331,6 +331,8 @@ class SnowPlayerPlugin : Plugin() {
         var stuckSinceMs: Long = 0L
         var stuckSteps: Int = 0
         var stuckRescues: Int = 0
+        // Where the playhead was when the run began: a run is one place.
+        var stuckAtMs: Long = -1L
         // The frame rate the WebView knows for this load (Plex's metadata:
         // a Matroska file never states one to the player); 0 = none. Which
         // source the rate came from is logged once per load.
@@ -654,7 +656,10 @@ class SnowPlayerPlugin : Plugin() {
             s.recentHttpAtMs = 0L
             s.busySinceMs = 0L
             s.busyTries = 0
+            s.stuckRescues = 0
         }
+        s.stuckSinceMs = 0L
+        s.stuckSteps = 0
     }
 
     private fun clearVideoTelemetry(s: PlayerSlot) {
@@ -779,7 +784,10 @@ class SnowPlayerPlugin : Plugin() {
         )
         if (!stuck) { s.stuckSinceMs = 0L; return false }
         val now = SystemClock.elapsedRealtime()
-        if (s.stuckSinceMs == 0L) { s.stuckSinceMs = now; return false }
+        // Samples 5 s apart are one run only at the same place (a viewer
+        // scrubbing between two of them is not stuck).
+        val pos = p.currentPosition
+        if (s.stuckSinceMs == 0L || pos != s.stuckAtMs) { s.stuckSinceMs = now; s.stuckAtMs = pos; return false }
         val step = StuckBufferRule.step(now - s.stuckSinceMs, s.stuckSteps)
         if (step == StuckBufferRule.Step.NONE) return false
         Log.w(TAG, "Stuck buffering with ${aheadMs / 1000} s in hand (loading=${p.isLoading}): $step")
@@ -787,7 +795,9 @@ class SnowPlayerPlugin : Plugin() {
         s.stuckRescues++
         s.stuckSinceMs = now
         return when (step) {
-            StuckBufferRule.Step.SEEK -> { p.seekTo(p.currentPosition); false }
+            // A seek to the very same millisecond is skipped by Media3 (no
+            // flush), so one millisecond back.
+            StuckBufferRule.Step.SEEK -> { p.seekTo((pos - 1L).coerceAtLeast(0L)); s.stuckAtMs = p.currentPosition; false }
             else -> { rebuildForPicture(s, MAIN); true }
         }
     }
