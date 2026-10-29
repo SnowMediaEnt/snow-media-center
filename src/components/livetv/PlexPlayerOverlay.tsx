@@ -36,10 +36,12 @@ const ROWS: Row[] = ['seek-10', 'play', 'seek+30', 'audio', 'subs', 'quality', '
 // apart) bump one level — 10 s taps, then 30 s, 1 min, 2 min, 5 min holds.
 const SCRUB_STEPS = [10, 30, 60, 120, 300];
 const SCRUB_REPEAT_MS = 700;
-// The Help menu. "Playback stats" turns the stats panel on and off.
-// Keys, not text: translated when the menu is drawn.
-const HELP_ITEMS = ['plex.player.helpBuffering', 'plex.player.helpSupport', 'plex.player.helpStats'];
-const HELP_STATS = 2;
+// The Help menu. "Check this stream (1 minute)" measures what plays without
+// stopping it (DeviceHealthParts usePlayerCheck); "Playback stats" turns the
+// stats panel on and off. Keys, not text: translated when the menu is drawn.
+const HELP_ITEMS = ['plex.player.helpBuffering', 'deviceHealth.check.player.action', 'plex.player.helpSupport', 'plex.player.helpStats'];
+const HELP_CHECK = 1;
+const HELP_STATS = 3;
 
 export interface SubtitleSearchContext {
   title: string;
@@ -95,6 +97,12 @@ interface Props {
    *  Parent tears down playback and routes to Support WITHOUT auto-opening
    *  the buffering guide. */
   onOpenSupport?: () => void;
+  /** "Check this stream (1 minute)" from the Help menu: the stream keeps
+   *  playing; the parent shows the slim check strip (usePlayerCheck). */
+  onCheckStream?: () => void;
+  /** Asked first on every Back: true = it was someone else's (the check
+   *  strip cancelling / hiding), and the player does nothing with it. */
+  onBackFirst?: () => boolean;
   /** Current playback volume 0..1. */
   volume: number;
   /** Called with the new volume 0..1 (live-adjusted from the slider popup). */
@@ -138,7 +146,7 @@ const fmtTime = (sec: number) => {
   return h > 0 ? `${h}:${pad2(m)}:${pad2(ss)}` : `${pad2(m)}:${pad2(ss)}`;
 };
 
-const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, routeLabel, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, versions, versionId, onOpenBufferingGuide, onOpenSupport, volume, onChangeVolume, onFixAudio, prompt, paused, statsSession, serverName, needKbps, httpStatus }: Props) => {
+const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tracksTick, getPosition, seekTo, onBackWhileHidden, routeLabel, subtitleContext, onLoadExternalSubtitle, qualityKey, onChangeQuality, versions, versionId, onOpenBufferingGuide, onOpenSupport, onCheckStream, onBackFirst, volume, onChangeVolume, onFixAudio, prompt, paused, statsSession, serverName, needKbps, httpStatus }: Props) => {
   // The Quality menu: every version as it is (when there are several), then
   // the converted presets. `selected` is the entry now in effect.
   const { t } = useTranslation();
@@ -390,6 +398,8 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   const onChangeVolumeRef = useRef(onChangeVolume); useEffect(() => { onChangeVolumeRef.current = onChangeVolume; }, [onChangeVolume]);
   const onOpenBufferingGuideRef = useRef(onOpenBufferingGuide); useEffect(() => { onOpenBufferingGuideRef.current = onOpenBufferingGuide; }, [onOpenBufferingGuide]);
   const onOpenSupportRef = useRef(onOpenSupport); useEffect(() => { onOpenSupportRef.current = onOpenSupport; }, [onOpenSupport]);
+  const onCheckStreamRef = useRef(onCheckStream); onCheckStreamRef.current = onCheckStream;
+  const onBackFirstRef = useRef(onBackFirst); onBackFirstRef.current = onBackFirst;
   const onFixAudioRef = useRef(onFixAudio); useEffect(() => { onFixAudioRef.current = onFixAudio; }, [onFixAudio]);
   const promptRef = useRef(prompt); useEffect(() => { promptRef.current = prompt; }, [prompt]);
 
@@ -424,6 +434,12 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
       const isOk = e.key === 'Enter' || e.key === ' ' || e.keyCode === 23 || e.keyCode === 66;
 
       if (isBack) {
+        // The check strip's Back (cancel / hide) comes first: the bar, the
+        // menus and the player stay as they are.
+        if (onBackFirstRef.current?.()) {
+          e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+          return;
+        }
         if (menuRef.current === 'osdl') {
           e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
           openSubsRef.current(); armHideRef.current(); return;
@@ -573,6 +589,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             // OK turns it on and off; a held OK must not flicker it.
             if (!e.repeat) { statsOpenRef.current = !statsOpenRef.current; setStatsOpen(statsOpenRef.current); }
           } else if (i === 0) onOpenBufferingGuideRef.current?.();
+          else if (i === HELP_CHECK) { if (!e.repeat) onCheckStreamRef.current?.(); }
           else onOpenSupportRef.current?.();
         }
         return;

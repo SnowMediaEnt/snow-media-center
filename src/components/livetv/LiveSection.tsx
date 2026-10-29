@@ -67,6 +67,7 @@ import { channelRowLabels } from './channelRowLabels';
 import PlayerControlBar from './PlayerControlBar';
 import { liveBarDisabled, liveBarOrder, moveBarFocus, type BarControlId } from './liveBar';
 import BufferingDiagnostics from './BufferingDiagnostics';
+import { PlayerCheckStrip, usePlayerCheck } from './DeviceHealthParts';
 import SnowLoader from '@/components/SnowLoader';
 import { useTransientVisible } from '@/hooks/useTransientVisible';
 import type { VideoController } from './VideoPlayer';
@@ -2995,6 +2996,15 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     cushion: catchupUrl ? null : liveCushion.playing,
   });
   bufferHelpOpenRef.current = bufferHelp.open;
+  // "Still buffering?" → "Check this stream (1 minute)": the channel on screen
+  // as it plays (never an outside service's name), a slim strip on top.
+  const streamCheck = usePlayerCheck({
+    active: !!helpWatch,
+    playing: helpWatch ? { context: catchupUrl ? 'catchup' : 'live', title: isOutsideLine(helpWatch.line) ? null : helpWatch.stream.name } : null,
+    playKey: helpWatch?.key ?? null,
+  });
+  const streamCheckBackRef = useRef(streamCheck.handleBack);
+  streamCheckBackRef.current = streamCheck.handleBack;
   // Over the picture with the bar down: Back from it leaves the picture as it was.
   useEffect(() => { if (bufferHelp.open) hideBarNow(); }, [bufferHelp.open, hideBarNow]);
 
@@ -3057,6 +3067,12 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
      try {
       // The Report / Record dialogs and "Still buffering?" own the keyboard while open.
       if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || bufferHelpOpenRef.current) return;
+      // The stream check's strip: Back cancels the check (or hides its
+      // result) and nothing else — the picture, the bar, the channel stay.
+      if ((e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) && streamCheckBackRef.current()) {
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        return;
+      }
       // It just gave way to the error card: a press made as they swapped
       // never lands on Retry / Try on / Report it.
       if (Date.now() - bufferHelpGaveWayAtRef.current < BUFFER_HELP_ARM_MS) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); return; }
@@ -3604,6 +3620,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           // keyboard, a search typed there, its categories, the list), the
           // picture, the caller (the Guide, Game Day), the categories, out.
           if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || bufferHelpOpenRef.current) return;
+          if (streamCheckBackRef.current()) return;
           if (favMoveRef.current.movingKey) { favMoveRef.current.drop(); return; }
           if (subMenuOpenRef.current || audioMenuOpenRef.current || volMenuOpenRef.current) { setSubMenuOpen(false); setAudioMenuOpen(false); setVolMenuOpen(false); return; }
           if (recentRef.current.isOpen()) { recentRef.current.close(); return; }
@@ -3841,6 +3858,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         setReportPreset({ choice: 'Channel buffering' });
         setReportFor(st);
       }}
+      onCheck={() => { bufferHelp.close(); streamCheck.start(); }}
       onClose={bufferHelp.close}
       track={bufferHelp.track}
     />
@@ -3851,6 +3869,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       {categoryReportDialog}
       {warnDialog}
       {bufferHelpDialog}
+      <PlayerCheckStrip check={streamCheck} />
     </>
   );
 

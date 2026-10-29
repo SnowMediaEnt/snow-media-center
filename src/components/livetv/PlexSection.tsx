@@ -93,6 +93,7 @@ import {
 } from '@/lib/plexDiscover';
 import SnowLoader from '@/components/SnowLoader';
 import BufferingDiagnostics from './BufferingDiagnostics';
+import { PlayerCheckStrip, usePlayerCheck } from './DeviceHealthParts';
 import { explainPlexStall } from '@/lib/plexStallVerdict';
 import { formatMbps, getPlayerRates, type DiagSnapshot } from '@/lib/bufferDiagnostics';
 import {
@@ -4065,6 +4066,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   });
   // Reset the safety-net guard whenever the underlying title changes.
   useEffect(() => { audioSafetyRef.current = null; }, [playing?.ratingKey]);
+  // Help → "Check this stream (1 minute)": the title on screen, as it plays.
+  const streamCheck = usePlayerCheck({ active: nativeActive, playing: { context: 'plex', title: playingTitle || playing?.title || null }, playKey: playing?.ratingKey ?? null });
 
   // Where playback is, in the title's time: the stream's own time plus where
   // its session started (streamOffset), or the jump not landed yet
@@ -5615,8 +5618,9 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
           </div>
         )}
         {NATIVE_PLAYBACK && !native.error && (
-          <BufferingDiagnostics buffering={native.buffering && !quietStall} showHelpHint={!trailerPlaying} footnote={routeLabel ? t('plex.section.route', { route: routeLabel }) : undefined} explain={explainStall} autoNote={autoNote} needKbps={stallNeedKbps} quickCheckLabel />
+          <BufferingDiagnostics buffering={native.buffering && !quietStall} showHelpHint={!trailerPlaying} footnote={routeLabel ? t('plex.section.route', { route: routeLabel }) : undefined} explain={explainStall} autoNote={autoNote} needKbps={stallNeedKbps} quickCheckLabel className={streamCheck.visible ? 'mt-12' : undefined} />
         )}
+        {NATIVE_PLAYBACK && <PlayerCheckStrip check={streamCheck} />}
         {/* A trailer: OK pauses and plays, Back closes (PlexTrailerControls). */}
         {NATIVE_PLAYBACK && !native.error && trailerPlaying && (
           <PlexTrailerControls
@@ -5647,6 +5651,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             versionId={playVersion?.id}
             onOpenBufferingGuide={overlayOpenGuide}
             onOpenSupport={overlayOpenSupport}
+            onCheckStream={streamCheck.start}
+            onBackFirst={streamCheck.handleBack}
             volume={volume}
             onChangeVolume={changeVolume}
             onFixAudio={fixAudioTranscode}
