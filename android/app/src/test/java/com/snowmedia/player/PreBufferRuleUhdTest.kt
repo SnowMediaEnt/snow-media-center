@@ -89,4 +89,31 @@ class PreBufferRuleUhdTest {
         assertEquals(library, UhdBuffer.budgetBytes(256 * mib, library))
         assertEquals((256 * mib).toInt(), UhdBuffer.budgetBytes(1024 * mib, library))
     }
+
+    @Test fun `a 4K start waits for 25 s, not the 20 s it used to`() {
+        // The 2026-10-28 episode: ~19 Mb/s over a line bringing ~1.5x that.
+        val (at, buf) = simulate(midFile = false, uhd = true, setupMs = 2000, videoPerSec = 1.5)
+        assertTrue("ended with $buf ms", buf >= 25_000L)
+        assertTrue("ended at $at ms", at <= PreBufferRule.UHD_MAX_WAIT_MS)
+        assertEquals(25_000L, PreBufferRule.UHD_START_MS)
+        // A file shorter than the cushion starts when it is all in.
+        assertTrue(PreBufferRule.isDone(false, 3000, 0, 3000, 8000, ready = true, loading = false, ended = true, uhd = true))
+    }
+
+    @Test fun `a server gap at 10 s does not start a 4K film with 10 s in hand`() {
+        // The player shows not loading for a moment (the server pausing
+        // between bursts), but the load control still wants more.
+        val loading = PreBufferRule.loadingFor(uhd = true, playerLoading = false, controlWantsMore = true)
+        assertTrue(loading)
+        assertFalse(PreBufferRule.isDone(false, 10_000, 0, 10_000, 10_000, ready = true, loading = loading, ended = false, uhd = true))
+        // The budget really spent: starts with what it has.
+        val full = PreBufferRule.loadingFor(uhd = true, playerLoading = false, controlWantsMore = false)
+        assertTrue(PreBufferRule.isDone(false, 10_000, 0, 10_000, 20_000, ready = true, loading = full, ended = false, uhd = true))
+        // 1080p keeps reading the player's own flag.
+        assertFalse(PreBufferRule.loadingFor(uhd = false, playerLoading = false, controlWantsMore = true))
+    }
+
+    @Test fun `a 4K film plays on after a stall with 18 s, not 10`() {
+        assertEquals(18_000, UhdBuffer.REBUFFER_MS)
+    }
 }

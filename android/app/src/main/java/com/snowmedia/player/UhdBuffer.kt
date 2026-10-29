@@ -21,8 +21,11 @@ internal object UhdBuffer {
     const val MAX_BUDGET_BYTES = 256 * 1024 * 1024
     /** After a stall a 4K film plays on with this much buffered, not the
      *  5 s a 1080p one needs (at ~1.2x its own rate 5 s is gone again in the
-     *  next slow spell). Sooner when the buffer can't take more. */
-    const val REBUFFER_MS = 10000
+     *  next slow spell). Sooner when the buffer can't take more. 10 s was
+     *  not enough: a remote Plex server that sends in bursts with 3-4 s
+     *  gaps emptied it again and the film went stop-start (2026-10-28,
+     *  a 19 Mb/s 4K HEVC episode, 175 ms away). */
+    const val REBUFFER_MS = 18000
 
     fun isUhd(width: Int, height: Int): Boolean = height >= MIN_HEIGHT || width >= MIN_WIDTH
 

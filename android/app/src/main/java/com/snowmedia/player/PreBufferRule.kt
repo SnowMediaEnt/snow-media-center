@@ -45,13 +45,32 @@ internal object PreBufferRule {
     // waits for a steady buffer instead: after the same 10 s of filling it
     // starts once it has UHD_START_MS, or when the byte budget is spent (the
     // "full" rule above), or at the latest after UHD_MAX_WAIT_MS of filling.
+    //
+    // 2026-10-28: 20 s was still too little against a remote server that
+    // sends in bursts with 3-4 s gaps (a 19 Mb/s 4K HEVC episode, 175 ms
+    // away): the film began with ~10 s and stalled twice in its first
+    // minute, then played smoothly once ~50 s were in hand. A 4K start now
+    // waits for the full 25 s (or the whole file, or a spent budget), and
+    // a gap in the server's sending no longer reads as a full buffer (see
+    // loadingFor).
     /** A 4K start, after MAX_WAIT_MS of filling, begins with this much. */
-    const val UHD_START_MS = 20000L
+    const val UHD_START_MS = 25000L
     /** A 4K start never fills for longer than this (from load() for a start
      *  from 0:00, from the first video at the start position otherwise). */
-    const val UHD_MAX_WAIT_MS = 30000L
+    const val UHD_MAX_WAIT_MS = 40000L
     /** A 4K start part-way into a file never waits longer than this in all. */
-    const val UHD_MID_FILE_CAP_MS = 45000L
+    const val UHD_MID_FILE_CAP_MS = 55000L
+
+    /**
+     * Whether the player is still filling, for isDone's "stopped loading,
+     * so the buffer is as full as it gets" rule. `playerLoading`: the
+     * player's own isLoading; `controlWantsMore`: what the load control last
+     * answered (SteadyLoadControl). For a 4K film only the load control
+     * stopping counts as full: a server pausing between bursts can leave the
+     * player not loading for a moment, which started a 4K film with ~10 s.
+     */
+    fun loadingFor(uhd: Boolean, playerLoading: Boolean, controlWantsMore: Boolean): Boolean =
+        playerLoading || (uhd && controlWantsMore)
 
     /** The time limit the hold reports to the "Getting ready…" indicator. */
     fun maxWaitMs(uhd: Boolean): Long = if (uhd) UHD_MAX_WAIT_MS else MAX_WAIT_MS
