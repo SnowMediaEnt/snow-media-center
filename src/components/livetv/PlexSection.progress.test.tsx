@@ -251,8 +251,15 @@ describe('PlexSection — Continue Watching after the native player', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
       // In the credits: Up Next counts down and starts the next one.
-      h.pos = { position: 2930, duration: 2940, playing: true };
+      // (played into it: landing there by a resume would wait for OK)
+      h.pos = { position: 2875, duration: 2940, playing: true };
       await playTitle('e3', 'The Long Night', 'episode');
+      await act(async () => { await vi.advanceTimersByTimeAsync(6_000); });
+      for (const at of [2884, 2893, 2902, 2911, 2920, 2929]) {
+        h.pos = { position: at, duration: 2940, playing: true };
+        await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
+      }
+      h.pos = { position: 2930, duration: 2940, playing: true };
       await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
       // The next episode is first read a few seconds after it starts (its own
       // playhead: the last one's carried on is not saved under it).
