@@ -25,9 +25,9 @@ import java.io.File
  *   * The box's boot time goes with the marker: a different one now means the
  *     box itself restarted (power cut, reboot) while SMC was on screen
  *     (kind 'killed', exitReason 'box_restarted': the server does not count
- *     it as a stop). The app's versionCode goes with it too: a different one
- *     now means an install replaced the app while it was on screen (not
- *     reported).
+ *     it as a stop). The app's versionCode and install time go with it too:
+ *     a different one now means an install (an update, or a reinstall of the
+ *     same version) replaced the app while it was on screen (not reported).
  *   * A heartbeat every minute while on screen, so a death says how long it
  *     had been on screen (onScreenSec, a minute's accuracy).
  *   * API >= 30: ApplicationExitInfo says why (low memory, ANR, crash, ...).
@@ -62,6 +62,12 @@ object HealthStore {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) pi.longVersionCode else @Suppress("DEPRECATION") pi.versionCode.toLong()
     } catch (_: Throwable) { -1L }
 
+    /** When the installed APK was last (re)installed: changes on every install,
+     *  even one that keeps the versionCode (a reinstall, a test build). */
+    private fun installedAt(ctx: Context): Long = try {
+        ctx.packageManager.getPackageInfo(ctx.packageName, 0).lastUpdateTime
+    } catch (_: Throwable) { -1L }
+
     @Volatile private var started = false
     @Volatile private var handlerInstalled = false
 
@@ -85,8 +91,11 @@ object HealthStore {
             val lastBoot = p.getLong("boot", 0L)
             val fgSince = p.getLong("fgSince", 0L)
             val lastVc = p.getLong("vc", -1L)
-            // An install replaced the app while it was on screen: not a stop.
-            val updated = lastVc != -1L && lastVc != versionCode(app)
+            val lastInstall = p.getLong("installedAt", -1L)
+            // An install replaced the app while it was on screen (a new
+            // version, or a reinstall of the same one): not a stop.
+            val updated = (lastVc != -1L && lastVc != versionCode(app)) ||
+                (lastInstall != -1L && lastInstall != installedAt(app))
             val dirty = wasOnScreen && lastPid != Process.myPid() && !updated
             val rebooted = dirty && lastBoot > 0 && Math.abs(bootWallMs() - lastBoot) > 120_000L
 
@@ -182,7 +191,7 @@ object HealthStore {
         try {
             val now = System.currentTimeMillis()
             val e = prefs(ctx).edit().putBoolean("fg", on).putInt("pid", Process.myPid()).putLong("boot", bootWallMs()).putLong("lastBeat", now)
-            if (on) e.putLong("fgSince", now).putLong("vc", versionCode(ctx))
+            if (on) e.putLong("fgSince", now).putLong("vc", versionCode(ctx)).putLong("installedAt", installedAt(ctx))
             // commit() on the way off screen: the process may be gone the next moment.
             if (on) e.apply() else e.commit()
             main.removeCallbacks(beat)
