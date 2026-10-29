@@ -218,7 +218,7 @@ describe('Help → Playback stats in the Plex player', () => {
     );
   }
   /** Bar up, focus on Help (from ▶❚❚, seven to the right), menu open, on
-   *  "Playback stats" (the third item). */
+   *  "Playback stats" (the fourth item, after "Check this stream"). */
   async function toStatsItem() {
     ok();
     for (let i = 0; i < 7; i += 1) right();
@@ -229,10 +229,10 @@ describe('Help → Playback stats in the Plex player', () => {
     ok();
     await wait(0);
     expect(screen.getByText('Fix buffering — step-by-step guide')).toBeTruthy();
-    down(); down();
+    down(); down(); down();
     await wait(0);
   }
-  const statsItem = () => screen.getByText('Fix buffering — step-by-step guide').parentElement?.parentElement?.querySelectorAll('[data-focused]')[2] as HTMLElement;
+  const statsItem = () => screen.getByText('Fix buffering — step-by-step guide').parentElement?.parentElement?.querySelectorAll('[data-focused]')[3] as HTMLElement;
 
   beforeEach(() => { onBackWhileHidden.mockReset(); });
 

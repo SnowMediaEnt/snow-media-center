@@ -17,7 +17,7 @@
       "verdict": {
         "fine": "Aucun problème trouvé : le flux arrivait à {{arrival}} et ton internet est à {{internet}}.",
         "unclear": "Impossible de trancher : le flux arrivait à {{arrival}} et ton internet est à {{internet}}. Snow Media va regarder les détails.",
-        "neverStarted": "La chaîne n'a jamais démarré : le serveur du flux n'a rien envoyé en 30 secondes. Votre internet est à {{internet}}, c'est donc le flux, pas votre boîtier.",
+        "neverStarted": "La chaîne n'a jamais démarré : le serveur du flux n'a rien envoyé en {{seconds}} secondes. Votre internet est à {{internet}}, c'est donc le flux, pas votre boîtier.",
         "notPlaying": "Rien n'a été lu pendant le test. Ton internet est à {{internet}}.",
         "overloadMemory": "Ton boîtier est surchargé : seulement {{mem}} Mo de mémoire libre. Redémarrer le boîtier aide souvent.",
         "overloadCpu": "Ton boîtier est surchargé : son processeur tournait à {{cpu}} %. Redémarrer le boîtier aide souvent.",
@@ -26,6 +26,14 @@
         "offline": "Ton boîtier a perdu la connexion internet pendant le test.",
         "server": "Ton boîtier va bien et ton internet est à {{internet}}, mais le serveur du flux n'a envoyé que {{arrival}} sur les {{needed}} nécessaires.",
         "account": "Le service a refusé ta ligne. Vérifie ton abonnement."
+      },
+      "player": {
+        "action": "Vérifier ce flux (1 minute)",
+        "running": "Vérification du flux… {{seconds}} s",
+        "backCancels": "Retour annule",
+        "limit": "Vous avez déjà fait 6 vérifications aujourd'hui, le maximum pour une journée. Réessayez demain.",
+        "nothing": "Rien n'est en lecture à vérifier. Lancez la vidéo, puis réessayez.",
+        "hide": "Retour masque ceci"
       }
     }
   }

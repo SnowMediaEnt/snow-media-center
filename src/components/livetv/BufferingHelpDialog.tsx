@@ -15,6 +15,10 @@ interface Props {
   onOpenGuide: (from: BufferHelpStep) => void;
   /** Report the channel (the report flow, buffering already picked). */
   onReport: () => void;
+  /** "Check this stream (1 minute)" on the last step: the channel keeps
+   *  playing and a slim strip measures it (DeviceHealthParts usePlayerCheck).
+   *  Left out: no such button (the demo, a Kids profile). */
+  onCheck?: () => void;
   /** Back, or Close: the picture as it was. */
   onClose: () => void;
   track: (step: BufferHelpStep, action: string) => void;
@@ -39,7 +43,7 @@ const ICON: Record<BufferHelpStep, typeof LifeBuoy> = { restart: RotateCw, vpn: 
  * own Play/Pause included. Opened in the middle of watching, so a press already on its way does
  * nothing for `armMs`, and a held OK's repeats never walk through the steps.
  */
-const BufferingHelpDialog = memo(({ steps, canReport, onRestartDone, onOpenGuide, onReport, onClose, track, armMs = BUFFER_HELP_ARM_MS }: Props) => {
+const BufferingHelpDialog = memo(({ steps, canReport, onRestartDone, onOpenGuide, onReport, onCheck, onClose, track, armMs = BUFFER_HELP_ARM_MS }: Props) => {
   const { t } = useTranslation();
   const [at, setAt] = useState(0);
   // Restart's "Show me how": the steps on the card, in place of the question.
@@ -74,6 +78,7 @@ const BufferingHelpDialog = memo(({ steps, canReport, onRestartDone, onOpenGuide
     ];
     return [
       { id: 'guide', label: t('live.bufferHelp.openGuideBtn'), run: () => { track('guide', 'open_guide'); onOpenGuide('guide'); } },
+      ...(onCheck ? [{ id: 'check', label: t('deviceHealth.check.player.action'), run: () => { track('guide', 'check'); onCheck(); } }] : []),
       canReport
         ? { id: 'report', label: t('live.bufferHelp.reportBtn'), run: () => { track('guide', 'report'); onReport(); } }
         : { id: 'close', label: t('common.close'), run: close },

@@ -338,12 +338,36 @@ describe('"Still buffering?" over a full-screen channel', () => {
     expect(help()).toBe('guide');
     expect(text()).toContain('Still buffering? Open the Buffering Guide');
     wait(700);
+    // Open the guide, Check this stream (1 minute), Report this channel.
+    press('ArrowRight');
     press('ArrowRight');
     press('Enter');
     expect(help()).toBeNull();
     await act(async () => { await vi.dynamicImportSettled(); });
     await waitFor(() => expect(document.querySelector('[data-testid="report"]')?.textContent).toBe('News One · Channel buffering'));
     expect(fullScreen()).toBe(true);
+  });
+
+  it('"Check this stream (1 minute)": the channel keeps playing under a slim strip; Back cancels only the check', async () => {
+    const d = new Date();
+    localStorage.setItem(BUFFER_HELP_STORE_KEY, JSON.stringify({ day: `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`, shown: 1, restart: true, vpn: true, closedAt: 0 }));
+    await watchNewsOne();
+    fakeTime();
+    wait(12_000);
+    buffering(true);
+    wait(20_000);
+    expect(help()).toBe('guide');
+    wait(700);
+    press('ArrowRight');
+    press('Enter');
+    expect(help()).toBeNull();
+    await waitFor(() => expect(document.querySelector('[data-player-check="running"]')).not.toBeNull());
+    expect(helpEvents()).toContainEqual(expect.objectContaining({ step: 'guide', action: 'check' }));
+    press('Escape');
+    expect(document.querySelector('[data-player-check]')).toBeNull();
+    // The picture, and the channel, as they were.
+    expect(fullScreen()).toBe(true);
+    expect(on(101)).toBe(true);
   });
 });
 

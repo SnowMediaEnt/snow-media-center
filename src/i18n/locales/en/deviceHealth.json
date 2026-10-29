@@ -17,7 +17,7 @@
       "verdict": {
         "fine": "No problem found: the stream came in at {{arrival}} and your internet is {{internet}}.",
         "unclear": "We couldn't pin it down: the stream came in at {{arrival}} and your internet is {{internet}}. Snow Media will look at the details.",
-        "neverStarted": "The channel never started: the stream server sent nothing in 30 seconds. Your internet is {{internet}}, so it's the stream, not your box.",
+        "neverStarted": "The channel never started: the stream server sent nothing in {{seconds}} seconds. Your internet is {{internet}}, so it's the stream, not your box.",
         "notPlaying": "Nothing played during the check. Your internet is {{internet}}.",
         "overloadMemory": "Your box is overloaded: only {{mem}} MB of memory was free. Restarting the box usually helps.",
         "overloadCpu": "Your box is overloaded: its processor ran at {{cpu}}%. Restarting the box usually helps.",
@@ -26,6 +26,14 @@
         "offline": "Your box lost its internet connection during the check.",
         "server": "Your box is fine and your internet is {{internet}}, but the stream server only sent {{arrival}} of the {{needed}} it needs.",
         "account": "The service refused your line. Check your subscription."
+      },
+      "player": {
+        "action": "Check this stream (1 minute)",
+        "running": "Checking this stream… {{seconds}} s",
+        "backCancels": "Back cancels",
+        "limit": "You've run 6 checks today, the most for one day. Try again tomorrow.",
+        "nothing": "Nothing is playing to check. Start the video, then try again.",
+        "hide": "Back hides this"
       }
     }
   }

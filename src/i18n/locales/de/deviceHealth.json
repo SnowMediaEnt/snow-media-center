@@ -17,7 +17,7 @@
       "verdict": {
         "fine": "Kein Problem gefunden: Der Stream kam mit {{arrival}} an und dein Internet hat {{internet}}.",
         "unclear": "Wir konnten es nicht eingrenzen: Der Stream kam mit {{arrival}} an, dein Internet hat {{internet}}. Snow Media sieht sich die Details an.",
-        "neverStarted": "Der Sender ist nie gestartet: Der Stream-Server hat in 30 Sekunden nichts gesendet. Dein Internet hat {{internet}}, es liegt also am Stream, nicht an deiner Box.",
+        "neverStarted": "Der Sender ist nie gestartet: Der Stream-Server hat in {{seconds}} Sekunden nichts gesendet. Dein Internet hat {{internet}}, es liegt also am Stream, nicht an deiner Box.",
         "notPlaying": "Während des Tests lief nichts. Dein Internet hat {{internet}}.",
         "overloadMemory": "Deine Box ist überlastet: Nur {{mem}} MB Speicher waren frei. Ein Neustart der Box hilft meistens.",
         "overloadCpu": "Deine Box ist überlastet: Der Prozessor lief bei {{cpu}} %. Ein Neustart der Box hilft meistens.",
@@ -26,6 +26,14 @@
         "offline": "Deine Box hat während des Tests die Internetverbindung verloren.",
         "server": "Deine Box ist in Ordnung und dein Internet hat {{internet}}, aber der Stream-Server schickte nur {{arrival}} von den nötigen {{needed}}.",
         "account": "Der Dienst hat deine Leitung abgelehnt. Prüfe dein Abo."
+      },
+      "player": {
+        "action": "Diesen Stream prüfen (1 Minute)",
+        "running": "Prüfe diesen Stream… {{seconds}} s",
+        "backCancels": "Zurück bricht ab",
+        "limit": "Du hast heute schon 6 Tests gemacht, mehr geht an einem Tag nicht. Versuch es morgen wieder.",
+        "nothing": "Es läuft nichts, das geprüft werden kann. Starte das Video und versuch es noch einmal.",
+        "hide": "Zurück blendet das aus"
       }
     }
   }
