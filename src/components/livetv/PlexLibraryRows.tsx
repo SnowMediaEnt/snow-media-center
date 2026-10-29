@@ -35,6 +35,7 @@ import i18n from '@/i18n';
 import { focusBackdrop, previewPlex } from '@/lib/plexBackdrop';
 import { revealPlexRail } from '@/lib/plexReveal';
 import { isDemo } from '@/lib/demoMode';
+import { kidsLevel } from '@/lib/kidsFilter';
 import { demoGetLibraryQuery, demoGetSectionOnDeck, demoGetSectionRow } from '@/lib/plexDemo';
 import { continueWatching, mergeContinue, plexItemWatched, PLEX_PROGRESS_EVENT } from '@/lib/plexProgress';
 import { upNextEpisodes } from '@/lib/plexUpNext';
@@ -317,7 +318,10 @@ const PlexLibraryRows = memo(({
   // rather than being silently ignored. Not in the demo: the row is hidden.
   const fetchStudios = useCallback(async (spec: LibraryRowSpec) => {
     const done = () => setSettled((prev) => (prev[spec.id] ? prev : { ...prev, [spec.id]: true }));
-    if (isDemo()) { done(); return; }
+    // Not on a kids profile either: the list isn't kids-filtered, so tiles
+    // would lead to empty grids.
+    if (isDemo() || kidsLevel()) { done(); return; }
+    let failed = false;
     try {
       const facts = await ensureMeta();
       const listed = findFilter(facts?.filters ?? [], 'studio');
@@ -326,11 +330,15 @@ const PlexLibraryRows = memo(({
       for (const key of keys) {
         try {
           const opts = await getPlexFilterValues(base, token, key);
-          if (opts.length) { setStudios(groupStudios(opts)); return; }
-        } catch { /* the next way, if there is one */ }
+          if (opts.length) { failed = false; setStudios(groupStudios(opts)); return; }
+        } catch { failed = true; /* the next way, if there is one */ }
       }
       setStudios([]);
+    } catch {
+      failed = true;
     } finally {
+      // A network blip: asked again when the viewer comes back to the row.
+      if (failed) fetchedRef.current.delete(spec.id);
       done();
     }
   }, [ensureMeta, base, token, libKey, sectionType]);

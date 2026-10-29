@@ -89,7 +89,9 @@ export function groupStudios(values: Array<{ key: string; title: string }>): Stu
   const byId = new Map<string, { keys: string[]; titles: string[] }>();
   const seen = new Set<string>();
   for (const v of values) {
-    if (!v || !v.key || seen.has(v.key)) continue;
+    // A key with a comma in it ("Marvel Studios, LLC") can't go in the
+    // comma-joined OR value: it would split into two names that match nothing.
+    if (!v || !v.key || v.key.includes(',') || seen.has(v.key)) continue;
     const id = studioGroupId(v.title || v.key);
     if (!id) continue;
     seen.add(v.key);
