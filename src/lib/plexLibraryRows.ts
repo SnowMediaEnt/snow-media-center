@@ -21,8 +21,9 @@ export interface LibraryRowSpec {
   id: string;
   /** The row's heading, as a translation key (translated when drawn). */
   titleKey: string;
-  /** 'onDeck' uses the dedicated endpoint; 'query' uses /all with this query. */
-  kind: 'onDeck' | 'query';
+  /** 'onDeck' uses the dedicated endpoint; 'query' uses /all with this query;
+   *  'studios' is the row of studio groups (plexStudios), not titles. */
+  kind: 'onDeck' | 'query' | 'studios';
   query?: string;
   /** Rows in wave 2 are fetched only once the user moves toward them. */
   wave: 1 | 2;
@@ -78,6 +79,10 @@ export function libraryRowSpecs(type: PlexSectionType): LibraryRowSpec[] {
     // recentlyAdded() as this sort for the same reason.
     query: `type=${t}&sort=addedAt:desc`,
   });
+
+  // Studio groups (plexStudios): text tiles, OK filters the library to that
+  // studio. Wave 2 — it costs the section's facts and its studio list.
+  rows.push({ id: 'studios', titleKey: 'plex.library.rows.studios', kind: 'studios', wave: 2 });
 
   rows.push({
     id: 'unwatched',
@@ -152,6 +157,9 @@ export const RAIL_ROW_H = 232;
 export const WIDE_ROW_H = 180;
 /** Continue Watching is a row of wide 16:9 stills, as on the Apple TV. */
 export function isWideRail(id: string | undefined): boolean { return id === 'continue'; }
+/** The Studios row as drawn: 40 px pills in the same .plex-rail-row padding
+ *  (16 + 40 + 16). */
+export const STUDIO_ROW_H = 72;
 
 /** "1h 38m" / "42m". */
 export function plexRuntime(ms: number | undefined): string {

@@ -20,17 +20,21 @@ export interface LibraryFilterState {
   contentRating?: { key: string; title: string };
   /** Unwatched only. */
   unwatched: boolean;
+  /** A studio group from the Studios row (plexStudios): `key` is the
+   *  server's raw studio values, comma-joined (Plex reads that as OR). */
+  studio?: { key: string; title: string };
 }
 
 export const EMPTY_FILTERS: LibraryFilterState = { sort: '', unwatched: false };
 
 export function hasAnyFilter(f: LibraryFilterState): boolean {
-  return !!(f.sort || f.genre || f.year || f.contentRating || f.unwatched);
+  return !!(f.sort || f.genre || f.year || f.contentRating || f.unwatched || f.studio);
 }
 
 /** Human summary for the "showing…" line. */
 export function describeFilters(f: LibraryFilterState, sortTitle?: string): string {
   const bits: string[] = [];
+  if (f.studio) bits.push(f.studio.title);
   if (f.genre) bits.push(f.genre.title);
   if (f.year) bits.push(f.year.title);
   if (f.contentRating) bits.push(f.contentRating.title);
@@ -61,6 +65,14 @@ export function buildLibraryQuery(
   if (f.genre) parts.push(`genre=${encodeURIComponent(f.genre.key)}`);
   if (f.year) parts.push(`${yearParam(f.year.key)}`);
   if (f.contentRating) parts.push(`contentRating=${encodeURIComponent(f.contentRating.key)}`);
+  // Studio: plain values from the section's own studio list, like genre. A
+  // group is several of them; each is encoded on its own and the commas
+  // between them are left literal, which Plex reads as OR. (On a TV section
+  // the bare field is the show's studio/network, which is what is wanted.)
+  if (f.studio) {
+    const vals = f.studio.key.split(',').filter(Boolean).map(encodeURIComponent);
+    if (vals.length) parts.push(`studio=${vals.join(',')}`);
+  }
 
   if (f.unwatched) {
     // `unwatched` does NOT exist for the show libtype. The show-level field is
@@ -123,7 +135,7 @@ export function availableSorts(
  *  directory for it, the one those facts point to on every server we have
  *  seen ("/library/sections/1/genre"). A TV library asks for its shows'
  *  values (type 2), not its episodes'. */
-export function fallbackFilterKey(sectionKey: string, chip: 'genre' | 'year' | 'contentRating', sectionType: string): string {
+export function fallbackFilterKey(sectionKey: string, chip: 'genre' | 'year' | 'contentRating' | 'studio', sectionType: string): string {
   return `/library/sections/${sectionKey}/${chip}${sectionType === 'show' ? '?type=2' : ''}`;
 }
 

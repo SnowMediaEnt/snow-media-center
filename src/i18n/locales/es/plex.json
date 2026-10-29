@@ -293,7 +293,8 @@
         "unwatchedMovies": "Aún sin ver",
         "unwatchedShows": "Sin terminar",
         "top": "Mejor valorados",
-        "again": "Volver a ver"
+        "again": "Volver a ver",
+        "studios": "Estudios"
       },
       "episodeCode": "T{{season}} E{{episode}}",
       "unwatched": "Sin ver",
@@ -313,6 +314,7 @@
       "yearChip": "Año: {{value}}",
       "ratedChip": "Clasif.: {{value}}",
       "unwatchedChip": "Sin ver: {{value}}",
+      "studioChip": "Estudio: {{value}}",
       "clearChip": "Borrar",
       "defaultValue": "Predeterminado",
       "allValue": "Todos",

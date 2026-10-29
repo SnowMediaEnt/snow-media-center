@@ -48,14 +48,19 @@ import {
   availableSorts, findFilter, type LibraryFilterState, fallbackFilterKey,
 } from '@/lib/plexLibraryFilters';
 import {
-  libraryRowSpecs, tileCaption, resumeFraction, isWideRail, RAIL_ROW_H, WIDE_ROW_H,
+  libraryRowSpecs, tileCaption, resumeFraction, isWideRail, RAIL_ROW_H, WIDE_ROW_H, STUDIO_ROW_H,
   type LibraryRowSpec, type PlexSectionType,
 } from '@/lib/plexLibraryRows';
+import { groupStudios, type StudioGroup } from '@/lib/plexStudios';
 
 interface LoadedRow {
   spec: LibraryRowSpec;
   items: PlexItem[];
+  /** The Studios row: studio groups instead of titles (items is empty). */
+  studios?: StudioGroup[];
 }
+/** How many tiles a row has, titles or studios. */
+const rowLen = (r: LoadedRow): number => (r.studios ? r.studios.length : r.items.length);
 
 export interface PlexLibraryRowsProps {
   /** The remote is ours: the section is active, the user is in the content
@@ -108,12 +113,16 @@ const PlexLibraryRows = memo(({
   const [loaded, setLoaded] = useState<Record<string, PlexItem[]>>(() => {
     const seed: Record<string, PlexItem[]> = {};
     for (const s of specs) {
+      if (s.kind === 'studios') continue;
       // However old: shown at once, refreshed by fetchRow when past 5 min.
       const c = getCachedHubStale(base, rowCachePath(libKey, s));
       if (c && c.length) seed[s.id] = c;
     }
     return seed;
   });
+
+  // The Studios row's groups (fetchStudios). Null until it answers.
+  const [studios, setStudios] = useState<StudioGroup[] | null>(null);
 
   // Rows actually shown: a spec appears once it has items. Empty until the
   // first fetch lands — see the header on why that is safe.
@@ -122,6 +131,10 @@ const PlexLibraryRows = memo(({
   const rows = useMemo<LoadedRow[]>(() => {
     const out: LoadedRow[] = [];
     for (const s of specs) {
+      if (s.kind === 'studios') {
+        if (studios && studios.length) out.push({ spec: s, items: [], studios });
+        continue;
+      }
       const all = loaded[s.id];
       const items = all && s.id === 'unwatched' ? all.filter((it) => !plexItemWatched(it)) : all;
       if (items && items.length) out.push({ spec: s, items });
@@ -129,7 +142,7 @@ const PlexLibraryRows = memo(({
     return out;
     // watchedVersion: a check came or went.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [specs, loaded, watchedVersion]);
+  }, [specs, loaded, watchedVersion, studios]);
 
   // ── focus, tracked by stable id ──────────────────────────────────────────
   // NULL means "wherever the top is". Rows arrive asynchronously and in any
@@ -158,8 +171,8 @@ const PlexLibraryRows = memo(({
   // Keep the column inside the current row.
   useEffect(() => {
     const r = rows[row];
-    if (r && col > r.items.length - 1) {
-      setCol(Math.max(0, r.items.length - 1));
+    if (r && col > rowLen(r) - 1) {
+      setCol(Math.max(0, rowLen(r) - 1));
     }
   }, [rows, row, col]);
 
@@ -200,17 +213,31 @@ const PlexLibraryRows = memo(({
   // effect, whose cleanup then threw the answer away, so the facts never
   // arrived and every Genre / Year / Rated chip said "Nothing to choose"
   // (owner, 2026-10-12).
-  const metaAskedRef = useRef<string | null>(null);
+  // One request for the facts, shared by the bar and the Studios row (which
+  // needs the section's studio filter). A failed ask is forgotten, so the
+  // next one (a chip opening) tries again.
+  const metaAskRef = useRef<{ lib: string; p: Promise<PlexSectionMeta | null> } | null>(null);
+  const ensureMeta = useCallback((): Promise<PlexSectionMeta | null> => {
+    const held = metaAskRef.current;
+    if (held && held.lib === libKey) return held.p;
+    const ask = {
+      lib: libKey,
+      p: getPlexSectionMeta(base, token, libKey)
+        .then((m) => { setMeta(m); return m; })
+        .catch(() => {
+          /* chips fall back to the built-in sort list */
+          if (metaAskRef.current === ask) metaAskRef.current = null;
+          return null;
+        })
+        .finally(() => { setMetaTried(true); }),
+    };
+    metaAskRef.current = ask;
+    return ask.p;
+  }, [base, token, libKey]);
   useEffect(() => {
-    if (zone !== 'bar' || metaTried || metaAskedRef.current === libKey) return;
-    metaAskedRef.current = libKey;
-    let cancelled = false;
-    void getPlexSectionMeta(base, token, libKey)
-      .then((m) => { if (!cancelled) setMeta(m); })
-      .catch(() => { /* chips fall back to the built-in sort list */ })
-      .finally(() => { if (!cancelled) setMetaTried(true); });
-    return () => { cancelled = true; };
-  }, [zone, metaTried, base, token, libKey]);
+    if (zone !== 'bar' || metaTried) return;
+    void ensureMeta();
+  }, [zone, metaTried, ensureMeta]);
 
   const sortOptions = useMemo(
     () => availableSorts(meta?.sorts ?? [], (key, options) => t(key, options)).map((x) => ({ key: x.key, title: x.title })),
@@ -231,6 +258,9 @@ const PlexLibraryRows = memo(({
     out.push({ id: 'year', label: t('plex.library.yearChip', { value: filters.year?.title ?? t('plex.library.allValue') }), set: !!filters.year });
     out.push({ id: 'contentRating', label: t('plex.library.ratedChip', { value: filters.contentRating?.title ?? t('plex.library.allValue') }), set: !!filters.contentRating });
     out.push({ id: 'unwatched', label: t('plex.library.unwatchedChip', { value: filters.unwatched ? t('plex.library.on') : t('plex.library.off') }), set: filters.unwatched });
+    // Only while a studio from the Studios row is applied; OK on it takes
+    // the studio off (Back and Clear take off everything, as for the rest).
+    if (filters.studio) out.push({ id: 'studio', label: t('plex.library.studioChip', { value: filters.studio.title }), set: true });
     if (filtering) out.push({ id: 'clear', label: t('plex.library.clearChip'), set: false });
     return out;
   }, [meta, filters, sortOptions, filtering, t]);
@@ -279,9 +309,36 @@ const PlexLibraryRows = memo(({
     return { own, extraPath };
   }, [base, libKey, serverResume, sectionType]);
 
+  // The Studios row: the section's own studio list, folded into groups
+  // (plexStudios). The list comes from the filter the server's facts name
+  // (`studio`, libtype-prefixed on a TV section), else the section's studio
+  // directory — the same two ways as the Genre chip. Either one answering
+  // with values means the server knows the field, so `studio=` filters
+  // rather than being silently ignored. Not in the demo: the row is hidden.
+  const fetchStudios = useCallback(async (spec: LibraryRowSpec) => {
+    const done = () => setSettled((prev) => (prev[spec.id] ? prev : { ...prev, [spec.id]: true }));
+    if (isDemo()) { done(); return; }
+    try {
+      const facts = await ensureMeta();
+      const listed = findFilter(facts?.filters ?? [], 'studio');
+      const keys = [listed?.key, fallbackFilterKey(libKey, 'studio', sectionType)]
+        .filter((k, i, all): k is string => !!k && all.indexOf(k) === i);
+      for (const key of keys) {
+        try {
+          const opts = await getPlexFilterValues(base, token, key);
+          if (opts.length) { setStudios(groupStudios(opts)); return; }
+        } catch { /* the next way, if there is one */ }
+      }
+      setStudios([]);
+    } finally {
+      done();
+    }
+  }, [ensureMeta, base, token, libKey, sectionType]);
+
   const fetchRow = useCallback(async (spec: LibraryRowSpec) => {
     if (fetchedRef.current.has(spec.id)) return;
     fetchedRef.current.add(spec.id);
+    if (spec.kind === 'studios') { await fetchStudios(spec); return; }
     const path = rowCachePath(libKey, spec);
     // The panel remounts on every visit to the tab, and each visit asked the
     // server for every row again even though `loaded` was already painted
@@ -343,7 +400,7 @@ const PlexLibraryRows = memo(({
     } finally {
       setSettled((prev) => (prev[spec.id] ? prev : { ...prev, [spec.id]: true }));
     }
-  }, [base, token, libKey, serverResume, paintContinue]);
+  }, [base, token, libKey, serverResume, paintContinue, fetchStudios]);
 
   // Wave 1 — prefetched on isCurrent, NOT isActive (see the header). Behind
   // the same 400ms dwell the old grid used: the panel mounts as soon as its
@@ -502,7 +559,7 @@ const PlexLibraryRows = memo(({
     // facts leave the filter out.
     let facts = meta;
     if (!facts) {
-      try { facts = await getPlexSectionMeta(base, token, libKey); if (current()) setMeta(facts); } catch { facts = null; }
+      facts = await ensureMeta();
       if (!current()) return;
     }
     const listed = chip === 'year'
@@ -522,7 +579,7 @@ const PlexLibraryRows = memo(({
       if (!current()) return;
     }
     if (current()) setMenu({ chip, options: [], idx: 0 });
-  }, [sortOptions, filters.sort, values, meta, base, token, libKey, sectionType]);
+  }, [sortOptions, filters.sort, values, meta, ensureMeta, base, token, libKey, sectionType]);
 
   const applyMenuChoice = useCallback((chip: string, opt: PlexFilterValue) => {
     const unset = !opt.key;
@@ -539,8 +596,16 @@ const PlexLibraryRows = memo(({
   const activateChip = useCallback((id: string) => {
     if (id === 'clear') { setFilters(EMPTY_FILTERS); return; }
     if (id === 'unwatched') { setFilters((f) => ({ ...f, unwatched: !f.unwatched })); return; }
+    if (id === 'studio') { setFilters((f) => ({ ...f, studio: undefined })); return; }
     void openMenu(id);
   }, [openMenu]);
+
+  // OK on a studio tile: the library filtered to that studio — the same
+  // filtered grid a chip gives, A-Z and paged, with a "Studio: X" chip.
+  const applyStudio = useCallback((g: StudioGroup) => {
+    setFilters((f) => ({ ...f, studio: { key: g.value, title: g.name } }));
+    setZone('content');
+  }, []);
 
   // ── D-pad ────────────────────────────────────────────────────────────────
   const rowsRef = useRef(rows); useEffect(() => { rowsRef.current = rows; }, [rows]);
@@ -558,6 +623,7 @@ const PlexLibraryRows = memo(({
   const chipIdxRef = useRef(chipIdx); useEffect(() => { chipIdxRef.current = chipIdx; }, [chipIdx]);
   const activateChipRef = useRef(activateChip); useEffect(() => { activateChipRef.current = activateChip; }, [activateChip]);
   const applyMenuChoiceRef = useRef(applyMenuChoice); useEffect(() => { applyMenuChoiceRef.current = applyMenuChoice; }, [applyMenuChoice]);
+  const applyStudioRef = useRef(applyStudio); useEffect(() => { applyStudioRef.current = applyStudio; }, [applyStudio]);
   const filteringRef = useRef(filtering); useEffect(() => { filteringRef.current = filtering; }, [filtering]);
   const resultsRef = useRef(results); useEffect(() => { resultsRef.current = results; }, [results]);
   const gridCursorRef = useRef(gridCursor); useEffect(() => { gridCursorRef.current = gridCursor; }, [gridCursor]);
@@ -725,7 +791,15 @@ const PlexLibraryRows = memo(({
 
       // Left off the first tile is the way into the side menu.
       if (e.key === 'ArrowLeft') { if (c > 0) setCol(c - 1); else onExitRef.current(); return; }
-      if (e.key === 'ArrowRight') { if (c < current.items.length - 1) setCol(c + 1); return; }
+      if (e.key === 'ArrowRight') { if (c < rowLen(current) - 1) setCol(c + 1); return; }
+      // A studio tile: OK filters to it, at once (no hold menu on a studio).
+      if (current.studios) {
+        if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) {
+          const g = current.studios[c];
+          if (g) applyStudioRef.current(g);
+        }
+        return;
+      }
       // Opens it when let go; held, its menu. A held OK acts once.
       if (e.key === 'Enter' || e.key === ' ') hold.press(e, current.items[c], open);
     };
@@ -928,7 +1002,35 @@ const PlexLibraryRows = memo(({
           return (
             <div key={r.spec.id} data-plex-row={r.spec.id} className="plex-rail">
               <div className="plex-rail-head font-quicksand">{t(r.spec.titleKey)}</div>
-              <div className="plex-rail-row" style={{ height: isWideRail(r.spec.id) ? WIDE_ROW_H : RAIL_ROW_H }} aria-hidden="true" />
+              <div className="plex-rail-row" style={{ height: r.studios ? STUDIO_ROW_H : isWideRail(r.spec.id) ? WIDE_ROW_H : RAIL_ROW_H }} aria-hidden="true" />
+            </div>
+          );
+        }
+
+        // STUDIOS: slim text pills (plex.css .plex-studio), names only — no
+        // logos. A short row, so every tile is mounted; each one scrolls
+        // itself into view when focused, as the chips do.
+        if (r.studios) {
+          return (
+            <div key={r.spec.id} data-plex-row={r.spec.id} className="plex-rail">
+              <div className="plex-rail-head font-quicksand">{t(r.spec.titleKey)}</div>
+              <div className="plex-rail-row flex gap-3 overflow-x-auto">
+                {r.studios.map((g, ci) => {
+                  const f = focused && ci === col;
+                  return (
+                    <div
+                      key={g.id}
+                      ref={(el) => { if (f && el) el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }}
+                      onClick={() => { setFocusedRowId(r.spec.id); setCol(ci); applyStudio(g); }}
+                      data-focused={f ? 'true' : 'false'}
+                      data-studio={g.id}
+                      className={`plex-studio tv-ring cursor-pointer font-nunito${f ? ' z-10' : ''}`}
+                    >
+                      {g.name}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           );
         }

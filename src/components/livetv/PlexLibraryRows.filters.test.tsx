@@ -74,7 +74,8 @@ describe('PlexLibraryRows — the Genre / Year / Rated choices', () => {
     await openGenre('movie', '6');
     // One facts request (the bar's), and the chip used the key it listed.
     expect(h.meta).toHaveBeenCalledTimes(1);
-    expect(h.values.mock.calls.map((c) => c[2])).toEqual(['/library/sections/6/genre?listed=1']);
+    // (The Studios row asks for the studio list on its own, sharing the facts.)
+    expect(h.values.mock.calls.map((c) => c[2]).filter((p) => !p.includes('/studio'))).toEqual(['/library/sections/6/genre?listed=1']);
     expect(screen.queryByText('Comedy')).not.toBeNull();
   });
 

@@ -296,7 +296,8 @@
         "unwatchedMovies": "لم تشاهدها بعد",
         "unwatchedShows": "لم تُكمل مشاهدتها",
         "top": "الأعلى تقييمًا",
-        "again": "شاهدها مرة أخرى"
+        "again": "شاهدها مرة أخرى",
+        "studios": "الاستوديوهات"
       },
       "episodeCode": "م{{season}} ح{{episode}}",
       "unwatched": "غير مشاهد",
@@ -316,6 +317,7 @@
       "yearChip": "السنة: {{value}}",
       "ratedChip": "التصنيف: {{value}}",
       "unwatchedChip": "غير مشاهد: {{value}}",
+      "studioChip": "الاستوديو: {{value}}",
       "clearChip": "مسح",
       "defaultValue": "افتراضي",
       "allValue": "الكل",

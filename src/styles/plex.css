@@ -608,3 +608,32 @@ html.is-sideways .plex-menu-head { padding-top: 0; }
     inset 0 0 0 3px hsl(var(--brand-gold)),
     0 0 10px 1px hsl(var(--brand-gold) / 0.45);
 }
+/* The Studios row's tiles: the chips' shape a size up — 40 px tall, wide
+   enough to read across the room, names only (no logos). They sit in a
+   .plex-rail-row, whose 16 px padding leaves room for the ring and lift. */
+.plex-studio {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  min-width: 150px;
+  padding: 0 22px;
+  border-radius: 9999px;
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+.plex-studio[data-focused="true"] {
+  background-color: #fff;
+  color: #0b1322;
+  -webkit-transform: scale(1.04);
+  transform: scale(1.04);
+}
+.plex-studio.tv-ring[data-focused="true"] {
+  box-shadow:
+    inset 0 0 0 3px hsl(var(--brand-gold)),
+    0 0 10px 1px hsl(var(--brand-gold) / 0.45);
+}
