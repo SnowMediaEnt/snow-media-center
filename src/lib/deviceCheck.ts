@@ -245,6 +245,12 @@ async function ensurePlayback(opts: CheckOpts): Promise<Playback | null> {
   };
 }
 
+/** The mean of the known numbers; null when none is. */
+function avgKnown(xs: Array<number | null | undefined>): number | null {
+  const k = xs.filter((x): x is number => typeof x === 'number' && Number.isFinite(x));
+  return k.length ? k.reduce((a, b) => a + b, 0) / k.length : null;
+}
+
 /** `p`, or `fallback` after `ms` (whichever is first). */
 function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
   return new Promise<T>((resolve) => {
@@ -295,8 +301,15 @@ export async function runDeviceCheck(opts: CheckOpts = {}): Promise<CheckResult 
     if (play.stop) await play.stop();
   }
   if (opts.signal?.aborted) return null;
-  // After the stream: the test does not compete with it for the line.
-  const internetKbps = await measureInternetKbps(INTERNET_TEST_BYTES, 10_000, opts.signal).catch(() => null);
+  // After the stream: the test does not compete with it for the line. A
+  // check of what is playing leaves the stream on, so the line is shared:
+  // what the stream took meanwhile is added back (the line's own speed).
+  const shared = play.source === 'already_playing';
+  const before = shared ? await readStats() : null;
+  const testKbps = await measureInternetKbps(INTERNET_TEST_BYTES, 10_000, opts.signal).catch(() => null);
+  const after = shared ? await readStats() : null;
+  const streamKbps = shared ? avgKnown([before?.arrivalKbps ?? before?.nowKbps, after?.arrivalKbps ?? after?.nowKbps]) : null;
+  const internetKbps = testKbps != null && streamKbps != null ? testKbps + streamKbps : testKbps;
   if (opts.signal?.aborted) return null;
   const data = summarize(rows, internetKbps, interval);
   data.source = play.source;

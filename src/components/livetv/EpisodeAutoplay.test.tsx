@@ -75,13 +75,27 @@ describe('EpisodeAutoplay', () => {
 
   it('counts down at the credits and starts the next episode', async () => {
     const m = await mount();
-    position = 1745;
+    position = 1735;
+    await flush(1000);
+    position = 1745; // played into the credits
     await flush(1000);
     expect(m.last()?.kind).toBe('next');
     expect(m.last()?.detail).toContain('S1 · E2');
     await flush(11_000);
     expect(m.onPlayNext).toHaveBeenCalledTimes(1);
     expect(m.onPlayNext.mock.calls[0][0].ratingKey).toBe('12');
+  });
+
+  it('landing in the credits (a resume or a seek) shows Up Next without the countdown', async () => {
+    const m = await mount();
+    position = 1760;
+    await flush(1000);
+    expect(m.last()?.kind).toBe('next');
+    expect(m.last()?.countdown).toBeUndefined();
+    await flush(15_000);
+    expect(m.onPlayNext).not.toHaveBeenCalled();
+    act(() => m.last()!.onOk());
+    expect(m.onPlayNext).toHaveBeenCalledTimes(1);
   });
 
   it('Back keeps watching: no countdown, and the end closes as before', async () => {
@@ -98,6 +112,8 @@ describe('EpisodeAutoplay', () => {
 
   it('a pause holds the countdown', async () => {
     const m = await mount();
+    position = 1735;
+    await flush(1000);
     position = 1745;
     await flush(1000);
     playing = false;

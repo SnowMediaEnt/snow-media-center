@@ -2983,19 +2983,6 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     : nativeShowing.where === 'full' || (upright && isPlayingNow(nativeShowing.stream, nativeShowing.line))
       ? { key: lineChannelKey(nativeShowing.line, nativeShowing.stream.stream_id), line: nativeShowing.line, stream: nativeShowing.stream }
       : null;
-  const bufferHelp = useBufferingHelp({
-    enabled: !DEMO && !kidsLevel(),
-    watching: helpWatch,
-    // A retry or the app coming back loads the same address again: start-up too.
-    loadKey: nativeUrl ? `${nativeUrl}#${native.loads ?? 0}` : null,
-    buffering: native.buffering,
-    error: !!native.error,
-    busy: !!(warnFor || reportFor || reportCatFor || recordFor) || chOverlayOpen || recent.open
-      || subMenuOpen || audioMenuOpen || volMenuOpen || choosingLayout,
-    onGone: (why) => { if (why === 'error') bufferHelpGaveWayAtRef.current = Date.now(); },
-    cushion: catchupUrl ? null : liveCushion.playing,
-  });
-  bufferHelpOpenRef.current = bufferHelp.open;
   // "Still buffering?" → "Check this stream (1 minute)": the channel on screen
   // as it plays (never an outside service's name), a slim strip on top.
   const streamCheck = usePlayerCheck({
@@ -3003,8 +2990,28 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     playing: helpWatch ? { context: catchupUrl ? 'catchup' : 'live', title: isOutsideLine(helpWatch.line) ? null : helpWatch.stream.name } : null,
     playKey: helpWatch?.key ?? null,
   });
+  const bufferHelp = useBufferingHelp({
+    enabled: !DEMO && !kidsLevel(),
+    watching: helpWatch,
+    // A retry or the app coming back loads the same address again: start-up too.
+    loadKey: nativeUrl ? `${nativeUrl}#${native.loads ?? 0}` : null,
+    buffering: native.buffering,
+    error: !!native.error,
+    busy: !!(warnFor || reportFor || reportCatFor || recordFor) || chOverlayOpen || recent.open || streamCheck.visible
+      || subMenuOpen || audioMenuOpen || volMenuOpen || choosingLayout,
+    onGone: (why) => { if (why === 'error') bufferHelpGaveWayAtRef.current = Date.now(); },
+    cushion: catchupUrl ? null : liveCushion.playing,
+  });
+  bufferHelpOpenRef.current = bufferHelp.open;
   const streamCheckBackRef = useRef(streamCheck.handleBack);
   streamCheckBackRef.current = streamCheck.handleBack;
+  // The strip takes Back only when nothing over the picture would: a moved
+  // favourite, the Player's menus, Recently watched, the list or the bar close first.
+  const streamCheckTakesBack = () =>
+    !favMoveRef.current.movingKey && !subMenuOpenRef.current && !audioMenuOpenRef.current && !volMenuOpenRef.current
+    && !recentRef.current.isOpen() && !(fullscreenRef.current && chOverlayOpenRef.current)
+    && !(barVisibleRef.current && !touchUIRef.current)
+    && streamCheckBackRef.current();
   // Over the picture with the bar down: Back from it leaves the picture as it was.
   useEffect(() => { if (bufferHelp.open) hideBarNow(); }, [bufferHelp.open, hideBarNow]);
 
@@ -3069,7 +3076,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || bufferHelpOpenRef.current) return;
       // The stream check's strip: Back cancels the check (or hides its
       // result) and nothing else — the picture, the bar, the channel stay.
-      if ((e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) && streamCheckBackRef.current()) {
+      if ((e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) && streamCheckTakesBack()) {
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
         return;
       }
@@ -3620,7 +3627,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
           // keyboard, a search typed there, its categories, the list), the
           // picture, the caller (the Guide, Game Day), the categories, out.
           if (reportForRef.current || reportCatForRef.current || warnForRef.current || recordForRef.current || bufferHelpOpenRef.current) return;
-          if (streamCheckBackRef.current()) return;
+          if (streamCheckTakesBack()) return;
           if (favMoveRef.current.movingKey) { favMoveRef.current.drop(); return; }
           if (subMenuOpenRef.current || audioMenuOpenRef.current || volMenuOpenRef.current) { setSubMenuOpen(false); setAudioMenuOpen(false); setVolMenuOpen(false); return; }
           if (recentRef.current.isOpen()) { recentRef.current.close(); return; }
@@ -3858,7 +3865,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         setReportPreset({ choice: 'Channel buffering' });
         setReportFor(st);
       }}
-      onCheck={() => { bufferHelp.close(); streamCheck.start(); }}
+      // Not on an outside service's channel: the check never reports one.
+      onCheck={helpWatch && !isOutsideLine(helpWatch.line) ? () => { bufferHelp.close(); streamCheck.start(); } : undefined}
       onClose={bufferHelp.close}
       track={bufferHelp.track}
     />

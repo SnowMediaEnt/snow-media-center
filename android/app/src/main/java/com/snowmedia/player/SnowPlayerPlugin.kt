@@ -1075,10 +1075,15 @@ class SnowPlayerPlugin : Plugin() {
                 // eats the film's first seconds.
                 // A hold only for a mid-play mode switch (modeOnly) waits for
                 // the screen alone, never the start-up buffer rules.
+                // The rest of the file already in hand counts as ended:
+                // ExoPlayer stops asking the load control then, so its last
+                // "wants more" would hold a 4K start to the cap.
                 val done = (modeOnly || PreBufferRule.isDone(
                     midFile, elapsed, flowAt, now, bufMs, ready,
                     loading = PreBufferRule.loadingFor(uhd, p.isLoading, s.loadControl?.wantsMore == true),
-                    ended = state == Player.STATE_ENDED, uhd = uhd,
+                    ended = state == Player.STATE_ENDED ||
+                        (p.duration != C.TIME_UNSET && p.duration > 0 && p.bufferedPosition >= p.duration - 500L),
+                    uhd = uhd,
                 )) && !(s.modeWaitUntilMs != 0L && now < s.modeWaitUntilMs)
                 if (screenId == MAIN) {
                     // The indicator's clock: the filling time, which for a
@@ -1173,7 +1178,8 @@ class SnowPlayerPlugin : Plugin() {
                 p.playWhenReady = true
                 scheduleWatchdog(s, screenId)
             } else {
-                if (busyStatus != null && s.rangeFetch) s.rangeShared?.newLoad()
+                // A busy try keeps the cap the refusals lowered (1 connection
+                // knocks, not 4); the cap comes back when a picture ends the run.
                 resumeVod(s, screenId, p, url)
                 scheduleWatchdog(s, screenId) // not for Plex (see there)
             }
@@ -2213,6 +2219,7 @@ class SnowPlayerPlugin : Plugin() {
                 s.deadStreak = 0
                 openShutterIfReady(s)
                 s.reconnectAttempts = 0
+                if (s.busySinceMs != 0L && s.rangeFetch) s.rangeShared?.newLoad()
                 s.busySinceMs = 0L
                 s.busyTries = 0
                 s.watchdogRunnable?.let { mainHandler.removeCallbacks(it) }
@@ -2332,7 +2339,7 @@ class SnowPlayerPlugin : Plugin() {
                 // server answered 503 for about two minutes and then sent
                 // again by itself (2026-10-28). The WebView shows a slim line
                 // saying so (playerState serverBusy).
-                if (!s.isLive && s.currentUrl != null && ServerBusyRule.isServerError(httpStatus)) {
+                if (!s.isLive && s.currentUrl?.let { isPlexStream(Uri.parse(it)) } == true && ServerBusyRule.isServerError(httpStatus)) {
                     val now = SystemClock.elapsedRealtime()
                     if (s.busySinceMs == 0L) { s.busySinceMs = now; s.busyTries = 0 }
                     if (ServerBusyRule.keepsTrying(live = false, httpStatus = httpStatus, sinceFirstMs = now - s.busySinceMs)) {

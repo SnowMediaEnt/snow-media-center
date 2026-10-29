@@ -134,6 +134,10 @@ export default function VodControlBar({
   const [upDismissed, setUpDismissed] = useState(false);
   const [upCount, setUpCount] = useState<number | null>(null);
   const upStarted = useRef(false);
+  // Where playing last started from (first reading, a seek, a resume): landing
+  // inside the window shows Up Next without the countdown.
+  const upAnchor = useRef<number | null>(null);
+  const upLast = useRef<number | null>(null);
   const upPlaying = useRef(true);
   const upSince = useRef(Date.now());
   const upNextOn = !!upNext && !!onNext && hasNext && !blocked;
@@ -176,6 +180,8 @@ export default function VodControlBar({
   useEffect(() => {
     upSince.current = Date.now();
     upStarted.current = false;
+    upAnchor.current = null;
+    upLast.current = null;
     setUpPos(null);
     setUpDismissed(false);
   }, [srcKey]);
@@ -192,6 +198,11 @@ export default function VodControlBar({
         if (!alive) return;
         upPlaying.current = p.playing;
         if (Date.now() - upSince.current >= UP_NEXT_SETTLE_MS && p.duration > 0) {
+          const last = upLast.current;
+          if (last == null || p.position < last - 2 || p.position > last + 12) upAnchor.current = p.position;
+          upLast.current = p.position;
+          // Back out of the window (a rewind): Up Next may come again.
+          if (p.position < p.duration - upNextLeadSeconds(p.duration) - 5) setUpDismissed(false);
           setUpPos({ at: p.position, dur: p.duration });
           near = p.position >= p.duration - upNextLeadSeconds(p.duration) - 15;
         }
@@ -207,21 +218,24 @@ export default function VodControlBar({
     if (upStarted.current) return;
     upStarted.current = true;
     setUpCount(null);
+    // Down at once: a next episode that did not start leaves no stuck "0".
+    setUpDismissed(true);
     cur.current.onNext?.({ finished: true });
   }, []);
 
   // The countdown runs while the picture plays (a pause holds it); with the
   // series' autoplay off there is none, Up Next waits for OK.
   const autoplay = upNext?.autoplay !== false;
+  const landedInUpNext = !!upPos && upAnchor.current != null && upAnchor.current >= upPos.dur - upNextLeadSeconds(upPos.dur);
   useEffect(() => {
-    if (!inUpNext || !autoplay) { setUpCount(null); return; }
+    if (!inUpNext || !autoplay || landedInUpNext) { setUpCount(null); return; }
     setUpCount(VOD_UP_NEXT_SECONDS);
     const id = window.setInterval(() => {
       if (!upPlaying.current) return;
       setUpCount((n) => (n == null ? n : Math.max(0, n - 1)));
     }, 1000);
     return () => window.clearInterval(id);
-  }, [inUpNext, autoplay]);
+  }, [inUpNext, autoplay, landedInUpNext]);
   useEffect(() => { if (upCount === 0) takeUpNext(); }, [upCount, takeUpNext]);
 
   // Where the film is, once a second while the bar is up.
@@ -492,15 +506,12 @@ export default function VodControlBar({
   // out of the way while a menu is open.
   const upNextEl = inUpNext && upNext && (!visible || menu === 'none') ? (
     <div data-vod-upnext="" className={`absolute right-12 ${visible ? 'bottom-44' : 'bottom-12'} z-30 pointer-events-none animate-fade-in`}>
-      <div className="rounded-2xl bg-black/85 border-2 border-brand-gold px-6 py-4 max-w-md">
-        <p className="text-xs uppercase tracking-wider text-brand-gold font-nunito mb-1">
+      <div className="h-10 inline-flex items-center gap-3 rounded-full bg-black/85 border border-brand-gold pl-4 pr-1 max-w-[60vw]">
+        <span className="text-xs uppercase tracking-wider text-brand-gold font-nunito whitespace-nowrap">
           {upCount != null ? t('plex.player.upNextIn', { seconds: upCount }) : t('plex.player.upNext')}
-        </p>
-        {upNext.detail && <p className="text-white font-quicksand font-semibold text-lg leading-tight mb-2 truncate">{upNext.detail}</p>}
-        <div className="flex items-center">
-          <span className="rounded-xl bg-brand-gold text-brand-navy font-bold font-quicksand px-5 py-2 text-base">{t('plex.player.playNext')}</span>
-          <span className="ml-4 text-xs text-brand-ice/80 font-nunito">{visible ? '' : t('plex.player.promptOkBack')}</span>
-        </div>
+        </span>
+        {upNext.detail && <span className="text-white font-quicksand font-semibold text-base truncate">{upNext.detail}</span>}
+        <span className="h-8 inline-flex items-center rounded-full bg-brand-gold text-brand-navy font-bold font-quicksand px-4 text-sm whitespace-nowrap">{t('plex.player.playNext')}</span>
       </div>
     </div>
   ) : null;

@@ -113,6 +113,12 @@ const EpisodeAutoplay = memo(({ active, base, token, ratingKey, getPosition, see
   // Read by the countdown between renders: a pause must hold it at once.
   const playingRef = useRef(false);
   const upNextAtRef = useRef(upNextAt); upNextAtRef.current = upNextAt;
+  // Where playing last started from: the first reading, or a jump (seek,
+  // resume). Landing inside Up Next's window shows it without the countdown,
+  // so a resume 40 s from the end is not carried off to the next episode.
+  const anchorRef = useRef<number | null>(null);
+  const lastAtRef = useRef<number | null>(null);
+  useEffect(() => { anchorRef.current = null; lastAtRef.current = null; }, [ratingKey]);
   useEffect(() => {
     if (!watching) return;
     let alive = true;
@@ -123,6 +129,9 @@ const EpisodeAutoplay = memo(({ active, base, token, ratingKey, getPosition, see
         const p = await getPositionRef.current();
         if (!alive) return;
         at = p.position;
+        const last = lastAtRef.current;
+        if (last == null || at < last - 2 || at > last + 12) anchorRef.current = at;
+        lastAtRef.current = at;
         playingRef.current = p.playing;
         setPos({ at: p.position, dur: p.duration > 0 ? p.duration : (info?.duration ?? 0), playing: p.playing });
       } catch { /* try again next tick */ }
@@ -141,6 +150,7 @@ const EpisodeAutoplay = memo(({ active, base, token, ratingKey, getPosition, see
 
   const inIntro = !!intro && !!pos && pos.at >= intro.start && pos.at < intro.end - 1;
   const inUpNext = !!next && upNextAt != null && !!pos && pos.at >= upNextAt && !dismissed;
+  const landedInUpNext = upNextAt != null && anchorRef.current != null && anchorRef.current >= upNextAt;
 
   const go = useCallback(() => {
     if (startedRef.current || !next || !info) return;
@@ -153,14 +163,14 @@ const EpisodeAutoplay = memo(({ active, base, token, ratingKey, getPosition, see
 
   // Up Next counts down while the picture is playing (a pause holds it).
   useEffect(() => {
-    if (!inUpNext) { setCountdown(null); return; }
+    if (!inUpNext || landedInUpNext) { setCountdown(null); return; }
     setCountdown(UP_NEXT_SECONDS);
     const id = window.setInterval(() => {
       if (!playingRef.current) return;
       setCountdown((c) => (c == null ? c : Math.max(0, c - 1)));
     }, 1000);
     return () => window.clearInterval(id);
-  }, [inUpNext]);
+  }, [inUpNext, landedInUpNext]);
   useEffect(() => { if (countdown === 0) go(); }, [countdown, go]);
 
   // The bar's Next episode, any time. Past the Up Next point it is Up Next

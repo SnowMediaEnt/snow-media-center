@@ -43,14 +43,26 @@ describe('Live TV series: Up Next', () => {
   });
 
   it('a minute before the end, counts down and plays the next episode as watched', async () => {
-    position = 3541;
+    position = 3530;
     const { onNext } = make();
     await flush(6000);
+    position = 3541; // played into the last minute
+    await flush(2000);
     expect(prompt()?.textContent).toContain('S1 · E2');
     expect(prompt()?.textContent).toMatch(/playing in \d+/);
     await flush(11_000);
     expect(onNext).toHaveBeenCalledTimes(1);
     expect(onNext).toHaveBeenCalledWith({ finished: true });
+  });
+
+  it('resumed inside the last minute: Up Next waits for OK, no countdown', async () => {
+    position = 3570;
+    const { onNext } = make();
+    await flush(6000);
+    expect(prompt()?.textContent).toContain('S1 · E2');
+    expect(prompt()?.textContent).not.toMatch(/playing in \d+/);
+    await flush(15_000);
+    expect(onNext).not.toHaveBeenCalled();
   });
 
   it('a short episode: 5% of it, at least 20 s', async () => {

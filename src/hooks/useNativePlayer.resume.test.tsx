@@ -520,7 +520,7 @@ describe('SnowPlayerPlugin.kt — the start-up hold of a film started part-way (
   it('the hold decides by PreBufferRule, every tick, from the player\'s own numbers', () => {
     const hold = plugin.slice(plugin.indexOf('private fun schedulePreBuffer('), plugin.indexOf('private fun buildMediaItem('));
     expect(hold).toContain('flowAt = PreBufferRule.flowStart(flowAt, now, midFile, bufMs, ready)');
-    expect(hold).toMatch(/PreBufferRule\.isDone\(\s*midFile, elapsed, flowAt, now, bufMs, ready,\s*loading = PreBufferRule\.loadingFor\(uhd, p\.isLoading, s\.loadControl\?\.wantsMore == true\),\s*ended = state == Player\.STATE_ENDED, uhd = uhd,\s*\)/);
+    expect(hold).toMatch(/PreBufferRule\.isDone\(\s*midFile, elapsed, flowAt, now, bufMs, ready,\s*loading = PreBufferRule\.loadingFor\(uhd, p\.isLoading, s\.loadControl\?\.wantsMore == true\),\s*ended = state == Player\.STATE_ENDED \|\|\s*\(p\.duration != C\.TIME_UNSET && p\.duration > 0 && p\.bufferedPosition >= p\.duration - 500L\),\s*uhd = uhd,\s*\)/);
     // 4K: from the load control, and the indicator gets its longer limit.
     expect(hold).toContain('val uhd = s.loadControl?.uhd == true');
     expect(hold).toContain('.put("maxWaitMs", PreBufferRule.maxWaitMs(uhd))');
@@ -572,12 +572,13 @@ describe('a film whose server refuses with a 5xx (ServerBusyRule.kt)', () => {
     const busy = err.indexOf('ServerBusyRule.isServerError(httpStatus)');
     expect(busy).toBeGreaterThan(0);
     expect(busy).toBeLessThan(err.indexOf('val vodSpent'));
-    expect(err).toMatch(/if \(!s\.isLive && s\.currentUrl != null && ServerBusyRule\.isServerError\(httpStatus\)\) \{[\s\S]*?ServerBusyRule\.keepsTrying\(live = false, httpStatus = httpStatus, sinceFirstMs = now - s\.busySinceMs\)[\s\S]*?reconnect\(s, screenId, httpRestartReason\(error, httpStatus\), ServerBusyRule\.retryDelayMs\(s\.busyTries\), busyStatus = httpStatus\)\s*return/);
+    expect(err).toMatch(/if \(!s\.isLive && s\.currentUrl\?\.let \{ isPlexStream\(Uri\.parse\(it\)\) \} == true && ServerBusyRule\.isServerError\(httpStatus\)\) \{[\s\S]*?ServerBusyRule\.keepsTrying\(live = false, httpStatus = httpStatus, sinceFirstMs = now - s\.busySinceMs\)[\s\S]*?reconnect\(s, screenId, httpRestartReason\(error, httpStatus\), ServerBusyRule\.retryDelayMs\(s\.busyTries\), busyStatus = httpStatus\)\s*return/);
     const rc = plugin.slice(plugin.indexOf('private fun reconnect('), plugin.indexOf('private fun giveUpOffAir('));
     expect(rc).toContain('if (busyStatus == null) s.reconnectAttempts++');
     expect(rc).toContain('if (busyStatus != null) ev.put("serverBusy", true).put("httpStatus", busyStatus)');
-    // The connection cap the refusals lowered comes back for the try.
-    expect(rc).toContain('if (busyStatus != null && s.rangeFetch) s.rangeShared?.newLoad()');
+    // A busy try keeps the lowered cap; the first picture brings it back.
+    expect(rc).not.toContain('newLoad()');
+    expect(plugin).toContain('if (s.busySinceMs != 0L && s.rangeFetch) s.rangeShared?.newLoad()');
     // A picture ends the run.
     const ff = plugin.slice(plugin.indexOf('override fun onRenderedFirstFrame('), plugin.indexOf('override fun onPlayerError('));
     expect(ff).toContain('s.busySinceMs = 0L');

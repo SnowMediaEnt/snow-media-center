@@ -99,7 +99,7 @@ describe('the 30-second check', () => {
     expect(e.kind).toBe('check');
     expect(e.samples).toHaveLength(30);
     expect(e.samples![0]).toEqual([0, 20, 9000, 0, 35, 800, 0]);
-    expect(e.data).toMatchObject({ avgBufferedAheadSec: 20, minBufferedAheadSec: 20, avgArrivalKbps: 9000, minArrivalKbps: 9000, neededKbps: 6000, stalls: 0, stallSec: 0, cpuPctPeak: 35, memAvailMbMin: 800, wifiRssi: -50, internetMbps: 48, source: 'already_playing' });
+    expect(e.data).toMatchObject({ avgBufferedAheadSec: 20, minBufferedAheadSec: 20, avgArrivalKbps: 9000, minArrivalKbps: 9000, neededKbps: 6000, stalls: 0, stallSec: 0, cpuPctPeak: 35, memAvailMbMin: 800, wifiRssi: -50, internetMbps: 57, source: 'already_playing' }); // 48 test + 9 the stream took meanwhile
     expect(r!.fine).toBe(true);
     expect(r!.plain.key).toBe('deviceHealth.check.verdict.fine');
     // Something already played: nothing loaded, nothing stopped.
@@ -112,7 +112,7 @@ describe('the 30-second check', () => {
     h.stats = [playing(), playing({ arrivalKbps: 3000, nowKbps: 3000 }), playing({ state: 'buffering', playing: false, arrivalKbps: 2000, bufferedAheadSec: 0 }), playing({ arrivalKbps: 3000 })];
     const r = await runDeviceCheck({ sleep: noSleep, durationSec: 3 });
     expect(r!.verdict).toBe('server');
-    expect(r!.plain).toEqual({ key: 'deviceHealth.check.verdict.server', params: { internet: '48.0 Mb/s', arrival: '2.7 Mb/s', needed: '6.0 Mb/s' } });
+    expect(r!.plain).toEqual({ key: 'deviceHealth.check.verdict.server', params: { internet: '51.0 Mb/s', arrival: '2.7 Mb/s', needed: '6.0 Mb/s' } }); // 48 test + 3 the stream took
     expect((h.sent[0] as health.HealthEvent).data).toMatchObject({ stalls: 1, stallSec: 1 });
   });
 

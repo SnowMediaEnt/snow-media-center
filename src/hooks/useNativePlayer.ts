@@ -431,7 +431,9 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
           // sound: the viewer gets the card and Retry at once.
           if (code === 'AUDIO_DECODE' || code === 'PLEX_TRANSCODE_HTTP' || code === 'NO_PICTURE' || retriesRef.current >= maxRetries
             || isOffAirAnswer(code, httpStatus, liveRef.current)
-            || (code === 'RECONNECT_EXHAUSTED' && exhaustRetriedRef.current)) {
+            || (code === 'RECONNECT_EXHAUSTED' && exhaustRetriedRef.current)
+            // A busy server's run already lasted minutes (ServerBusyRule): no second run.
+            || (code === 'RECONNECT_EXHAUSTED' && typeof httpStatus === 'number' && httpStatus >= 500 && httpStatus < 600)) {
             const forUrl = loadedUrlRef.current ?? undefined;
             // Device Health: the player gave up (code and status only, never the address).
             try { void notePlayerError({ code, message: msg, httpStatus }); } catch { /* ignore */ }
