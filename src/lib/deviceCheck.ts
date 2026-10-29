@@ -16,6 +16,11 @@
 //     numbers and up to 30 rows of samples, sent at once; the server's id
 //     comes back for the ticket text ("Device check: <id>").
 // Never in the demo; never an outside service's channel; 6 a day per box.
+//
+// The player's own Help ("Check this stream (1 minute)", PlayerCheckStrip):
+// the stream on screen only (`liveFallback: false`, named by the player via
+// `playing`), never stopped, reloaded or muted, 60 s with a sample every 2 s
+// (`intervalSec: 2`): still at most 30 rows, the server's cap for a check.
 import { isDemo } from '@/lib/demoMode';
 import { buildNativeLiveUrl, loadCreds, loadLastChannelId, type XtreamCreds } from '@/lib/xtream';
 import { isOutsideLine } from '@/lib/outsideSource';
@@ -30,6 +35,10 @@ import { SnowPlayer, hasNativePlayer, type PlayerStats } from '@/capacitor/SnowP
 import type { DeviceVitals } from '@/capacitor/DeviceHealth';
 
 export const CHECK_SECONDS = 30;
+/** The longest check (the player's 1-minute one, sampled every 2 s). */
+export const MAX_CHECK_SECONDS = 60;
+/** The server keeps at most this many sample rows on a check. */
+export const MAX_SAMPLE_ROWS = 30;
 const INTERNET_TEST_BYTES = 2_000_000;
 /** The send waits this long at most; then the report goes on without the id (the check stays queued). */
 export const SEND_TIMEOUT_MS = 8_000;
@@ -51,7 +60,14 @@ export interface CheckResult {
 }
 
 export interface CheckOpts {
+  /** How long it samples, seconds (30 by default, 60 at most). */
   durationSec?: number;
+  /** Seconds between samples (1 by default). Raised as needed so the rows
+   *  never pass MAX_SAMPLE_ROWS (60 s every 2 s = 30 rows). */
+  intervalSec?: number;
+  /** Who plays what is on screen names it here (the player's Help): it is
+   *  used for a stream that is already playing, over getNowPlaying(). */
+  playing?: { context: HealthContext; title?: string | null } | null;
   /** A channel to play when nothing is playing (the one being reported). */
   channel?: { line?: XtreamCreds | null; streamId: number | string | null | undefined; name?: string | null } | null;
   /** When nothing plays: false = no check at all (a film / series / Plex
@@ -73,7 +89,7 @@ export type SampleRow = [number, number, number, number, number, number, number]
 interface Sampled { stats: PlayerStats | null; vitals: DeviceVitals | null; stalled: boolean }
 
 /** The check's summary numbers from its samples (pure, for tests). */
-export function summarize(rows: Sampled[], internetKbps: number | null): Record<string, HealthValue> {
+export function summarize(rows: Sampled[], internetKbps: number | null, intervalSec = 1): Record<string, HealthValue> {
   const buf: number[] = [];
   const arr: number[] = [];
   let cpuPeak: number | null = null;
@@ -98,7 +114,7 @@ export function summarize(rows: Sampled[], internetKbps: number | null): Record<
       if (s.droppedFrames != null) { if (firstDropped == null) firstDropped = s.droppedFrames; lastDropped = s.droppedFrames; }
     }
     if (r.vitals?.memAvailMb != null) memMin = Math.min(memMin ?? Infinity, r.vitals.memAvailMb);
-    if (r.stalled) { stallSec += 1; if (!wasStalled) stalls += 1; }
+    if (r.stalled) { stallSec += intervalSec; if (!wasStalled) stalls += 1; }
     wasStalled = r.stalled;
     last = r;
   }
@@ -108,7 +124,7 @@ export function summarize(rows: Sampled[], internetKbps: number | null): Record<
   const third = Math.floor(buf.length / 3);
   const bufferFalling = third >= 1 ? (avg(buf.slice(-third)) as number) < (avg(buf.slice(0, third)) as number) - 1 : null;
   return {
-    seconds: rows.length,
+    seconds: rows.length * intervalSec,
     played,
     avgBufferedAheadSec: avg(buf),
     minBufferedAheadSec: buf.length ? Math.min(...buf) : null,
@@ -148,7 +164,7 @@ export function plainVerdict(verdict: HealthVerdict, d: Record<string, HealthVal
   const internet = num(d.internetMbps) != null ? formatMbps((num(d.internetMbps) as number) * 1000) : '—';
   const arrival = mb(d.avgArrivalKbps);
   const needed = mb(d.neededKbps);
-  if (d.neverStarted === true) return { key: 'deviceHealth.check.verdict.neverStarted', params: { internet } };
+  if (d.neverStarted === true) return { key: 'deviceHealth.check.verdict.neverStarted', params: { internet, seconds: String(num(d.seconds) ?? CHECK_SECONDS) } };
   if (d.played === false && num(d.avgArrivalKbps) == null) return { key: 'deviceHealth.check.verdict.notPlaying', params: { internet } };
   switch (verdict) {
     case 'device_overload': {
@@ -204,7 +220,10 @@ async function lastWatchedChannelId(creds: XtreamCreds | null): Promise<number |
 async function ensurePlayback(opts: CheckOpts): Promise<Playback | null> {
   const np = getNowPlaying();
   const now = await readStats();
-  if (now && now.state !== 'idle') return { stop: null, title: np?.title ?? null, context: np?.context ?? 'live', source: 'already_playing' };
+  if (now && now.state !== 'idle') {
+    const named = opts.playing ?? np;
+    return { stop: null, title: named?.title ?? null, context: named?.context ?? 'live', source: 'already_playing' };
+  }
   if (opts.liveFallback === false) return null;
   if (!hasNativePlayer()) return { stop: null, title: null, context: 'app', source: 'nothing' };
   const creds = (opts.channel?.line ?? (await loadCreds().catch(() => null))) as XtreamCreds | null;
@@ -235,13 +254,17 @@ function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
 }
 
 /**
- * Run the check: 30 one-second samples, the speed test, the verdict, and the
+ * Run the check: 30 one-second samples (or one every `intervalSec`), the speed test, the verdict, and the
  * one event sent. null when it can't run (demo, 6 already today) or was
  * cancelled. Never throws.
  */
 export async function runDeviceCheck(opts: CheckOpts = {}): Promise<CheckResult | null> {
   if (isDemo() || !checkAllowedToday()) return null;
-  const total = Math.max(1, Math.min(CHECK_SECONDS, opts.durationSec ?? CHECK_SECONDS));
+  const duration = Math.max(1, Math.min(MAX_CHECK_SECONDS, Math.round(opts.durationSec ?? CHECK_SECONDS)));
+  const interval = Math.max(1, Math.round(opts.intervalSec ?? 1), Math.ceil(duration / MAX_SAMPLE_ROWS));
+  const total = Math.max(1, Math.ceil(duration / interval));
+  // A heavier stats read about every 10 s (as the 30-second check does).
+  const heavyEvery = Math.max(1, Math.round(10 / interval));
   const sleep = opts.sleep ?? defaultSleep;
   const play = await ensurePlayback(opts).catch((): Playback => ({ stop: null, title: null, context: 'app', source: 'nothing' }));
   if (!play) return null;
@@ -252,12 +275,12 @@ export async function runDeviceCheck(opts: CheckOpts = {}): Promise<CheckResult 
     for (let i = 0; i < total; i += 1) {
       if (opts.signal?.aborted) return null;
       const t0 = Date.now();
-      const [stats, vitals] = await Promise.all([readStats(i % 10 === 9), readVitals()]);
+      const [stats, vitals] = await Promise.all([readStats(i % heavyEvery === heavyEvery - 1), readVitals()]);
       if (stats?.playing) played = true;
       const stalled = !!stats && played && stats.state === 'buffering';
       rows.push({ stats, vitals, stalled });
       samples.push([
-        i,
+        i * interval,
         round1(stats?.bufferedAheadSec ?? 0),
         Math.round(stats?.arrivalKbps ?? stats?.nowKbps ?? 0),
         stats?.droppedFrames ?? 0,
@@ -265,8 +288,8 @@ export async function runDeviceCheck(opts: CheckOpts = {}): Promise<CheckResult 
         Math.round(vitals?.memAvailMb ?? 0),
         stalled ? 1 : 0,
       ]);
-      opts.onProgress?.({ second: i + 1, total, stalled });
-      if (i < total - 1) await sleep(Math.max(0, 1000 - (Date.now() - t0)));
+      opts.onProgress?.({ second: Math.min(duration, (i + 1) * interval), total: duration, stalled });
+      if (i < total - 1) await sleep(Math.max(0, interval * 1000 - (Date.now() - t0)));
     }
   } finally {
     if (play.stop) await play.stop();
@@ -275,8 +298,9 @@ export async function runDeviceCheck(opts: CheckOpts = {}): Promise<CheckResult 
   // After the stream: the test does not compete with it for the line.
   const internetKbps = await measureInternetKbps(INTERNET_TEST_BYTES, 10_000, opts.signal).catch(() => null);
   if (opts.signal?.aborted) return null;
-  const data = summarize(rows, internetKbps);
+  const data = summarize(rows, internetKbps, interval);
   data.source = play.source;
+  if (interval > 1) data.intervalSec = interval;
   const { verdict, fine } = judge(data);
   data.fine = fine;
   const plain = plainVerdict(verdict, data, fine);

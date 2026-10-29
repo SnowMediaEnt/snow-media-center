@@ -202,7 +202,7 @@ describe('summary and plain verdict', () => {
     const j = judge(d);
     expect(j.verdict).toBe('server');
     expect(j.fine).toBe(false);
-    expect(plainVerdict(j.verdict, d, j.fine)).toEqual({ key: 'deviceHealth.check.verdict.neverStarted', params: { internet: '125.4 Mb/s' } });
+    expect(plainVerdict(j.verdict, d, j.fine)).toEqual({ key: 'deviceHealth.check.verdict.neverStarted', params: { internet: '125.4 Mb/s', seconds: '30' } });
   });
 
   it('nothing played at all says so', () => {
@@ -252,3 +252,71 @@ describe('what the check measured, and stopping it', () => {
   });
 });
 
+
+describe("the player's 1-minute check (Help → Check this stream)", () => {
+  it('60 s with a sample every 2 s: 30 rows at most, timed in seconds, the stream left playing', async () => {
+    const progress: Array<{ second: number; total: number }> = [];
+    const sleeps: number[] = [];
+    // The first read is the 'is anything playing?' ask; then one stall of two rows.
+    h.stats = [playing(), playing(), playing({ state: 'buffering', playing: false, bufferedAheadSec: 0 }), playing({ state: 'buffering', playing: false, bufferedAheadSec: 0 }), playing()];
+    const r = await runDeviceCheck({
+      durationSec: 60, intervalSec: 2, liveFallback: false,
+      sleep: async (ms) => { sleeps.push(ms); },
+      onProgress: (p) => progress.push({ second: p.second, total: p.total }),
+    });
+    const e = h.sent[0] as health.HealthEvent;
+    expect(e.samples).toHaveLength(30);
+    expect(e.samples!.map((row) => row[0])).toEqual(Array.from({ length: 30 }, (_, i) => i * 2));
+    expect(e.samples!.every((row) => row.length <= 8)).toBe(true);
+    expect(JSON.stringify(e).length).toBeLessThan(12_000);
+    expect(progress).toHaveLength(30);
+    expect(progress[0]).toEqual({ second: 2, total: 60 });
+    expect(progress[29]).toEqual({ second: 60, total: 60 });
+    expect(sleeps).toHaveLength(29);
+    expect(Math.min(...sleeps)).toBeGreaterThan(1900);
+    // A two-row stall is 4 seconds.
+    expect(e.data).toMatchObject({ seconds: 60, intervalSec: 2, stalls: 1, stallSec: 4, source: 'already_playing' });
+    expect(r).not.toBeNull();
+    expect(h.loads).toHaveLength(0);
+    expect(h.stops).toBe(0);
+  });
+
+  it('a minute asked at one a second still keeps to 30 rows (every 2 s)', async () => {
+    await runDeviceCheck({ durationSec: 60, sleep: noSleep });
+    const e = h.sent[0] as health.HealthEvent;
+    expect(e.samples).toHaveLength(30);
+    expect(e.samples![1][0]).toBe(2);
+  });
+
+  it('never longer than a minute', async () => {
+    const progress: number[] = [];
+    await runDeviceCheck({ durationSec: 600, intervalSec: 2, sleep: noSleep, onProgress: (p) => progress.push(p.total) });
+    expect((h.sent[0] as health.HealthEvent).samples).toHaveLength(30);
+    expect(progress[0]).toBe(60);
+  });
+
+  it('named as the player says (Plex title, context), over what getNowPlaying holds', async () => {
+    await runDeviceCheck({ durationSec: 2, intervalSec: 2, sleep: noSleep, liveFallback: false, playing: { context: 'plex', title: 'The Quiet Valley' } });
+    const e = h.sent[0] as health.HealthEvent;
+    expect(e.context).toBe('plex');
+    expect(e.title).toBe('The Quiet Valley');
+  });
+
+  it('nothing playing from the player: no check, nothing loaded', async () => {
+    h.idleFirst = true;
+    expect(await runDeviceCheck({ durationSec: 60, intervalSec: 2, sleep: noSleep, liveFallback: false, playing: { context: 'vod', title: 'A film' } })).toBeNull();
+    expect(h.loads).toHaveLength(0);
+    expect(h.sent).toHaveLength(0);
+  });
+
+  it('a stream that never started says how long it was watched', () => {
+    const rows = Array.from({ length: 30 }, () => ({
+      stats: { state: 'buffering', playing: false, bufferedAheadSec: 0, arrivalKbps: 0, nowKbps: 0, videoFormat: null, droppedFrames: null, cpuPct: 10 } as never,
+      vitals: { memAvailMb: 900, memTotalMb: 1900, wifiRssi: -55, cpuCores: 4 },
+      stalled: false,
+    }));
+    const d = summarize(rows, 50_000, 2);
+    expect(d.seconds).toBe(60);
+    expect(plainVerdict(judge(d).verdict, d, false).params.seconds).toBe('60');
+  });
+});

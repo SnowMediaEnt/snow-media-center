@@ -17,7 +17,7 @@
       "verdict": {
         "fine": "No encontramos ningún problema: la transmisión llegó a {{arrival}} y tu internet tiene {{internet}}.",
         "unclear": "No pudimos determinarlo: la transmisión llegó a {{arrival}} y tu internet tiene {{internet}}. Snow Media revisará los detalles.",
-        "neverStarted": "El canal nunca empezó: el servidor de la emisión no envió nada en 30 segundos. Tu internet va a {{internet}}, así que es la emisión, no tu equipo.",
+        "neverStarted": "El canal nunca empezó: el servidor de la emisión no envió nada en {{seconds}} segundos. Tu internet va a {{internet}}, así que es la emisión, no tu equipo.",
         "notPlaying": "No se reprodujo nada durante la prueba. Tu internet tiene {{internet}}.",
         "overloadMemory": "Tu equipo está sobrecargado: solo quedaban {{mem}} MB de memoria libre. Reiniciar el equipo suele ayudar.",
         "overloadCpu": "Tu equipo está sobrecargado: el procesador estuvo al {{cpu}} %. Reiniciar el equipo suele ayudar.",
@@ -26,6 +26,14 @@
         "offline": "Tu equipo perdió la conexión a internet durante la prueba.",
         "server": "Tu equipo está bien y tu internet tiene {{internet}}, pero el servidor de la transmisión solo envió {{arrival}} de los {{needed}} que necesita.",
         "account": "El servicio rechazó tu línea. Revisa tu suscripción."
+      },
+      "player": {
+        "action": "Comprobar esta emisión (1 minuto)",
+        "running": "Comprobando esta emisión… {{seconds}} s",
+        "backCancels": "Atrás cancela",
+        "limit": "Hoy ya hiciste 6 comprobaciones, el máximo en un día. Vuelve a intentarlo mañana.",
+        "nothing": "No se está reproduciendo nada que comprobar. Pon el vídeo y vuelve a intentarlo.",
+        "hide": "Atrás lo oculta"
       }
     }
   }
