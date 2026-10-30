@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { uniqueTopic } from '@/lib/sharedQuery';
 
 /**
  * Number of the current user's tickets that have an unread admin response.
@@ -36,8 +37,11 @@ export const useUnreadTickets = () => {
 
     if (!user) return;
 
+    // A topic of its own: Home and Support both count unread tickets, and
+    // realtime-js hands back the SAME channel for the same topic, so leaving
+    // Support removed Home's subscription with it.
     const channel = supabase
-      .channel(`support_tickets_unread_${user.id}`)
+      .channel(uniqueTopic(`support_tickets_unread_${user.id}`))
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'support_tickets', filter: `user_id=eq.${user.id}` },
