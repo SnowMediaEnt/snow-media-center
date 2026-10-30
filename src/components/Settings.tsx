@@ -155,14 +155,18 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
   }, []);
   // Phone remote: pairing lives here (Settings → Phone Remote).
   const [remoteTick, setRemoteTick] = useState(0);
+  const remotePhonesRef = useRef(-1);
   useEffect(() => {
     const on = () => setRemoteTick((t) => t + 1);
     window.addEventListener(PHONE_REMOTE_EVENT, on);
-    const id = window.setInterval(on, 15_000);
+    // Phones drop off the count by time alone (no event): look every 15 s,
+    // but re-render all of Settings only when the count actually changed.
+    const id = window.setInterval(() => { if (connectedPhones() !== remotePhonesRef.current) on(); }, 15_000);
     return () => { window.removeEventListener(PHONE_REMOTE_EVENT, on); window.clearInterval(id); };
   }, []);
   void remoteTick;
   const remotePhones = connectedPhones();
+  remotePhonesRef.current = remotePhones;
   const remotePaired = isPaired();
   const remoteHint = typingHintEnabled();
   // Snow AI level for AI Chat and voice commands: Free (included) or Premium
