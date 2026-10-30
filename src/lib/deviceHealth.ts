@@ -961,7 +961,9 @@ async function sendAppStart(): Promise<void> {
 }
 
 function syncDeepTimers(): void {
-  const on = started && isDeep();
+  // Ticks only while the app is on screen: a deep check is about what the
+  // viewer sees, and a timer running in the background just wakes the box.
+  const on = started && isDeep() && appShown;
   if (on && !deepTick) {
     void sendAppStart();
     lastIdleSampleAt = 0;
@@ -991,6 +993,8 @@ export async function askStatus(): Promise<void> {
 // --- start -------------------------------------------------------------------------------------
 
 let started = false;
+/** The app is on screen (visibility + Capacitor appStateChange). */
+let appShown = true;
 let stopAll: (() => void) | null = null;
 
 /**
@@ -1001,6 +1005,7 @@ export function startDeviceHealth(): () => void {
   if (isDemo()) return () => {};
   if (stopAll) return stopAll;
   started = true;
+  appShown = typeof document === 'undefined' || document.visibilityState !== 'hidden';
   setStallObserver((r) => { void onStallOver(r); });
   void takeExits().then(() => { if (readQueue().length) scheduleFlush(0); });
   void askStatus();
@@ -1009,20 +1014,32 @@ export function startDeviceHealth(): () => void {
   let statusTimer: ReturnType<typeof setInterval> | null = null;
   const arm = () => { if (!statusTimer) statusTimer = setInterval(() => { void askStatus(); }, STATUS_EVERY_MS); };
   const disarm = () => { if (statusTimer) { clearInterval(statusTimer); statusTimer = null; } };
-  let shown = typeof document === 'undefined' || document.visibilityState !== 'hidden';
-  const onVisibility = () => {
-    const v = document.visibilityState !== 'hidden';
-    if (v === shown) return;
-    shown = v;
+  const setShown = (v: boolean) => {
+    if (v === appShown) return;
+    appShown = v;
     if (v) arm(); else disarm();
+    syncDeepTimers();
   };
+  const onVisibility = () => setShown(document.visibilityState !== 'hidden');
   document.addEventListener('visibilitychange', onVisibility);
-  if (shown) arm();
+  // The app going to the background on a TV box: Capacitor says so even
+  // where the WebView's own visibility events don't (as deviceInbox does).
+  let handle: { remove: () => void } | null = null;
+  let stopped = false;
+  void import('@capacitor/app')
+    .then(({ App }) => App.addListener('appStateChange', ({ isActive }) => { if (!stopped) setShown(!!isActive); }))
+    .then((h) => { if (stopped) void h.remove(); else handle = h; })
+    .catch(() => { /* web: visibilitychange covers it */ });
+  if (appShown) arm();
 
   stopAll = () => {
     started = false;
+    stopped = true;
     disarm();
     document.removeEventListener('visibilitychange', onVisibility);
+    if (handle) { try { void handle.remove(); } catch { /* ignore */ } }
+    handle = null;
+    appShown = true;
     setStallObserver(null);
     syncDeepTimers();
     if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; flushAt = 0; }
@@ -1049,6 +1066,7 @@ export function __resetDeviceHealthForTests(): void {
   nowPlaying = null;
   authSeen.clear();
   appStartSent = false;
+  appShown = true;
   lastIdleSampleAt = 0;
   sampleCount = 0;
   lastSampleBuffer = null;

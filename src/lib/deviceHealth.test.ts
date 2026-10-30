@@ -19,6 +19,16 @@ const h = vi.hoisted(() => ({
   seekAt: 0,
   stallObserver: null as null | ((r: unknown) => void),
   registered: [] as unknown[],
+  appState: [] as Array<(s: { isActive: boolean }) => void>,
+}));
+
+vi.mock('@capacitor/app', () => ({
+  App: {
+    addListener: vi.fn(async (_ev: string, fn: (s: { isActive: boolean }) => void) => {
+      h.appState.push(fn);
+      return { remove: async () => { h.appState = h.appState.filter((f) => f !== fn); } };
+    }),
+  },
 }));
 
 vi.mock('@/integrations/supabase/client', () => ({
@@ -84,7 +94,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date('2026-10-28T12:00:00Z'));
   localStorage.clear();
   h.calls = []; h.reply = null; h.demo = false; h.creds = { ...LINE }; h.watching = false; h.vitals = {}; h.stats = null; h.exits = [];
-  h.seekAt = 0; h.stallObserver = null; h.registered = [];
+  h.seekAt = 0; h.stallObserver = null; h.registered = []; h.appState = [];
   __resetDeviceHealthForTests();
 });
 afterEach(() => {
@@ -455,6 +465,39 @@ describe('quiet when nothing is wrong; deep mode', () => {
     const before = pendingHealthEvents().length + sentEvents().length;
     await settle(DEEP_IDLE_SAMPLE_MS - DEEP_TICK_MS * 2);
     expect(pendingHealthEvents().length + sentEvents().length).toBe(before + 1);
+  });
+  it('in the background (appStateChange): no status ask and no deep tick, both back on resume', async () => {
+    const until = new Date(Date.now() + 7 * 24 * 3600_000).toISOString();
+    h.reply = (b) => (b.action === 'status' ? { data: { ok: true, deep_until: until }, error: null }
+      : { data: { ok: true, deep_until: until, ids: (b.events as unknown[]).map(() => 'x') }, error: null });
+    startDeviceHealth();
+    await settle();
+    expect(h.appState).toHaveLength(1);
+    h.watching = true;
+    h.stats = { state: 'ready', playing: true, bufferedAheadSec: 20, arrivalKbps: 8000, videoFormat: null, droppedFrames: 0, cpuPct: 30, engine: 'exo', restarts: 0 };
+    h.appState.forEach((f) => f({ isActive: false }));
+    const samplesNow = () => pendingHealthEvents().filter((e) => e.kind === 'sample').length + sentEvents().filter((e) => e.kind === 'sample').length;
+    const before = samplesNow();
+    const statusBefore = statuses().length;
+    await settle(STATUS_EVERY_MS * 2);
+    expect(samplesNow()).toBe(before);
+    expect(statuses()).toHaveLength(statusBefore);
+    h.appState.forEach((f) => f({ isActive: true }));
+    await settle(STATUS_EVERY_MS);
+    expect(samplesNow()).toBeGreaterThan(before);
+    expect(statuses().length).toBeGreaterThan(statusBefore);
+  });
+  it('hidden page: the deep tick stops', async () => {
+    const until = new Date(Date.now() + 7 * 24 * 3600_000).toISOString();
+    h.reply = (b) => (b.action === 'status' ? { data: { ok: true, deep_until: until }, error: null } : undefined);
+    const spy = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    startDeviceHealth();
+    await settle();
+    const timersOn = vi.getTimerCount();
+    spy.mockReturnValue('hidden');
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(vi.getTimerCount()).toBeLessThanOrEqual(timersOn - 2);
+    spy.mockRestore();
   });
   it('deep ends: the note goes and sampling stops', async () => {
     const until = new Date(Date.now() + 60_000).toISOString();
