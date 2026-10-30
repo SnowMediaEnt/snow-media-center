@@ -4,7 +4,7 @@
  * Two things every game must agree on:
  *
  * 1. While a GLOBAL modal is open (auto-update dialog, download progress, any
- *    aria-modal overlay), the game yields completely: it must not consume Back,
+ *    aria-modal overlay, a boot notice), the game yields completely: it must not consume Back,
  *    OK/Select or arrows, and it must not move focus behind the overlay. The
  *    selector list is deliberately identical to the one useNavigation uses, so
  *    the app has exactly one definition of "a modal owns input right now".
@@ -15,7 +15,7 @@
  *    from the single `data-tv-focused` marker.
  */
 export const GLOBAL_MODAL_SELECTOR =
-  '[data-autoupdate-dialog="true"], [data-download-progress="true"], [aria-modal="true"]';
+  '[data-autoupdate-dialog="true"], [data-download-progress="true"], [aria-modal="true"], [data-notice-layer]';
 
 export const isGlobalModalOpen = (): boolean => {
   if (typeof document === 'undefined') return false;
