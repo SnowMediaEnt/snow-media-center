@@ -134,7 +134,7 @@ const EpisodeRow = memo(({ ep, base, token, focused, chips, note, watched = fals
   return (
     <div ref={ref}
       data-focused={focused ? 'true' : 'false'}
-      className={`tv-ring flex items-center gap-3 p-2 pr-4 rounded-plex-md transition-transform duration-150 ${focused ? 'bg-white/10 z-10' : ''}`}>
+      className={`plex-face tv-ring flex items-center gap-3 p-2 pr-4 rounded-plex-md transition-transform duration-150 ${focused ? 'z-10' : ''}`}>
       {/* The Apple TV app's episode list: the number in gold, the still,
           the name and two lines of summary, the length at the end. */}
       <div className="w-7 flex-shrink-0 text-center font-montserrat font-extrabold text-[15px] text-brand-gold">{ep.index ?? ''}</div>
