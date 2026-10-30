@@ -161,9 +161,15 @@ describe('one connection to the channel (the buffer is fed by the player)', () =
     const goLive = body(plugin, 'private fun tsGoLive(');
     expect(goLive).toContain('tsAfterRelease {');
     expect(goLive.indexOf('tsAfterRelease {')).toBeLessThan(goLive.indexOf('tsReloadLive(s)'));
-    expect(body(plugin, 'private fun tsAfterRelease(')).toContain('sess.handBack(Runnable { mainHandler.post(go) })');
+    expect(body(plugin, 'private fun tsAfterRelease(')).toContain('if (holds) sess!!.handBack(one)');
     // A load on the main player waits the same way.
-    expect(plugin).toContain('if (screenId == MAIN && tsManager?.current?.holdsConnection() == true) {');
+    expect(plugin).toContain('if (screenId == MAIN && tsManager?.holdsAny() == true) {');
+    // Every deferred load and Go live is dropped after a stop or Home.
+    expect(body(plugin, 'private fun stopSlot(s: PlayerSlot)')).toContain('tsPlayGen++');
+    expect(body(plugin, 'override fun handleOnStop()')).toContain('tsPlayGen++');
+    expect(body(plugin, 'private fun tsGoLive(')).toContain('tsPlayGen == gen');
+    // A session closed on a channel change is waited for too.
+    expect(body(plugin, 'private fun tsAfterRelease(')).toContain('for (c in closing) c.whenReleased(one)');
     // And the session never opens while a player connection is open.
     expect(body(session, 'private fun awaitPlayerClosed(')).toContain('if (tee.openCount() > 0) {');
   });

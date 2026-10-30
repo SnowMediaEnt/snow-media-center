@@ -17,12 +17,34 @@ internal class TimeshiftManager(private val root: File, private val tee: Timeshi
 
     @Volatile var limits = TimeshiftLimits(0L, DEFAULT_HARD_CAP)
 
+    /**
+     * Sessions closed while their own connection was open: it is being
+     * closed on their capture thread. The player must not open a channel
+     * until they have let go too (a channel change while rewound closes the
+     * old session here, before the new channel's load arrives).
+     */
+    private val closing = ArrayList<TimeshiftSession>()
+
+    private fun noteClosing(s: TimeshiftSession) {
+        if (s.holdsConnection()) closing.add(s)
+    }
+
+    /** Closed sessions still holding their own connection. */
+    fun closingSessions(): List<TimeshiftSession> {
+        closing.removeAll { !it.holdsConnection() }
+        return closing.toList()
+    }
+
+    /** Anything of the buffer's is connected to a channel (or about to be). */
+    fun holdsAny(): Boolean = current?.holdsConnection() == true || closingSessions().isNotEmpty()
+
     /** Capture [key] (a channel) from [url]. The same channel again is a no-op; a new one closes the old first. */
     fun start(key: String, url: String, newLimits: TimeshiftLimits) {
         limits = newLimits
         val cur = current
         if (cur != null && cur.key == key) return
         cur?.close()
+        cur?.let { noteClosing(it) }
         current = TimeshiftSession(key, url, File(root, "c" + System.nanoTime()), { limits }, tee).also { it.start() }
     }
 
@@ -35,13 +57,14 @@ internal class TimeshiftManager(private val root: File, private val tee: Timeshi
         val cur = current ?: run { released?.run(); return }
         current = null
         cur.close(released)
+        noteClosing(cur)
     }
 
     /** Delete every buffer, now: leaving the player, Home, sign-out, app closed. [released]: as for [stop]. */
     fun wipeAll(released: Runnable? = null) {
         val cur = current
         current = null
-        if (cur != null) cur.close(released) else released?.run()
+        if (cur != null) { cur.close(released); noteClosing(cur) } else released?.run()
         wipeFolder(root)
     }
 

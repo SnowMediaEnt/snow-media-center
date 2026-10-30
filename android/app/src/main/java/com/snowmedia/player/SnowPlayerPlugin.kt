@@ -2873,10 +2873,12 @@ class SnowPlayerPlugin : Plugin() {
             call.resolve()
         }
         activity?.runOnUiThread {
-            if (screenId == MAIN && tsManager?.current?.holdsConnection() == true) {
+            if (screenId == MAIN && tsManager?.holdsAny() == true) {
                 val asked = s.loadsAsked
-                // A newer load came meanwhile: it has the player, this one is done.
-                tsAfterRelease { if (s.loadsAsked == asked) doLoad() else call.resolve() }
+                val gen = tsPlayGen
+                // A newer load came meanwhile (it has the player), or the
+                // player was stopped / the app left the screen: this one is done.
+                tsAfterRelease { if (s.loadsAsked == asked && tsPlayGen == gen) doLoad() else call.resolve() }
                 return@runOnUiThread
             }
             doLoad()
@@ -3251,6 +3253,7 @@ class SnowPlayerPlugin : Plugin() {
     private fun stopSlot(s: PlayerSlot) {
         if (slots[MAIN] === s) releaseWifi()
         if (slots[MAIN] === s) tsReset()
+        if (slots[MAIN] === s) tsPlayGen++
         // Leaving the film (Back, a stop, another screen): the screen goes
         // back to its own mode, never left at 24 Hz on the menus. A moment
         // later, so a stop followed by the next load of a film (a quality
@@ -3865,6 +3868,12 @@ class SnowPlayerPlugin : Plugin() {
     private val tsTee = TimeshiftTee()
     /** Go live is waiting for the buffer's own connection to close. */
     private var tsHandingBack = false
+    /**
+     * Bumped when the main player is stopped (stopSlot: Back, another
+     * screen) or the app leaves the screen (handleOnStop): a load or a Go live
+     * still waiting for the buffer's connection to close is no longer wanted.
+     */
+    private var tsPlayGen = 0
     /** The main player is playing the rewind buffer, not the channel. */
     private var tsBuffer = false
     /** A live pause with a buffer running: when (elapsedRealtime), and how far behind the channel's edge the picture was. */
@@ -3974,9 +3983,10 @@ class SnowPlayerPlugin : Plugin() {
     private fun tsGoLive(s: PlayerSlot, then: (() -> Unit)? = null) {
         if (tsHandingBack) { then?.let { tsAfterRelease(it) }; return }
         val asked = s.loadsAsked
+        val gen = tsPlayGen
         tsAfterRelease {
-            // Still the same stream (no other load or stop came meanwhile).
-            if (s.loadsAsked == asked && s.currentUrl != null) tsReloadLive(s)
+            // Still the same stream (no other load, stop or Home came meanwhile).
+            if (s.loadsAsked == asked && tsPlayGen == gen && s.currentUrl != null) tsReloadLive(s)
             then?.invoke()
         }
     }
@@ -3989,8 +3999,12 @@ class SnowPlayerPlugin : Plugin() {
      * leave the viewer stuck; the connection was cancelled by then).
      */
     private fun tsAfterRelease(action: () -> Unit) {
-        val sess = tsManager?.current
-        if (sess == null || !sess.holdsConnection()) {
+        val m = tsManager
+        val sess = m?.current
+        // A session closed on a channel change may still be closing its own.
+        val closing = m?.closingSessions().orEmpty()
+        val holds = sess?.holdsConnection() == true
+        if (!holds && closing.isEmpty()) {
             sess?.handBack(Runnable { })
             action()
             return
@@ -4009,7 +4023,10 @@ class SnowPlayerPlugin : Plugin() {
             go.run()
         }
         mainHandler.postDelayed(timeout, TS_HANDBACK_TIMEOUT_MS)
-        sess.handBack(Runnable { mainHandler.post(go) })
+        val left = java.util.concurrent.atomic.AtomicInteger(closing.size + if (holds) 1 else 0)
+        val one = Runnable { if (left.decrementAndGet() == 0) mainHandler.post(go) }
+        if (holds) sess!!.handBack(one) else sess?.handBack(Runnable { })
+        for (c in closing) c.whenReleased(one)
     }
 
     private fun tsReloadLive(s: PlayerSlot) {
@@ -4224,6 +4241,7 @@ class SnowPlayerPlugin : Plugin() {
 
     override fun handleOnStop() {
         appStopped = true
+        tsPlayGen++
         // On the buffer: let go of it before it is deleted (the WebView loads
         // the channel again on return), rather than fail over to the channel
         // while the buffer's own connection may still be closing.
