@@ -250,26 +250,11 @@ describe('Guide: Menu to record a programme', () => {
     await sleep(20);
   }
 
-  it('recording now while the rewind buffer runs wipes the buffer first, then starts, and says so', async () => {
-    api.buffer = true;
+  it('recording now leaves a running rewind buffer alone (it uses no stream next to the picture)', async () => {
+    api.buffer = true; // on a 2-stream plan, which used to wipe it first
     await recordNow();
-    const order = api.calls.map((c) => c.fn).filter((f) => f === 'timeshiftWipe' || f === 'start');
-    expect(order).toEqual(['timeshiftWipe', 'start']);
-    const toast = calls('toast').pop() as { description: string };
-    expect(toast.description).toContain('Rewind paused while recording');
-  });
-
-  it('with 4 streams the buffer stays; with no buffer nothing is wiped or said', async () => {
-    api.buffer = true;
-    api.plan = 4;
-    await recordNow();
-    expect(api.calls.some((c) => c.fn === 'timeshiftWipe')).toBe(false);
+    expect(api.calls.some((c) => c.fn === 'timeshiftWipe' || c.fn === 'timeshiftStatus')).toBe(false);
     expect(calls('start')).toHaveLength(1);
-  });
-
-  it('no buffer running: no wipe and no rewind note', async () => {
-    await recordNow();
-    expect(api.calls.some((c) => c.fn === 'timeshiftWipe')).toBe(false);
     const toast = calls('toast').pop() as { description: string };
     expect(toast.description).not.toContain('Rewind paused');
   });

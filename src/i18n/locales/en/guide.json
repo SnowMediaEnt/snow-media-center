@@ -27,7 +27,7 @@
       "mpvFallback": "MPV couldn't start on this box — using ExoPlayer",
       "finished": "That programme has finished",
       "recordingTitle": "Recording {{name}}",
-      "recordingDesc": "Until {{time}} · {{volume}}. {{note}}{{paused}}",
+      "recordingDesc": "Until {{time}} · {{volume}}. {{note}}",
       "scheduledTitle": "Scheduled: {{title}}",
       "scheduledDesc": "{{channel}}, {{times}}. {{note}}",
       "scheduledDescLate": "{{channel}}, {{times}}. {{note}} This box may start it late: see Live TV › Recordings.",

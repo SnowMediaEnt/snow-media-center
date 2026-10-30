@@ -27,7 +27,7 @@
       "mpvFallback": "MPV no pudo iniciarse en este equipo — se usa ExoPlayer",
       "finished": "Ese programa ya terminó",
       "recordingTitle": "Grabando {{name}}",
-      "recordingDesc": "Hasta las {{time}} · {{volume}}. {{note}}{{paused}}",
+      "recordingDesc": "Hasta las {{time}} · {{volume}}. {{note}}",
       "scheduledTitle": "Programado: {{title}}",
       "scheduledDesc": "{{channel}}, {{times}}. {{note}}",
       "scheduledDescLate": "{{channel}}, {{times}}. {{note}} Este equipo podría iniciarla tarde: mira TV en vivo › Grabaciones.",

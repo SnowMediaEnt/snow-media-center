@@ -27,7 +27,7 @@
       "mpvFallback": "MPV n'a pas pu démarrer sur ce boîtier — ExoPlayer est utilisé",
       "finished": "Ce programme est terminé",
       "recordingTitle": "Enregistrement de {{name}}",
-      "recordingDesc": "Jusqu'à {{time}} · {{volume}}. {{note}}{{paused}}",
+      "recordingDesc": "Jusqu'à {{time}} · {{volume}}. {{note}}",
       "scheduledTitle": "Programmé : {{title}}",
       "scheduledDesc": "{{channel}}, {{times}}. {{note}}",
       "scheduledDescLate": "{{channel}}, {{times}}. {{note}} Ce boîtier peut le démarrer en retard : voir TV en direct › Enregistrements.",

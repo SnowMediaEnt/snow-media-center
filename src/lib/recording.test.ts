@@ -1,15 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
-const sp = vi.hoisted(() => ({ calls: [] as string[], state: 'capturing', fail: false }));
-vi.mock('@/capacitor/SnowPlayer', () => ({
-  SnowPlayer: {
-    timeshiftStatus: async () => { sp.calls.push('status'); if (sp.fail) throw new Error('older app'); return { state: sp.state }; },
-    timeshiftWipe: async () => { sp.calls.push('wipe'); },
-  },
-}));
 import {
   CUSTOM_MAX, CUSTOM_MIN, LOW_SPACE_BYTES, MAX_SIMULTANEOUS_RECORDINGS, RECORD_DURATIONS, cleanRename, endsAtLabel,
-  extraStreamNote, pauseRewindForRecording, formatDuration, formatMinutes, isLowSpace, listWindow, recordingFileName, safeFilePart, stepCustom,
+  extraStreamNote, formatDuration, formatMinutes, isLowSpace, listWindow, recordingFileName, safeFilePart, stepCustom,
 } from './recording';
 import liveSectionSrc from '../components/livetv/LiveSection.tsx?raw';
 import guideSectionSrc from '../components/livetv/GuideSection.tsx?raw';
@@ -97,37 +90,11 @@ describe('listWindow', () => {
   });
 });
 
-describe('the rewind buffer gives way before a recording opens its stream', () => {
-  beforeEach(() => { sp.calls = []; sp.state = 'capturing'; sp.fail = false; });
-
-  it('wipes a running buffer on plans under 4 streams (or unknown)', async () => {
-    for (const plan of [1, 2, 3, null, undefined]) {
-      sp.calls = [];
-      expect(await pauseRewindForRecording(plan)).toBe(true);
-      expect(sp.calls).toEqual(['status', 'wipe']);
-    }
-  });
-
-  it('leaves it alone on 4 or more streams (room for picture + buffer + recording)', async () => {
-    expect(await pauseRewindForRecording(4)).toBe(false);
-    expect(await pauseRewindForRecording(10)).toBe(false);
-    expect(sp.calls).toEqual([]);
-  });
-
-  it('says nothing when there is no buffer, or the app is too old to have one', async () => {
-    sp.state = 'off';
-    expect(await pauseRewindForRecording(2)).toBe(false);
-    expect(sp.calls).toEqual(['status']);
-    sp.fail = true;
-    expect(await pauseRewindForRecording(2)).toBe(false);
-  });
-
-  it('Live TV and the Guide both do it before SnowRecorder.start, and say so', () => {
+describe('a recording leaves the rewind buffer alone', () => {
+  it('the buffer uses no stream next to the picture, so Live TV and the Guide no longer wipe it first', () => {
     for (const src of [liveSectionSrc, guideSectionSrc]) {
-      const at = src.indexOf('pauseRewindForRecording(');
-      expect(at).toBeGreaterThan(0);
-      expect(at).toBeLessThan(src.indexOf('SnowRecorder.start('));
-      expect(src).toContain('REWIND_PAUSED_NOTE');
+      expect(src).toContain('SnowRecorder.start(');
+      expect(src).not.toMatch(/pauseRewindForRecording|REWIND_PAUSED_NOTE/);
     }
   });
 });

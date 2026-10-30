@@ -1,7 +1,6 @@
 // Recording live channels (TRACKER 25): names, lengths and space warnings.
 // The recording itself is native (RecorderPlugin / RecordingService).
 
-import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import i18n from '@/i18n';
 import { formatTime } from '@/i18n/format';
 
@@ -54,38 +53,6 @@ export function extraStreamNote(maxConnections: number | null | undefined): stri
   return Number.isFinite(n) && n >= 1
     ? i18n.t('recordings.note.extraStreamPlan', { count: n })
     : i18n.t('recordings.note.extraStream');
-}
-
-/** A plan with this many streams holds the picture, the rewind buffer and a recording at once. */
-export const STREAMS_FOR_REWIND_AND_RECORDING = 4;
-
-/** Said after a recording starts and the rewind buffer had to give way (in the app's language). */
-export const rewindPausedNote = (): string => i18n.t('recordings.note.rewindPaused');
-/**
- * Older call sites put this constant straight into a template string. It turns into the
- * translated text at that moment (toString), so they keep working and follow the language.
- */
-export const REWIND_PAUSED_NOTE = { toString: rewindPausedNote };
-
-/**
- * Before a recording opens its connection: drop the rewind buffer unless the
- * plan (4+ streams) has room for picture + buffer + recording. Without this the
- * buffer keeps its stream until the screen notices the recording, and the line
- * briefly needs one more than it allows. True when a running buffer was wiped
- * (the caller says so); false when there was none, or the plan has room, or the
- * app is too old to have one.
- */
-export async function pauseRewindForRecording(maxConnections: number | null | undefined): Promise<boolean> {
-  const n = Math.floor(Number(maxConnections));
-  if (Number.isFinite(n) && n >= STREAMS_FOR_REWIND_AND_RECORDING) return false;
-  try {
-    const st = await SnowPlayer.timeshiftStatus();
-    if (st.state === 'off') return false;
-    await SnowPlayer.timeshiftWipe();
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /** The slice of a list to draw so the focused row stays in view. */

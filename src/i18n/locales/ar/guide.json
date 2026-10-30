@@ -27,7 +27,7 @@
       "mpvFallback": "تعذّر تشغيل MPV على هذا الجهاز — يتم استخدام ExoPlayer",
       "finished": "انتهى هذا البرنامج",
       "recordingTitle": "جارٍ تسجيل {{name}}",
-      "recordingDesc": "حتى {{time}} · {{volume}}. {{note}}{{paused}}",
+      "recordingDesc": "حتى {{time}} · {{volume}}. {{note}}",
       "scheduledTitle": "تمت الجدولة: {{title}}",
       "scheduledDesc": "{{channel}}، {{times}}. {{note}}",
       "scheduledDescLate": "{{channel}}، {{times}}. {{note}} قد يبدأ هذا الجهاز التسجيل متأخرًا: راجع البث المباشر › التسجيلات.",
