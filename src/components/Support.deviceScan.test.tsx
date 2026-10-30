@@ -40,7 +40,7 @@ vi.mock('@/lib/deviceScan', async (orig) => ({
   ...(await orig<typeof import('@/lib/deviceScan')>()),
   scanDevice: async () => h.scan,
 }));
-vi.mock('@/lib/assistantHandoff', () => ({ handAssistant: vi.fn() }));
+vi.mock('@/lib/assistantHandoff', () => ({ handAssistant: vi.fn(), clearAssistantHandoff: vi.fn() }));
 
 import Support from './Support';
 import { setKidsLevel } from '@/lib/kidsFilter';

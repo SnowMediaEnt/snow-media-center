@@ -1050,11 +1050,14 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
     window.addEventListener(ASSISTANT_HANDOFF_EVENT, on);
     return () => window.removeEventListener(ASSISTANT_HANDOFF_EVENT, on);
   }, []);
+  // Only the AI tab inside Support takes it: never the standalone chat
+  // (opening on Admin), where it would spend credits out of sight.
+  const takesHandoff = embedded && lockedTab === 'ai';
   useEffect(() => {
-    if (!handoffReadyRef.current || !hasAssistantHandoff()) return;
+    if (!takesHandoff || !handoffReadyRef.current || !hasAssistantHandoff()) return;
     const m = takeAssistantHandoff();
     if (m) void sendAiMessageRef.current(m);
-  }, [handoffReady, handoffTick]);
+  }, [handoffReady, handoffTick, takesHandoff]);
 
 
   // Define all focusable elements by index

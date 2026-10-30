@@ -142,8 +142,6 @@ const SpeedTest = ({ onClose, onResult }: SpeedTestProps) => {
       // Avoid hammering server with zero-latency loop
       if (performance.now() - reqStart < 50) await new Promise((r) => setTimeout(r, 30));
     }
-    // The figure left on screen is the one a caller is handed (onResult).
-    if (bestBps > 0) setUpload(bestBps);
     return bestBps;
   }, []);
 

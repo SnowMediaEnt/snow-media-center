@@ -36,7 +36,7 @@ import { useSnowMail } from '@/hooks/useSnowMail';
 import { peekIntent, clearIntent, takeIntent, INTENT_KEYS, SCREEN_INTENT_EVENT } from '@/lib/appActions';
 import { peekPlexDeeplink, renewPlexDeeplink } from '@/lib/plexDeeplink';
 import { BackButton, HEADER_ROW } from '@/components/ui/BackButton';
-import { handAssistant } from '@/lib/assistantHandoff';
+import { clearAssistantHandoff, handAssistant } from '@/lib/assistantHandoff';
 import { keepSpeed } from '@/lib/deviceScan';
 import type { SpeedTestResult } from '@/components/SpeedTest';
 
@@ -322,9 +322,14 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   const askFromDevice = useCallback((message: string) => {
     handAssistant(message);
     setShowDevice(false);
-    setChildFocusActive(false);
     setTab('ai');
-  }, []);
+    // Into the chat, as ▼ from the AI tab does: the card that had the
+    // remote is gone with the Help tab.
+    requestAnimationFrame(() => { focusIntoChild('ai'); });
+  }, [focusIntoChild]);
+  // A hand-off the chat never took goes when the AI tab or Support does.
+  useEffect(() => { if (tab !== 'ai') clearAssistantHandoff(); }, [tab]);
+  useEffect(() => () => clearAssistantHandoff(), []);
   const ticketsFromDevice = useCallback(() => {
     setShowDevice(false);
     setTab('help');

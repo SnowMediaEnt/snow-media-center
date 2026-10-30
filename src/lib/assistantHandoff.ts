@@ -18,6 +18,9 @@ export function handAssistant(message: string): void {
 /** Whether a message is waiting (without taking it). */
 export const hasAssistantHandoff = (): boolean => pending !== null;
 
+/** Dropped unsent (the screen that handed it went away). */
+export function clearAssistantHandoff(): void { pending = null; }
+
 /** The handed message, once. */
 export function takeAssistantHandoff(): string | null {
   const m = pending;
