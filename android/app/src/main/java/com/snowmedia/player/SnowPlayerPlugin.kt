@@ -2717,6 +2717,10 @@ class SnowPlayerPlugin : Plugin() {
                 s.wantAudioMode = wantAudio
             }
             if (!ensureSurface(s)) { call.reject("no activity/webview"); return@doLoad }
+            // Rewind live TV: another stream on the main player. The last
+            // channel's buffer must not take its bytes (the WebView starts the
+            // new channel's buffer, or wipes); the same channel keeps it.
+            if (screenId == MAIN) tsManager?.let { m -> if (m.current?.let { it.url != url } == true) m.stop() }
             // A tile: an idle main box must not cover it.
             if (screenId != MAIN) hideIdleMainBox()
             if (engine == EngineChoice.MPV) {

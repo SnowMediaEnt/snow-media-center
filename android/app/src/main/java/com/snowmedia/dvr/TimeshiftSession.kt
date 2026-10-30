@@ -51,7 +51,8 @@ internal data class TimeshiftLimits(val maxDurationMs: Long, val hardCapBytes: L
  */
 internal class TimeshiftSession(
     val key: String,
-    private val url: String,
+    /** The channel's address (carries the line's login: never logged). */
+    val url: String,
     val dir: File,
     private val limits: () -> TimeshiftLimits,
     private val tee: TimeshiftTee,
