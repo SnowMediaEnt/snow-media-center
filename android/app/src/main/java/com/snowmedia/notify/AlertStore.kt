@@ -75,6 +75,11 @@ internal class AlertStore(context: Context) {
         get() = prefs.getBoolean(KEY_REQ_PENDING, false)
         set(v) = prefs.edit().putBoolean(KEY_REQ_PENDING, v).apply()
 
+    /** When a chain link (or a run asked for now) last ran; 0 = never. The safety net reads it. */
+    var lastLinkAt: Long
+        get() = prefs.getLong(KEY_LAST_LINK, 0L)
+        set(v) = prefs.edit().putLong(KEY_LAST_LINK, v).apply()
+
     fun clearPosted() {
         prefs.edit().remove(KEY_SHOWN).remove(KEY_DISMISSED).apply()
     }
@@ -88,5 +93,6 @@ internal class AlertStore(context: Context) {
         const val KEY_DISMISSED = "dismissed_ids"
         const val KEY_REQ_KEY = "request_key"
         const val KEY_REQ_PENDING = "request_pending"
+        const val KEY_LAST_LINK = "last_link_at"
     }
 }

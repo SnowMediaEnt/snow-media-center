@@ -6,6 +6,7 @@ import androidx.work.Worker
 import androidx.work.WorkerParameters
 import com.snowmedia.AppLocale
 import com.snowmedia.R
+import com.snowmedia.health.HealthStore
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -15,7 +16,13 @@ import java.net.URLEncoder
 /**
  * Checks Supabase for active alerts and reconciles the notification shade with
  * what it finds: anything new is posted, anything that has gone away is
- * cleared. Then it books itself in again five minutes later.
+ * cleared. Then it books itself in again INTERVAL_MINUTES (15) later.
+ *
+ * It exists for alerts while SMC is CLOSED. While SMC is on screen the web app
+ * polls and has realtime, so a scheduled run only keeps the chain going and
+ * fetches nothing; a run asked for now (pollNow on the way back to the
+ * foreground, enabling, a Plex request) always fetches. See
+ * AlertPollScheduler.plan.
  *
  * WHY A SELF-CHAINING ONE-SHOT AND NOT A PERIODIC WORKER: WorkManager refuses
  * any periodic interval under fifteen minutes — it silently clamps it — and
@@ -44,6 +51,22 @@ class AlertPollWorker(context: Context, params: WorkerParameters) : Worker(conte
     override fun doWork(): Result {
         val store = AlertStore(applicationContext)
         if (!store.enabled) return Result.success()   // switched off; let the chain die
+
+        val chainLink = ranAs != null
+        val now = System.currentTimeMillis()
+        val last = store.lastLinkAt
+        val plan = AlertPollScheduler.plan(
+            chainLink = chainLink,
+            askedNow = tags.contains(AlertPollScheduler.NOW_TAG),
+            onScreen = HealthStore.isOnScreen(applicationContext),
+            sinceLastLinkMs = if (last > 0L && last <= now) now - last else Long.MAX_VALUE,
+        )
+        if (chainLink) store.lastLinkAt = now
+        rearm = plan.rearm
+        if (!plan.fetch) {
+            continueChain()
+            return Result.success()
+        }
 
         val url = store.supabaseUrl
         val key = store.supabaseKey
@@ -127,14 +150,17 @@ class AlertPollWorker(context: Context, params: WorkerParameters) : Worker(conte
         }
     }
 
+    /** How this run keeps the chain going (set from the plan in doWork). */
+    private var rearm = AlertPollScheduler.Rearm.NEXT_LINK
+
     private fun continueChain() {
-        val name = ranAs
-        if (name == null) {
-            // Safety-net run. The chain is what gives five-minute latency; if
-            // it has stopped, this is the run that notices and restarts it.
-            AlertPollScheduler.start(applicationContext)
-        } else {
-            AlertPollScheduler.scheduleNext(applicationContext, name)
+        when (rearm) {
+            AlertPollScheduler.Rearm.NEXT_LINK -> AlertPollScheduler.scheduleNext(applicationContext, ranAs)
+            // Safety-net run that found the chain dead: restart it. Its first
+            // link is one interval out, since this run already fetched.
+            AlertPollScheduler.Rearm.RESTART_LATER -> AlertPollScheduler.restartLater(applicationContext)
+            // Safety-net run while the chain is alive: nothing to do.
+            AlertPollScheduler.Rearm.NONE -> Unit
         }
     }
 
