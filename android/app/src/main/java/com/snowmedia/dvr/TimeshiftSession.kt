@@ -140,6 +140,7 @@ internal class TimeshiftSession(
             }
             !running
         }
+        info("closed (own connection ${if (runNow || released == null) "not waited for" else "closing"})")
         source?.cancel()
         if (runNow) released?.run()
         if (deleteNow) deleteDir()
@@ -151,9 +152,13 @@ internal class TimeshiftSession(
      */
     fun takeOver() {
         synchronized(lock) {
-            if (stopped || !running || state == STATE_UNAVAILABLE) return
+            if (stopped || !running || state == STATE_UNAVAILABLE) {
+                info("take over refused (stopped=$stopped running=$running state=$state)")
+                return
+            }
             mode = MODE_OWN
         }
+        info("take over: waiting for the player's live connections (${tee.openCount()} open) to close")
     }
 
     /**
@@ -168,8 +173,16 @@ internal class TimeshiftSession(
             mode = MODE_TEE
             if (ownActive && running) whenReleased.add(released) else runNow = true
         }
-        if (runNow) released.run() else source?.cancel()
+        if (runNow) {
+            released.run()
+        } else {
+            info("hand back: closing our own connection first")
+            handBackAt = clock()
+            source?.cancel()
+        }
     }
+
+    @Volatile private var handBackAt = 0L
 
     /**
      * [released] runs once our own connection is closed (and its grace has
@@ -395,7 +408,10 @@ internal class TimeshiftSession(
                 continue
             }
             if (quietSince < 0L) quietSince = now
-            if (now - quietSince >= takeoverGraceMs) return true
+            if (now - quietSince >= takeoverGraceMs) {
+                info("the player's connections closed ${quietSince - since} ms after the take over; opening our own")
+                return true
+            }
         }
         return false
     }
@@ -407,8 +423,14 @@ internal class TimeshiftSession(
      */
     private fun ownConnection(writer: Writer, segmenter: TsSegmenter): Boolean {
         var failures = 0
+        // An HLS channel goes on from the player's own media playlist (an
+        // Xtream /hls/<token>/ path): the panel sees the player's session
+        // carry on, not a new viewer. Its first failure falls back to the
+        // channel's address.
+        var from = tee.recentMediaPlaylist(PLAYLIST_FRESH_MS)
         while (!stopped && mode == MODE_OWN) {
-            val src = openSource(url)
+            info("own connection: opening (${if (from != null) "the player's media playlist" else "the channel's address"}, attempt ${failures + 1})")
+            val src = openSource(from ?: url)
             source = src
             if (stopped || mode != MODE_OWN) { source = null; break }
             val startedAt = clock()
@@ -429,8 +451,9 @@ internal class TimeshiftSession(
                 return false
             } catch (e: IOException) {
                 // Never the message: it can carry the address.
-                warn("Capture connection dropped (${e.javaClass.simpleName})")
+                warn("Capture connection dropped (${e.javaClass.simpleName}${if (e is HttpStatusException) " ${e.status}" else ""}) after ${clock() - startedAt} ms")
             }
+            from = null
             source = null
             if (stopped) return false
             if (mode != MODE_OWN) break
@@ -461,6 +484,7 @@ internal class TimeshiftSession(
      * waiting callbacks run.
      */
     private fun released() {
+        info("own connection closed${if (handBackAt > 0L) " ${clock() - handBackAt} ms after the hand back" else ""}")
         if (handbackGraceMs > 0) {
             var slept = 0L
             while (slept < handbackGraceMs) {
@@ -475,11 +499,17 @@ internal class TimeshiftSession(
             whenReleased.clear()
             p
         }
+        info("released after the grace: fed by the player again=${!stopped && mode == MODE_TEE}, ${pending.size} waiting")
+        handBackAt = 0L
         for (r in pending) try { r.run() } catch (_: Throwable) { /* the caller's */ }
     }
 
     private fun warn(msg: String) {
         try { Log.w(TAG, msg) } catch (_: Throwable) { /* no Android log (tests) */ }
+    }
+
+    private fun info(msg: String) {
+        try { Log.i(TAG, msg) } catch (_: Throwable) { /* no Android log (tests) */ }
     }
 
     private fun fail(why: String) {
@@ -620,6 +650,8 @@ internal class TimeshiftSession(
         const val TAKEOVER_GRACE_MS = 1000L
         /** After ours closed, before the player may open the channel again. */
         const val HANDBACK_GRACE_MS = 300L
+        /** The player's media playlist is gone on from if it read it this recently. */
+        private const val PLAYLIST_FRESH_MS = 60_000L
         private const val POLL_MS = 200L
         private const val WAIT_STEP_MS = 50L
         /** Said once in the log when the player's connection takes longer than this to close. */

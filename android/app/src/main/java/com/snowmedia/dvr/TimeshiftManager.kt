@@ -35,6 +35,18 @@ internal class TimeshiftManager(private val root: File, private val tee: Timeshi
         return closing.toList()
     }
 
+    /**
+     * The buffer's own connection would not close (its thread stuck past
+     * Go live's wait): stop the buffer and cancel every connection of it
+     * again, so the player can have the channel. How many were stuck.
+     */
+    fun stopStuck(): Int {
+        var n = 0
+        if (current?.holdsConnection() == true) { n++; stop() }
+        for (c in closingSessions()) { n++; c.close() }
+        return n
+    }
+
     /** Anything of the buffer's is connected to a channel (or about to be). */
     fun holdsAny(): Boolean = current?.holdsConnection() == true || closingSessions().isNotEmpty()
 

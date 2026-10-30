@@ -65,6 +65,9 @@ internal class TimeshiftTee {
     private val seqOf = object : LinkedHashMap<String, Long>(64, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Long>?): Boolean = size > SEQ_KEPT
     }
+    /** The player's last media playlist, where it was finally served from (an Xtream token path), and when (nanoTime). */
+    private var lastPlaylist: String? = null
+    private var lastPlaylistAt = 0L
     /** The highest media sequence number passed on (-1: none yet). */
     private var maxSeq = -1L
     /** HLS segments passed on lately: address -> end of what was passed on (absolute offset). */
@@ -85,16 +88,29 @@ internal class TimeshiftTee {
             maxSeq = -1L
             tellOther = if (openOther > 0) otherWhy else null
         }
+        diag("sink attached; player connections open: ${openCount()}")
         if (tellOther != null) s.teeUnsupported(tellOther)
     }
 
     /** Stop passing bytes on to [s] (no-op when another sink replaced it). */
     fun detach(s: Sink) {
-        synchronized(lock) { if (sink === s) sink = null }
+        val was = synchronized(lock) { (sink === s).also { if (it) sink = null } }
+        if (was) diag("sink detached; player connections open: ${openCount()}")
     }
 
     /** The player's live connections open right now. */
     fun openCount(): Int = synchronized(lock) { open }
+
+    /**
+     * The media playlist the player read last, at the address it was finally
+     * served from, if within [maxAgeMs]: the session's own connection goes on
+     * from there, so the panel sees the player's HLS session carry on rather
+     * than a new one. Null for a raw stream. Never logged.
+     */
+    fun recentMediaPlaylist(maxAgeMs: Long): String? = synchronized(lock) {
+        val p = lastPlaylist ?: return null
+        if ((System.nanoTime() - lastPlaylistAt) / 1_000_000L > maxAgeMs) null else p
+    }
 
     /**
      * The player opens [uri] from byte [position]. [channelAddress]: it is
@@ -102,7 +118,8 @@ internal class TimeshiftTee {
      * piece of it. Counted as open until [Reader.close].
      */
     fun begin(uri: String, position: Long, channelAddress: Boolean): Reader {
-        synchronized(lock) { open++ }
+        val now = synchronized(lock) { ++open }
+        diag("player opened ${if (channelAddress) "the channel address" else "a piece"}; open: $now")
         return Reader(uri, position.coerceAtLeast(0L), channelAddress)
     }
 
@@ -174,11 +191,14 @@ internal class TimeshiftTee {
             val t = text
             text = null
             if (kind == KIND_PLAYLIST && t != null) learnSequence(t.toString(Charsets.UTF_8.name()))
-            synchronized(lock) {
+            val left = synchronized(lock) {
                 open--
                 if (kind == KIND_OTHER) openOther--
                 if (feeding === this) feeding = null
+                open
             }
+            diag("${kindName(kind)} ${if (channelAddress) "(channel address)" else "(piece)"} closed: ${offset} B read" +
+                (if (skipped) ", skipped (number already written)" else "") + "; player connections open: $left")
         }
 
         private fun classify() {
@@ -236,7 +256,10 @@ internal class TimeshiftTee {
                 if (abs != null) found.add(abs to next)
                 next++
             }
-            synchronized(lock) { for ((u, n) in found) seqOf[u] = n }
+            synchronized(lock) {
+                for ((u, n) in found) seqOf[u] = n
+                if (found.isNotEmpty()) { lastPlaylist = base; lastPlaylistAt = System.nanoTime() }
+            }
         }
 
         private fun feed(b: ByteArray, off: Int, len: Int) {
@@ -312,6 +335,18 @@ internal class TimeshiftTee {
         private const val SEQ_KEPT = 1024
         /** A number this far below the highest passed on means the numbering restarted. */
         private const val SEQ_RESTART = 30L
+        private fun kindName(k: Int): String = when (k) {
+            KIND_TS -> "MPEG-TS"
+            KIND_SKIP -> "subtitles"
+            KIND_OTHER -> "not MPEG-TS"
+            KIND_PLAYLIST -> "playlist"
+            else -> "short body"
+        }
+        const val TAG = "SmcTimeshiftTee"
+
+        private fun diag(msg: String) {
+            try { android.util.Log.d(TAG, msg) } catch (_: Throwable) { /* no Android log (tests) */ }
+        }
         /** Media that is not MPEG-TS. */
         private const val KIND_OTHER = 3
         /** Enough for LiveSource.looksTs (a packet start, and the next one 188 bytes on). */

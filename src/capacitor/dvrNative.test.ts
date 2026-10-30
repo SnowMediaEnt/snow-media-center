@@ -178,9 +178,16 @@ describe('one connection to the channel (the buffer is fed by the player)', () =
     expect(hook).not.toMatch(/bufferGate|maxConnections|activeRecordings|fetchLineUsage|yieldBuffer|lineTaken/);
   });
 
-  it('the tee and the tap log nothing', () => {
-    expect(logLines(tee)).toEqual([]);
-    expect(logLines(tap)).toEqual([]);
+  it('the diagnostics (LiveSource, tee, session, tap) never carry an address', () => {
+    const diag = (src: string) => src.split('\n').filter((l) => /\b(log|info|warn|diag)\(\s*"/.test(l));
+    for (const src of [source, tee, session, tap]) {
+      for (const line of [...logLines(src), ...diag(src)]) {
+        expect(line).not.toMatch(/\burl\b|\bu\b|\buri\b|\bbase\b|\bfrom\b(?! != null)|next\b|loc\b|e\.message|\$e\b/);
+        expect(line).not.toMatch(/password|username|creds/i);
+      }
+    }
+    expect(diag(source).length).toBeGreaterThan(5);
+    expect(diag(session).length).toBeGreaterThan(5);
   });
 });
 

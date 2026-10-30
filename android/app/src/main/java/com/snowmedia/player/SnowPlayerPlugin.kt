@@ -1222,6 +1222,13 @@ class SnowPlayerPlugin : Plugin() {
             s.firstFrameSeen = false
             s.lastHttpAddress = false
             if (s.isLive) {
+                // Rewind live TV: a buffer still holding its own connection
+                // (it should hold none while the channel plays) gives it up
+                // before the channel is opened again.
+                if (slots[MAIN] === s && tsManager?.holdsAny() == true) {
+                    val stuck = tsManager?.stopStuck() ?: 0
+                    Log.w(TAG, "Rewind: reconnect found $stuck buffer connection(s) open; stopped them")
+                }
                 p.setMediaItem(buildMediaItem(url, s.currentSubtitles))
                 p.prepare()
                 p.playWhenReady = true
@@ -2878,7 +2885,11 @@ class SnowPlayerPlugin : Plugin() {
                 val gen = tsPlayGen
                 // A newer load came meanwhile (it has the player), or the
                 // player was stopped / the app left the screen: this one is done.
-                tsAfterRelease { if (s.loadsAsked == asked && tsPlayGen == gen) doLoad() else call.resolve() }
+                Log.i(TAG, "Rewind: load waits for the buffer's connection to close")
+                tsAfterRelease {
+                    if (s.loadsAsked == asked && tsPlayGen == gen) doLoad()
+                    else { Log.i(TAG, "Rewind: waiting load dropped (a newer load, or stopped)"); call.resolve() }
+                }
                 return@runOnUiThread
             }
             doLoad()
@@ -3986,7 +3997,12 @@ class SnowPlayerPlugin : Plugin() {
         val gen = tsPlayGen
         tsAfterRelease {
             // Still the same stream (no other load, stop or Home came meanwhile).
-            if (s.loadsAsked == asked && tsPlayGen == gen && s.currentUrl != null) tsReloadLive(s)
+            if (s.loadsAsked == asked && tsPlayGen == gen && s.currentUrl != null) {
+                Log.i(TAG, "Rewind: Go live, loading the channel")
+                tsReloadLive(s)
+            } else {
+                Log.i(TAG, "Rewind: Go live dropped (newer load ${s.loadsAsked != asked}, stopped ${tsPlayGen != gen})")
+            }
             then?.invoke()
         }
     }
@@ -4019,11 +4035,16 @@ class SnowPlayerPlugin : Plugin() {
             action()
         }
         timeout = Runnable {
-            if (!done.get()) Log.w(TAG, "Rewind buffer's connection slow to close; going on")
+            if (!done.get()) {
+                // Never leave the player waiting: the buffer goes, the channel loads.
+                val stuck = tsManager?.stopStuck() ?: 0
+                Log.w(TAG, "Rewind: the buffer's connection did not close in ${TS_HANDBACK_TIMEOUT_MS} ms; stopped $stuck stuck buffer(s), loading the channel anyway")
+            }
             go.run()
         }
         mainHandler.postDelayed(timeout, TS_HANDBACK_TIMEOUT_MS)
         val left = java.util.concurrent.atomic.AtomicInteger(closing.size + if (holds) 1 else 0)
+        Log.i(TAG, "Rewind: waiting for the buffer's connection to close (current=$holds, closing=${closing.size})")
         val one = Runnable { if (left.decrementAndGet() == 0) mainHandler.post(go) }
         if (holds) sess!!.handBack(one) else sess?.handBack(Runnable { })
         for (c in closing) c.whenReleased(one)
