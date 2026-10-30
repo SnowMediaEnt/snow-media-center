@@ -3,15 +3,15 @@ package com.snowmedia.dvr
 import java.io.File
 
 /**
- * Rewind live TV's buffer: only the channel being watched ([current]). A channel
- * change closes the old one at once (capture stopped, files deleted): keeping it
- * running for a "zap straight back" would need a third connection on a 2-stream
- * line. Everything lives under [root] (cacheDir/timeshift) and nowhere else;
- * recordings are elsewhere and never touched here.
+ * Rewind live TV's buffer: only the channel being watched ([current]), fed by
+ * the main player's own bytes through [tee] (one connection to the channel:
+ * see TimeshiftSession). A channel change closes the old one at once (capture
+ * stopped, files deleted). Everything lives under [root] (cacheDir/timeshift)
+ * and nowhere else; recordings are elsewhere and never touched here.
  *
  * Main thread only (the plugin calls it from runOnUiThread).
  */
-internal class TimeshiftManager(private val root: File) {
+internal class TimeshiftManager(private val root: File, private val tee: TimeshiftTee) {
     var current: TimeshiftSession? = null
         private set
 
@@ -23,20 +23,25 @@ internal class TimeshiftManager(private val root: File) {
         val cur = current
         if (cur != null && cur.key == key) return
         cur?.close()
-        current = TimeshiftSession(key, url, File(root, "c" + System.nanoTime()), { limits }).also { it.start() }
+        current = TimeshiftSession(key, url, File(root, "c" + System.nanoTime()), { limits }, tee).also { it.start() }
     }
 
-    /** Stop capturing and delete the buffer now. */
-    fun stop() {
-        val cur = current ?: return
+    /**
+     * Stop capturing and delete the buffer now. [released] runs once the
+     * session's own connection (if it had one) is closed: at once, or on its
+     * capture thread (see TimeshiftSession.close).
+     */
+    fun stop(released: Runnable? = null) {
+        val cur = current ?: run { released?.run(); return }
         current = null
-        cur.close()
+        cur.close(released)
     }
 
-    /** Delete every buffer, now: leaving the player, Home, sign-out, app closed. */
-    fun wipeAll() {
-        current?.close()
+    /** Delete every buffer, now: leaving the player, Home, sign-out, app closed. [released]: as for [stop]. */
+    fun wipeAll(released: Runnable? = null) {
+        val cur = current
         current = null
+        if (cur != null) cur.close(released) else released?.run()
         wipeFolder(root)
     }
 

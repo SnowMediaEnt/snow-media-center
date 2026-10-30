@@ -12,29 +12,54 @@ import java.util.ArrayDeque
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
 
 /** What the viewer set: 0 = Auto (disk only). */
 internal data class TimeshiftLimits(val maxDurationMs: Long, val hardCapBytes: Long)
 
 /**
- * One channel's rewind buffer: its own connection to the channel, cut into
+ * One channel's rewind buffer, on ONE connection to the channel: cut into
  * MPEG-TS segments in [dir] and listed in a growing local HLS playlist
  * ([playlist]) that the player can open at any point.
+ *
+ * Where the bytes come from:
+ * - While the viewer watches live, from the player itself: the main
+ *   player's live DataSource hands every byte it reads to [tee], which
+ *   passes them on here ([MODE_TEE]). No connection of our own.
+ * - Once the player has moved onto this buffer (a long pause, a rewind:
+ *   [takeOver]), the player's live connection closes. Only after the tee
+ *   says every one of the player's connections is closed, and a short grace
+ *   ([takeoverGraceMs]) has passed, does this session open ONE connection of
+ *   its own ([openSource], LiveSource) to keep recording the live edge
+ *   ([MODE_OWN]).
+ * - Go live ([handBack]): that connection is closed first; the callback
+ *   runs once it is, after [handbackGraceMs], and only then may the player
+ *   open the channel again. The session is fed by the tee from then on.
+ * So two connections to the channel are never open at once. Each handover
+ * leaves a small gap, marked as a discontinuity in the playlist.
  *
  * The oldest segments are dropped as the buffer reaches the viewer's "Max
  * rewind" or the disk budget (StorageBudget), so rewinding always reaches as
  * far back as the box can afford and the newest part is never lost. Only
- * small buffers are held in memory (one 64 KB read, one write buffer); the
- * media is on disk.
+ * small buffers are held in memory (a few MB of the player's bytes waiting to
+ * be written, one 64 KB read, one write buffer); the media is on disk.
  *
- * The capture runs on its own thread. [snapshot] may be read from any thread.
+ * The writing runs on its own thread; the tee's calls only copy into a queue
+ * (never blocking the player: bytes that don't fit are dropped and marked as
+ * a gap). [snapshot] may be read from any thread.
  */
 internal class TimeshiftSession(
     val key: String,
     private val url: String,
     val dir: File,
     private val limits: () -> TimeshiftLimits,
-) {
+    private val tee: TimeshiftTee,
+    private val openSource: (String) -> LiveFeed = { LiveSource(it) },
+    private val clock: () -> Long = { SystemClock.elapsedRealtime() },
+    private val takeoverGraceMs: Long = TAKEOVER_GRACE_MS,
+    private val handbackGraceMs: Long = HANDBACK_GRACE_MS,
+) : TimeshiftTee.Sink {
     class Seg(val seq: Long, val file: File, val startMs: Long, val durMs: Long, val bytes: Long, val discontinuity: Boolean)
 
     /** What the player and the WebView need, taken under the lock. */
@@ -71,25 +96,76 @@ internal class TimeshiftSession(
     @Volatile private var stopped = false
     private var deleteWhenDone = false
     private var running = false
-    @Volatile private var source: LiveSource? = null
+    @Volatile private var source: LiveFeed? = null
+
+    /** Where the bytes come from now: MODE_TEE (the player) or MODE_OWN (our own connection). */
+    @Volatile var mode: Int = MODE_TEE
+        private set
+    /** Our own connection is open, opening, or closing (its grace included). Under the lock. */
+    private var ownActive = false
+    /** Run once our own connection is closed (handBack / close). Under the lock. */
+    private val whenReleased = ArrayList<Runnable>()
+
+    // The player's bytes, on their way from the tee to the capture thread.
+    private class Item(val buf: ByteArray?, val len: Int, val kind: Int)
+    private val queue = LinkedBlockingQueue<Item>()
+    private val free = ArrayDeque<ByteArray>()
+    private var chunks = 0
+    private var dropping = false
 
     val alive: Boolean get() = !stopped && state != STATE_UNAVAILABLE
 
     fun start() {
         synchronized(lock) { running = true }
+        tee.attach(this)
         Thread({ run() }, "smc-timeshift").apply { isDaemon = true; priority = Thread.NORM_PRIORITY - 1 }.start()
     }
 
-    /** Stop capturing and delete everything this session wrote. Any thread. */
-    fun close() {
+    /** Stop capturing and delete everything this session wrote. Any thread. [released]: as for [handBack]. */
+    fun close(released: Runnable? = null) {
+        tee.detach(this)
+        var runNow = false
         val deleteNow = synchronized(lock) {
             stopped = true
             if (running) deleteWhenDone = true
+            if (released != null) {
+                if (ownActive) whenReleased.add(released) else runNow = true
+            }
             !running
         }
         source?.cancel()
+        if (runNow) released?.run()
         if (deleteNow) deleteDir()
     }
+
+    /**
+     * The player has moved onto this buffer (main thread): keep recording on
+     * a connection of our own, once the player's is closed.
+     */
+    fun takeOver() {
+        synchronized(lock) {
+            if (stopped || !running || state == STATE_UNAVAILABLE) return
+            mode = MODE_OWN
+        }
+    }
+
+    /**
+     * Go live (main thread): close our own connection and be fed by the
+     * player again. [released] runs once nothing of ours is connected to the
+     * channel (at once when nothing was; else on the capture thread, after
+     * [handbackGraceMs]): the player opens the channel only then.
+     */
+    fun handBack(released: Runnable) {
+        var runNow = false
+        synchronized(lock) {
+            mode = MODE_TEE
+            if (ownActive && running) whenReleased.add(released) else runNow = true
+        }
+        if (runNow) released.run() else source?.cancel()
+    }
+
+    /** Our own connection is open or about to be (the player must wait before opening the channel). */
+    fun holdsConnection(): Boolean = synchronized(lock) { ownActive || (mode == MODE_OWN && running && !stopped) }
 
     fun snapshot(): Snapshot? {
         synchronized(lock) {
@@ -100,68 +176,245 @@ internal class TimeshiftSession(
 
     fun usedBytes(): Long = synchronized(lock) { usedBytes }
 
+    /** The listed segments (tests). */
+    internal fun segments(): List<Seg> = synchronized(lock) { segs.toList() }
+
+    // ---- the tee (loader threads; never block) ----
+
+    override fun teeBytes(b: ByteArray, off: Int, len: Int) {
+        var o = off
+        var left = len
+        synchronized(free) {
+            while (left > 0) {
+                val chunk = free.pollFirst() ?: if (chunks < MAX_CHUNKS) { chunks++; ByteArray(CHUNK) } else null
+                if (chunk == null) {
+                    // The disk can't keep up: drop, and say so once the queue has room.
+                    dropping = true
+                    return
+                }
+                if (dropping) {
+                    dropping = false
+                    queue.offer(Item(null, 0, ITEM_DISC))
+                }
+                val n = minOf(left, CHUNK)
+                System.arraycopy(b, o, chunk, 0, n)
+                queue.offer(Item(chunk, n, ITEM_DATA))
+                o += n
+                left -= n
+            }
+        }
+    }
+
+    override fun teeDiscontinuity() {
+        queue.offer(Item(null, 0, ITEM_DISC))
+    }
+
+    override fun teeUnsupported(why: String) {
+        unsupportedWhy = why
+        queue.offer(Item(null, 0, ITEM_UNSUPPORTED))
+    }
+
+    @Volatile private var unsupportedWhy = ""
+
+    private fun recycle(chunk: ByteArray) {
+        synchronized(free) { free.addLast(chunk) }
+    }
+
     // ---- capture thread ----
 
     private fun run() {
-        var failures = 0
         var segmenterRef: TsSegmenter? = null
         try {
             if (!dir.mkdirs() && !dir.isDirectory) throw IOException("no buffer folder")
             val writer = Writer()
-            val segmenter = TsSegmenter(TARGET_SEG_MS, MAX_SEG_MS, writer)
+            val segmenter = TsSegmenter(TARGET_SEG_MS, MAX_SEG_MS, writer, clock)
             segmenterRef = segmenter
-            while (!stopped) {
-                val src = LiveSource(url)
-                source = src
-                if (stopped) break
-                val startedAt = SystemClock.elapsedRealtime()
-                try {
-                    src.pump { b, o, l ->
-                        segmenter.feed(b, o, l)
+            var fed = false
+            /** One item from the player: false when the session must end. */
+            fun take(item: Item): Boolean {
+                when (item.kind) {
+                    ITEM_DATA -> {
+                        try {
+                            segmenter.feed(item.buf!!, 0, item.len)
+                        } finally {
+                            recycle(item.buf!!)
+                        }
+                        fed = true
                         partialMs = segmenter.currentMs()
-                        if (writer.failed != null) throw writer.failed!!
                     }
-                } catch (e: UnsupportedSourceException) {
-                    fail("This channel can't be rewound (${e.message}).")
-                    break
-                } catch (e: WriteFailed) {
+                    ITEM_DISC -> if (fed) segmenter.markDiscontinuity()
+                    ITEM_UNSUPPORTED -> {
+                        fail("This channel can't be rewound ($unsupportedWhy).")
+                        return false
+                    }
+                }
+                if (writer.failed != null || writer.overBudget) {
                     fail(if (writer.overBudget) "Not enough free space on this box to rewind."
                         else "The rewind buffer could not be written (storage full or cleared).")
-                    break
-                } catch (e: IOException) {
-                    // Never the message: it can carry the address.
-                    Log.w(TAG, "Capture connection dropped (${e.javaClass.simpleName})")
+                    return false
                 }
-                if (stopped) break
-                if (writer.overBudget) {
-                    fail("Not enough free space on this box to rewind.")
-                    break
+                return true
+            }
+            fun drain(): Boolean {
+                while (true) {
+                    val item = queue.poll() ?: return true
+                    if (!take(item)) return false
                 }
-                // A connection that ran a while counts as a fresh start.
-                failures = if (SystemClock.elapsedRealtime() - startedAt > 30_000L) 1 else failures + 1
-                if (failures > MAX_FAILURES) {
-                    fail("The channel stopped sending, so rewind is paused.")
-                    break
+            }
+            loop@ while (!stopped) {
+                if (mode == MODE_TEE) {
+                    val item = queue.poll(POLL_MS, TimeUnit.MILLISECONDS) ?: continue@loop
+                    if (!take(item)) break@loop
+                    continue@loop
                 }
+                // MODE_OWN. What the player read before it let go is kept;
+                // our own connection opens only once all of its are closed.
+                if (!awaitPlayerClosed(::take)) {
+                    if (stopped || state == STATE_UNAVAILABLE) break@loop
+                    continue@loop // Go live came first: still fed by the player
+                }
+                val go = synchronized(lock) {
+                    if (stopped || mode != MODE_OWN) false else { ownActive = true; true }
+                }
+                if (!go) continue@loop
+                tee.detach(this)
+                if (!drain()) { released(); break@loop }
+                if (fed) segmenter.markDiscontinuity()
+                val ended = !ownConnection(writer, segmenter)
+                if (ended) { released(); break@loop }
+                // Back to the player's bytes: what comes next starts a new piece.
+                fed = true
+                released()
                 segmenter.markDiscontinuity()
-                val wait = minOf(5000L, 1000L * failures)
-                var slept = 0L
-                while (!stopped && slept < wait) {
-                    try { Thread.sleep(200) } catch (_: InterruptedException) { break }
-                    slept += 200
-                }
             }
         } catch (t: Throwable) {
-            Log.w(TAG, "Capture stopped (${t.javaClass.simpleName})")
+            warn("Capture stopped (${t.javaClass.simpleName})")
             fail("Rewind stopped on this channel.")
         } finally {
+            tee.detach(this)
             try { segmenterRef?.finish() } catch (_: Throwable) { /* closing */ }
-            val deleteNow = synchronized(lock) {
+            while (true) { val item = queue.poll() ?: break; item.buf?.let { recycle(it) } }
+            val (deleteNow, pending) = synchronized(lock) {
                 running = false
-                deleteWhenDone
+                ownActive = false
+                val p = whenReleased.toList()
+                whenReleased.clear()
+                deleteWhenDone to p
             }
+            for (r in pending) try { r.run() } catch (_: Throwable) { /* the caller's */ }
             if (deleteNow) deleteDir()
         }
+    }
+
+    /**
+     * Waits, still writing what the player read, until none of the player's
+     * live connections is open and [takeoverGraceMs] has passed since. Never
+     * gives up waiting: opening ours while the player's is still open would
+     * be two connections (a 1-stream line refuses the second). False when Go
+     * live came first, the session is closing, or the channel can't be buffered.
+     */
+    private fun awaitPlayerClosed(take: (Item) -> Boolean): Boolean {
+        var quietSince = -1L
+        val since = clock()
+        var told = false
+        while (!stopped && mode == MODE_OWN) {
+            val item = queue.poll(WAIT_STEP_MS, TimeUnit.MILLISECONDS)
+            if (item != null && !take(item)) return false
+            val now = clock()
+            if (tee.openCount() > 0) {
+                quietSince = -1L
+                if (!told && now - since > SLOW_CLOSE_MS) {
+                    told = true
+                    warn("The player's live connection is still open; rewind waits for it")
+                }
+                continue
+            }
+            if (quietSince < 0L) quietSince = now
+            if (now - quietSince >= takeoverGraceMs) return true
+        }
+        return false
+    }
+
+    /**
+     * Our own connection, while the player is on the buffer: reconnects as
+     * needed until Go live ([mode] back to MODE_TEE) or the end. False when
+     * the session must end (closing, or the channel can't be buffered).
+     */
+    private fun ownConnection(writer: Writer, segmenter: TsSegmenter): Boolean {
+        var failures = 0
+        while (!stopped && mode == MODE_OWN) {
+            val src = openSource(url)
+            source = src
+            if (stopped || mode != MODE_OWN) { source = null; break }
+            val startedAt = clock()
+            try {
+                src.pump { b, o, l ->
+                    segmenter.feed(b, o, l)
+                    partialMs = segmenter.currentMs()
+                    if (writer.failed != null) throw writer.failed!!
+                }
+            } catch (e: UnsupportedSourceException) {
+                source = null
+                fail("This channel can't be rewound (${e.message}).")
+                return false
+            } catch (e: WriteFailed) {
+                source = null
+                fail(if (writer.overBudget) "Not enough free space on this box to rewind."
+                    else "The rewind buffer could not be written (storage full or cleared).")
+                return false
+            } catch (e: IOException) {
+                // Never the message: it can carry the address.
+                warn("Capture connection dropped (${e.javaClass.simpleName})")
+            }
+            source = null
+            if (stopped) return false
+            if (mode != MODE_OWN) break
+            if (writer.overBudget) {
+                fail("Not enough free space on this box to rewind.")
+                return false
+            }
+            // A connection that ran a while counts as a fresh start.
+            failures = if (clock() - startedAt > 30_000L) 1 else failures + 1
+            if (failures > MAX_FAILURES) {
+                fail("The channel stopped sending, so rewind is paused.")
+                return false
+            }
+            segmenter.markDiscontinuity()
+            val wait = minOf(5000L, 1000L * failures)
+            var slept = 0L
+            while (!stopped && mode == MODE_OWN && slept < wait) {
+                try { Thread.sleep(200) } catch (_: InterruptedException) { break }
+                slept += 200
+            }
+        }
+        return !stopped
+    }
+
+    /**
+     * Our own connection is closed (it was when its pump returned). After
+     * the grace, the player may open the channel: back on the tee, then the
+     * waiting callbacks run.
+     */
+    private fun released() {
+        if (handbackGraceMs > 0) {
+            var slept = 0L
+            while (slept < handbackGraceMs) {
+                try { Thread.sleep(minOf(50L, handbackGraceMs - slept)) } catch (_: InterruptedException) { break }
+                slept += 50L
+            }
+        }
+        val pending = synchronized(lock) {
+            ownActive = false
+            if (!stopped && mode == MODE_TEE) tee.attach(this)
+            val p = whenReleased.toList()
+            whenReleased.clear()
+            p
+        }
+        for (r in pending) try { r.run() } catch (_: Throwable) { /* the caller's */ }
+    }
+
+    private fun warn(msg: String) {
+        try { Log.w(TAG, msg) } catch (_: Throwable) { /* no Android log (tests) */ }
     }
 
     private fun fail(why: String) {
@@ -296,6 +549,22 @@ internal class TimeshiftSession(
         private const val MIN_SEGMENTS = 3
         private const val MAX_FAILURES = 30
         private const val WRITE_BUF = 64 * 1024
+        const val MODE_TEE = 0
+        const val MODE_OWN = 1
+        /** After the player's last live connection closed, before ours opens. */
+        const val TAKEOVER_GRACE_MS = 1000L
+        /** After ours closed, before the player may open the channel again. */
+        const val HANDBACK_GRACE_MS = 300L
+        private const val POLL_MS = 200L
+        private const val WAIT_STEP_MS = 50L
+        /** Said once in the log when the player's connection takes longer than this to close. */
+        private const val SLOW_CLOSE_MS = 10_000L
+        /** The player's bytes waiting to be written: up to 48 x 64 KB (3 MB, about 1 s at 25 Mb/s). */
+        private const val CHUNK = 64 * 1024
+        private const val MAX_CHUNKS = 48
+        private const val ITEM_DATA = 0
+        private const val ITEM_DISC = 1
+        private const val ITEM_UNSUPPORTED = 2
 
         private val ISO = object : ThreadLocal<SimpleDateFormat>() {
             override fun initialValue() = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
