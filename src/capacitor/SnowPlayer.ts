@@ -192,6 +192,8 @@ export interface PlayerStats {
    *  the seconds spent in them. */
   stalls: number;
   stallSec: number;
+  /** Times a film stuck buffering with plenty in hand was nudged (StuckBufferRule). */
+  stuckRescues: number;
   /** CPU used by this whole process since load(), against wall time since
    *  load() — not just this stream's own decoding. Null before a load(). */
   cpuPct: number | null;
@@ -240,7 +242,7 @@ export function emptyPlayerStats(): PlayerStats {
     restarts: 0, lastRestartReason: null, lastError: null, httpStatus: null, recentHttpStatus: null, loadProfile: null, liveCatchUp: null, fetchConnections: null, lowRamBox: null,
     rangeFetch: false, connectionCap: 1,
     javaHeapMb: null, nativeHeapMb: null,
-    engine: 'exo', firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
+    engine: 'exo', firstFrameMs: null, stalls: 0, stallSec: 0, stuckRescues: 0, cpuPct: null, pssMb: null,
     displayHz: null, surface: null, tunnelingRequested: false,
     skippedFrames: null, maxConsecutiveDropped: null, droppedToKeyframe: null, avgFrameOffsetMs: null, videoDecoderSoftware: null,
     audioOrder: null, audioPassthrough: false, audioUnderruns: 0, audioUnderrunMs: 0,

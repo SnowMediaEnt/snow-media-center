@@ -36,7 +36,7 @@ const STATS: PlayerStats = {
   audioDecoder: 'Passthrough', audioFormat: 'EAC3 8ch 48.0kHz',
   restarts: 1, lastRestartReason: 'server stopped responding', lastError: 'ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT', loadProfile: 'steady · 50 s / 128 MB',
   javaHeapMb: 61.4, nativeHeapMb: 142,
-  engine: 'exo', firstFrameMs: 340, stalls: 1, stallSec: 2.4, cpuPct: 18.2, pssMb: 210,
+  engine: 'exo', firstFrameMs: 340, stalls: 1, stallSec: 2.4, stuckRescues: 0, cpuPct: 18.2, pssMb: 210,
 };
 
 const wait = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
@@ -130,7 +130,7 @@ describe('the stats panel', () => {
       ...STATS, state: 'buffering', playing: false, nowKbps: 0, avgKbps: null, minKbps: null, maxKbps: null,
       videoDecoder: null, videoFormat: null, renderedFrames: null, droppedFrames: null, audioDecoder: null, audioFormat: null,
       restarts: 0, lastRestartReason: null, lastError: null, loadProfile: null, javaHeapMb: null, nativeHeapMb: null,
-      firstFrameMs: null, stalls: 0, stallSec: 0, cpuPct: null, pssMb: null,
+      firstFrameMs: null, stalls: 0, stallSec: 0, stuckRescues: 0, cpuPct: null, pssMb: null,
     }));
     render(<PlayerStatsPanel session="Converting to 720p · 4 Mbps" />);
     await wait(0);
