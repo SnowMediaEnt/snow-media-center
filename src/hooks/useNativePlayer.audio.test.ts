@@ -13,7 +13,8 @@ import order from '../../android/app/src/main/java/com/snowmedia/player/AudioOrd
 import { nativeLoadExtras, PLAYER_FLAG_DEFAULTS, loadDecodeAudioOnBox, saveDecodeAudioOnBox } from '@/lib/playerFlags';
 import { writeCachedFlag } from '@/lib/featureFlagCache';
 import { audioPassthrough, setAudioPassthrough } from '@/lib/audioOutput';
-import flagSync from './usePlayerFlagSync.ts?raw';
+// The player switches' realtime handler lives in the shared flag store now.
+import flagSync from '../lib/featureFlagStore.ts?raw';
 import plex from '../components/livetv/PlexSection.tsx?raw';
 
 const fn = (sig: string) => {
