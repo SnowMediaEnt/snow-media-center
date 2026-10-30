@@ -47,7 +47,7 @@ vi.mock('@/lib/xtream', () => ({
 }));
 vi.mock('@/hooks/use-toast', () => ({ toast: toastSpy }));
 
-import { bufferGate, rewindOffMessage, useLiveRewind } from './useLiveRewind';
+import { bufferGate, rewindOffMessage, timeshiftShownKey, useLiveRewind } from './useLiveRewind';
 import {
   LINE_CHECK_SETTLE_MS, LINE_RECHECK_MS, LINE_RETRY_MS, LINE_TAKEN_MESSAGE, REWIND_SETTINGS_KEY, saveRewindSettings,
 } from '@/lib/liveRewind';
@@ -423,6 +423,33 @@ describe('the line check (a stream must be free right now)', () => {
 });
 
 describe('while the buffer runs', () => {
+  it('the 1 s status tick re-renders only when what is shown changes', async () => {
+    let renders = 0;
+    renderHook((q: P) => { renders += 1; return useLiveRewind({ maxConnections: 2, ...q, line: LINE, watching: true }); },
+      { initialProps: { active: true, directUrl: url(7), stream: CHANNEL } as P });
+    await flush();
+    await tick(2_000);
+    expect(count('timeshiftStatus')).toBeGreaterThan(0);
+    const before = renders;
+    const asked = count('timeshiftStatus');
+    await tick(10_000);
+    expect(count('timeshiftStatus') - asked).toBeGreaterThanOrEqual(9);
+    expect(renders).toBe(before);
+    status.value = { ...LIVE_STATUS, availableSec: 121 };
+    await tick(1_000);
+    expect(renders).toBeGreaterThan(before);
+  });
+
+  it('timeshiftShownKey: whole seconds with the bar up, only the thresholds with it hidden', () => {
+    const st = { state: 'capturing' as const, mode: 'buffer' as const, availableSec: 120.2, behindSec: 30.4, usedBytes: 1 };
+    expect(timeshiftShownKey(st, true)).toBe(timeshiftShownKey({ ...st, availableSec: 120.9, usedBytes: 9 }, true));
+    expect(timeshiftShownKey(st, true)).not.toBe(timeshiftShownKey({ ...st, availableSec: 121 }, true));
+    expect(timeshiftShownKey(st, false)).toBe(timeshiftShownKey({ ...st, availableSec: 300, behindSec: 50 }, false));
+    expect(timeshiftShownKey(st, false)).not.toBe(timeshiftShownKey({ ...st, mode: 'live' }, false));
+    expect(timeshiftShownKey(st, false)).not.toBe(timeshiftShownKey({ ...st, behindSec: 119.5 }, false));
+    expect(timeshiftShownKey(st, false)).not.toBe(timeshiftShownKey({ ...st, state: 'unavailable', reason: 'The provider stopped sending' }, false));
+  });
+
   it('asks again every 60 s and never more often', async () => {
     mount({ active: true, directUrl: url(7), stream: CHANNEL });
     await flush(); // the start ask

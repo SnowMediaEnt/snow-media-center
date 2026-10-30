@@ -170,6 +170,23 @@ async function fetchLineUsage(line: XtreamCreds): Promise<LineUsage | null> {
 
 /** A long pause on a catch-up channel resumes from the archive (shorter ones from the player's memory). */
 export const CATCHUP_RESUME_AFTER_MS = 60_000;
+
+/**
+ * What of a capture status the screen shows (the rewind bar's numbers, its
+ * note, the arrows' "can jump" checks): two statuses with the same key draw
+ * the same. With the bar up, whole seconds count; with it hidden only the
+ * one-second thresholds the arrow keys and the box view test. The native call
+ * hands back a new object every tick, so LiveSection re-renders only when
+ * this changes; the latest status is always in the ref for code that reads
+ * it at the moment (behindNow, the line check).
+ */
+export function timeshiftShownKey(st: TimeshiftStatus | null, barUp: boolean): string {
+  if (!st) return '';
+  const behind = st.mode === 'buffer' ? st.behindSec : 0;
+  const head = `${st.state}|${st.mode}|${st.reason ?? ''}|${captureRefused(st) ? 1 : 0}`;
+  if (barUp) return `${head}|${Math.floor(st.availableSec)}|${Math.floor(behind)}`;
+  return `${head}|${st.availableSec >= 1 ? 1 : 0}|${behind >= 1 ? 1 : 0}|${st.availableSec - behind >= 1 ? 1 : 0}`;
+}
 /** Forward to within this of now is live. */
 const CATCHUP_LIVE_SLACK_MS = 30_000;
 
@@ -286,8 +303,9 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
 
   const [status, setStatusState] = useState<TimeshiftStatus | null>(null);
   // The latest, for behindNow() straight after a jump (before the re-render).
+  // Written only by setStatus and the status tick (which keeps readings the
+  // screen would draw the same out of state), never from the render.
   const statusRef = useRef<TimeshiftStatus | null>(null);
-  statusRef.current = status;
   const setStatus = useCallback((st: TimeshiftStatus | null) => { statusRef.current = st; setStatusState(st); }, []);
 
   // The buffer gives its stream back: jump to live first if the viewer is behind
@@ -351,11 +369,15 @@ export function useLiveRewind({ active, directUrl, line, stream, watching, engin
     if (!bufferOn) { setStatus(null); return; }
     const token = checkToken;
     let alive = true;
+    // The first reading after the bar comes up (or the channel changes) is
+    // always drawn; after that only a change the screen would show.
+    let shown: string | null = null;
     const tick = async () => {
       try {
         const st = await SnowPlayer.timeshiftStatus();
         if (!alive) return;
-        setStatus(st);
+        const k = timeshiftShownKey(st, watching);
+        if (k !== shown) { shown = k; setStatus(st); } else statusRef.current = st;
         if (captureRefused(st)) void yieldBuffer(token);
       } catch { /* older app */ }
     };
