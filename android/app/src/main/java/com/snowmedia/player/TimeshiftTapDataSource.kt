@@ -38,7 +38,10 @@ internal class TimeshiftTapDataSource(
             reader = tee.begin(uri, dataSpec.position, uri == channelUrl())
         }
         try {
-            return inner.open(dataSpec)
+            val length = inner.open(dataSpec)
+            // A playlist's segments resolve against where it was finally served from (as Media3 does).
+            reader?.setBase(inner.uri?.toString())
+            return length
         } catch (t: Throwable) {
             // close() is normally called after a failed open too; never count it twice.
             reader?.close()

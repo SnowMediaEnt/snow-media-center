@@ -113,6 +113,12 @@ internal class TimeshiftSession(
     private val free = ArrayDeque<ByteArray>()
     private var chunks = 0
     private var dropping = false
+    /** The newest chunk, still being filled (small reads are packed into it). Under [free]. */
+    private var fill: ByteArray? = null
+    private var fillLen = 0
+    /** Bytes the tee handed over that were dropped (the queue was full). */
+    @Volatile internal var droppedBytes = 0L
+        private set
 
     val alive: Boolean get() = !stopped && state != STATE_UNAVAILABLE
 
@@ -165,6 +171,18 @@ internal class TimeshiftSession(
         if (runNow) released.run() else source?.cancel()
     }
 
+    /**
+     * [released] runs once our own connection is closed (and its grace has
+     * passed): at once when none is open, else on the capture thread. For a
+     * session already closed (TimeshiftManager's closing ones).
+     */
+    fun whenReleased(released: Runnable) {
+        val runNow = synchronized(lock) {
+            if (ownActive && running) { whenReleased.add(released); false } else true
+        }
+        if (runNow) released.run()
+    }
+
     /** Our own connection is open or about to be (the player must wait before opening the channel). */
     fun holdsConnection(): Boolean = synchronized(lock) { ownActive || (mode == MODE_OWN && running && !stopped) }
 
@@ -187,33 +205,78 @@ internal class TimeshiftSession(
         var left = len
         synchronized(free) {
             while (left > 0) {
-                val chunk = free.pollFirst() ?: if (chunks < MAX_CHUNKS) { chunks++; ByteArray(CHUNK) } else null
+                var chunk = fill
                 if (chunk == null) {
-                    // The disk can't keep up: drop, and say so once the queue has room.
-                    dropping = true
-                    return
+                    chunk = free.pollFirst() ?: if (chunks < MAX_CHUNKS) { chunks++; ByteArray(CHUNK) } else null
+                    if (chunk == null) {
+                        // The disk can't keep up: drop, and say so once the queue has room.
+                        dropping = true
+                        droppedBytes += left
+                        return
+                    }
+                    if (dropping) {
+                        dropping = false
+                        queue.offer(Item(null, 0, ITEM_DISC))
+                    }
+                    fill = chunk
+                    fillLen = 0
                 }
-                if (dropping) {
-                    dropping = false
-                    queue.offer(Item(null, 0, ITEM_DISC))
-                }
-                val n = minOf(left, CHUNK)
-                System.arraycopy(b, o, chunk, 0, n)
-                queue.offer(Item(chunk, n, ITEM_DATA))
+                // Packed after what is already in the chunk: a player's reads
+                // are a few KB, and a whole chunk each held a fraction of the budget.
+                val n = minOf(left, CHUNK - fillLen)
+                System.arraycopy(b, o, chunk, fillLen, n)
+                fillLen += n
                 o += n
                 left -= n
+                if (fillLen == CHUNK) {
+                    queue.offer(Item(chunk, CHUNK, ITEM_DATA))
+                    fill = null
+                    fillLen = 0
+                }
             }
         }
     }
 
     override fun teeDiscontinuity() {
-        queue.offer(Item(null, 0, ITEM_DISC))
+        synchronized(free) {
+            flushFill()
+            queue.offer(Item(null, 0, ITEM_DISC))
+        }
     }
 
     override fun teeUnsupported(why: String) {
         unsupportedWhy = why
-        queue.offer(Item(null, 0, ITEM_UNSUPPORTED))
+        synchronized(free) {
+            flushFill()
+            queue.offer(Item(null, 0, ITEM_UNSUPPORTED))
+        }
     }
+
+    /** Under [free]: the chunk being filled goes on the queue as it is. */
+    private fun flushFill() {
+        val f = fill ?: return
+        if (fillLen > 0) queue.offer(Item(f, fillLen, ITEM_DATA)) else free.addLast(f)
+        fill = null
+        fillLen = 0
+    }
+
+    /** The oldest of the player's bytes waiting, the chunk still being filled last. */
+    private fun nextItem(timeoutMs: Long): Item? {
+        synchronized(free) {
+            queue.poll()?.let { return it }
+            if (fillLen > 0) { flushFill(); return queue.poll() }
+        }
+        if (timeoutMs <= 0L) return null
+        queue.poll(timeoutMs, TimeUnit.MILLISECONDS)?.let { return it }
+        synchronized(free) {
+            queue.poll()?.let { return it }
+            if (fillLen > 0) { flushFill(); return queue.poll() }
+        }
+        return null
+    }
+
+    /** Bytes waiting to be written (tests). */
+    internal fun queuedBytes(): Long = synchronized(free) { queue.sumOf { it.len.toLong() } + fillLen }
 
     @Volatile private var unsupportedWhy = ""
 
@@ -258,13 +321,13 @@ internal class TimeshiftSession(
             }
             fun drain(): Boolean {
                 while (true) {
-                    val item = queue.poll() ?: return true
+                    val item = nextItem(0L) ?: return true
                     if (!take(item)) return false
                 }
             }
             loop@ while (!stopped) {
                 if (mode == MODE_TEE) {
-                    val item = queue.poll(POLL_MS, TimeUnit.MILLISECONDS) ?: continue@loop
+                    val item = nextItem(POLL_MS) ?: continue@loop
                     if (!take(item)) break@loop
                     continue@loop
                 }
@@ -294,6 +357,7 @@ internal class TimeshiftSession(
         } finally {
             tee.detach(this)
             try { segmenterRef?.finish() } catch (_: Throwable) { /* closing */ }
+            synchronized(free) { flushFill() }
             while (true) { val item = queue.poll() ?: break; item.buf?.let { recycle(it) } }
             val (deleteNow, pending) = synchronized(lock) {
                 running = false
@@ -319,7 +383,7 @@ internal class TimeshiftSession(
         val since = clock()
         var told = false
         while (!stopped && mode == MODE_OWN) {
-            val item = queue.poll(WAIT_STEP_MS, TimeUnit.MILLISECONDS)
+            val item = nextItem(WAIT_STEP_MS)
             if (item != null && !take(item)) return false
             val now = clock()
             if (tee.openCount() > 0) {
@@ -560,7 +624,7 @@ internal class TimeshiftSession(
         private const val WAIT_STEP_MS = 50L
         /** Said once in the log when the player's connection takes longer than this to close. */
         private const val SLOW_CLOSE_MS = 10_000L
-        /** The player's bytes waiting to be written: up to 48 x 64 KB (3 MB, about 1 s at 25 Mb/s). */
+        /** The player's bytes waiting to be written: up to 48 x 64 KB, packed full (3 MB, about 1 s at 25 Mb/s). */
         private const val CHUNK = 64 * 1024
         private const val MAX_CHUNKS = 48
         private const val ITEM_DATA = 0

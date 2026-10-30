@@ -216,6 +216,64 @@ class TimeshiftHandoverTest {
         assertEquals(0, tee.openCount())
     }
 
+    @Test fun smallReadsArePackedSoTheQueueHoldsAbout3MB() {
+        val tee = TimeshiftTee()
+        // Not started: nothing drains the queue, as when the disk stalls.
+        val sess = TimeshiftSession("k", URL, tmp.newFolder(), { TimeshiftLimits(0L, 1L shl 40) }, tee,
+            openSource = { FakeOwn() }, clock = { System.nanoTime() / 1_000_000L })
+        val read = ByteArray(9400) // an ExoPlayer TS read: 50 packets
+        var handed = 0L
+        while (handed + read.size <= 3_000_000L) { sess.teeBytes(read, 0, read.size); handed += read.size }
+        assertEquals("nothing dropped below 3 MB", 0L, sess.droppedBytes)
+        assertEquals(handed, sess.queuedBytes())
+        repeat(30) { sess.teeBytes(read, 0, read.size) }
+        assertTrue("past 48 x 64 KB the rest is dropped", sess.droppedBytes > 0L)
+        assertEquals(48L * 64 * 1024, sess.queuedBytes())
+    }
+
+    @Test fun aClosedSessionHoldingItsConnectionReleasesLaterCallbacksToo() {
+        val tee = TimeshiftTee()
+        val sess = newSession(tee)
+        val p1 = player(tee)
+        waitFor("segments") { sess.segments().size >= 2 }
+        sess.takeOver()
+        p1.halt()
+        waitFor("own connection") { ownSources.size == 1 && ownSources[0].pumping }
+        sess.close()
+        session = null
+        val released = CountDownLatch(1)
+        var openAtRelease = -1
+        sess.whenReleased(Runnable { openAtRelease = open.get(); released.countDown() })
+        assertTrue(released.await(5, TimeUnit.SECONDS))
+        assertEquals(0, openAtRelease)
+        assertFalse(sess.holdsConnection())
+    }
+
+    @Test fun aVariantSwitchSkipsTheSegmentAlreadyPassedOnByItsNumber() {
+        val tee = TimeshiftTee()
+        val rec = Rec()
+        tee.attach(rec)
+        fun playlist(dir: String, first: Long) = ("#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXT-X-MEDIA-SEQUENCE:$first\n" +
+            (0 until 3).joinToString("") { "#EXTINF:4.0,\nseg${first + it}.ts\n" }).toByteArray()
+        val seg = ts(4)
+        read(tee, "http://h/hls/low/index.m3u8", 0, playlist("low", 100), channel = false)
+        read(tee, "http://h/hls/low/seg100.ts", 0, seg, channel = false)
+        read(tee, "http://h/hls/low/seg101.ts", 0, seg, channel = false)
+        // Switch: the new variant's playlist, then segment 101 again from it (another address).
+        read(tee, "http://h/hls/high/index.m3u8", 0, playlist("high", 100), channel = false)
+        val before = rec.bytes.size()
+        val discs = rec.discs
+        read(tee, "http://h/hls/high/seg101.ts", 0, seg, channel = false)
+        assertEquals("the same seconds are not written twice", before, rec.bytes.size())
+        read(tee, "http://h/hls/high/seg102.ts", 0, seg, channel = false)
+        assertEquals(before + seg.size, rec.bytes.size())
+        assertEquals("the new variant starts a new piece", discs + 1, rec.discs)
+        // A playlist whose numbering started again is followed, not skipped.
+        read(tee, "http://h/hls/high/index.m3u8", 0, playlist("high", 0), channel = false)
+        read(tee, "http://h/hls/high/seg0.ts", 0, seg, channel = false)
+        assertEquals(before + 2 * seg.size, rec.bytes.size())
+    }
+
     // ---- fakes ----------------------------------------------------------------
 
     private fun newSession(tee: TimeshiftTee): TimeshiftSession {

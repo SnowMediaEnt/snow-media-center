@@ -14,10 +14,16 @@ import java.util.Locale
  *   each new open of it (the player's reconnect) starts at the live edge, so
  *   it is marked as a discontinuity;
  * - an HLS channel: the MPEG-TS media segments only, never playlists (told
- *   apart by their first bytes). A segment read again (a retry, a reload,
- *   part of one resumed) is passed on only past what was already passed on,
- *   so nothing is written twice or out of order; a segment from another
- *   folder (another variant) is a discontinuity;
+ *   apart by their first bytes). The media playlists the player reads are
+ *   parsed here (never passed on) for each segment's media sequence number:
+ *   a segment whose number was already passed on is skipped whole, whatever
+ *   its address. That is what a variant switch does (Media3 loads the
+ *   segment it was in again from the new variant, under another address).
+ *   A segment read again under the same address (a retry, part of one
+ *   resumed) is passed on only past what was already passed on. A segment
+ *   whose number is not known (its playlist could not be matched) falls back
+ *   to the address alone. A segment from another folder (another variant) is
+ *   a discontinuity;
  * - anything else that is media (fMP4/CMAF, packed audio, encrypted
  *   segments, a raw stream that is not MPEG-TS), and HLS with audio and video
  *   in separate segments (two loads at once): [Sink.teeUnsupported], and the
@@ -55,6 +61,12 @@ internal class TimeshiftTee {
     private var lastDir: String? = null
     /** An HLS segment reader that is passing bytes on and still open. */
     private var feeding: Reader? = null
+    /** Media sequence numbers of segments, from the media playlists read: address -> number. */
+    private val seqOf = object : LinkedHashMap<String, Long>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Long>?): Boolean = size > SEQ_KEPT
+    }
+    /** The highest media sequence number passed on (-1: none yet). */
+    private var maxSeq = -1L
     /** HLS segments passed on lately: address -> end of what was passed on (absolute offset). */
     private val fedUpTo = object : LinkedHashMap<String, Long>(32, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Long>?): Boolean = size > SEGMENTS_KEPT
@@ -70,6 +82,7 @@ internal class TimeshiftTee {
             lastDir = null
             feeding = null
             fedUpTo.clear()
+            maxSeq = -1L
             tellOther = if (openOther > 0) otherWhy else null
         }
         if (tellOther != null) s.teeUnsupported(tellOther)
@@ -98,8 +111,19 @@ internal class TimeshiftTee {
         position: Long,
         private val channelAddress: Boolean,
     ) {
-        private var kind = if (looksPlaylistUri(uri)) KIND_SKIP else KIND_UNKNOWN
+        private var kind = if (looksPlaylistUri(uri)) KIND_PLAYLIST else KIND_UNKNOWN
         private var probe: ByteArray? = null
+        /** A playlist's text, read to learn its segments' numbers. */
+        private var text: java.io.ByteArrayOutputStream? = null
+        /** Where relative addresses in a playlist are resolved from (the address after redirects). */
+        private var base: String = uri
+        /** This segment's media sequence number (-1: unknown); decided on its first bytes. */
+        private var seq = -2L
+        /** Skipped whole: its number was already passed on. */
+        private var skipped = false
+
+        /** The address the server finally answered from (after redirects). */
+        fun setBase(finalUri: String?) { if (!finalUri.isNullOrEmpty()) base = finalUri }
         private var probeLen = 0
         /** Absolute offset (in [uri]) of the next byte read. */
         private var offset = position
@@ -120,9 +144,13 @@ internal class TimeshiftTee {
                     if (kind == KIND_TS) {
                         feed(p, 0, probeLen)
                         if (len > n) feed(b, off + n, len - n)
+                    } else if (kind == KIND_PLAYLIST) {
+                        keepText(p, 0, probeLen)
+                        if (len > n) keepText(b, off + n, len - n)
                     }
                     probe = null
                 }
+                KIND_PLAYLIST -> keepText(b, off, len)
                 else -> offset += len
             }
         }
@@ -136,10 +164,16 @@ internal class TimeshiftTee {
                 if (LiveSource.looksTs(p, probeLen)) {
                     kind = KIND_TS
                     feed(p, 0, probeLen)
+                } else if (String(p, 0, probeLen, Charsets.UTF_8).trimStart('\uFEFF', ' ', '\r', '\n', '\t').startsWith("#EXT")) {
+                    kind = KIND_PLAYLIST // a short playlist
+                    keepText(p, 0, probeLen)
                 }
             }
             probe = null
             closed = true
+            val t = text
+            text = null
+            if (kind == KIND_PLAYLIST && t != null) learnSequence(t.toString(Charsets.UTF_8.name()))
             synchronized(lock) {
                 open--
                 if (kind == KIND_OTHER) openOther--
@@ -155,7 +189,7 @@ internal class TimeshiftTee {
             if (n >= 3 && p[0] == 0xEF.toByte() && p[1] == 0xBB.toByte() && p[2] == 0xBF.toByte()) i = 3
             while (i < n && (p[i] == ' '.code.toByte() || p[i] == '\n'.code.toByte() || p[i] == '\r'.code.toByte() || p[i] == '\t'.code.toByte())) i++
             kind = when {
-                startsWith(p, i, n, "#EXT") -> KIND_SKIP // a playlist
+                startsWith(p, i, n, "#EXT") -> KIND_PLAYLIST
                 startsWith(p, i, n, "WEBVTT") -> KIND_SKIP // subtitles
                 LiveSource.looksTs(p, n) -> KIND_TS
                 else -> KIND_OTHER
@@ -175,6 +209,36 @@ internal class TimeshiftTee {
             s?.teeUnsupported(why)
         }
 
+        private fun keepText(b: ByteArray, off: Int, len: Int) {
+            val t = text ?: java.io.ByteArrayOutputStream(8 * 1024).also { text = it }
+            if (t.size() + len > MAX_PLAYLIST) { text = null; kind = KIND_SKIP; return }
+            t.write(b, off, len)
+        }
+
+        /** A media playlist's segments and their numbers (a multivariant playlist has none). */
+        private fun learnSequence(body: String) {
+            if (!body.contains("#EXTINF")) return
+            val baseUri = try { java.net.URI(base) } catch (_: Exception) { return }
+            var next = 0L
+            var afterInf = false
+            val found = ArrayList<Pair<String, Long>>()
+            for (raw in body.lineSequence()) {
+                val line = raw.trim()
+                if (line.isEmpty()) continue
+                if (line.startsWith("#")) {
+                    if (line.startsWith("#EXT-X-MEDIA-SEQUENCE:")) next = line.substringAfter(':').trim().toLongOrNull() ?: 0L
+                    else if (line.startsWith("#EXTINF")) afterInf = true
+                    continue
+                }
+                if (!afterInf) continue
+                afterInf = false
+                val abs = try { baseUri.resolve(line).toString() } catch (_: Exception) { null }
+                if (abs != null) found.add(abs to next)
+                next++
+            }
+            synchronized(lock) { for ((u, n) in found) seqOf[u] = n }
+        }
+
         private fun feed(b: ByteArray, off: Int, len: Int) {
             var o = off
             var l = len
@@ -182,7 +246,22 @@ internal class TimeshiftTee {
             offset += len
             synchronized(lock) {
                 val s = sink ?: return
+                if (skipped) return
                 var disc = false
+                if (!channelAddress && seq == -2L) {
+                    seq = seqOf[uri] ?: -1L
+                    val upTo = fedUpTo[uri]
+                    if (seq >= 0 && maxSeq >= 0 && upTo == null) {
+                        if (seq <= maxSeq && seq > maxSeq - SEQ_RESTART) {
+                            // Already passed on from another address (a variant switch).
+                            skipped = true
+                            return
+                        }
+                        // Far behind: the channel's numbering started again.
+                        if (seq <= maxSeq) disc = true
+                    }
+                    if (seq >= 0 && (seq > maxSeq || disc)) maxSeq = seq
+                }
                 if (!channelAddress) {
                     val upTo = fedUpTo[uri]
                     if (upTo != null) {
@@ -225,8 +304,14 @@ internal class TimeshiftTee {
     companion object {
         private const val KIND_UNKNOWN = 0
         private const val KIND_TS = 1
-        /** A playlist or subtitles: never passed on. */
+        /** Subtitles, or a playlist too big to read: never passed on. */
         private const val KIND_SKIP = 2
+        /** A playlist: never passed on, read for its segments' numbers. */
+        private const val KIND_PLAYLIST = 4
+        private const val MAX_PLAYLIST = 512 * 1024
+        private const val SEQ_KEPT = 1024
+        /** A number this far below the highest passed on means the numbering restarted. */
+        private const val SEQ_RESTART = 30L
         /** Media that is not MPEG-TS. */
         private const val KIND_OTHER = 3
         /** Enough for LiveSource.looksTs (a packet start, and the next one 188 bytes on). */
