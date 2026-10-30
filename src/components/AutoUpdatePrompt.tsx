@@ -108,7 +108,17 @@ const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
   // the stack, so one OK both closed the popup it hid and answered (or
   // cancelled) "Update now", or the box looked frozen under it.
   const [wanted, setOpen] = useState(false);
-  const open = useBootPopupTurn('update', wanted);
+  // Only on Home: not while the app is off Home (`paused`) or a player is
+  // streaming. Waiting its turn behind another popup, it must not take the
+  // slot after the viewer has gone on to Live TV or a film meanwhile.
+  const [streaming, setStreaming] = useState(() => document.documentElement.classList.contains('streaming-active'));
+  useEffect(() => {
+    const el = document.documentElement;
+    const mo = new MutationObserver(() => setStreaming(el.classList.contains('streaming-active')));
+    mo.observe(el, { attributes: true, attributeFilter: ['class'] });
+    return () => mo.disconnect();
+  }, []);
+  const open = useBootPopupTurn('update', wanted && !paused && !streaming);
   const [installing, setInstalling] = useState(false);
   // A recording is running, or one starts within 30 minutes: installing ends the
   // app's process and the recording with it, so the prompt says so and "Later"
