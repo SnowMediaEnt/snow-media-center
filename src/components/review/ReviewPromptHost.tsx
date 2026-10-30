@@ -9,6 +9,7 @@
 // sent, asked three times).
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { isDemo } from '@/lib/demoMode';
+import { setPausableInterval } from '@/utils/pausableInterval';
 import { isPlexPlaybackActive } from '@/lib/plex';
 import { trackEvent } from '@/lib/analytics';
 import {
@@ -103,8 +104,8 @@ const ReviewPromptHost = ({ kids, signedIn, flagOn, busy = false, onOpenSupport 
       setOpen(true);
       try { trackEvent('review_prompt_shown', 'review', { source: 'prompt', ask: s.asks, hours: foregroundHours(s) }); } catch { /* never blocks */ }
     };
-    const id = window.setInterval(tick, REVIEW_CHECK_MS);
-    return () => window.clearInterval(id);
+    // Pausable: never asks in the background or while a stream plays anyway.
+    return setPausableInterval(tick, REVIEW_CHECK_MS);
   }, [possible, kids, demo, signedIn, flagOn]);
 
   const onClose = useCallback(() => setOpen(false), []);

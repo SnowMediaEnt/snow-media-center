@@ -16,6 +16,7 @@ import { Card } from '@/components/ui/card';
 import { openGameDayGame, playLiveChannel, type Navigate } from '@/lib/appActions';
 import { dueReminders, markFired, type GameReminder } from '@/lib/gameReminders';
 import { kidsLevel } from '@/lib/kidsFilter';
+import { setPausableInterval } from '@/utils/pausableInterval';
 import { useTranslation } from 'react-i18next';
 
 const CHECK_MS = 20_000;
@@ -43,8 +44,9 @@ const GameReminderHost = ({ navigate, blocked = false }: { navigate: Navigate; /
       setCurrent(due);
     };
     check();
-    const id = window.setInterval(check, CHECK_MS);
-    return () => window.clearInterval(id);
+    // Paused in the background; essential so it still pops up over playback
+    // on a low-memory box (quiet mode), which is the point of a reminder.
+    return setPausableInterval(check, CHECK_MS, { essential: true });
   }, []);
 
   const close = useCallback((watch: boolean) => {
