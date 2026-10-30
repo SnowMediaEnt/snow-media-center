@@ -256,7 +256,9 @@ describe('Help → Playback stats in the Plex player', () => {
     // The menu shows it is on; OK there turns it off.
     await helpMenuAtStats();
     expect(statsItem().getAttribute('data-focused')).toBe('true');
-    expect(statsItem().textContent).toBe('Playback stats●');
+    // The chosen mark is a gold check (plex-check), not a dot.
+    expect(statsItem().textContent).toBe('Playback stats');
+    expect(statsItem().querySelector('.plex-check')).not.toBeNull();
     ok();
     await wait(0);
     expect(panel()).toBeNull();
