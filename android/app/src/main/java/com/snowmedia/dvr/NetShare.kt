@@ -36,6 +36,7 @@ import java.security.SecureRandom
 import java.util.EnumSet
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
+import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 
 /** Why a network folder can't be used, as the TV screen receives it. */
@@ -251,8 +252,29 @@ internal object NetShare {
     const val IO_TIMEOUT_S = 30L
     /** The share keeps this much free: under it a recording stops ("The drive is full") and a new one is refused. */
     const val SHARE_MIN_FREE_BYTES = 1L shl 30
-    /** A cached connection unused for this long is replaced rather than trusted (a computer that went to sleep). */
-    private const val IDLE_MS = 120_000L
+    /**
+     * A cached connection unused for this long is replaced rather than trusted
+     * (a computer that went to sleep), and closed by itself this long after its
+     * last use, so an idle SMB session does not hold a socket and threads on a
+     * 1 GB stick until the next call.
+     */
+    const val IDLE_MS = 120_000L
+
+    /**
+     * When the idle close should look again: 0 = close it now, a positive
+     * number = check again in that many ms, null = in use (the call ending
+     * books the next check).
+     */
+    fun idleCloseIn(users: Int, lastUsed: Long, now: Long): Long? = when {
+        users > 0 -> null
+        now - lastUsed >= IDLE_MS -> 0L
+        else -> IDLE_MS - (now - lastUsed)
+    }
+
+    /** Runs the idle close; one daemon thread, idle almost always. */
+    private val idleTimer = Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "smc-net-idle").apply { isDaemon = true } }
+    /** The booked idle close (under [cacheLock]). */
+    private var idleCheck: ScheduledFuture<*>? = null
 
     private val random = SecureRandom()
     /** Where connections are closed: never on the caller's thread, never under [cacheLock] (see NetConn.close). */
@@ -405,6 +427,28 @@ internal object NetShare {
         n
     }
 
+    /** Book the idle close [delayMs] out, replacing any booked one. Call under [cacheLock]. */
+    private fun bookIdleClose(delayMs: Long) {
+        idleCheck?.cancel(false)
+        idleCheck = try {
+            idleTimer.schedule({ closeIfIdle() }, delayMs, TimeUnit.MILLISECONDS)
+        } catch (_: Throwable) { null /* shutting down */ }
+    }
+
+    /** The cached connection, unused for IDLE_MS: closed now (forced, as shared() would). */
+    private fun closeIfIdle() {
+        val c = synchronized(cacheLock) {
+            idleCheck = null
+            val c = cached ?: return
+            when (val wait = idleCloseIn(c.users.get(), c.lastUsed, System.currentTimeMillis())) {
+                null -> return // in use: its call books the next check when it ends
+                0L -> { cached = null; c }
+                else -> { bookIdleClose(wait); return }
+            }
+        }
+        closeLater(c, force = true)
+    }
+
     private fun drop(c: NetConn) {
         synchronized(cacheLock) { if (cached === c) cached = null }
         closeLater(c, force = true)
@@ -435,7 +479,7 @@ internal object NetShare {
                 throw t
             } finally {
                 c.lastUsed = System.currentTimeMillis()
-                c.users.decrementAndGet()
+                if (c.users.decrementAndGet() == 0) synchronized(cacheLock) { if (cached === c) bookIdleClose(IDLE_MS) }
             }
         }
     }
