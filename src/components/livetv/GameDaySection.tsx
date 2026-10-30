@@ -257,8 +257,10 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
         .catch(() => { if (alive) setError(true); });
     };
     void load(false);
-    const id = window.setInterval(() => { void load(true); }, REFRESH_MS);
-    return () => { alive = false; window.clearInterval(id); };
+    // Pausable: stops while the app is in the background or a stream plays
+    // on a low-memory box (quiet mode), so a forced reload never runs unseen.
+    const stop = setPausableInterval(() => { void load(true); }, REFRESH_MS);
+    return () => { alive = false; stop(); };
   }, [isActive]);
 
   // This box's sports and network channels, read again every ten minutes
