@@ -63,14 +63,17 @@ class AlertPollWorker(context: Context, params: WorkerParameters) : Worker(conte
         )
         if (chainLink) store.lastLinkAt = now
         rearm = plan.rearm
-        if (!plan.fetch) {
-            continueChain()
-            return Result.success()
-        }
-
         val url = store.supabaseUrl
         val key = store.supabaseKey
         if (url.isNullOrBlank() || key.isNullOrBlank()) {
+            continueChain()
+            return Result.success()
+        }
+        if (!plan.fetch) {
+            // On screen the app has the alerts itself, but nothing in it asks
+            // whether a requested film has come in: that one still runs (only
+            // while a request is pending).
+            checkPlexRequests(store, url, key)
             continueChain()
             return Result.success()
         }

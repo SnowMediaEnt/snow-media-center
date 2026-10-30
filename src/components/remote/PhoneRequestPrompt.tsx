@@ -51,7 +51,8 @@ const PhoneRequestPrompt = () => {
   const asking = !!request;
   useEffect(() => {
     if (!asking) return;
-    return setPausableInterval(check, 5_000);
+    // Essential: a request's 2-minute limit runs out during playback too.
+    return setPausableInterval(check, 5_000, { essential: true });
   }, [asking, check]);
 
   // A new question: Allow first. If the TV's keyboard is up for a text box,

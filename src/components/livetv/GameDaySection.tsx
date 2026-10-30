@@ -259,7 +259,9 @@ const GameDaySection = memo(({ creds, isActive, onExitLeft, onExitUp, onWatch, o
     void load(false);
     // Pausable: stops while the app is in the background or a stream plays
     // on a low-memory box (quiet mode), so a forced reload never runs unseen.
-    const stop = setPausableInterval(() => { void load(true); }, REFRESH_MS);
+    // Essential: Game Day is watched beside the Player, which turns quiet mode
+    // on; it still pauses in the background.
+    const stop = setPausableInterval(() => { void load(true); }, REFRESH_MS, { essential: true });
     return () => { alive = false; stop(); };
   }, [isActive]);
 
