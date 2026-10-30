@@ -27,6 +27,19 @@ describe('ProfilesIntroPopup', () => {
     expect(screen.queryByText('New: profiles for everyone')).toBeNull();
   });
 
+  it('on a Kids profile: never shown, and stops asking (no timer left running)', async () => {
+    const profiles = await import('@/lib/profiles');
+    const main = profiles.loadProfiles()[0];
+    profiles.updateProfile(main.id, { kidsLevel: 'kids' });
+    expect(profiles.activeProfile().kidsLevel).toBe('kids');
+    const { default: Popup } = await import('./ProfilesIntroPopup');
+    const r = render(<Popup onSetUp={() => {}} />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(6000); });
+    expect(screen.queryByText('New: profiles for everyone')).toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
+    r.unmount();
+  });
+
   it("waits behind the What's New popup", async () => {
     localStorage.removeItem('smc-welcome-shown-version');
     const { default: Popup } = await import('./ProfilesIntroPopup');

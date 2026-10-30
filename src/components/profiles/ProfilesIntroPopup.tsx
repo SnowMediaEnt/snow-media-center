@@ -16,7 +16,8 @@ import { Card } from '@/components/ui/card';
 import { INTENT_KEYS } from '@/lib/appActions';
 import { trackEvent } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
-import { activeProfile, loadProfiles, markProfilesIntroSeen, profilesIntroSeen } from '@/lib/profiles';
+import { PROFILES_EVENT, activeProfile, loadProfiles, markProfilesIntroSeen, profilesIntroSeen } from '@/lib/profiles';
+import { setPausableInterval } from '@/utils/pausableInterval';
 
 const WELCOME_KEY = 'smc-welcome-shown-version';
 const MIN_DELAY_MS = 4500;
@@ -41,21 +42,32 @@ const ProfilesIntroPopup = ({ onSetUp }: { onSetUp: () => void }) => {
   useEffect(() => {
     if (isDemo() || profilesIntroSeen()) return;
     let cancelled = false;
-    const tryOpen = (): boolean => {
-      if (cancelled || profilesIntroSeen()) return true;
-      if (loadProfiles().length > 1) { markProfilesIntroSeen(); return true; }
-      if (activeProfile().kidsLevel) return false;
-      if (Date.now() - mountedAt.current < MIN_DELAY_MS) return false;
-      try { if (!localStorage.getItem(WELCOME_KEY)) return false; } catch { return true; }
-      if (document.querySelector('[role="dialog"][aria-modal="true"], [role="alertdialog"][data-state="open"], [role="dialog"][data-state="open"], [data-notice-layer]')) return false;
-      if (document.querySelector('[data-media-bar] [data-focused="true"]')) return false;
+    let stop: (() => void) | null = null;
+    const disarm = () => { stop?.(); stop = null; };
+    // 'open' / 'done': stop asking. 'kids': stop too — a Kids profile never
+    // gets it, and switching profile reloads the app (or says so with
+    // PROFILES_EVENT, which asks again). 'wait': ask again in a second.
+    const tryOpen = (): 'done' | 'kids' | 'wait' => {
+      if (cancelled || profilesIntroSeen()) return 'done';
+      if (loadProfiles().length > 1) { markProfilesIntroSeen(); return 'done'; }
+      if (activeProfile().kidsLevel) return 'kids';
+      if (Date.now() - mountedAt.current < MIN_DELAY_MS) return 'wait';
+      try { if (!localStorage.getItem(WELCOME_KEY)) return 'wait'; } catch { return 'done'; }
+      if (document.querySelector('[role="dialog"][aria-modal="true"], [role="alertdialog"][data-state="open"], [role="dialog"][data-state="open"], [data-notice-layer]')) return 'wait';
+      if (document.querySelector('[data-media-bar] [data-focused="true"]')) return 'wait';
       setOpen(true);
       try { trackEvent('profiles_intro_shown', 'profiles'); } catch { void 0; }
-      return true;
+      return 'done';
     };
-    if (tryOpen()) return;
-    const id = window.setInterval(() => { if (tryOpen()) window.clearInterval(id); }, 1000);
-    return () => { cancelled = true; window.clearInterval(id); };
+    const arm = () => {
+      if (stop || tryOpen() !== 'wait') return;
+      // Pausable: no ticking in the background or while a stream plays.
+      stop = setPausableInterval(() => { if (tryOpen() !== 'wait') disarm(); }, 1000);
+    };
+    arm();
+    const onProfiles = () => { if (!cancelled) arm(); };
+    window.addEventListener(PROFILES_EVENT, onProfiles);
+    return () => { cancelled = true; disarm(); window.removeEventListener(PROFILES_EVENT, onProfiles); };
   }, []);
 
   const close = useCallback((setUp: boolean) => {
