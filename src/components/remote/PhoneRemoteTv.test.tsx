@@ -184,6 +184,23 @@ describe('Allow this phone?', () => {
     input.remove();
   });
 
+  it('looks for run-out questions only while one is up', async () => {
+    const set = vi.spyOn(globalThis, 'setInterval');
+    const clear = vi.spyOn(globalThis, 'clearInterval');
+    const fives = () => set.mock.calls.filter((c) => c[1] === 5_000).length;
+    render(<><PairingQR size={150} /><PhoneRequestPrompt /></>);
+    await screen.findByText('BCDF-GHJK');
+    expect(fives()).toBe(0);
+    request('0123456789abcdef');
+    expect(fives()).toBe(1);
+    const id = set.mock.results[set.mock.calls.findIndex((c) => c[1] === 5_000)].value;
+    later(800);
+    key('Escape');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(clear).toHaveBeenCalledWith(id);
+    expect(fives()).toBe(1);
+  });
+
   it('a question nobody answers runs out, and the text box gets its focus back', async () => {
     const input = document.createElement('input');
     document.body.appendChild(input);

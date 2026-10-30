@@ -12,6 +12,7 @@ import { App as CapApp } from '@capacitor/app';
 import { useTranslation } from 'react-i18next';
 import { Smartphone } from 'lucide-react';
 import { Card } from '@/components/ui/card';
+import { setPausableInterval } from '@/utils/pausableInterval';
 import { PHONE_REMOTE_EVENT, answerPhoneRequest, pendingPhoneRequest, phoneKindKey, type PhoneRequest } from '@/lib/phoneRemote';
 
 const isBack = (e: KeyboardEvent) => e.key === 'Escape' || e.key === 'Backspace' || e.key === 'GoBack' || e.keyCode === 4 || e.keyCode === 27;
@@ -36,16 +37,22 @@ const PhoneRequestPrompt = () => {
   const shown = useRef<{ rid: string; at: number } | null>(null);
   if (request && shown.current?.rid !== request.rid) shown.current = { rid: request.rid, at: Date.now() };
 
+  const check = useCallback(() => setRequest((cur) => {
+    const next = pendingPhoneRequest();
+    return cur?.rid === next?.rid ? cur : next;
+  }), []);
+  // A new request always arrives with PHONE_REMOTE_EVENT.
   useEffect(() => {
-    const check = () => setRequest((cur) => {
-      const next = pendingPhoneRequest();
-      return cur?.rid === next?.rid ? cur : next;
-    });
     window.addEventListener(PHONE_REMOTE_EVENT, check);
-    // Unanswered requests run out.
-    const id = window.setInterval(check, 5_000);
-    return () => { window.removeEventListener(PHONE_REMOTE_EVENT, check); window.clearInterval(id); };
-  }, []);
+    return () => window.removeEventListener(PHONE_REMOTE_EVENT, check);
+  }, [check]);
+  // Unanswered requests run out: looked at again only while one is up, and
+  // not in the background or while a stream plays.
+  const asking = !!request;
+  useEffect(() => {
+    if (!asking) return;
+    return setPausableInterval(check, 5_000);
+  }, [asking, check]);
 
   // A new question: Allow first. If the TV's keyboard is up for a text box,
   // close it (by leaving the box) so the remote's keys reach the question.
