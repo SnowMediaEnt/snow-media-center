@@ -223,7 +223,7 @@ const rowHeightFor = (l: LiveLayout, opts: { slim?: boolean; upright?: boolean }
 const GRID_COLS = 5;
 // px — a slim row (owner, 2026-10-24: more categories on screen): py-1 +
 // 15px text + a 3px gap under each row. Was 48.
-const CAT_ROW_HEIGHT = 35;
+const CAT_ROW_HEIGHT = 38;
 const CAT_FOCUS_PAD = 8;   // px — breathing room so the focus ring is never flush to the pane edge
 const EPG_MAX_CONCURRENT = 5;
 const EPG_CACHE_MAX = 400;
@@ -4164,6 +4164,9 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // is a little wider. At 960x540 the preview's picture keeps its size (the
   // box is height-bound there; only the black at its sides narrows).
   const paneW = slimRows ? 'w-[44%] min-w-[380px] max-w-[520px]' : 'w-[38%] min-w-[340px] max-w-[480px]';
+  // The categories drawer: names only (and a count), so narrower than the
+  // channel list it opens over (owner, 2026-10-30: less width, bigger text).
+  const catDrawerW = 'w-[30%] min-w-[300px] max-w-[400px]';
 
   // ── the categories pane: a static column (classic, grid) or a drawer over
   //    the channel list (compact). Same DOM either way, so its virtualizer
@@ -4198,7 +4201,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
       aria-hidden={(drawer || catsFolded) && pane !== 'categories'}
       style={drawer ? { transform: pane === 'categories' ? 'translateX(0)' : 'translateX(-110%)' } : undefined}
       className={drawer
-        ? `absolute left-0 top-0 bottom-0 z-20 ${paneW} border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-[#0b1220] ${pane === 'categories' ? '' : 'pointer-events-none'}`
+        ? `absolute left-0 top-0 bottom-0 z-20 ${catDrawerW} border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-[#0b1220] ${pane === 'categories' ? '' : 'pointer-events-none'}`
         : `w-56 max-w-[14rem] flex-shrink-0 border-r border-white/10 p-3 overflow-y-auto overflow-x-hidden bg-black/40 ${pane === 'categories' && isActive ? 'bg-white/5' : ''}${catsFolded ? ' invisible' : ''}`}
     >
         <button
@@ -4291,8 +4294,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                         : <ChevronDown className="w-4 h-4 text-brand-gold flex-shrink-0" />)}
                       {c.isFav && <Star className="w-4 h-4 text-brand-gold flex-shrink-0" />}
                       <span className={c.isHeader
-                        ? `font-quicksand font-bold uppercase tracking-wide text-sm truncate flex-1 ${isFocused ? 'text-white' : 'text-brand-gold'}`
-                        : `font-nunito text-[15px] truncate flex-1 ${isFocused ? 'text-white font-semibold' : isMarked ? 'text-brand-gold font-semibold' : 'text-brand-ice'}`}>
+                        ? `font-quicksand font-bold uppercase tracking-wide text-base truncate flex-1 ${isFocused ? 'text-white' : 'text-brand-gold'}`
+                        : `font-nunito text-[17px] truncate flex-1 ${isFocused ? 'text-white font-semibold' : isMarked ? 'text-brand-gold font-semibold' : 'text-brand-ice'}`}>
                         {catLabel(c)}
                       </span>
                       {c.isHeader && c.line.outside && (
@@ -4303,7 +4306,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
                       )}
                       {isLoadingThis && <Loader2 className="w-3 h-3 animate-spin text-brand-gold flex-shrink-0" />}
                       {!isLoadingThis && !c.isHeader && c.count != null && c.count > 0 && (
-                        <span className={`text-xs font-nunito tabular-nums px-2 py-0.5 rounded-lg flex-shrink-0 ${isFocused ? 'bg-brand-navy/40 text-brand-gold' : 'bg-white/10 text-brand-ice/70'}`}>
+                        <span className={`text-[13px] font-nunito tabular-nums px-2 py-0.5 rounded-lg flex-shrink-0 ${isFocused ? 'bg-brand-navy/40 text-brand-gold' : 'bg-white/10 text-brand-ice/70'}`}>
                           {formatCount(c.count)}
                         </span>
                       )}
