@@ -16,6 +16,7 @@ import {
   MonitorSmartphone,
   Sparkles,
   Smartphone,
+  ScanSearch,
 } from 'lucide-react';
 import SpeedTest from '@/components/SpeedTest';
 import BufferingGuide from '@/components/BufferingGuide';
@@ -35,6 +36,9 @@ import { useSnowMail } from '@/hooks/useSnowMail';
 import { peekIntent, clearIntent, takeIntent, INTENT_KEYS, SCREEN_INTENT_EVENT } from '@/lib/appActions';
 import { peekPlexDeeplink, renewPlexDeeplink } from '@/lib/plexDeeplink';
 import { BackButton, HEADER_ROW } from '@/components/ui/BackButton';
+import { handAssistant } from '@/lib/assistantHandoff';
+import { keepSpeed } from '@/lib/deviceScan';
+import type { SpeedTestResult } from '@/components/SpeedTest';
 
 const SupportVideos = lazy(() => import('@/components/SupportVideos'));
 const SupportTicketSystem = lazy(() => import('@/components/SupportTicketSystem'));
@@ -43,6 +47,7 @@ const ChatCommunity = lazy(() => import('@/components/ChatCommunity'));
 const HowToGuide = lazy(() => import('@/components/HowToGuide'));
 const RemoteSupport = lazy(() => import('@/components/RemoteSupport'));
 const DeviceCleaner = lazy(() => import('@/components/DeviceCleaner'));
+const DeviceScanScreen = lazy(() => import('@/components/deviceScan/DeviceScanScreen'));
 
 interface SupportProps {
   onBack: () => void;
@@ -54,11 +59,14 @@ type Tab = 'help' | 'ai' | 'mail';
 type HelpView = 'menu' | 'videos' | 'tickets' | 'remote' | 'cleaner';
 
 /** DOM order of the Help cards. The D-pad map below is derived from this plus
- *  the live column count, so the two stay in step if a card is added. */
+ *  the live column count, so the two stay in step if a card is added. Device
+ *  check ('help-device', 2026-10-29, as in Tronix) sits beside the Buffering
+ *  Guide. */
 const HELP_IDS = [
   'help-howto',
   'help-speedtest',
   'help-guide',
+  'help-device',
   'help-videos',
   'help-tickets',
   'help-remote',
@@ -67,10 +75,11 @@ const HELP_IDS = [
 ] as const;
 
 /** A Kids profile's Support: no tickets, paid Remote Access, Device Cleaner
- *  (it removes apps) or Posts (grown-up news). How to use, Speedtest, the
+ *  (it removes apps), Device check (buying advice and messages to support are
+ *  a grown-up's) or Posts (grown-up news). How to use, Speedtest, the
  *  Buffering Guide, Support Videos and AI Chat (kept to the profile's age by
  *  the server) stay. */
-const KIDS_HIDDEN = new Set<string>(['help-tickets', 'help-remote', 'help-cleaner', 'help-apps']);
+const KIDS_HIDDEN = new Set<string>(['help-tickets', 'help-device', 'help-remote', 'help-cleaner', 'help-apps']);
 
 /** Matches the `md:` breakpoint the card grid switches columns at. */
 const HELP_TWO_COL = '(min-width: 768px)';
@@ -92,6 +101,8 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   const [helpView, setHelpView] = useState<HelpView>(landing === 'tickets' ? 'tickets' : landing === 'cleaner' ? 'cleaner' : landing === 'videos' ? 'videos' : 'menu');
   const [childFocusActive, setChildFocusActive] = useState(false);
   const [showSpeedTest, setShowSpeedTest] = useState(landing === 'speedtest');
+  // Device check: a layer over the menu, opened from its card only.
+  const [showDevice, setShowDevice] = useState(false);
   // Synchronous handoff from the Plex player's "Buffering?" shortcut: LiveTV
   // sets this flag BEFORE navigating to Support so the guide opens in the
   // same commit (no setTimeout race with the CustomEvent fallback).
@@ -288,7 +299,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   // the child component owns D-pad + Back. Disabling the parent focus manager
   // here prevents its Back handler from firing first and exiting Support
   // straight to the Home screen.
-  const supportFocusActive = !showSpeedTest && !showGuide && !showHowTo && helpView === 'menu' && !childFocusActive;
+  const supportFocusActive = !showSpeedTest && !showGuide && !showHowTo && !showDevice && helpView === 'menu' && !childFocusActive;
   const supportFocus = useTVFocus({
     initialFocusId: 'support-back',
     focusableSelector: '[data-support-tv-focus-id]',
@@ -298,6 +309,29 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     scrollBlock: 'nearest',
   });
 
+  // Back from Device check: the menu again, its card highlighted. Its "Ask
+  // the assistant" hands the scan to the AI tab instead; "Open my tickets",
+  // to the tickets.
+  const deviceClosedRef = useRef(false);
+  const closeDevice = useCallback(() => { deviceClosedRef.current = true; setShowDevice(false); }, []);
+  useEffect(() => {
+    if (showDevice || !deviceClosedRef.current) return;
+    deviceClosedRef.current = false;
+    supportFocus.focusById('help-device', 'nearest');
+  }, [showDevice, supportFocus]);
+  const askFromDevice = useCallback((message: string) => {
+    handAssistant(message);
+    setShowDevice(false);
+    setChildFocusActive(false);
+    setTab('ai');
+  }, []);
+  const ticketsFromDevice = useCallback(() => {
+    setShowDevice(false);
+    setTab('help');
+    setHelpView('tickets');
+  }, []);
+  // A Speedtest run from its card is kept too, so Device check can use it.
+  const keepSpeedRun = useCallback((r: SpeedTestResult) => { if (!('failed' in r)) keepSpeed(r); }, []);
 
   useEffect(() => {
     let mq: MediaQueryList;
@@ -549,6 +583,23 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                   {t('support.cards.guide.desc')}
                 </span>
               </Button>
+              {!kids && (
+              <Button
+                onClick={() => { try { trackEvent('device_scan_launch', 'tools'); } catch { void 0; } setShowDevice(true); }}
+                variant="outline"
+                size="lg"
+                tabIndex={0}
+                data-support-tv-focus-id="help-device"
+                data-device-scan-card=""
+                className="bg-teal-700/60 border-teal-400/70 text-white hover:bg-teal-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
+              >
+                <ScanSearch className="w-7 h-7 row-span-2 self-center justify-self-center" />
+                <span className="text-xl font-semibold truncate">{t('support.cards.deviceCheck.title')}</span>
+                <span className="col-start-2 text-sm text-teal-100/90 font-normal truncate">
+                  {t('support.cards.deviceCheck.desc')}
+                </span>
+              </Button>
+              )}
               <Button
                 onClick={() => setHelpView('videos')}
                 variant="outline"
@@ -664,7 +715,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
         </Tabs>
       </div>
 
-      {showSpeedTest && <SpeedTest onClose={() => setShowSpeedTest(false)} />}
+      {showSpeedTest && <SpeedTest onClose={() => setShowSpeedTest(false)} onResult={keepSpeedRun} />}
       {showGuide && (
         <BufferingGuide
           onClose={() => {
@@ -691,6 +742,11 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
           onNavigateToChat={kids ? undefined : () => { setTab('help'); setHelpView('tickets'); }}
 
         />
+      )}
+      {showDevice && !kids && (
+        <Suspense fallback={null}>
+          <DeviceScanScreen onClose={closeDevice} onAsk={askFromDevice} onOpenTickets={ticketsFromDevice} />
+        </Suspense>
       )}
       {showHowTo && (
         <Suspense fallback={null}>

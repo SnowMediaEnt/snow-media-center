@@ -28,6 +28,7 @@ import FreeAiBlockedDialog from '@/components/FreeAiBlockedDialog';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 import ChatMarkdown from '@/components/ChatMarkdown';
 import { isNativePlatform } from '@/utils/platform';
+import { ASSISTANT_HANDOFF_EVENT, hasAssistantHandoff, takeAssistantHandoff } from '@/lib/assistantHandoff';
 
 
 interface ChatCommunityProps {
@@ -1032,6 +1033,28 @@ const ChatCommunity = ({ onBack, onNavigate, embedded = false, lockedTab }: Chat
       setAiLoading(false);
     }
   };
+
+  // A message another screen handed over (Support › Device check's "Ask the
+  // assistant", lib/assistantHandoff): sent as the viewer's own, once, when
+  // the chat is ready (signed out, or the account's profile loaded so the
+  // credit check is real, and nothing already sending), or when it is handed
+  // while the chat is open.
+  const sendAiMessageRef = useRef(sendAiMessage);
+  sendAiMessageRef.current = sendAiMessage;
+  const handoffReady = (!user || !!profile) && !aiLoading;
+  const handoffReadyRef = useRef(handoffReady);
+  handoffReadyRef.current = handoffReady;
+  const [handoffTick, setHandoffTick] = useState(0);
+  useEffect(() => {
+    const on = () => setHandoffTick((n) => n + 1);
+    window.addEventListener(ASSISTANT_HANDOFF_EVENT, on);
+    return () => window.removeEventListener(ASSISTANT_HANDOFF_EVENT, on);
+  }, []);
+  useEffect(() => {
+    if (!handoffReadyRef.current || !hasAssistantHandoff()) return;
+    const m = takeAssistantHandoff();
+    if (m) void sendAiMessageRef.current(m);
+  }, [handoffReady, handoffTick]);
 
 
   // Define all focusable elements by index

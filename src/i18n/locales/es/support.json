@@ -22,6 +22,10 @@
         "title": "Guía de buffering",
         "desc": "Soluciones paso a paso"
       },
+      "deviceCheck": {
+        "title": "Revisión del dispositivo",
+        "desc": "Califica este dispositivo y su conexión, y qué mejorar"
+      },
       "videos": {
         "title": "Videos de soporte",
         "desc": "Tutoriales y guías paso a paso"

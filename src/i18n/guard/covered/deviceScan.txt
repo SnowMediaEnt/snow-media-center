@@ -1,0 +1,2 @@
+# Support › Device check (2026-10-29, ported from Tronix)
+src/components/deviceScan

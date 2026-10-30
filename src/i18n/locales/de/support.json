@@ -22,6 +22,10 @@
         "title": "Buffering-Hilfe",
         "desc": "Schritt für Schritt gegen Ruckeln"
       },
+      "deviceCheck": {
+        "title": "Gerätecheck",
+        "desc": "Bewertet Gerät und Verbindung, zeigt, was sich lohnt"
+      },
       "videos": {
         "title": "Support-Videos",
         "desc": "Tutorials und Anleitungen"

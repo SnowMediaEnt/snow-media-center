@@ -82,6 +82,19 @@ export interface RendererGoneRecord {
   count: number;
 }
 
+/** Support › Device check: what the box has beyond Device Health's vitals
+ *  (android/.../health/DeviceScan.kt). Every part is optional: one Android
+ *  could not read is left out. */
+export interface NativeCodec { decoder: boolean; hardware: boolean; uhd: boolean; tenBit: boolean }
+export interface NativeDeviceScan {
+  storage?: { totalBytes: number };
+  cpu?: { cores: number; abis: string[]; is64bit: boolean };
+  display?: { widthPx: number; heightPx: number; refreshHz?: number; maxWidthPx?: number; maxHeightPx?: number; hdr?: string[] };
+  codecs?: Partial<Record<'avc' | 'hevc' | 'vp9' | 'av1' | 'dolbyVision', NativeCodec>>;
+  network?: { type: string; vpn?: boolean; validated?: boolean; downKbps?: number };
+  wifi?: { rxLinkMbps?: number; standard?: number };
+}
+
 export interface AppManagerPlugin {
   isInstalled(options: { packageName: string }): Promise<{ installed: boolean }>;
   getAppInfo(options?: { packageName?: string }): Promise<AppPackageInfo>;
@@ -129,6 +142,9 @@ export interface AppManagerPlugin {
   clearCacheForApps(options: { packages: string[] }): Promise<{ method: 'root' | 'accessibility'; queued: number; rootCleared: number }>;
   /** Stops a queued cache-clear run after the app that is on screen. */
   cancelCacheClear(): Promise<void>;
+  /** Support › Device check: screen, video decoders, processor, connection
+   *  (builds before Device check: not implemented). */
+  getDeviceScan(): Promise<NativeDeviceScan>;
   /** The last page's renderer death, once (then cleared); `{}` when there is
    *  none. Older builds reject. */
   takeRendererGone(): Promise<{ gone?: RendererGoneRecord }>;
@@ -180,6 +196,7 @@ const webFallback: AppManagerPlugin = {
   async closeBackgroundApps() { throw unsupported(); },
   async clearCacheForApps() { throw unsupported(); },
   async cancelCacheClear() { /* no-op on web */ },
+  async getDeviceScan() { throw unsupported(); },
   async takeRendererGone() { return {}; },
   async addListener() { return { remove: async () => { /* no-op */ } } as PluginListenerHandle; },
 };

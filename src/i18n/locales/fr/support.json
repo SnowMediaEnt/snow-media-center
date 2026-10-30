@@ -22,6 +22,10 @@
         "title": "Guide anti-coupures",
         "desc": "Solutions pas à pas aux coupures"
       },
+      "deviceCheck": {
+        "title": "Bilan de l'appareil",
+        "desc": "Notez cet appareil et sa connexion, voyez quoi améliorer"
+      },
       "videos": {
         "title": "Vidéos d’assistance",
         "desc": "Tutoriels et démonstrations"

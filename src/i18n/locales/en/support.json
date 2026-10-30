@@ -22,6 +22,10 @@
         "title": "Buffering Guide",
         "desc": "Step-by-step buffering fixes"
       },
+      "deviceCheck": {
+        "title": "Device check",
+        "desc": "Rate this device and connection, see what to upgrade"
+      },
       "videos": {
         "title": "Support Videos",
         "desc": "Tutorials and walkthroughs"

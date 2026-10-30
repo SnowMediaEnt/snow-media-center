@@ -6,8 +6,18 @@ import { Card } from '@/components/ui/card';
 import { ArrowLeft, Gauge, Play, RotateCw, Wifi, Loader2 } from 'lucide-react';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
 
+/** A finished run, for a caller that keeps the numbers (Support › Device
+ *  check, lib/deviceScan keepSpeed): Mbps with one decimal, ms rounded.
+ *  `failed` when it could not run. */
+export type SpeedTestResult =
+  | { downMbps: number; upMbps: number; pingMs: number | null; jitterMs: number | null }
+  | { failed: true };
+
 interface SpeedTestProps {
   onClose: () => void;
+  /** Called once per run, when it finishes or fails (not when it is closed
+   *  part-way through). */
+  onResult?: (r: SpeedTestResult) => void;
 }
 
 type Phase = 'idle' | 'ping' | 'download' | 'upload' | 'done' | 'error';
@@ -18,7 +28,7 @@ const PING_URL = 'https://speed.cloudflare.com/__down?bytes=0';
 
 const fmtMbps = (bps: number) => (bps / 1_000_000).toFixed(bps > 100_000_000 ? 0 : 1);
 
-const SpeedTest = ({ onClose }: SpeedTestProps) => {
+const SpeedTest = ({ onClose, onResult }: SpeedTestProps) => {
   const { t } = useTranslation();
   const [phase, setPhase] = useState<Phase>('idle');
   const [ping, setPing] = useState<number | null>(null);
@@ -31,6 +41,8 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
   const backBtnRef = useRef<HTMLButtonElement | null>(null);
   const startBtnRef = useRef<HTMLButtonElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const onResultRef = useRef(onResult);
+  onResultRef.current = onResult;
 
   const measurePing = useCallback(async (): Promise<{ ping: number; jitter: number }> => {
     const samples: number[] = [];
@@ -130,6 +142,8 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
       // Avoid hammering server with zero-latency loop
       if (performance.now() - reqStart < 50) await new Promise((r) => setTimeout(r, 30));
     }
+    // The figure left on screen is the one a caller is handed (onResult).
+    if (bestBps > 0) setUpload(bestBps);
     return bestBps;
   }, []);
 
@@ -148,16 +162,25 @@ const SpeedTest = ({ onClose }: SpeedTestProps) => {
       setJitter(p.jitter);
 
       setPhase('download');
-      await measureDownload(ctrl.signal);
+      const down = await measureDownload(ctrl.signal);
 
       setPhase('upload');
-      await measureUpload(ctrl.signal);
+      const up = await measureUpload(ctrl.signal);
 
       setPhase('done');
+      if (!ctrl.signal.aborted) {
+        onResultRef.current?.({
+          downMbps: Number(fmtMbps(down)),
+          upMbps: Number(fmtMbps(up)),
+          pingMs: Math.round(p.ping),
+          jitterMs: Math.round(p.jitter),
+        });
+      }
     } catch (e) {
       console.error('[SpeedTest] failed:', e);
       setErrorMsg(e instanceof Error ? e.message : i18n.t('support.speedTest.errors.generic'));
       setPhase('error');
+      if (!ctrl.signal.aborted) onResultRef.current?.({ failed: true });
     } finally {
       abortRef.current = null;
     }

@@ -25,6 +25,7 @@ import androidx.core.content.FileProvider
 import com.snowmedia.AppLocale
 import com.snowmedia.R
 import com.snowmedia.RendererGone
+import com.snowmedia.health.DeviceScan
 import androidx.activity.result.ActivityResult
 import com.getcapacitor.*
 import com.getcapacitor.annotation.ActivityCallback
@@ -1132,6 +1133,22 @@ class AppManagerPlugin : Plugin() {
   fun takeRendererGone(call: PluginCall) {
     val gone = RendererGone.take(context)
     call.resolve(if (gone != null) JSObject().put("gone", gone) else JSObject())
+  }
+
+  /**
+   * Support › Device check: the screen, video decoders, processor, storage
+   * total and connection type (health/DeviceScan.kt); memory, free storage
+   * and the Wi-Fi signal are Device Health's vitals. This box only; nothing
+   * personal, no other app.
+   */
+  @PluginMethod
+  fun getDeviceScan(call: PluginCall) {
+    try {
+      call.resolve(JSObject.fromJSONObject(DeviceScan.read(context)))
+    } catch (t: Throwable) {
+      Log.w(TAG, "getDeviceScan failed (${t.javaClass.simpleName})")
+      call.reject("device scan unavailable")
+    }
   }
 
   @PluginMethod
