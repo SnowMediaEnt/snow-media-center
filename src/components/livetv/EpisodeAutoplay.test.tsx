@@ -166,21 +166,34 @@ describe('EpisodeAutoplay', () => {
   });
 
   describe('the bar\'s Next episode', () => {
-    it('is offered while there is a next episode and plays it through onPlayNext', async () => {
+    it('is not offered from the opening, only in the last 5 minutes', async () => {
       const m = await mount();
-      expect(m.action()?.detail).toContain('S1 · E2');
+      expect(m.action()).toBeNull();
       position = 600;
+      await flush(5000);
+      expect(m.action()).toBeNull();
+      position = 1500; // 5 minutes before the end of 30
+      await flush(5000);
+      expect(m.action()?.detail).toContain('S1 · E2');
+    });
+
+    it('plays the next episode through onPlayNext, the place kept before the credits', async () => {
+      const m = await mount();
+      position = 1550;
+      await flush(5000);
+      expect(m.action()?.detail).toContain('S1 · E2');
       await act(async () => { m.action()!.run(); await vi.advanceTimersByTimeAsync(0); });
       expect(m.onPlayNext).toHaveBeenCalledTimes(1);
       expect(m.onPlayNext.mock.calls[0][0].ratingKey).toBe('12');
-      // Mid-episode: the place is kept (the reporter's closing save), not
-      // marked watched.
+      // Before the credits: the place is kept (the reporter's closing save),
+      // not marked watched.
       expect(finishing).not.toHaveBeenCalled();
     });
 
     it('taken in the credits counts the episode as watched, as Up Next does', async () => {
       const m = await mount();
       position = 1750;
+      await flush(1000);
       await act(async () => { m.action()!.run(); await vi.advanceTimersByTimeAsync(0); });
       expect(m.onPlayNext).toHaveBeenCalledTimes(1);
       expect(finishing).toHaveBeenCalledWith('11');

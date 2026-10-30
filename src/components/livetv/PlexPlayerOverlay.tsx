@@ -32,9 +32,9 @@ import { okIsRepeat, okPressMark, okSamePress } from '@/lib/okLatch';
 // move a preview marker (accelerating on repeated presses), OK jumps there.
 type Row = 'scrub' | 'seek-10' | 'play' | 'seek+30' | 'next' | 'audio' | 'subs' | 'quality' | 'format' | 'volume' | 'buffering';
 const ROWS: Row[] = ['seek-10', 'play', 'seek+30', 'audio', 'subs', 'quality', 'format', 'volume', 'buffering'];
-// An episode with one after it: Next episode after the skips, as in Live TV's
-// VOD bar (vodBar.ts).
-const ROWS_NEXT: Row[] = ['seek-10', 'play', 'seek+30', 'next', 'audio', 'subs', 'quality', 'format', 'volume', 'buffering'];
+// Near the end of an episode with one after it (EpisodeAutoplay): Next
+// episode at the bar's end, after Help.
+const ROWS_NEXT: Row[] = ['seek-10', 'play', 'seek+30', 'audio', 'subs', 'quality', 'format', 'volume', 'buffering', 'next'];
 // Scrub step (seconds) by acceleration level; every 4 quick presses (< 700 ms
 // apart) bump one level — 10 s taps, then 30 s, 1 min, 2 min, 5 min holds.
 const SCRUB_STEPS = [10, 30, 60, 120, 300];
@@ -832,17 +832,6 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
               {(paused ?? pollPaused) ? <Play className="w-7 h-7 fill-current" /> : <Pause className="w-7 h-7 fill-current" />}
             </button>
             <button type="button" data-focused={row === 'seek+30' ? 'true' : 'false'} className={`${btnBase} w-12 h-12 ${focusVis('seek+30')}`} aria-label={t('plex.player.forward30')}><FastForward className="w-6 h-6" /></button>
-            {nextAction && (
-              <button
-                type="button"
-                data-pp-next=""
-                data-focused={row === 'next' ? 'true' : 'false'}
-                className={`flex items-center h-10 px-4 rounded-full font-quicksand font-bold text-sm whitespace-nowrap transition-transform duration-150 ${focusVis('next')}`}
-                aria-label={t('plex.player.nextEpisode')}
-              >
-                {t('plex.player.nextEpisode')}<SkipForward className="w-4 h-4 ml-2 fill-current" />
-              </button>
-            )}
             <button type="button" data-focused={btnFocused('audio')} data-howto="pp.audio" className={`${btnBase} w-12 h-12 ${focusVis('audio')}`} aria-label={t('plex.player.audio')}><AudioLines className="w-6 h-6" /></button>
             <button type="button" data-focused={btnFocused('subs')} data-howto="pp.subs" className={`${btnBase} w-12 h-12 ${focusVis('subs')}`} aria-label={t('plex.player.subtitles')}><Subtitles className="w-6 h-6" /></button>
             <button type="button" data-focused={btnFocused('quality')} className={`${btnBase} w-12 h-12 ${focusVis('quality')}`} aria-label={t('plex.player.quality')}><Gauge className="w-6 h-6" /></button>
@@ -864,6 +853,17 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
               <button type="button" data-focused={btnFocused('buffering')} className={`${btnBase} w-12 h-12 ${focusVis('buffering')}`} aria-label={t('plex.player.help')} onClick={() => { setMenu('help'); setMenuIdx(0); }}><LifeBuoy className="w-6 h-6" /></button>
               <span className="text-xs font-nunito text-brand-ice/70 leading-none">{t('plex.player.help')}</span>
             </div>
+            {nextAction && (
+              <button
+                type="button"
+                data-pp-next=""
+                data-focused={row === 'next' ? 'true' : 'false'}
+                className={`flex items-center h-10 px-4 rounded-full font-quicksand font-bold text-sm whitespace-nowrap transition-transform duration-150 ${focusVis('next')}`}
+                aria-label={t('plex.player.nextEpisode')}
+              >
+                {t('plex.player.nextEpisode')}<SkipForward className="w-4 h-4 ml-2 fill-current" />
+              </button>
+            )}
           </div>
           <p data-remote-hint="" className="text-center text-xs text-brand-ice/60 font-nunito mt-4">
             {row === 'scrub'

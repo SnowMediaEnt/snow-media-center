@@ -45,13 +45,14 @@ const focusedLabel = () => document.querySelector('[data-pp-bar] button[data-foc
 afterEach(() => { document.body.innerHTML = ''; });
 
 describe('Plex player: Next episode in the bar', () => {
-  it('is reached with ▶ after Forward 30 s; OK plays the next episode and hides the bar', async () => {
+  it('sits at the end of the bar, after Help; OK plays the next episode and hides the bar', async () => {
     const run = vi.fn();
     mount({ detail: 'S1 · E2  Two', run });
     await key('ArrowDown'); // bar up on Play
     expect(nextBtn()).not.toBeNull();
-    await key('ArrowRight');
-    expect(focusedLabel()).toBe('Forward 30 seconds');
+    // Play, Forward, Audio, Subtitles, Quality, Format, Volume, Help, Next.
+    for (let i = 0; i < 7; i++) await key('ArrowRight');
+    expect(focusedLabel()).toBe('Help');
     await key('ArrowRight');
     expect(nextBtn()?.getAttribute('data-focused')).toBe('true');
     expect(document.querySelector('[data-remote-hint]')?.textContent).toContain('Two'); // the hint names it

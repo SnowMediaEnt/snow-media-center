@@ -43,6 +43,8 @@ interface Props {
 }
 
 const UP_NEXT_SECONDS = 10;
+// The bar's Next episode shows at most this long (s) before the end.
+const NEXT_BUTTON_LEAD = 300;
 /** When what is playing could not be read, ask again after these; the last
  *  repeats for as long as the title stays up. */
 const INFO_RETRY_MS = [5_000, 15_000, 30_000, 60_000];
@@ -187,9 +189,13 @@ const EpisodeAutoplay = memo(({ active, base, token, ratingKey, getPosition, see
     startedRef.current = true;
     onPlayNextRef.current(next, info);
   }, [next, info, credits, go]);
+  // On the bar only near the end: from the credits or Up Next point, or the
+  // last NEXT_BUTTON_LEAD seconds if that comes first. Not from the opening.
+  const nextFrom = upNextAt != null && pos ? Math.min(upNextAt, pos.dur - NEXT_BUTTON_LEAD) : null;
+  const showNext = nextFrom != null && !!pos && pos.at >= nextFrom;
   const nextAction = useMemo<NextAction | null>(
-    () => (next && info ? { detail: episodeLabel(next), run: () => { void skipToNext(); } } : null),
-    [next, info, skipToNext],
+    () => (next && info && showNext ? { detail: episodeLabel(next), run: () => { void skipToNext(); } } : null),
+    [next, info, showNext, skipToNext],
   );
   useEffect(() => { onNextActionRef.current?.(nextAction); }, [nextAction]);
   useEffect(() => () => onNextActionRef.current?.(null), []);
