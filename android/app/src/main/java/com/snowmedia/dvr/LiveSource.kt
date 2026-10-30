@@ -43,10 +43,16 @@ internal interface LiveFeed {
  * [pump] blocks the calling (capture) thread; [cancel] may be called from any
  * thread and makes it return promptly.
  */
-internal class LiveSource(private val url: String) : LiveFeed {
+internal class LiveSource(
+    private val url: String,
+    /** Diagnostics (no address ever goes in): Log.i under [TAG] on the box. */
+    private val log: (String) -> Unit = ::logInfo,
+) : LiveFeed {
     @Volatile private var conn: HttpURLConnection? = null
     @Volatile var cancelled = false
         private set
+    /** Redirects followed by the last open(), and the address it ended at. */
+    private var lastHops = 0
 
     override fun cancel() {
         cancelled = true
@@ -63,37 +69,45 @@ internal class LiveSource(private val url: String) : LiveFeed {
     override fun pump(sink: (ByteArray, Int, Int) -> Unit) {
         if (cancelled) return
         if (looksHls(url)) { pumpHls(URL(url), sink); return }
-        val c = open(URL(url))
+        val t0 = now()
+        val c = open(URL(url), "stream")
         try {
             val type = c.contentType?.lowercase(Locale.US) ?: ""
             if (type.contains("mpegurl")) {
-                // A playlist behind a .ts-looking address: follow it as HLS.
+                // A playlist behind a .ts-looking address: follow it as HLS,
+                // its segments relative to where it was served from.
                 val base = c.url
                 val text = readText(c.inputStream)
                 c.disconnect()
-                pumpHls(base, sink, text)
+                log("stream address answered with a playlist (${text.length} B, ${now() - t0} ms): following it as HLS")
+                pumpHls(URL(url), sink, text, base)
                 return
             }
-            copy(c.inputStream, sink, checkTs = true)
+            val n = copy(c.inputStream, sink, checkTs = true)
+            log("stream ended: ${n} B in ${now() - t0} ms")
         } finally {
             try { c.disconnect() } catch (_: Throwable) { /* ignore */ }
             conn = null
         }
     }
 
-    private fun copy(input: InputStream, sink: (ByteArray, Int, Int) -> Unit, checkTs: Boolean) {
+    /** Bytes passed on. */
+    private fun copy(input: InputStream, sink: (ByteArray, Int, Int) -> Unit, checkTs: Boolean): Long {
         val buf = ByteArray(BUF)
         var first = checkTs
+        var total = 0L
         while (!cancelled) {
             val n = input.read(buf, 0, buf.size)
-            if (n < 0) return
+            if (n < 0) return total
             if (n == 0) continue
             if (first) {
                 first = false
                 if (!looksTs(buf, n)) throw UnsupportedSourceException("not MPEG-TS")
             }
             sink(buf, 0, n)
+            total += n
         }
+        return total
     }
 
     // ---- HLS ----
@@ -104,37 +118,66 @@ internal class LiveSource(private val url: String) : LiveFeed {
         val targetMs: Long,
         val ended: Boolean,
         val unsupported: String?,
+        /** The playlist said #EXT-X-MEDIA-SEQUENCE (else its numbers start at 0 every time). */
+        val numbered: Boolean,
     )
 
-    private fun pumpHls(start: URL, sink: (ByteArray, Int, Int) -> Unit, firstText: String? = null) {
+    /**
+     * Follows an HLS channel. [start] is asked for again on every reload (as
+     * Media3 does); what it lists is resolved against the address it was
+     * finally served from, after redirects (an Xtream panel sends
+     * /live/u/p/1.m3u8 on to /hls/<token>/...: resolved against the first
+     * address, its relative segments pointed back at /live/u/p/ and the
+     * panel never answered).
+     */
+    private fun pumpHls(start: URL, sink: (ByteArray, Int, Int) -> Unit, firstText: String? = null, firstBase: URL? = null) {
         var listUrl = start
         var text = firstText
+        var base = firstBase ?: start
         var lastSeq = -1L
+        val done = LinkedHashSet<String>()
         var hops = 0
         while (!cancelled) {
-            val body = text ?: fetchText(listUrl)
-            text = null
-            val pl = parse(body, listUrl)
+            val body: String
+            if (text != null) {
+                body = text
+                text = null
+            } else {
+                val t0 = now()
+                val (b, finalUrl) = fetchText(listUrl)
+                body = b
+                base = finalUrl
+                log("playlist: ${b.length} B, $lastHops redirect(s), ${now() - t0} ms")
+            }
+            val pl = parse(body, base)
             if (pl.variants.isNotEmpty()) {
                 // A master playlist: the first variant listed (the provider's default).
                 if (++hops > 3) throw UnsupportedSourceException("playlist loop")
                 listUrl = pl.variants.first()
+                log("multivariant playlist: ${pl.variants.size} variant(s), following the first")
                 continue
             }
             if (pl.unsupported != null) throw UnsupportedSourceException(pl.unsupported)
-            var fresh = pl.segments.filter { it.first > lastSeq }
+            var fresh = pl.segments.filter { (seq, u) ->
+                if (pl.numbered) seq > lastSeq else !done.contains(u.toString())
+            }
             // Joining: only the newest segment, the live edge.
-            if (lastSeq < 0 && fresh.size > 1) fresh = fresh.takeLast(1)
+            if (lastSeq < 0 && done.isEmpty() && fresh.size > 1) fresh = fresh.takeLast(1)
+            if (fresh.isEmpty()) log("playlist: ${pl.segments.size} segment(s), nothing new (target ${pl.targetMs} ms)")
             for ((seq, segUrl) in fresh) {
                 if (cancelled) return
-                val c = open(segUrl)
-                try {
+                val t0 = now()
+                val c = open(segUrl, "segment")
+                val n = try {
                     copy(c.inputStream, sink, checkTs = true)
                 } finally {
                     try { c.disconnect() } catch (_: Throwable) { /* ignore */ }
                     conn = null
                 }
+                log("segment: $n B, ${now() - t0} ms")
                 lastSeq = seq
+                done.add(segUrl.toString())
+                if (done.size > 64) done.remove(done.first())
             }
             if (pl.ended) return
             // Reload after half a target duration (at least 1 s), in small
@@ -152,6 +195,7 @@ internal class LiveSource(private val url: String) : LiveFeed {
         val variants = ArrayList<URL>()
         val segments = ArrayList<Pair<Long, URL>>()
         var seq = 0L
+        var numbered = false
         var targetMs = 6000L
         var ended = false
         var unsupported: String? = null
@@ -164,8 +208,10 @@ internal class LiveSource(private val url: String) : LiveFeed {
                 when {
                     line.startsWith("#EXT-X-STREAM-INF") -> nextIsVariant = true
                     line.startsWith("#EXTINF") -> nextIsSegment = true
-                    line.startsWith("#EXT-X-MEDIA-SEQUENCE:") ->
+                    line.startsWith("#EXT-X-MEDIA-SEQUENCE:") -> {
                         seq = line.substringAfter(':').trim().toLongOrNull() ?: 0L
+                        numbered = true
+                    }
                     line.startsWith("#EXT-X-TARGETDURATION:") ->
                         targetMs = (line.substringAfter(':').trim().toDoubleOrNull() ?: 6.0).times(1000).toLong()
                     line.startsWith("#EXT-X-ENDLIST") -> ended = true
@@ -185,13 +231,14 @@ internal class LiveSource(private val url: String) : LiveFeed {
                 nextIsSegment = false
             }
         }
-        return Playlist(variants, segments, targetMs, ended, unsupported)
+        return Playlist(variants, segments, targetMs, ended, unsupported, numbered)
     }
 
-    private fun fetchText(u: URL): String {
-        val c = open(u)
+    /** The playlist's text, and the address it was finally served from. */
+    private fun fetchText(u: URL): Pair<String, URL> {
+        val c = open(u, "playlist")
         try {
-            return readText(c.inputStream)
+            return readText(c.inputStream) to c.url
         } finally {
             try { c.disconnect() } catch (_: Throwable) { /* ignore */ }
             conn = null
@@ -216,10 +263,12 @@ internal class LiveSource(private val url: String) : LiveFeed {
      * GET with redirects followed by hand, http <-> https included (as the
      * player's own source allows). Quick timeouts and no user agent of our
      * own, like the player: some IPTV panels turn away agents they don't know.
+     * [what] (playlist / segment / stream) only names it in the log.
      */
-    private fun open(start: URL): HttpURLConnection {
+    private fun open(start: URL, what: String): HttpURLConnection {
         var u = start
         var hops = 0
+        val t0 = now()
         while (true) {
             if (cancelled) throw InterruptedIOException("cancelled")
             val c = u.openConnection() as HttpURLConnection
@@ -231,26 +280,38 @@ internal class LiveSource(private val url: String) : LiveFeed {
             val code = try { c.responseCode } catch (e: IOException) {
                 conn = null
                 try { c.disconnect() } catch (_: Throwable) { /* ignore */ }
+                val why = if (cancelled) "cancelled" else e.javaClass.simpleName
+                log("$what: no answer ($why) after ${now() - t0} ms, $hops redirect(s)")
                 throw if (cancelled) InterruptedIOException("cancelled") else IOException(e.javaClass.simpleName)
             }
             if (code in 300..399) {
                 val loc = c.getHeaderField("Location")
                 c.disconnect()
                 conn = null
-                if (loc == null || ++hops > MAX_REDIRECTS) throw HttpStatusException(code)
-                u = URL(u, loc)
+                if (loc == null || ++hops > MAX_REDIRECTS) {
+                    log("$what: HTTP $code, redirect not followed ($hops)")
+                    throw HttpStatusException(code)
+                }
+                val next = URL(u, loc)
+                val where = if (next.host == u.host && next.port == u.port) "same host" else "another host"
+                log("$what: HTTP $code -> $where")
+                u = next
                 continue
             }
             if (code !in 200..299) {
                 c.disconnect()
                 conn = null
+                log("$what: HTTP $code after ${now() - t0} ms, $hops redirect(s)")
                 throw HttpStatusException(code)
             }
+            lastHops = hops
+            log("$what: HTTP $code, ${c.contentType ?: "no type"}, $hops redirect(s), headers in ${now() - t0} ms")
             return c
         }
     }
 
     companion object {
+        const val TAG = "SmcLiveSource"
         private const val BUF = 64 * 1024
         private const val TIMEOUT_MS = 10_000
         // A 24/7 channel on a busy panel can take 12 s before its first byte
@@ -273,4 +334,10 @@ internal class LiveSource(private val url: String) : LiveFeed {
         fun looksHls(url: String): Boolean =
             url.substringBefore('?').lowercase(Locale.US).endsWith(".m3u8")
     }
+}
+
+private fun now(): Long = System.nanoTime() / 1_000_000L
+
+private fun logInfo(msg: String) {
+    try { android.util.Log.i(LiveSource.TAG, msg) } catch (_: Throwable) { /* no Android log (tests) */ }
 }
