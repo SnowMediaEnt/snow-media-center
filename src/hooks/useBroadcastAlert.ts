@@ -1,8 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { runWhenIdle, onFirstInteraction } from '@/utils/idle';
-import { setPausableInterval } from '@/utils/pausableInterval';
-import { keepIfSame } from '@/lib/keepIfSame';
+import { useCallback, useMemo, useState } from 'react';
+import { useSharedQuery } from '@/lib/sharedQuery';
+import { appAlertsQuery } from '@/lib/appAlertsStore';
 
 const DISMISS_KEY = 'snow-broadcast-alert-dismissed-v1';
 
@@ -37,47 +35,13 @@ export const isBroadcastAlert = (a: { app_match?: string | null; source?: string
 
 /** Admin alert aimed at every device — shown as a boot popup on the home screen. */
 export function useBroadcastAlert() {
-  const [rows, setRows] = useState<BroadcastAlert[]>([]);
+  // The shared app_alerts read (lib/appAlertsStore), which also polls every
+  // 60 s (paused in the background and in quiet mode) and reads again on the
+  // return to the foreground: a TV that was already on when the admin posted
+  // a broadcast still gets it without a restart.
+  const { data: all } = useSharedQuery(appAlertsQuery);
+  const rows = useMemo(() => (all as BroadcastAlert[]).filter(isBroadcastAlert), [all]);
   const [dismissed, setDismissed] = useState<DismissMap>(() => readDismissed());
-
-  const fetchRows = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('app_alerts')
-        .select('id,app_match,title,message,severity,active,source,updated_at')
-        .eq('active', true);
-      if (error) { console.warn('[BroadcastAlert] fetch failed:', error.message); setRows([]); return; }
-      setRows((prev) => keepIfSame(prev, ((data || []) as BroadcastAlert[]).filter(isBroadcastAlert)));
-    } catch {
-      setRows([]);
-    }
-  }, []);
-
-  useEffect(() => {
-    const cancelIdle = runWhenIdle(() => { void fetchRows(); }, 2000);
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-    const cancelFirst = onFirstInteraction(() => {
-      channel = supabase
-        .channel('broadcast_alert_changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'app_alerts' }, () => fetchRows())
-        .subscribe();
-    });
-    // POLL AS WELL. Until now a running TV only learned about a new broadcast
-    // through the realtime channel above — which is only opened after the
-    // first remote press, and depends on app_alerts being in the realtime
-    // publication, which nothing verifies. An admin who created an alert and
-    // watched a TV that was already on saw nothing until that TV restarted.
-    // Same 60s safety net useAppAlerts already has, paused while backgrounded,
-    // plus a refetch on return to the foreground.
-    const cancelInterval = setPausableInterval(fetchRows, 60_000);
-    const onVisible = () => { if (document.visibilityState === 'visible') void fetchRows(); };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      cancelIdle(); cancelFirst(); cancelInterval();
-      document.removeEventListener('visibilitychange', onVisible);
-      if (channel) supabase.removeChannel(channel);
-    };
-  }, [fetchRows]);
 
   const alert = useMemo<BroadcastAlert | null>(() => {
     const sevRank: Record<BroadcastAlert['severity'], number> = { critical: 3, warning: 2, info: 1 };

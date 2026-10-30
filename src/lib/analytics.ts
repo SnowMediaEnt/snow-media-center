@@ -332,11 +332,13 @@ export const initAnalytics = () => {
         .then((info) => { appVersion = info?.version ? String(info.version).slice(0, 32) : null; })
         .catch(() => { appVersion = null; });
 
-      // Resolve current user (non-blocking)
+      // Resolve current user (non-blocking). The stored session is enough to
+      // tag events with a user id; getUser() was an auth/v1/user round-trip
+      // at every start-up for the same answer.
       supabase.auth
-        .getUser()
+        .getSession()
         .then(({ data }) => {
-          userId = data?.user?.id ?? null;
+          userId = data?.session?.user?.id ?? null;
           void startSession();
           trackEvent("app_open", "lifecycle", deviceProps());
           reportActiveLines(true);

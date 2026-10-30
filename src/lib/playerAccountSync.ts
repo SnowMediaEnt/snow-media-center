@@ -4,7 +4,7 @@
 // never block the player UI.
 
 import { supabase } from '@/integrations/supabase/client';
-import { ensureCustomerRow } from '@/hooks/useUserServices';
+import { ensureCustomerRow, trackServicesWrite } from '@/hooks/useUserServices';
 import { expDateToMs, type PlayerAccount } from '@/lib/xtream';
 
 const serviceNameForServer = (serverLabel: string): string =>
@@ -29,7 +29,19 @@ const renewalFromStatus = (status: string): string => {
  * existing rows by (customer_id, service_name) so a re-login UPDATES rather
  * than duplicates.
  */
-export async function syncPlayerAccountToCloud(
+export function syncPlayerAccountToCloud(
+  userId: string,
+  email: string,
+  account: PlayerAccount,
+): Promise<void> {
+  // The services read (useMyUserServices) waits for this write when it has
+  // not read yet, instead of reading the rows twice at start-up.
+  const p = writePlayerAccount(userId, email, account);
+  trackServicesWrite(p);
+  return p;
+}
+
+async function writePlayerAccount(
   userId: string,
   email: string,
   account: PlayerAccount,
@@ -81,7 +93,8 @@ export async function syncPlayerAccountToCloud(
       if (isUniqueViolation(error)) await updateConflictingRow();
     }
 
-    try { window.dispatchEvent(new CustomEvent('userServicesRefresh')); } catch { /* ignore */ }
+    // Only customer_services changed: the refresh reads just those.
+    try { window.dispatchEvent(new CustomEvent('userServicesRefresh', { detail: { servicesOnly: true } })); } catch { /* ignore */ }
   } catch (e) {
     console.warn('[playerAccountSync] failed:', e);
   }

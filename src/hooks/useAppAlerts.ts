@@ -1,11 +1,9 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/i18n';
-import { supabase } from '@/integrations/supabase/client';
 import { useMyUserServices, daysUntil, expiryState, type UserService } from '@/hooks/useUserServices';
-import { setPausableInterval } from '@/utils/pausableInterval';
-import { runWhenIdle, onFirstInteraction } from '@/utils/idle';
-import { keepIfSame } from '@/lib/keepIfSame';
+import { useSharedQuery } from '@/lib/sharedQuery';
+import { appAlertsQuery, activeAlertRows } from '@/lib/appAlertsStore';
 
 export interface AppAlert {
   id: string;
@@ -70,61 +68,17 @@ const buildServiceAlert = (service: UserService, app: string): AppAlert => {
  * tied to specific IPTV apps (Dashboard → Edit).
  */
 export const useAppAlerts = () => {
-  const [alerts, setAlerts] = useState<AppAlert[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { services: userServices } = useMyUserServices();
+  // One shared read of app_alerts (lib/appAlertsStore): one select, one
+  // realtime channel, one pausable 60 s poll for every surface that shows
+  // alerts, instead of one of each per hook per mount.
+  const { data: rows, loading } = useSharedQuery(appAlertsQuery);
+  const alerts = useMemo(() => activeAlertRows(rows) as AppAlert[], [rows]);
+  const { services: userServices, ensureLoaded: ensureServices } = useMyUserServices();
   // These alerts are written here, not by the Hub: written again when the language changes.
   const { i18n: i18nInstance } = useTranslation();
   const language = i18nInstance.language;
 
-  const fetchAlerts = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('app_alerts')
-        .select('*')
-        .eq('active', true);
-      if (error) {
-        console.warn('[AppAlerts] fetch failed:', error.message);
-        setAlerts([]);
-      } else {
-        setAlerts((prev) => keepIfSame(prev, (data || []) as AppAlert[]));
-      }
-    } catch (e) {
-      console.warn('[AppAlerts] fetch threw:', e);
-      setAlerts([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    // Phase 7: defer first fetch off boot path.
-    const cancelIdle = runWhenIdle(() => { void fetchAlerts(); }, 1500);
-
-    // Realtime subscription — defer the websocket handshake until the user
-    // actually interacts so two channels don't race during boot.
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-    const cancelFirstInteraction = onFirstInteraction(() => {
-      channel = supabase
-        .channel('app_alerts_changes')
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'app_alerts' },
-          () => fetchAlerts()
-        )
-        .subscribe();
-    });
-
-    // Re-fetch every 60s as a safety net (paused while backgrounded)
-    const cancelInterval = setPausableInterval(fetchAlerts, 60_000);
-
-    return () => {
-      cancelIdle();
-      cancelFirstInteraction();
-      if (channel) supabase.removeChannel(channel);
-      cancelInterval();
-    };
-  }, [fetchAlerts]);
+  const fetchAlerts = useCallback(() => appAlertsQuery.refetch(), []);
 
   /** Synthetic alerts derived from user's tracked services tied to specific apps. */
   const serviceAlerts = useMemo<AppAlert[]>(() => {
@@ -146,6 +100,9 @@ export const useAppAlerts = () => {
   const getAlertForApp = useCallback(
     (appName: string): AppAlert | null => {
       if (!appName) return null;
+      // The services read waits for a quiet moment after start-up; an app
+      // launched before then asks for it now (the next launch has it).
+      ensureServices();
       const lower = appName.toLowerCase();
       // Broadcast rows (app_match = 'all') are boot popups only — never per-app.
       const notBroadcast = (a: AppAlert) => (a.app_match || '').trim().toLowerCase() !== 'all';
@@ -156,7 +113,7 @@ export const useAppAlerts = () => {
         alerts.filter(notBroadcast).find((a) => lower.includes(a.app_match.toLowerCase())) || null
       );
     },
-    [alerts, serviceAlerts]
+    [alerts, serviceAlerts, ensureServices]
   );
 
 

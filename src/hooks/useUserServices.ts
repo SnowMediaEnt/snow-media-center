@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import i18n from '@/i18n';
 import { supabase } from '@/integrations/supabase/client';
+import { runAfter } from '@/utils/idle';
 
 export interface UserDevice {
   id: string;
@@ -35,19 +36,41 @@ export const daysUntil = (iso?: string | null): number | null => {
   return Math.round((d.getTime() - today.getTime()) / 86400000);
 };
 
+// A user's customer row id, looked up once. At start-up the services read
+// below and the Player's cloud sync (lib/playerAccountSync →
+// ensureCustomerRow) each looked it up; they now share one request.
+const customerIds = new Map<string, string>();
+const customerLookups = new Map<string, Promise<string | null>>();
+
+/** The customer row id of `userId`, or null when there is none. Throws on a failed read. */
+export const findCustomerId = (userId: string): Promise<string | null> => {
+  const known = customerIds.get(userId);
+  if (known) return Promise.resolve(known);
+  let p = customerLookups.get(userId);
+  if (!p) {
+    p = (async () => {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (error) throw error;
+      if (data?.id) customerIds.set(userId, data.id);
+      return data?.id ?? null;
+    })().finally(() => { customerLookups.delete(userId); });
+    customerLookups.set(userId, p);
+  }
+  return p;
+};
+
 /** Ensure a customer row exists for the given user. Returns the id. */
 export const ensureCustomerRow = async (
   userId: string,
   email: string,
   isAdminMode = false
 ): Promise<string> => {
-  const { data: existing, error: selErr } = await supabase
-    .from('customers')
-    .select('id')
-    .eq('user_id', userId)
-    .maybeSingle();
-  if (selErr) throw selErr;
-  if (existing?.id) return existing.id;
+  const existingId = await findCustomerId(userId);
+  if (existingId) return existingId;
 
   // Also try linking by email (admin may have pre-created)
   const { data: byEmail } = await supabase
@@ -58,6 +81,7 @@ export const ensureCustomerRow = async (
   if (byEmail?.id) {
     if (!byEmail.user_id) {
       await supabase.from('customers').update({ user_id: userId }).eq('id', byEmail.id);
+      customerIds.set(userId, byEmail.id);
     }
     return byEmail.id;
   }
@@ -68,6 +92,7 @@ export const ensureCustomerRow = async (
     .select('id')
     .single();
   if (insErr) throw insErr;
+  customerIds.set(userId, created.id);
   return created.id;
 };
 
@@ -75,38 +100,104 @@ export const ensureCustomerRow = async (
  * Hook for the signed-in user to read their own devices + services.
  * Used by the Home banner and the app-launch popup matcher.
  *
- * Phase 7: module-level singleton — the chain (auth.getUser + customers +
- * customer_devices + customer_services) runs ONCE shared across every consumer
- * (useAppAlerts, ServiceExpirationBanner, …). The `userServicesRefresh` event
- * still triggers an explicit refetch.
+ * Module-level singleton: the chain (session + customers + customer_devices +
+ * customer_services) runs ONCE shared across every consumer (useAppAlerts,
+ * ServiceExpirationBanner, …), and not at start-up: the first read waits
+ * ~2.5 s and for a quiet moment (an app launched before then asks for it with
+ * ensureLoaded). The `userServicesRefresh` event still triggers a refetch.
+ *
+ * The user comes from the stored session (no auth/v1/user round-trip): the
+ * rows are only ever the signed-in user's own, which RLS enforces anyway.
  */
 
 const EMPTY_STATE: UserServicesState = { customerId: null, devices: [], services: [] };
+// Short: a pinned app launched right after start-up needs its expiry alert,
+// which comes from this read (useAppAlerts.getAlertForApp).
+const FIRST_READ_DELAY_MS = 800;
+/** The longest the first read waits for a cloud write already under way. */
+const WRITE_WAIT_MS = 8000;
 
 let svcState: UserServicesState = EMPTY_STATE;
 let svcLoading = true;
 let svcInflight: Promise<void> | null = null;
+let svcQueued: Promise<void> | null = null;
+// A full read was asked for while one was queued: the queued one is full.
+let svcQueuedFull = false;
+// Whose rows svcState holds: a services-only read is for that account only.
+let svcUserId: string | null = null;
 let svcHasFetched = false;
+let svcFirstScheduled: (() => void) | null = null;
+let svcWaitingForWrites = false;
 const svcListeners = new Set<() => void>();
 let svcRefreshBound = false;
 
-const runUserServicesFetch = async (): Promise<void> => {
-  if (svcInflight) return svcInflight;
+// Writes to customer_services under way (the Player's cloud sync at start-up).
+// The first read waits for them, so it sees what they wrote and the refresh
+// they ask for afterwards is not a second read of the same rows.
+const pendingWrites = new Set<Promise<unknown>>();
+/** Register a write to the viewer's services; the first read waits for it. */
+export const trackServicesWrite = (p: Promise<unknown>): void => {
+  const done = p.catch(() => undefined).finally(() => { pendingWrites.delete(done); });
+  pendingWrites.add(done);
+};
+
+const emitServices = () => svcListeners.forEach((l) => l());
+
+const readServices = (customerId: string) =>
+  supabase
+    .from('customer_services')
+    .select('id, service_type, service_name, expiration_date, tied_apps, renewal_status, notes')
+    .eq('customer_id', customerId);
+
+const toServices = (rows: unknown): UserService[] =>
+  (((rows as any[]) || []).map((s) => ({
+    ...s,
+    tied_apps: Array.isArray(s.tied_apps) ? s.tied_apps : [],
+  }))) as UserService[];
+
+const runUserServicesFetch = (opts: { servicesOnly?: boolean } = {}): Promise<void> => {
+  if (svcInflight) {
+    // A refresh asked for during a read: one more read after it, since the
+    // rows may have changed after the running one read them.
+    if (!opts.servicesOnly) svcQueuedFull = true;
+    if (!svcQueued) {
+      svcQueued = svcInflight.then(() => {
+        const full = svcQueuedFull;
+        svcQueued = null; svcQueuedFull = false;
+        return runUserServicesFetch(full ? {} : { servicesOnly: true });
+      });
+    }
+    return svcQueued;
+  }
+  svcFirstScheduled?.(); svcFirstScheduled = null;
   svcLoading = true;
-  svcInflight = (async () => {
+  const p = (async () => {
     try {
-      const { data: auth } = await supabase.auth.getUser();
-      const user = auth?.user;
-      if (!user) {
-        svcState = EMPTY_STATE;
+      if (!svcHasFetched && pendingWrites.size) {
+        svcWaitingForWrites = true;
+        await Promise.race([
+          Promise.all([...pendingWrites]),
+          new Promise((r) => setTimeout(r, WRITE_WAIT_MS)),
+        ]);
+        svcWaitingForWrites = false;
+      }
+      const { data: auth } = await supabase.auth.getSession();
+      const user = auth?.session?.user;
+      // Only the services changed (the Player's sync wrote one): the
+      // customer and the devices are what they were — for the same account.
+      if (opts.servicesOnly && svcState.customerId && user && user.id === svcUserId) {
+        const { data, error } = await readServices(svcState.customerId);
+        if (!error) svcState = { ...svcState, services: toServices(data) };
         return;
       }
-      const { data: customer } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      if (!customer?.id) {
+      if (!user) {
+        svcState = EMPTY_STATE;
+        svcUserId = null;
+        return;
+      }
+      svcUserId = user.id;
+      const customerId = await findCustomerId(user.id);
+      if (!customerId) {
         svcState = EMPTY_STATE;
         return;
       }
@@ -114,36 +205,43 @@ const runUserServicesFetch = async (): Promise<void> => {
         supabase
           .from('customer_devices')
           .select('id, device_type, label, notes')
-          .eq('customer_id', customer.id),
-        supabase
-          .from('customer_services')
-          .select('id, service_type, service_name, expiration_date, tied_apps, renewal_status, notes')
-          .eq('customer_id', customer.id),
+          .eq('customer_id', customerId),
+        readServices(customerId),
       ]);
       svcState = {
-        customerId: customer.id,
+        customerId,
         devices: (devRes.data as UserDevice[]) || [],
-        services: ((svcRes.data as any[]) || []).map((s) => ({
-          ...s,
-          tied_apps: Array.isArray(s.tied_apps) ? s.tied_apps : [],
-        })) as UserService[],
+        services: toServices(svcRes.data),
       };
     } catch (e) {
       console.warn('[useMyUserServices] failed:', e);
     } finally {
+      svcWaitingForWrites = false;
       svcLoading = false;
       svcHasFetched = true;
-      svcInflight = null;
-      svcListeners.forEach((l) => l());
     }
   })();
-  return svcInflight;
+  const tracked: Promise<void> = p.finally(() => {
+    if (svcInflight === tracked) svcInflight = null;
+    emitServices();
+  });
+  svcInflight = tracked;
+  return tracked;
+};
+
+/** Read now unless a read has happened or is under way. */
+const ensureUserServicesLoaded = (): void => {
+  if (!svcHasFetched && !svcInflight) void runUserServicesFetch();
 };
 
 if (typeof window !== 'undefined' && !svcRefreshBound) {
   svcRefreshBound = true;
-  window.addEventListener('userServicesRefresh', () => {
-    void runUserServicesFetch();
+  window.addEventListener('userServicesRefresh', (e) => {
+    // Not read yet, or the first read is still waiting for this very write:
+    // that read will see it.
+    if (!svcHasFetched && (svcFirstScheduled || svcWaitingForWrites || !svcListeners.size)) return;
+    const detail = (e as CustomEvent<{ servicesOnly?: boolean } | null>).detail;
+    void runUserServicesFetch({ servicesOnly: !!detail?.servicesOnly });
   });
 }
 
@@ -156,13 +254,25 @@ export const useMyUserServices = () => {
   useEffect(() => {
     const listener = () => setTick((n) => n + 1);
     svcListeners.add(listener);
-    if (!svcHasFetched && !svcInflight) {
-      void runUserServicesFetch();
+    if (!svcHasFetched && !svcInflight && !svcFirstScheduled) {
+      svcFirstScheduled = runAfter(FIRST_READ_DELAY_MS, () => {
+        svcFirstScheduled = null;
+        ensureUserServicesLoaded();
+      });
     }
     return () => { svcListeners.delete(listener); };
   }, []);
 
-  return { ...svcState, loading: svcLoading, refetch };
+  return { ...svcState, loading: svcLoading, refetch, ensureLoaded: ensureUserServicesLoaded };
+};
+
+/** Tests only. */
+export const __resetUserServicesForTests = (): void => {
+  svcFirstScheduled?.(); svcFirstScheduled = null;
+  svcState = EMPTY_STATE; svcLoading = true; svcInflight = null; svcQueued = null; svcQueuedFull = false; svcUserId = null;
+  svcHasFetched = false; svcWaitingForWrites = false;
+  svcListeners.clear(); pendingWrites.clear();
+  customerIds.clear(); customerLookups.clear();
 };
 
 export const SERVICE_WARN_DAYS = 30;

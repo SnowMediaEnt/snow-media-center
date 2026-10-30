@@ -13,7 +13,7 @@ const h = vi.hoisted(() => ({
 
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
-    from: () => ({ select: () => ({ in: async () => ({ data: h.rows, error: null }) }) }),
+    from: () => ({ select: async () => ({ data: h.rows, error: null }) }),
     channel: () => {
       const ch = {
         on: (_e: string, _f: unknown, cb: (p: Record<string, unknown>) => void) => { h.onChange = cb; return ch; },
@@ -31,8 +31,9 @@ vi.mock('@/utils/idle', () => ({
 
 import { usePlayerFlagSync } from './usePlayerFlagSync';
 import { playerFlag } from '@/lib/playerFlags';
+import { featureFlagsQuery } from '@/lib/featureFlagStore';
 
-beforeEach(() => { localStorage.clear(); h.rows = []; h.onChange = null; });
+beforeEach(() => { featureFlagsQuery.__reset(); localStorage.clear(); h.rows = []; h.onChange = null; });
 
 describe('usePlayerFlagSync', () => {
   it('reads the rows, and a missing row is the default', async () => {

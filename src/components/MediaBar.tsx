@@ -94,18 +94,74 @@ const showable = (i: MediaItem) => notSports(i) && notAdult(i);
 // profile's home screen) and stamped with the Kids level it was built for: a
 // bar saved for a grown-up is never shown on a Kids profile, even one saved
 // before profiles kept their own.
-const readCache = (): MediaItem[] | null => {
+interface BarCache {
+  items: MediaItem[];
+  /** The two halves the bar is made of, so a fresh cache can stand in for a reload. */
+  viewer?: MediaItem[];
+  feed?: MediaItem[];
+  lines?: { hasLines: boolean; hasPlex: boolean } | null;
+  /** When both halves were last loaded (0: not since this cache format). */
+  fetchedAt: number;
+}
+
+const readCacheFull = (): BarCache | null => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if ((parsed?.kids ?? null) !== kidsLevel()) return null;
-    return Array.isArray(parsed?.items) ? (parsed.items as MediaItem[]).filter(showable) : null;
+    if (!Array.isArray(parsed?.items)) return null;
+    const list = (v: unknown) => (Array.isArray(v) ? (v as MediaItem[]).filter(showable) : undefined);
+    return {
+      items: (parsed.items as MediaItem[]).filter(showable),
+      viewer: list(parsed.viewer),
+      feed: list(parsed.feed),
+      lines: parsed.lines ?? null,
+      fetchedAt: typeof parsed.fetchedAt === 'number' ? parsed.fetchedAt : 0,
+    };
   } catch { return null; }
 };
 
-const writeCache = (items: MediaItem[]) => {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ items, ts: Date.now(), kids: kidsLevel() })); } catch { /* ignore unavailable localStorage */ }
+const writeCache = (items: MediaItem[], parts?: { viewer: MediaItem[]; feed: MediaItem[]; lines: BarCache['lines']; fetchedAt: number }) => {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ items, ts: Date.now(), kids: kidsLevel(), ...parts })); } catch { /* ignore unavailable localStorage */ }
+};
+
+// A play anywhere in the app (the Player, Plex) while Home is not on screen
+// changes "Continue watching": the next Home rebuilds the viewer's rows even
+// when the saved bar is younger than REFRESH_MS. Same for a sign-in change.
+// A new app start always rebuilds them once (a play in the last process
+// left no mark here), and so does any change to the viewer's lines, Plex
+// server or favourites: by event where there is one, and by comparing the
+// saved line and Plex server (which send none) with what the bar was built
+// from (viewerSig).
+let viewerDirty = true;
+let dirtyWatch = false;
+const VIEWER_KEYS = ['snow-player-account-v1', 'snow-plex-server-v1'];
+const VIEWER_EVENTS = [
+  'playerAccountRefresh', 'savedAccountsRefresh', 'plex-favorites:changed',
+  'smc:fav-order-changed', 'plex-progress:changed', 'plex-watched:changed',
+];
+const viewerSig = (): string => {
+  let h = 7;
+  for (const k of VIEWER_KEYS) {
+    let v = '';
+    try { v = localStorage.getItem(k) ?? ''; } catch { /* none */ }
+    for (let i = 0; i < v.length; i++) h = (h * 31 + v.charCodeAt(i)) >>> 0;
+    h = (h * 31 + 1) >>> 0;
+  }
+  return h.toString(36);
+};
+let builtSig: string | null = null;
+const watchViewerChanges = () => {
+  if (dirtyWatch || typeof window === 'undefined') return;
+  dirtyWatch = true;
+  window.addEventListener(WATCH_HISTORY_EVENT, () => { viewerDirty = true; });
+  for (const ev of VIEWER_EVENTS) window.addEventListener(ev, () => { viewerDirty = true; });
+  try {
+    supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') viewerDirty = true;
+    });
+  } catch { /* no auth client (tests) */ }
 };
 
 const isHardwareBackKey = (e: KeyboardEvent) =>
@@ -217,8 +273,14 @@ const openPlexItemFromBeginning = async (item: MediaItem) => {
 // that is on screen almost at once, then the sharp one over it when it has
 // loaded. Anything else (channel logos, other hosts) loads as it is.
 const isProxied = (src: string) => src.includes('/poster-proxy?');
+// Sharp posters this session has already shown. Back on Home (the bar is
+// rebuilt each time) or on a page the bar rotated through before, the sharp
+// copy comes from the browser's cache, so the tiny `&w=60` copy would be a
+// request for nothing: 64 posters went out in two idle minutes.
+const sharpShown = new Set<string>();
 const BarPoster = memo(({ src, className }: { src: string; className: string }) => {
-  const [sharp, setSharp] = useState(false);
+  const [sharpSrc, setSharpSrc] = useState<string | null>(() => (sharpShown.has(src) ? src : null));
+  const sharp = sharpSrc === src || sharpShown.has(src);
   const hide = (e: React.SyntheticEvent<HTMLImageElement>) => { e.currentTarget.style.visibility = 'hidden'; };
   if (!isProxied(src)) {
     return <img src={src} alt="" decoding="async" className={className} onError={hide} />;
@@ -232,7 +294,7 @@ const BarPoster = memo(({ src, className }: { src: string; className: string }) 
         decoding="async"
         className={className}
         style={sharp ? undefined : { opacity: 0 }}
-        onLoad={() => setSharp(true)}
+        onLoad={() => { sharpShown.add(src); setSharpSrc(src); }}
         onError={hide}
       />
     </>
@@ -242,7 +304,13 @@ BarPoster.displayName = 'BarPoster';
 
 const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer, onHoldMenu, onCustomize }: Props) => {
   const { t } = useTranslation();
-  const cached = useMemo(readCache, []);
+  const cacheFull = useMemo(readCacheFull, []);
+  const cached = cacheFull?.items ?? null;
+  // Saved less than REFRESH_MS ago with both halves: Home shows it as it is
+  // and the next refresh is the periodic one. Coming back to Home used to
+  // call media-bar-feed and rebuild the viewer's rows every time.
+  const cacheFresh = !!cacheFull && !!cacheFull.viewer && !!cacheFull.feed
+    && cacheFull.fetchedAt > 0 && Date.now() - cacheFull.fetchedAt < REFRESH_MS;
   // Everything the bar has (the viewer's rows, then the shared feed); what is
   // drawn is the part the viewer's Source and Show ask for (lib/homeBar).
   const [allItems, setItems] = useState<MediaItem[]>(cached ?? []);
@@ -252,8 +320,8 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer, onH
   const favMode = prefs.show === 'favorites';
   // The Favorites row is its own: their Live TV favourites, then My List.
   const [favItems, setFavItems] = useState<MediaItem[] | null>(null);
-  const [lineState, setLineState] = useState<{ hasLines: boolean; hasPlex: boolean } | null>(null);
-  const [viewerLoaded, setViewerLoaded] = useState(false);
+  const [lineState, setLineState] = useState<{ hasLines: boolean; hasPlex: boolean } | null>(() => (cacheFresh ? cacheFull?.lines ?? null : null));
+  const [viewerLoaded, setViewerLoaded] = useState(cacheFresh);
   const items = useMemo(
     () => (favMode ? favItems ?? [] : filterBarItems(allItems, prefs)),
     [favMode, favItems, allItems, prefs],
@@ -262,15 +330,19 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer, onH
   // placeholder posters; after it, an empty bar is simply empty. Without this
   // a feed that answers `items: []` — Plex unreachable from the edge runtime
   // and no game live — pulsed grey skeletons for the rest of the session.
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(cacheFresh);
   const [pageIdx, setPageIdx] = useState(0);
   const [focusIdx, setFocusIdx] = useState(0); // index within current page
   const [paused, setPaused] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   // The two halves of the bar. The viewer's rows come first; the shared
   // Plex feed fills in after them, minus anything already shown.
-  const viewerItemsRef = useRef<MediaItem[]>([]);
-  const feedItemsRef = useRef<MediaItem[]>([]);
+  const viewerItemsRef = useRef<MediaItem[]>(cacheFresh ? cacheFull?.viewer ?? [] : []);
+  const feedItemsRef = useRef<MediaItem[]>(cacheFresh ? cacheFull?.feed ?? [] : []);
+  const lineStateRef = useRef(lineState);
+  // When each half was last loaded; the cache's stamp is the older of the two.
+  const viewerAtRef = useRef(cacheFresh ? cacheFull!.fetchedAt : 0);
+  const feedAtRef = useRef(cacheFresh ? cacheFull!.fetchedAt : 0);
   const composeItems = () => {
     const seen = new Set<string>();
     const out: MediaItem[] = [];
@@ -281,7 +353,15 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer, onH
       seen.add(k);
       out.push(it);
     }
-    if (out.length) { setItems(out); writeCache(out); }
+    if (out.length) {
+      setItems(out);
+      writeCache(out, {
+        viewer: viewerItemsRef.current,
+        feed: feedItemsRef.current,
+        lines: lineStateRef.current,
+        fetchedAt: Math.min(viewerAtRef.current, feedAtRef.current),
+      });
+    }
   };
 
   const [demoNotice, setDemoNotice] = useState(false);
@@ -364,7 +444,10 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer, onH
         // built on the box alone: its own history and channels, and the
         // newest Plex titles of its rating (contentBar.ts).
         const next: MediaItem[] = kidsLevel() ? [] : (data?.items ?? []).filter(showable);
-        if (next.length) { feedItemsRef.current = next; composeItems(); }
+        feedAtRef.current = Date.now();
+        if (next.length) feedItemsRef.current = next;
+        // Composed (and saved, stamped) even when the feed had nothing new.
+        composeItems();
       } catch (e) {
         console.warn('[MediaBar] fetch failed:', (e as Error).message);
       } finally {
@@ -376,10 +459,15 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer, onH
     const loadViewer = async () => {
       if (DEMO) { setViewerLoaded(true); return; }
       try {
+        viewerDirty = false;
+        builtSig = viewerSig();
         const { items: mine, hasLines, hasPlex } = await buildViewerBar();
         if (cancelled) return;
         viewerItemsRef.current = mine as MediaItem[];
-        setLineState({ hasLines: !!hasLines, hasPlex: !!hasPlex });
+        viewerAtRef.current = Date.now();
+        const lines = { hasLines: !!hasLines, hasPlex: !!hasPlex };
+        lineStateRef.current = lines;
+        setLineState(lines);
         composeItems();
       } catch (e) {
         console.warn('[MediaBar] viewer rows failed:', (e as Error).message);
@@ -388,11 +476,18 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer, onH
       }
     };
     const loadAll = () => { void loadViewer(); void load(); };
+    watchViewerChanges();
     // With a cached bar on screen the refresh can wait for the first key
-    // press; a fresh install (empty bar) loads straight away.
-    const cancelFirst = cached?.length
-      ? onFirstInteraction(() => { cancelIdleFirst = runWhenIdle(loadAll, 3500); })
-      : runWhenIdle(loadAll, 1200);
+    // press; a fresh install (empty bar) loads straight away. A bar saved
+    // less than REFRESH_MS ago is not reloaded at all (only the viewer's
+    // rows, when something was played or the account changed meanwhile).
+    if (builtSig !== null && builtSig !== viewerSig()) viewerDirty = true;
+    const firstLoad = cacheFresh ? (viewerDirty ? () => { void loadViewer(); } : null) : loadAll;
+    const cancelFirst = !firstLoad
+      ? () => {}
+      : cached?.length
+        ? onFirstInteraction(() => { cancelIdleFirst = runWhenIdle(firstLoad, 3500); })
+        : runWhenIdle(firstLoad, 1200);
     // A new play, or a different account signing in, reshapes the rows.
     let debounce: number | null = null;
     const onHistory = () => {
@@ -409,8 +504,15 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer, onH
       if (document.documentElement.classList.contains('streaming-active')) return;
       loadAll();
     }, REFRESH_MS);
+    // A fresh saved bar skipped the first load: it is due when it turns
+    // REFRESH_MS old, not a whole REFRESH_MS after this mount.
+    const dueIn = cacheFresh && cacheFull ? Math.max(0, cacheFull.fetchedAt + REFRESH_MS - Date.now()) : -1;
+    const dueTimer = dueIn >= 0 ? window.setTimeout(() => {
+      if (!document.documentElement.classList.contains('streaming-active')) loadAll();
+    }, dueIn + 1000) : 0;
     return () => {
       cancelled = true;
+      if (dueTimer) window.clearTimeout(dueTimer);
       cancelFirst();
       cancelIdleFirst?.();
       cancelInterval();

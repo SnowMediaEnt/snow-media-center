@@ -10,6 +10,7 @@
 // poll, however many components are listening.
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { uniqueTopic } from '@/lib/sharedQuery';
 import i18n from '@/i18n';
 import { formatDate } from '@/i18n/format';
 import { runWhenIdle, onFirstInteraction } from '@/utils/idle';
@@ -208,7 +209,9 @@ function start(): () => void {
   let channel: ReturnType<typeof supabase.channel> | null = null;
   const cancelFirst = onFirstInteraction(() => {
     channel = supabase
-      .channel('snow_mail_changes')
+      // Unique: a restart of this store right after the last reader left
+      // would otherwise get the old channel back while it is still leaving.
+      .channel(uniqueTopic('snow_mail_changes'))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'snow_mail' }, () => { void refreshMail(); })
       .subscribe();
   });
