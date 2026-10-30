@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { runWhenIdle, onFirstInteraction } from '@/utils/idle';
+import { useCallback, useMemo } from 'react';
+import { useSharedQuery } from '@/lib/sharedQuery';
+import { appAlertsQuery, preEventRowOf, PRE_EVENT_MATCH, PRE_EVENT_SOURCE } from '@/lib/appAlertsStore';
 
 /**
  * Singleton "Pre-Event Steps" alert. Stored as a single row in the existing
@@ -13,8 +13,7 @@ import { runWhenIdle, onFirstInteraction } from '@/utils/idle';
  * on/off + the headline (event name).
  */
 
-export const PRE_EVENT_MATCH = '__pre_event__';
-export const PRE_EVENT_SOURCE = 'pre_event';
+export { PRE_EVENT_MATCH, PRE_EVENT_SOURCE };
 export const DEFAULT_PRE_EVENT_HEADLINE = 'PPV Tonight! Do the Pre-Event Steps BEFORE start time.';
 
 export interface PreEventAlertRow {
@@ -35,48 +34,17 @@ export const PRE_EVENT_STEPS: string[] = [
 ];
 
 export function usePreEventAlert() {
-  const [row, setRow] = useState<PreEventAlertRow | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchRow = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('app_alerts')
-      .select('id,title,active,updated_at')
-      .eq('source', PRE_EVENT_SOURCE)
-      .eq('app_match', PRE_EVENT_MATCH)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (error) {
-      console.warn('[PreEventAlert] fetch failed:', error.message);
-      setRow(null);
-    } else {
-      setRow((data as PreEventAlertRow | null) ?? null);
-    }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    const cancelIdle = runWhenIdle(() => { void fetchRow(); }, 1800);
-
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-    const cancelFirstInteraction = onFirstInteraction(() => {
-      channel = supabase
-        .channel('pre_event_alert_changes')
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'app_alerts', filter: `source=eq.${PRE_EVENT_SOURCE}` },
-          () => fetchRow()
-        )
-        .subscribe();
-    });
-
-    return () => {
-      cancelIdle();
-      cancelFirstInteraction();
-      if (channel) supabase.removeChannel(channel);
-    };
-  }, [fetchRow]);
-
-  return { row, loading, refetch: fetchRow };
+  // Picked out of the shared app_alerts read (lib/appAlertsStore), which keeps
+  // this row whether it is on or off. That read also has the realtime
+  // channel and the 60 s poll this hook used to run on its own.
+  const { data: rows, loading } = useSharedQuery(appAlertsQuery);
+  const found = useMemo(() => preEventRowOf(rows), [rows]);
+  // A new object only when a field this hook shows changed.
+  const row = useMemo<PreEventAlertRow | null>(
+    () => (found ? { id: found.id, title: found.title, active: found.active, updated_at: found.updated_at } : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [found?.id, found?.title, found?.active, found?.updated_at],
+  );
+  const refetch = useCallback(() => appAlertsQuery.refetch(), []);
+  return { row, loading, refetch };
 }

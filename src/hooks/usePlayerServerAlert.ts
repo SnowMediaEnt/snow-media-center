@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { runWhenIdle, onFirstInteraction } from '@/utils/idle';
-import { keepIfSame } from '@/lib/keepIfSame';
-import { setPausableInterval } from '@/utils/pausableInterval';
+import { runWhenIdle } from '@/utils/idle';
+import { useSharedQuery } from '@/lib/sharedQuery';
+import { appAlertsQuery } from '@/lib/appAlertsStore';
 
 export const PLAYER_SERVER_ALERT_SOURCE = 'player_server';
 /** Pre-event steps have their own dialog; everything else can reach here. */
 const OWN_DIALOG_SOURCES = ['pre_event'];
+/** A visit reads the alerts again unless they were read this recently. */
+const VISIT_FRESH_MS = 10_000;
 
 export interface PlayerServerAlert {
   id: string;
@@ -38,38 +39,24 @@ export interface PlayerServerAlert {
  * again.)
  */
 export function usePlayerServerAlert(serverLabel: string | null | undefined, extraLabels: string[] = [], visit: string | number = 0) {
-  const [rows, setRows] = useState<PlayerServerAlert[]>([]);
+  // The shared app_alerts read (lib/appAlertsStore): its realtime channel
+  // covers changes during a visit and its one-minute poll a channel that
+  // never connected.
+  const { data: all } = useSharedQuery(appAlertsQuery);
+  const rows = useMemo(
+    () => (all as PlayerServerAlert[]).filter((a) => a.active === true && !OWN_DIALOG_SOURCES.includes(String(a.source ?? ''))),
+    [all],
+  );
   const [dismissed, setDismissed] = useState<Record<string, string>>({});
   useEffect(() => { setDismissed({}); }, [visit]);
 
-  const fetchRows = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('app_alerts')
-      .select('id,app_match,title,message,severity,active,updated_at,source')
-      .eq('active', true);
-    if (error) { console.warn('[PlayerServerAlert] fetch failed:', error.message); setRows((prev) => (prev.length ? [] : prev)); return; }
-    const list = ((data || []) as PlayerServerAlert[]).filter((a) => !OWN_DIALOG_SOURCES.includes(String(a.source ?? '')));
-    setRows((prev) => keepIfSame(prev, list));
-  }, []);
-
   // Fresh on every visit, so an alert posted a minute ago is there when
-  // Plex opens; the realtime channel covers changes during a visit and a
-  // one-minute check covers a channel that never connected.
+  // Plex opens. Rows read in the last few seconds (Home's, at start-up) are
+  // fresh enough.
   useEffect(() => {
-    const cancelIdle = runWhenIdle(() => { void fetchRows(); }, 800);
+    const cancelIdle = runWhenIdle(() => { void appAlertsQuery.ensureFresh(VISIT_FRESH_MS); }, 800);
     return cancelIdle;
-  }, [fetchRows, visit]);
-  useEffect(() => {
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-    const cancelFirst = onFirstInteraction(() => {
-      channel = supabase
-        .channel('player_server_alert_changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'app_alerts' }, () => fetchRows())
-        .subscribe();
-    });
-    const cancelPoll = setPausableInterval(fetchRows, 60_000);
-    return () => { cancelFirst(); cancelPoll(); if (channel) supabase.removeChannel(channel); };
-  }, [fetchRows]);
+  }, [visit]);
 
   const extraKey = extraLabels.map((l) => l.trim().toLowerCase()).filter(Boolean).join('|');
   const match = useMemo<{ alert: PlayerServerAlert; label: string } | null>(() => {
