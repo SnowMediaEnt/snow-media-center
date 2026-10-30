@@ -128,7 +128,7 @@
         },
         "rewind": {
           "title": "Missed something? Back 10s rewinds live TV.",
-          "line2": "Go live jumps back to now."
+          "line2": "Go live jumps back to now. It needs a free stream on your plan, or a channel with catch-up."
         },
         "record": {
           "title": "Record from the bar, or hold OK on a channel → Record…",

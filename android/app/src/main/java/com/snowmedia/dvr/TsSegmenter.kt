@@ -25,8 +25,6 @@ internal class TsSegmenter(
     private val targetMs: Long,
     private val maxMs: Long,
     private val out: Output,
-    /** Milliseconds, monotonic (SystemClock.elapsedRealtime; a test passes its own). */
-    private val clock: () -> Long = { SystemClock.elapsedRealtime() },
 ) {
     interface Output {
         /** A new segment starts; [discontinuity]: timestamps jump here. */
@@ -64,10 +62,6 @@ internal class TsSegmenter(
         }
         while (i < end) {
             if (buf[i] != SYNC) { i++; continue } // lost sync: look for the next packet start
-            // A payload byte can be 0x47 too: after a gap (bytes dropped, a
-            // stream joined part-way) the next packet must start one
-            // packet on as well, when that is in this piece.
-            if (i + PACKET < end && buf[i + PACKET] != SYNC) { i++; continue }
             if (end - i < PACKET) {
                 System.arraycopy(buf, i, carry, 0, end - i)
                 carryLen = end - i
@@ -105,7 +99,7 @@ internal class TsSegmenter(
     fun currentMs(): Long {
         if (!inSegment) return 0L
         if (segStartPcr >= 0 && lastPcr >= 0) return pcrDelta(segStartPcr, lastPcr) / 90L
-        return clock() - segStartWall
+        return SystemClock.elapsedRealtime() - segStartWall
     }
 
     private fun packet(b: ByteArray, p: Int) {
@@ -147,7 +141,7 @@ internal class TsSegmenter(
         if (discontinuity && pcr >= 0 && (pid == pcrPid || pid < 0)) lastPcr = pcr
         segStartPcr = if (pcr >= 0 && (pid == pcrPid || pid < 0)) pcr else -1L
         if (discontinuity && segStartPcr < 0) lastPcr = -1L
-        segStartWall = clock()
+        segStartWall = SystemClock.elapsedRealtime()
         out.beginSegment(discontinuity)
     }
 

@@ -6,20 +6,17 @@
 //   (tv_archive = 1, tv_archive_duration = days). Rewinding then plays the
 //   panel's timeshift address: nothing is stored on the box.
 // - The on-box buffer: every other channel. While a channel plays full
-//   screen, the bytes the player itself reads are also written to the app's
-//   cache (disk only, never RAM) up to a safety limit, and the player moves
-//   onto that copy to pause or rewind. While it plays from the copy, the box
-//   keeps recording the live edge on ONE connection of its own, opened only
-//   after the player's live connection has closed, and closed again before
-//   Go live reopens the channel (android/.../dvr/TimeshiftSession.kt). So the
-//   buffer never uses a second stream of the line: it needs no free stream,
-//   works on a 1-stream plan, and has nothing to give back when another
-//   device starts watching. It is wiped when the viewer leaves the player,
-//   presses Home, closes the app or signs out.
+//   screen, a second connection writes it to the app's cache (disk only,
+//   never RAM) up to a safety limit, and the player moves onto that copy to
+//   pause or rewind. It is wiped when the viewer leaves the player, presses
+//   Home, closes the app or signs out. It is a second stream on the line, so
+//   it runs only while the panel says a stream is free (see LineUsage below),
+//   and gives the stream back when another device needs it.
 //
 // Stream addresses carry the line's username and password: nothing here logs
 // one, and nothing may.
 import type { XtreamCreds, XtreamLiveStream } from '@/lib/xtream';
+import type { TimeshiftStatus } from '@/capacitor/SnowPlayer';
 import i18n from '@/i18n';
 
 export type MaxRewind = 'auto' | 10 | 30 | 60;
@@ -198,31 +195,72 @@ export const rewindChannelKey = (host: string, streamId: number): string => `${h
 
 // ---- why rewind is off, and what to tell the viewer --------------------------
 
-/**
- * Why rewind is off for the channel on screen (null when it is on, or nothing
- * plays). The plan's streams, the panel's count and recordings play no part:
- * the buffer uses no stream of its own next to the picture.
- */
+/** Why rewind is off for the channel on screen (null when it is on, or nothing plays). */
 export type RewindOffReason =
   /** Switched off in Settings. */
   | 'disabled'
   /** The channel plays on mpv (owner test builds): rewind is ExoPlayer only. */
-  | 'engine';
+  | 'engine'
+  /** The plan allows one stream, so the buffer's second stream is not opened. */
+  | 'streams'
+  /** How many streams the plan allows is not known (another saved line). */
+  | 'streams-unknown'
+  /** Recordings are using the streams the buffer would need. */
+  | 'recording'
+  /** Asking the panel whether a stream is free (a few seconds after a channel opens). */
+  | 'line-checking'
+  /** The panel says every stream of the line is in use, so the buffer did not start. */
+  | 'line-full'
+  /** The panel could not be asked (or did not say), so the buffer did not start. */
+  | 'line-unknown'
+  /** The buffer was running and gave its stream back: another device needed it. */
+  | 'line-taken';
+
+/**
+ * The toast when the buffer gives its stream back mid-watch. This constant is the English
+ * text (the tests compare against it); the app shows i18n 'recordings.rewind.off.lineTaken'.
+ */
+export const LINE_TAKEN_MESSAGE = 'Rewind turned off: another device is using your line\'s streams.';
 
 /** What to tell the viewer who asks for rewind while it is off. */
 export function rewindOffMessage(reason: RewindOffReason | null): string {
   switch (reason) {
+    case 'streams': return i18n.t('recordings.rewind.off.streams');
+    case 'streams-unknown': return i18n.t('recordings.rewind.off.streamsUnknown');
+    case 'recording': return i18n.t('recordings.rewind.off.recording');
     case 'engine': return i18n.t('recordings.rewind.off.engine');
+    case 'line-checking': return i18n.t('recordings.rewind.off.lineChecking');
+    case 'line-full': return i18n.t('recordings.rewind.off.lineFull');
+    case 'line-unknown': return i18n.t('recordings.rewind.off.lineUnknown');
+    case 'line-taken': return i18n.t('recordings.rewind.off.lineTaken');
     default: return i18n.t('recordings.rewind.off.disabled');
   }
 }
 
-// ---- the line's streams (Multi-Screen) ------------------------------------------
+// ---- is a stream free on the line right now? ----------------------------------
 //
-// The panel's own count of the line's streams, from the Xtream player_api.php
+// The buffer is one more connection to the line. It runs only while the panel
+// itself says a stream is free, so it never takes the stream another TV in the
+// house needs. The panel's numbers come from the Xtream player_api.php
 // user_info (the same read the account screens use, ISP-block proxy fallback
-// included): `max_connections` and `active_cons`. Multi-Screen uses it
-// (multiScreenLines); the rewind buffer no longer needs it.
+// included): `max_connections` and `active_cons`.
+//
+// ASSUMPTION (active_cons): the panel counts every connection it has open on
+// the line right now, and that already includes THIS box's own playing
+// stream (the picture on screen) and, once it runs, the buffer's own capture
+// and any recording of this box. So before the buffer starts, a stream is
+// free when max_connections - active_cons >= 1. A reading of 0 while a
+// channel plays contradicts that (the panel isn't counting us, or the read is
+// stale), so it is not trusted either. Panels count with a small lag, so a
+// reading can briefly be one too high after a channel change: that only
+// delays the buffer (retry rules in useLiveRewind), never opens an extra stream.
+
+/** How often the running buffer asks the panel again, at most. */
+export const LINE_RECHECK_MS = 60_000;
+/** After the buffer was refused or gave up: the next try, unless the channel changes first. */
+export const LINE_RETRY_MS = 5 * 60_000;
+/** A channel must stay open this long before the panel is asked (zapping doesn't ask per channel). */
+export const LINE_CHECK_SETTLE_MS = 4_000;
 
 /** What the panel says about the line. */
 export interface LineUsage { max: number; active: number }
@@ -243,4 +281,25 @@ export function parseLineUsage(answer: unknown): LineUsage | null {
   const max = wholeOrNull(ui.max_connections);
   const active = wholeOrNull(ui.active_cons);
   return max == null || active == null ? null : { max, active };
+}
+
+/**
+ * While the buffer runs, has another device joined the line and left no free
+ * stream? `ownStreams` is what this box uses (picture + the buffer's capture +
+ * its recordings); `othersAtStart` is what the other devices used when the
+ * buffer started. The panel's count includes the buffer itself, so on a
+ * two-stream line "active >= max" is always true while it runs; only a
+ * connection beyond ours counts as somebody else needing the line.
+ */
+export function lineTakenByOthers(usage: LineUsage, ownStreams: number, othersAtStart: number): boolean {
+  return usage.active >= usage.max && usage.active - ownStreams > othersAtStart;
+}
+
+/**
+ * The native capture says the provider refused it or dropped it for good
+ * (TimeshiftSession: the connection failed again and again, whatever the HTTP
+ * status was). Disk problems say something else and are not this.
+ */
+export function captureRefused(st: Pick<TimeshiftStatus, 'state' | 'reason'> | null | undefined): boolean {
+  return !!st && st.state === 'unavailable' && /stopped sending/i.test(st.reason ?? '');
 }

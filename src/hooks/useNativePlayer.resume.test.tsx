@@ -270,10 +270,7 @@ describe('SnowPlayerPlugin.kt — a stream that starts fine keeps playing', () =
     expect(http).toContain('.setReadTimeoutMs(8000)');
     expect(http).not.toContain('setUserAgent');
     expect(plugin.match(/setUserAgent\(/g)).toHaveLength(1);
-    // Live TV's own source: the plain one, through the rewind tap on the main player (TimeshiftTapDataSource).
-    expect(plugin).toContain('PlexAwareFactory(liveFactory, plexFactory, transcodeFactory, rangeFactory) { s.rangeFetch }');
-    expect(plugin).toContain('TimeshiftTapDataSource.Factory(httpFactory, tsTee, { s.isLive }, { s.currentUrl })');
-    expect(plugin).toMatch(/\} else httpFactory/);
+    expect(plugin).toContain('PlexAwareFactory(httpFactory, plexFactory, transcodeFactory, rangeFactory) { s.rangeFetch }');
     // A conversion's playlist and segments go to the conversion source first;
     // a file from a remote server (rangeFetch) to the range source.
     const open = plugin.slice(plugin.indexOf('override fun open(dataSpec: DataSpec): Long {'));

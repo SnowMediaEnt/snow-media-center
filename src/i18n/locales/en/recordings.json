@@ -22,6 +22,7 @@
       "conflict_one": "You already have {{count}} recording at {{time}}. Cancel one first.",
       "conflict_other": "You already have {{count}} recordings at {{time}}. Cancel one first.",
       "noSpace": "Not enough free space for about {{length}} ({{usable}} usable).",
+      "rewindPaused": "Rewind paused while recording…",
       "updateRunning": "A recording is running. Updating now will stop it.",
       "sharingInternet": "A recording is using part of your internet.",
       "updateSoon": "A recording is scheduled to start soon. Updating now will stop it."
@@ -132,14 +133,21 @@
       "available": "-{{span}} available",
       "gettingReady": "Rewind is getting ready",
       "liveLabel": "LIVE",
-      "extraStream": "Uses no extra stream: the box keeps what you are already watching.",
+      "extraStream": "Uses one extra stream. It turns on only when your line has a free stream, and turns off by itself if another TV needs it.",
       "notAvailable": "Rewind is not available on this channel.",
       "gettingReadyRetry": "Rewind is getting ready. Try again in a few seconds.",
       "needsLatestApp": "Rewind needs the latest Snow Media Center app.",
       "watchingLive": "You are watching live.",
       "archiveStep": "This channel's archive moves a minute at a time. Press again, or Go live.",
       "off": {
+        "streams": "Your plan allows 1 stream, so rewind works only on channels with catch-up.",
+        "streamsUnknown": "This box can't tell how many streams your plan allows, so rewind works only on channels with catch-up.",
+        "recording": "Rewind is paused while recording (your plan's streams are in use).",
         "engine": "Rewind needs the ExoPlayer engine. Change it under Live TV settings › Player.",
+        "lineChecking": "Rewind is checking your line for a free stream. Try again in a few seconds.",
+        "lineFull": "Rewind is off: another device is using your line's streams. It tries again on the next channel.",
+        "lineUnknown": "Rewind is off: this box couldn't check that your line has a free stream. It tries again on the next channel.",
+        "lineTaken": "Rewind turned off: another device is using your line's streams.",
         "disabled": "Rewind is off. Turn on Rewind live TV in Live TV settings."
       }
     },

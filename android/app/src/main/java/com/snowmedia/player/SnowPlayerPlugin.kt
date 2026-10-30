@@ -87,7 +87,6 @@ import com.snowmedia.dvr.StorageBudget
 import com.snowmedia.dvr.TimeshiftLimits
 import com.snowmedia.dvr.TimeshiftManager
 import com.snowmedia.dvr.TimeshiftSession
-import com.snowmedia.dvr.TimeshiftTee
 import java.io.File
 import java.util.Locale
 import java.util.concurrent.Executors
@@ -176,7 +175,7 @@ class SnowPlayerPlugin : Plugin() {
         var volume: Float = 1f
         /** The volume boost past 100% on this player's audio session. */
         var boost: LoudnessEnhancer? = null
-        @Volatile var currentUrl: String? = null
+        var currentUrl: String? = null
         var currentSubtitles: JSArray? = null
         // Read on the loading thread too (the load-error policy, DeadStreamRule).
         @Volatile var isLive: Boolean = true
@@ -503,8 +502,6 @@ class SnowPlayerPlugin : Plugin() {
         private const val TS_PAUSE_TO_BUFFER_MS = 20_000L
         private const val TS_RECOVER_GAP_MS = 10_000L
         private const val TS_OLDEST_MARGIN_MS = 30_000L
-        /** Go live waits at most this long for the buffer's own connection to close. */
-        private const val TS_HANDBACK_TIMEOUT_MS = 3000L
         /** A display mode switch blanks HDMI for 1-3 s: that long after one,
          *  a stall is the switch, not the stream. */
         private const val MODE_SWITCH_GRACE_MS = 4000L
@@ -2019,13 +2016,7 @@ class SnowPlayerPlugin : Plugin() {
             .setConnectTimeoutMs(15000)
             .setReadTimeoutMs(30000)
             .setTransferListener(meter)
-        // Rewind live TV: the main player's live bytes also feed the on-box
-        // buffer (TimeshiftTee), so the buffer needs no connection of its own
-        // while the channel plays. Only while a live channel plays; tiles never.
-        val liveFactory: DataSource.Factory = if (screenId == MAIN) {
-            TimeshiftTapDataSource.Factory(httpFactory, tsTee, { s.isLive }, { s.currentUrl })
-        } else httpFactory
-        val dataSourceFactory = DefaultDataSource.Factory(act, PlexAwareFactory(liveFactory, plexFactory, transcodeFactory, rangeFactory) { s.rangeFetch })
+        val dataSourceFactory = DefaultDataSource.Factory(act, PlexAwareFactory(httpFactory, plexFactory, transcodeFactory, rangeFactory) { s.rangeFetch })
         // Closed captions on raw MPEG-TS live streams.
         //
         // By default Media3 only creates a caption track when the PMT carries an
@@ -2638,10 +2629,7 @@ class SnowPlayerPlugin : Plugin() {
         // ever actually mpv for the main slot playing a live channel — see
         // EngineChoice. Read here (pure) so the UI-thread block below has it.
         val requestedEngine = call.getString("engine") ?: EngineChoice.EXO
-        // Rewind live TV: while the buffer holds its own connection to the
-        // channel (the player was on the buffer), a load on the main player
-        // waits for it to close, so the two are never open at once.
-        val doLoad: () -> Unit = doLoad@{
+        activity?.runOnUiThread {
             val availability = EngineChoice.Availability(
                 inBuild = BuildConfig.SMC_WITH_MPV,
                 androidOk = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O,
@@ -2716,15 +2704,11 @@ class SnowPlayerPlugin : Plugin() {
                 s.wantAsyncCodec = wantAsync
                 s.wantAudioMode = wantAudio
             }
-            if (!ensureSurface(s)) { call.reject("no activity/webview"); return@doLoad }
-            // Rewind live TV: another stream on the main player. The last
-            // channel's buffer must not take its bytes (the WebView starts the
-            // new channel's buffer, or wipes); the same channel keeps it.
-            if (screenId == MAIN) tsManager?.let { m -> if (m.current?.let { it.url != url } == true) m.stop() }
+            if (!ensureSurface(s)) { call.reject("no activity/webview"); return@runOnUiThread }
             // A tile: an idle main box must not cover it.
             if (screenId != MAIN) hideIdleMainBox()
             if (engine == EngineChoice.MPV) {
-                val second = s.second ?: run { call.reject("mpv init failed"); return@doLoad }
+                val second = s.second ?: run { call.reject("mpv init failed"); return@runOnUiThread }
                 // mpv plays live channels only: never a matched mode.
                 s.matchFrameRate = false
                 if (screenId == MAIN) restoreDisplayMode()
@@ -2756,12 +2740,12 @@ class SnowPlayerPlugin : Plugin() {
                 second.setVolume(s.volume)
                 schedulePositionTick(s)
                 call.resolve()
-                return@doLoad
+                return@runOnUiThread
             }
             if (s.player == null) buildPlayer(s, screenId)
             activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             applyPendingRect(s, screenId)
-            val p = s.player ?: run { call.reject("player init failed"); return@doLoad }
+            val p = s.player ?: run { call.reject("player init failed"); return@runOnUiThread }
             cancelTimers(s)
             // A new stream on the main player is always the channel itself.
             if (screenId == MAIN) tsReset()
@@ -2871,17 +2855,6 @@ class SnowPlayerPlugin : Plugin() {
             schedulePositionTick(s)
             scheduleBandwidthTick(s, screenId)
             call.resolve()
-        }
-        activity?.runOnUiThread {
-            if (screenId == MAIN && tsManager?.holdsAny() == true) {
-                val asked = s.loadsAsked
-                val gen = tsPlayGen
-                // A newer load came meanwhile (it has the player), or the
-                // player was stopped / the app left the screen: this one is done.
-                tsAfterRelease { if (s.loadsAsked == asked && tsPlayGen == gen) doLoad() else call.resolve() }
-                return@runOnUiThread
-            }
-            doLoad()
         }
     }
 
@@ -3253,7 +3226,6 @@ class SnowPlayerPlugin : Plugin() {
     private fun stopSlot(s: PlayerSlot) {
         if (slots[MAIN] === s) releaseWifi()
         if (slots[MAIN] === s) tsReset()
-        if (slots[MAIN] === s) tsPlayGen++
         // Leaving the film (Back, a stop, another screen): the screen goes
         // back to its own mode, never left at 24 Hz on the menus. A moment
         // later, so a stop followed by the next load of a film (a quality
@@ -3843,37 +3815,18 @@ class SnowPlayerPlugin : Plugin() {
     // ---- Rewind live TV (timeshift) -----------------------------------------
     // Idle unless the WebView calls timeshiftStart for a full-screen channel:
     // with no buffer every hook above returns at once and playback is exactly
-    // as before. ONE connection to the channel, ever:
-    // - Live: the channel plays straight from the provider, and the bytes the
-    //   main player reads are also written to cacheDir/timeshift as a local
-    //   HLS playlist (TimeshiftTapDataSource -> TimeshiftTee ->
-    //   TimeshiftSession). No second connection.
-    // - A long pause, or a rewind, moves the main player onto that playlist
-    //   (tsSwitchToBuffer); its live connection closes, and only then (plus a
-    //   short grace) does the session open one connection of its own to keep
-    //   recording the live edge (TimeshiftSession.takeOver).
-    // - Go live (or forward past the end): the session closes its connection
-    //   FIRST; the player loads the channel once that is done (tsGoLive ->
-    //   TimeshiftSession.handBack), and the tee feeds the buffer again. A
-    //   load() meanwhile waits for it the same way. Each handover leaves a
-    //   small gap, a discontinuity in the playlist.
-    // Positions exchanged with the WebView are "seconds behind live".
+    // as before. The channel keeps playing straight from the provider; a
+    // second connection (TimeshiftManager) writes it to cacheDir/timeshift as
+    // a local HLS playlist. A long pause, or a rewind, moves the main player
+    // onto that playlist at the right moment; Go live (or forward past its
+    // end) loads the channel itself again. Positions exchanged with the
+    // WebView are "seconds behind live".
     //
     // ExoPlayer only. A channel playing on mpv (the owner-test engine) never
     // gets a buffer: timeshiftStart does nothing there, and the buffer is
     // never played on mpv's slot. The hooks are all in the ExoPlayer paths.
 
     private var tsManager: TimeshiftManager? = null
-    /** The main player's live bytes, on their way to the rewind buffer (see buildPlayer). */
-    private val tsTee = TimeshiftTee()
-    /** Go live is waiting for the buffer's own connection to close. */
-    private var tsHandingBack = false
-    /**
-     * Bumped when the main player is stopped (stopSlot: Back, another
-     * screen) or the app leaves the screen (handleOnStop): a load or a Go live
-     * still waiting for the buffer's connection to close is no longer wanted.
-     */
-    private var tsPlayGen = 0
     /** The main player is playing the rewind buffer, not the channel. */
     private var tsBuffer = false
     /** A live pause with a buffer running: when (elapsedRealtime), and how far behind the channel's edge the picture was. */
@@ -3895,7 +3848,7 @@ class SnowPlayerPlugin : Plugin() {
         val root = context?.cacheDir?.let { File(it, "timeshift") } ?: return null
         // Left-overs of a run that was killed before it could wipe.
         TimeshiftManager.wipeFolder(root)
-        return TimeshiftManager(root, tsTee).also { tsManager = it }
+        return TimeshiftManager(root).also { tsManager = it }
     }
 
     /** Back to plain live playback bookkeeping (a new stream, a stop). */
@@ -3965,71 +3918,13 @@ class SnowPlayerPlugin : Plugin() {
         p.setMediaSource(source, target - startAbs)
         p.prepare()
         p.playWhenReady = play
-        // The player's live connection is closing: the session keeps the live
-        // edge on its own one, opened once the player's is closed.
-        sess.takeOver()
         mainHandler.removeCallbacks(tsTickRunnable)
         mainHandler.postDelayed(tsTickRunnable, TS_TICK_MS)
         return true
     }
 
-    /**
-     * Load the channel itself again (Go live). The buffer's own connection
-     * (if it has one) is closed first: the player opens the channel only once
-     * it is, so the two are never open at once. The player plays on in the
-     * buffer meanwhile (normally well under a second). [then] runs after the
-     * reload (or once it is no longer wanted).
-     */
-    private fun tsGoLive(s: PlayerSlot, then: (() -> Unit)? = null) {
-        if (tsHandingBack) { then?.let { tsAfterRelease(it) }; return }
-        val asked = s.loadsAsked
-        val gen = tsPlayGen
-        tsAfterRelease {
-            // Still the same stream (no other load, stop or Home came meanwhile).
-            if (s.loadsAsked == asked && tsPlayGen == gen && s.currentUrl != null) tsReloadLive(s)
-            then?.invoke()
-        }
-    }
-
-    /**
-     * Runs [action] on the main thread once the rewind buffer holds no
-     * connection to the channel: at once when it holds none, else when its
-     * own connection has closed (TimeshiftSession.handBack), or after
-     * TS_HANDBACK_TIMEOUT_MS whatever happened (a close that hangs must not
-     * leave the viewer stuck; the connection was cancelled by then).
-     */
-    private fun tsAfterRelease(action: () -> Unit) {
-        val m = tsManager
-        val sess = m?.current
-        // A session closed on a channel change may still be closing its own.
-        val closing = m?.closingSessions().orEmpty()
-        val holds = sess?.holdsConnection() == true
-        if (!holds && closing.isEmpty()) {
-            sess?.handBack(Runnable { })
-            action()
-            return
-        }
-        tsHandingBack = true
-        val done = java.util.concurrent.atomic.AtomicBoolean(false)
-        lateinit var timeout: Runnable
-        val go = Runnable {
-            if (!done.compareAndSet(false, true)) return@Runnable
-            mainHandler.removeCallbacks(timeout)
-            tsHandingBack = false
-            action()
-        }
-        timeout = Runnable {
-            if (!done.get()) Log.w(TAG, "Rewind buffer's connection slow to close; going on")
-            go.run()
-        }
-        mainHandler.postDelayed(timeout, TS_HANDBACK_TIMEOUT_MS)
-        val left = java.util.concurrent.atomic.AtomicInteger(closing.size + if (holds) 1 else 0)
-        val one = Runnable { if (left.decrementAndGet() == 0) mainHandler.post(go) }
-        if (holds) sess!!.handBack(one) else sess?.handBack(Runnable { })
-        for (c in closing) c.whenReleased(one)
-    }
-
-    private fun tsReloadLive(s: PlayerSlot) {
+    /** Load the channel itself again (Go live). */
+    private fun tsGoLive(s: PlayerSlot) {
         endCatchUp(s, "rewind")
         tsReset()
         val url = s.currentUrl ?: return
@@ -4161,29 +4056,23 @@ class SnowPlayerPlugin : Plugin() {
         }
     }
 
-    /** Stop capturing and delete the buffer now. The player goes back to live first (and only then is the buffer deleted). */
+    /** Stop capturing and delete the buffer now. The player goes back to live first. */
     @PluginMethod
     fun timeshiftStop(call: PluginCall) {
         activity?.runOnUiThread {
-            tsLeaveBuffer { tsManager?.stop() }
+            slots[MAIN]?.let { if (tsBuffer) tsGoLive(it) }
+            tsManager?.stop()
             call.resolve()
         }
-    }
-
-    /** [then] once the main player is no longer on the buffer (Go live first when it is). */
-    private fun tsLeaveBuffer(then: () -> Unit) {
-        val s = slots[MAIN]
-        if (s != null && tsBuffer) tsGoLive(s, then) else then()
     }
 
     /** Delete every rewind buffer now (leaving the player, sign-out). Recordings are elsewhere and untouched. */
     @PluginMethod
     fun timeshiftWipe(call: PluginCall) {
         activity?.runOnUiThread {
-            tsLeaveBuffer {
-                tsReset()
-                tsManager?.wipeAll()
-            }
+            slots[MAIN]?.let { if (tsBuffer) tsGoLive(it) }
+            tsReset()
+            tsManager?.wipeAll()
             call.resolve()
         } ?: run {
             // No activity (closing): still clear the disk.
@@ -4241,11 +4130,6 @@ class SnowPlayerPlugin : Plugin() {
 
     override fun handleOnStop() {
         appStopped = true
-        tsPlayGen++
-        // On the buffer: let go of it before it is deleted (the WebView loads
-        // the channel again on return), rather than fail over to the channel
-        // while the buffer's own connection may still be closing.
-        if (tsBuffer) slots[MAIN]?.player?.stop()
         tsReset()
         tsManager?.wipeAll()
         // A film doesn't play on behind the screen (with a SurfaceView a 4K

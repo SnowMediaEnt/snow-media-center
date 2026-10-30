@@ -26,9 +26,6 @@ import scheduler from '../../android/app/src/main/java/com/snowmedia/dvr/RecordS
 import alarmReceiver from '../../android/app/src/main/java/com/snowmedia/dvr/ScheduleAlarmReceiver.kt?raw';
 import rearmReceiver from '../../android/app/src/main/java/com/snowmedia/dvr/RecordRearmReceiver.kt?raw';
 import xtream from '../lib/xtream.ts?raw';
-import tee from '../../android/app/src/main/java/com/snowmedia/dvr/TimeshiftTee.kt?raw';
-import tap from '../../android/app/src/main/java/com/snowmedia/player/TimeshiftTapDataSource.kt?raw';
-import hook from '../hooks/useLiveRewind.ts?raw';
 import widget from '../../android/app/src/main/java/com/snowmedia/widget/SmcNewsWidget.kt?raw';
 import activity from '../../android/app/src/main/java/com/snowmedia/MainActivity.kt?raw';
 import strings from '../../android/app/src/main/res/values/strings.xml?raw';
@@ -44,7 +41,7 @@ const logLines = (src: string) => src.split('\n').filter((l) => /\bLog\.[a-z]\(/
 /** The code without its comments (a comment may say "password" to warn about it). */
 const code = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\s\/\/ .*$/gm, '');
 const dvr = [
-  ['LiveSource', source], ['TimeshiftSession', session], ['TimeshiftManager', manager], ['TsSegmenter', segmenter], ['TimeshiftTee', tee],
+  ['LiveSource', source], ['TimeshiftSession', session], ['TimeshiftManager', manager], ['TsSegmenter', segmenter],
   ['StorageBudget', budget], ['RecordingService', service], ['RecorderPlugin', recorder], ['RecordingStore', store],
   ['LineCreds', lineCreds], ['ScheduleStore', scheduleStore], ['RecordScheduler', scheduler],
   ['ScheduleAlarmReceiver', alarmReceiver], ['RecordRearmReceiver', rearmReceiver], ['ScheduleRules', rules],
@@ -91,7 +88,7 @@ describe('the rewind buffer', () => {
     const start = body(manager, 'fun start(key: String');
     expect(start).toContain('cur?.close()');
     expect(start.indexOf('cur?.close()')).toBeLessThan(start.indexOf('TimeshiftSession('));
-    expect(body(manager, 'fun stop(')).toContain('cur.close(released)');
+    expect(body(manager, 'fun stop()')).toContain('cur.close()');
     expect(body(plugin, 'fun timeshiftStop(call: PluginCall)')).not.toContain('graceMs');
   });
 
@@ -114,9 +111,8 @@ describe('normal ExoPlayer playback reaches the rewind code only through guarded
     // load(): only in the ExoPlayer branch, after the MPV branch has returned.
     const load = body(plugin, 'fun load(call: PluginCall)');
     expect(load).toContain('if (screenId == MAIN) tsReset()');
-    const mpvDone = load.indexOf('return@doLoad\n            }\n            if (s.player == null) buildPlayer');
-    expect(mpvDone).toBeGreaterThan(0);
-    expect(mpvDone).toBeLessThan(load.indexOf('tsReset()'));
+    expect(load.indexOf('return@runOnUiThread\n            }\n            if (s.player == null) buildPlayer'))
+      .toBeLessThan(load.indexOf('tsReset()'));
   });
 
   it("SMC's mpv branches of play and pause are untouched (the hooks sit after their early return)", () => {
@@ -129,58 +125,14 @@ describe('normal ExoPlayer playback reaches the rewind code only through guarded
   });
 
   it('the load control is told it is a live stream before the buffer or the channel is prepared', () => {
-    for (const fn of ['private fun tsSwitchToBuffer(', 'private fun tsReloadLive(']) {
+    for (const fn of ['private fun tsSwitchToBuffer(', 'private fun tsGoLive(']) {
       const b = body(plugin, fn);
       expect(b).toContain('s.loadControl?.beginStream(film = false');
       expect(b.indexOf('beginStream(film = false')).toBeLessThan(b.indexOf('p.prepare()'));
     }
     // The buffer on the box gets no Live buffer cushion; Go live gets the channel's again.
     expect(body(plugin, 'private fun tsSwitchToBuffer(')).toContain('s.loadControl?.beginStream(film = false)\n');
-    expect(body(plugin, 'private fun tsReloadLive(')).toContain('beginStream(film = false, liveStartMs = s.liveStartMs, liveRebufferMs = s.liveRebufferMs)');
-  });
-});
-
-describe('one connection to the channel (the buffer is fed by the player)', () => {
-  it("only the main player's live source is tapped", () => {
-    const build = body(plugin, 'private fun buildPlayer(s: PlayerSlot, screenId: String)');
-    expect(build).toContain('if (screenId == MAIN) {\n            TimeshiftTapDataSource.Factory(httpFactory, tsTee, { s.isLive }, { s.currentUrl })\n        } else httpFactory');
-    expect(build).toContain('PlexAwareFactory(liveFactory, plexFactory, transcodeFactory, rangeFactory)');
-    // The buffer itself is played from disk, never through the tap.
-    expect(body(plugin, 'private fun tsSwitchToBuffer(')).toContain('HlsMediaSource.Factory(DefaultDataSource.Factory(ctx))');
-  });
-
-  it('a tapped source counts as open before its request and until after it is closed', () => {
-    const open = body(tap, 'override fun open(dataSpec: DataSpec)');
-    expect(open.indexOf('tee.begin(')).toBeLessThan(open.indexOf('inner.open(dataSpec)'));
-    const close = body(tap, 'override fun close()');
-    expect(close.indexOf('inner.close()')).toBeLessThan(close.indexOf('reader?.close()'));
-  });
-
-  it('the session opens its own connection only after the player let go, and Go live waits for it to close', () => {
-    expect(body(plugin, 'private fun tsSwitchToBuffer(')).toContain('sess.takeOver()');
-    const goLive = body(plugin, 'private fun tsGoLive(');
-    expect(goLive).toContain('tsAfterRelease {');
-    expect(goLive.indexOf('tsAfterRelease {')).toBeLessThan(goLive.indexOf('tsReloadLive(s)'));
-    expect(body(plugin, 'private fun tsAfterRelease(')).toContain('if (holds) sess!!.handBack(one)');
-    // A load on the main player waits the same way.
-    expect(plugin).toContain('if (screenId == MAIN && tsManager?.holdsAny() == true) {');
-    // Every deferred load and Go live is dropped after a stop or Home.
-    expect(body(plugin, 'private fun stopSlot(s: PlayerSlot)')).toContain('tsPlayGen++');
-    expect(body(plugin, 'override fun handleOnStop()')).toContain('tsPlayGen++');
-    expect(body(plugin, 'private fun tsGoLive(')).toContain('tsPlayGen == gen');
-    // A session closed on a channel change is waited for too.
-    expect(body(plugin, 'private fun tsAfterRelease(')).toContain('for (c in closing) c.whenReleased(one)');
-    // And the session never opens while a player connection is open.
-    expect(body(session, 'private fun awaitPlayerClosed(')).toContain('if (tee.openCount() > 0) {');
-  });
-
-  it('no second stream: the gate and the give-back are gone from the WebView side', () => {
-    expect(hook).not.toMatch(/bufferGate|maxConnections|activeRecordings|fetchLineUsage|yieldBuffer|lineTaken/);
-  });
-
-  it('the tee and the tap log nothing', () => {
-    expect(logLines(tee)).toEqual([]);
-    expect(logLines(tap)).toEqual([]);
+    expect(body(plugin, 'private fun tsGoLive(')).toContain('beginStream(film = false, liveStartMs = s.liveStartMs, liveRebufferMs = s.liveRebufferMs)');
   });
 });
 

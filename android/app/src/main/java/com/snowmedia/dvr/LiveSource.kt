@@ -14,21 +14,8 @@ internal class UnsupportedSourceException(message: String) : IOException(message
 internal class HttpStatusException(val status: Int) : IOException("HTTP $status")
 
 /**
- * One connection to a live channel that pushes its MPEG-TS bytes out
- * (LiveSource; a test's fake). [pump] blocks the calling thread until the
- * stream ends, fails (IOException) or is cancelled; [cancel] may be called
- * from any thread and makes it return promptly. When [pump] has returned the
- * connection is closed.
- */
-internal interface LiveFeed {
-    fun pump(sink: (ByteArray, Int, Int) -> Unit)
-    fun cancel()
-}
-
-/**
- * Reads one live channel as MPEG-TS bytes, for recordings and for Rewind
- * live TV while the player is on the rewind buffer (then nothing else on this
- * box is connected to the channel: see TimeshiftSession).
+ * Reads one live channel as MPEG-TS bytes, for Rewind live TV and for
+ * recordings: its own connection, separate from the player's.
  *
  * - A raw MPEG-TS channel (…/live/u/p/1.ts, what the native player plays) is
  *   passed through as it arrives.
@@ -43,12 +30,12 @@ internal interface LiveFeed {
  * [pump] blocks the calling (capture) thread; [cancel] may be called from any
  * thread and makes it return promptly.
  */
-internal class LiveSource(private val url: String) : LiveFeed {
+internal class LiveSource(private val url: String) {
     @Volatile private var conn: HttpURLConnection? = null
     @Volatile var cancelled = false
         private set
 
-    override fun cancel() {
+    fun cancel() {
         cancelled = true
         val c = conn ?: return
         // disconnect() closes the socket, which unblocks a read in progress.
@@ -60,7 +47,7 @@ internal class LiveSource(private val url: String) : LiveFeed {
      * Pushes the channel's bytes to [sink] until the stream ends (returns),
      * fails (IOException) or is cancelled (returns).
      */
-    override fun pump(sink: (ByteArray, Int, Int) -> Unit) {
+    fun pump(sink: (ByteArray, Int, Int) -> Unit) {
         if (cancelled) return
         if (looksHls(url)) { pumpHls(URL(url), sink); return }
         val c = open(URL(url))

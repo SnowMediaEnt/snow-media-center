@@ -27,7 +27,7 @@
       "mpvFallback": "MPV konnte auf diesem Gerät nicht starten – ExoPlayer wird verwendet",
       "finished": "Diese Sendung ist beendet",
       "recordingTitle": "{{name}} wird aufgenommen",
-      "recordingDesc": "Bis {{time}} · {{volume}}. {{note}}",
+      "recordingDesc": "Bis {{time}} · {{volume}}. {{note}}{{paused}}",
       "scheduledTitle": "Geplant: {{title}}",
       "scheduledDesc": "{{channel}}, {{times}}. {{note}}",
       "scheduledDescLate": "{{channel}}, {{times}}. {{note}} Dieses Gerät startet sie evtl. verspätet: siehe Live-TV › Aufnahmen.",

@@ -22,6 +22,7 @@
       "conflict_one": "Du hast um {{time}} schon {{count}} Aufnahme. Brich zuerst eine ab.",
       "conflict_other": "Du hast um {{time}} schon {{count}} Aufnahmen. Brich zuerst eine ab.",
       "noSpace": "Nicht genug freier Speicher für etwa {{length}} ({{usable}} nutzbar).",
+      "rewindPaused": "Zurückspulen pausiert während der Aufnahme…",
       "updateRunning": "Eine Aufnahme läuft. Ein Update jetzt beendet sie.",
       "sharingInternet": "Eine Aufnahme nutzt einen Teil deiner Internetverbindung.",
       "updateSoon": "Eine Aufnahme startet bald. Ein Update jetzt beendet sie."
@@ -132,14 +133,21 @@
       "available": "-{{span}} verfügbar",
       "gettingReady": "Zurückspulen wird vorbereitet",
       "liveLabel": "LIVE",
-      "extraStream": "Nutzt keinen zusätzlichen Stream: Die Box speichert, was du gerade schaust.",
+      "extraStream": "Nutzt einen zusätzlichen Stream. Wird nur aktiv, wenn dein Zugang einen freien Stream hat, und schaltet sich von selbst ab, wenn ein anderer Fernseher ihn braucht.",
       "notAvailable": "Zurückspulen ist auf diesem Sender nicht verfügbar.",
       "gettingReadyRetry": "Zurückspulen wird vorbereitet. Versuche es in ein paar Sekunden erneut.",
       "needsLatestApp": "Zurückspulen erfordert die neueste Version von Snow Media Center.",
       "watchingLive": "Du schaust live.",
       "archiveStep": "Das Archiv dieses Senders springt minutenweise. Drücke noch einmal oder wähle „Zu Live wechseln“.",
       "off": {
+        "streams": "Dein Tarif erlaubt 1 Stream, daher funktioniert Zurückspulen nur bei Sendern mit Zeitversatz.",
+        "streamsUnknown": "Dieses Gerät kann nicht feststellen, wie viele Streams dein Tarif erlaubt, daher funktioniert Zurückspulen nur bei Sendern mit Zeitversatz.",
+        "recording": "Zurückspulen pausiert während der Aufnahme (die Streams deines Tarifs sind belegt).",
         "engine": "Zurückspulen benötigt die ExoPlayer-Engine. Ändere sie unter Live-TV-Einstellungen › Player.",
+        "lineChecking": "Zurückspulen prüft, ob dein Zugang einen freien Stream hat. Versuche es in ein paar Sekunden erneut.",
+        "lineFull": "Zurückspulen ist aus: Ein anderes Gerät nutzt die Streams deines Zugangs. Beim nächsten Sender wird es erneut versucht.",
+        "lineUnknown": "Zurückspulen ist aus: Dieses Gerät konnte nicht prüfen, ob dein Zugang einen freien Stream hat. Beim nächsten Sender wird es erneut versucht.",
+        "lineTaken": "Zurückspulen wurde ausgeschaltet: Ein anderes Gerät nutzt die Streams deines Zugangs.",
         "disabled": "Zurückspulen ist aus. Aktiviere „Live-TV zurückspulen“ in den Live-TV-Einstellungen."
       }
     },
