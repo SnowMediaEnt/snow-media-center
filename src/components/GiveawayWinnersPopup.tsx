@@ -4,7 +4,8 @@ import { PartyPopper } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { trackEvent } from '@/lib/analytics';
-import { claimBootPopup, releaseBootPopup } from '@/utils/bootPopupQueue';
+import { markBackHandled } from '@/lib/overlayBack';
+import { claimBootPopup, otherPopupOpen, releaseBootPopup } from '@/utils/bootPopupQueue';
 import type { AnnouncedGiveaway } from '@/hooks/useGiveawayWinners';
 
 const WELCOME_KEY = 'smc-welcome-shown-version';
@@ -37,7 +38,8 @@ const GiveawayWinnersPopup = ({ giveaway, onDismiss }: Props) => {
       if (cancelled) return true;
       if (Date.now() - mountedAtRef.current < MIN_DELAY_MS) return false;
       try { if (!localStorage.getItem(WELCOME_KEY)) return false; } catch { return false; }
-      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return false;
+      // Any popup on screen, a boot notice included (not aria-modal on a TV).
+      if (otherPopupOpen()) return false;
       if (!claimBootPopup('giveaway-winners')) return false;
       setOpen(true);
       try { trackEvent('giveaway_winners_popup_shown', 'giveaway', { giveaway_id: giveaway.giveawayId }); } catch { void 0; }
@@ -61,13 +63,23 @@ const GiveawayWinnersPopup = ({ giveaway, onDismiss }: Props) => {
     if (open) setTimeout(() => okRef.current?.focus(), 50);
   }, [open]);
 
-  // D-pad: Enter / OK / Back / Escape all dismiss (capture phase).
+  // D-pad: Enter / OK / Back / Escape all dismiss (capture phase). The popup
+  // owns the remote: stopImmediatePropagation, since a plain stopPropagation
+  // still lets every other window capture listener act on the same press.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (['Enter', ' ', 'Escape', 'Backspace'].includes(e.key) || e.keyCode === 4) {
+      // Arrows stay here too: Home under the popup must not move.
+      if (e.key.startsWith('Arrow') || e.key === 'Tab') {
         e.preventDefault();
-        e.stopPropagation();
+        e.stopImmediatePropagation();
+        okRef.current?.focus();
+        return;
+      }
+      if (['Enter', ' ', 'Escape', 'Backspace'].includes(e.key) || e.keyCode === 4 || e.keyCode === 23) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4) markBackHandled();
         handleDismiss();
       }
     };

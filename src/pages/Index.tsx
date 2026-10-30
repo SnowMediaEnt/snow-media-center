@@ -1168,8 +1168,9 @@ const Index = () => {
       // fullscreen → rows → menu → exit); every path below returned for it
       // anyway, but only after the modal query on each press.
       if (currentViewRef.current === 'livetv') return;
-      // If the auto-update modal (or any aria-modal dialog) is open, let it own the keyboard.
-      if (document.querySelector('[data-autoupdate-dialog="true"], [aria-modal="true"]')) return;
+      // If the auto-update modal, any aria-modal dialog or a boot notice (not
+      // aria-modal on a TV) is open, let it own the keyboard.
+      if (document.querySelector('[data-autoupdate-dialog="true"], [aria-modal="true"], [data-notice-layer]')) return;
       // Skip navigation handling when user is typing in an input or textarea
       const target = event.target as HTMLElement;
       const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;

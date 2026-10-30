@@ -17,6 +17,7 @@ import { INTENT_KEYS } from '@/lib/appActions';
 import { trackEvent } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
 import { activeProfile, loadProfiles, markProfilesIntroSeen, profilesIntroSeen } from '@/lib/profiles';
+import { claimBootPopup, releaseBootPopup } from '@/utils/bootPopupQueue';
 
 const WELCOME_KEY = 'smc-welcome-shown-version';
 const MIN_DELAY_MS = 4500;
@@ -49,6 +50,7 @@ const ProfilesIntroPopup = ({ onSetUp }: { onSetUp: () => void }) => {
       try { if (!localStorage.getItem(WELCOME_KEY)) return false; } catch { return true; }
       if (document.querySelector('[role="dialog"][aria-modal="true"], [role="alertdialog"][data-state="open"], [role="dialog"][data-state="open"], [data-notice-layer]')) return false;
       if (document.querySelector('[data-media-bar] [data-focused="true"]')) return false;
+      if (!claimBootPopup('profiles-intro')) return false;
       setOpen(true);
       try { trackEvent('profiles_intro_shown', 'profiles'); } catch { void 0; }
       return true;
@@ -58,9 +60,13 @@ const ProfilesIntroPopup = ({ onSetUp }: { onSetUp: () => void }) => {
     return () => { cancelled = true; window.clearInterval(id); };
   }, []);
 
+  // The one boot-popup slot (utils/bootPopupQueue), handed on when it closes.
+  useEffect(() => () => releaseBootPopup('profiles-intro'), []);
+
   const close = useCallback((setUp: boolean) => {
     markProfilesIntroSeen();
     setOpen(false);
+    releaseBootPopup('profiles-intro');
     try { trackEvent('profiles_intro_answer', 'profiles', { setUp }); } catch { void 0; }
     if (setUp) {
       try { sessionStorage.setItem(INTENT_KEYS.settings, 'profiles'); } catch { /* ignore */ }
