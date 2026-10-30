@@ -65,6 +65,11 @@ const GameReminderHost = ({ navigate, blocked = false }: { navigate: Navigate; /
       if (!currentRef.current) return;
       const now = Date.now();
       if (now - lastBack.current < 350) return;
+      // A device message is drawn over this one, or a popup above already
+      // answered this same press (its key closed it, so it may be gone):
+      // the press was not for the reminder.
+      const at = (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt ?? 0;
+      if (document.querySelector('[data-device-message]') || (at !== lastBack.current && now - at < 350)) return;
       lastBack.current = now;
       (window as unknown as { __overlayHandledBackAt?: number }).__overlayHandledBackAt = now;
       close(false);

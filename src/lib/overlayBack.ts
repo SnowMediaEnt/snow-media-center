@@ -41,3 +41,19 @@ export function overlayAboveOwnsBack(own?: Element | null, ownAt = 0): boolean {
   const at = (window as BackWindow).__overlayHandledBackAt ?? 0;
   return at !== ownAt && Date.now() - at < BACK_ONCE_MS;
 }
+
+/**
+ * Mark a hardware Back as answered by an overlay. Call it on every path where
+ * a popup closes (or otherwise consumes) the remote's Back key.
+ *
+ * On a Fire TV one press of Back arrives twice: as a keydown (keyCode 4 /
+ * Escape) and, a moment later, as Capacitor's 'backButton'. A popup that
+ * closes on the key is gone from the page by the time the system Back comes,
+ * so useNavigation sees a bare Home and arms "press again to exit" — and
+ * Back on the next popup within two seconds closed the app. The mark makes
+ * every other Back listener stand aside for this press (BACK_ONCE_MS).
+ */
+export function markBackHandled(now = Date.now()): number {
+  (window as BackWindow).__overlayHandledBackAt = now;
+  return now;
+}

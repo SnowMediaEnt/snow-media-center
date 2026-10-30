@@ -5,6 +5,10 @@ import { Card } from '@/components/ui/card';
 import { Gift } from 'lucide-react';
 import { useActiveGiveaway } from '@/hooks/useActiveGiveaway';
 import { trackEvent } from '@/lib/analytics';
+import { markBackHandled } from '@/lib/overlayBack';
+import { claimBootPopup, otherPopupOpen, releaseBootPopup } from '@/utils/bootPopupQueue';
+
+const TURN_ID = 'giveaway-promo';
 
 const WELCOME_KEY = 'smc-welcome-shown-version';
 const seenKey = (id: string) => `smc_giveaway_seen_${id}`;
@@ -63,8 +67,10 @@ const GiveawayPromoPopup = ({ onViewGiveaway }: { onViewGiveaway: () => void }) 
         /* storage unavailable — keep waiting rather than stacking popups */
         return false;
       }
-      // Never stack on top of another modal
-      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return false;
+      // Never stack on another popup (a boot notice included), and take the
+      // one boot-popup slot so two never open in the same tick.
+      if (otherPopupOpen()) return false;
+      if (!claimBootPopup(TURN_ID)) return false;
       setOpen(true);
       try { trackEvent('giveaway_popup_shown', 'giveaway', { giveaway_id: giveawayId }); } catch { void 0; }
       return true;
@@ -78,6 +84,9 @@ const GiveawayPromoPopup = ({ onViewGiveaway }: { onViewGiveaway: () => void }) 
       window.clearInterval(id);
     };
   }, [giveawayId]);
+
+  useEffect(() => () => releaseBootPopup(TURN_ID), []);
+  useEffect(() => { if (!open) releaseBootPopup(TURN_ID); }, [open]);
 
   const markSeen = () => {
     if (!giveawayId) return;
@@ -102,18 +111,19 @@ const GiveawayPromoPopup = ({ onViewGiveaway }: { onViewGiveaway: () => void }) 
       const key = e.key;
       const code = (e as { keyCode?: number }).keyCode;
       if (key === 'Escape' || key === 'Backspace' || key === 'GoBack' || code === 4 || code === 27) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault(); e.stopImmediatePropagation();
+        markBackHandled();
         onNotNow();
         return;
       }
       if (key === 'ArrowLeft' || key === 'ArrowRight' || key === 'Tab' || key === 'ArrowUp' || key === 'ArrowDown') {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault(); e.stopImmediatePropagation();
         if (key === 'ArrowLeft' || (key === 'Tab' && e.shiftKey)) setFocusIdx(1);
         else if (key === 'ArrowRight' || key === 'Tab') setFocusIdx(0);
         return;
       }
       if (key === 'Enter' || key === ' ' || code === 13 || code === 23 || code === 66) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault(); e.stopImmediatePropagation();
         if (focusIdxRef.current === 0) onView(); else onNotNow();
         return;
       }

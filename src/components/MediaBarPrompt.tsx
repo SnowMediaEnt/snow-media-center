@@ -4,6 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Sparkles } from 'lucide-react';
 import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
+import { markBackHandled } from '@/lib/overlayBack';
+import { claimBootPopup, otherPopupOpen, releaseBootPopup } from '@/utils/bootPopupQueue';
+
+const TURN_ID = 'media-bar-prompt';
 
 // Sample tiles for the preview: made-up match-ups and titles, shown as they are.
 const SAMPLE = {
@@ -27,7 +31,7 @@ const WELCOME_KEY = 'smc-welcome-shown-version';
  *  - localStorage `smc-media-bar-prompt-seen` !== '1'
  *  - content bar currently OFF
  *  - welcome popup already dismissed (its storage key is set)
- *  - no other modal in the DOM
+ *  - no other popup on screen, and the boot-popup slot free (bootPopupQueue)
  */
 const MediaBarPrompt = () => {
   const { t } = useTranslation();
@@ -47,9 +51,10 @@ const MediaBarPrompt = () => {
         if (localStorage.getItem(PROMPT_KEY) === '1') return true; // done, stop
         if (enabled) return true; // already on, stop
         if (!localStorage.getItem(WELCOME_KEY)) return false; // wait for welcome
-        // Ensure no other modal is currently open
-        const otherModal = document.querySelector('[role="dialog"][aria-modal="true"]');
-        if (otherModal) return false;
+        // Never stack on another popup (a boot notice included), and take
+        // the one boot-popup slot so two never open in the same tick.
+        if (otherPopupOpen()) return false;
+        if (!claimBootPopup(TURN_ID)) return false;
         setOpen(true);
         return true;
       } catch {
@@ -60,6 +65,9 @@ const MediaBarPrompt = () => {
     const id = window.setInterval(() => { if (tryOpen()) window.clearInterval(id); }, 800);
     return () => { cancelled = true; window.clearInterval(id); };
   }, [enabled]);
+
+  useEffect(() => () => releaseBootPopup(TURN_ID), []);
+  useEffect(() => { if (!open) releaseBootPopup(TURN_ID); }, [open]);
 
   const markSeen = () => {
     try { localStorage.setItem(PROMPT_KEY, '1'); } catch { /* ignore */ }
@@ -82,14 +90,15 @@ const MediaBarPrompt = () => {
       const key = e.key;
       const code = (e as { keyCode?: number }).keyCode;
       if (key === 'Escape' || key === 'Backspace' || key === 'GoBack' || code === 4 || code === 27) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault(); e.stopImmediatePropagation();
+        markBackHandled();
         // Dismiss only. An explicit "Not now" opts out; a reflexive Back on a
         // TV remote must not silently switch the content bar off for good.
         setOpen(false);
         return;
       }
       if (key === 'ArrowLeft' || key === 'ArrowRight' || key === 'Tab' || key === 'ArrowUp' || key === 'ArrowDown') {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault(); e.stopImmediatePropagation();
         // Visual order: [Not now (idx=1)] [Turn it on (idx=0)]
         if (key === 'ArrowLeft' || (key === 'Tab' && e.shiftKey)) setFocusIdx(1);
         else if (key === 'ArrowRight' || key === 'Tab') setFocusIdx(0);
@@ -97,7 +106,7 @@ const MediaBarPrompt = () => {
         return;
       }
       if (key === 'Enter' || key === ' ' || code === 13 || code === 23 || code === 66) {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault(); e.stopImmediatePropagation();
         if (focusIdxRef.current === 0) onTurnOn(); else onNotNow();
         return;
       }

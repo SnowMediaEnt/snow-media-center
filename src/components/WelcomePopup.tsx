@@ -5,6 +5,8 @@ import { Card } from '@/components/ui/card';
 import { Smartphone, Video, MessageCircle, Sparkles } from 'lucide-react';
 import { useVersion } from '@/hooks/useVersion';
 import { usePlatformBack } from '@/hooks/usePlatformBack';
+import { useBootPopupTurn } from '@/hooks/useBootPopupTurn';
+import { markBackHandled } from '@/lib/overlayBack';
 import { useTouchUI } from '@/lib/phoneMode';
 
 /**
@@ -296,7 +298,10 @@ const SLOGAN = 'Stay Streamin — Stay Dreamin';
 const WelcomePopup = ({ onOpenChange }: WelcomePopupProps) => {
   const { t } = useTranslation();
   const { version, isLoading } = useVersion();
-  const [open, setOpen] = useState(false);
+  // `wanted`: there is something to show. `open`: it is this popup's turn
+  // (utils/bootPopupQueue) — it never stacks on another popup.
+  const [wanted, setOpen] = useState(false);
+  const open = useBootPopupTurn('welcome', wanted);
   const [mode, setMode] = useState<'first' | 'whatsnew'>('first');
 
   const onOpenChangeRef = useRef(onOpenChange);
@@ -353,23 +358,25 @@ const WelcomePopup = ({ onOpenChange }: WelcomePopupProps) => {
       const code = (e as any).keyCode;
       if (key === 'Escape' || key === 'Backspace' || key === 'GoBack' || code === 4 || code === 27) {
         e.preventDefault();
-        e.stopPropagation();
+        e.stopImmediatePropagation();
+        markBackHandled();
         dismiss();
         return;
       }
       if (key === 'Enter' || key === ' ' || code === 13 || code === 23 || code === 66) {
         // Activate the popup button ourselves and stop the event from
         // reaching the underlying page handler (which would also activate
-        // the focused card behind the popup).
+        // the focused card behind the popup). stopImmediatePropagation: the
+        // other window listeners run after a plain stopPropagation.
         e.preventDefault();
-        e.stopPropagation();
+        e.stopImmediatePropagation();
         dismiss();
         return;
       }
       if (key === 'ArrowUp' || key === 'ArrowDown') {
         // The notes can run longer than the screen: Up/Down read through them.
         e.preventDefault();
-        e.stopPropagation();
+        e.stopImmediatePropagation();
         const box = document.querySelector<HTMLElement>('[data-welcome-scroll="true"]');
         if (box) box.scrollBy({ top: (key === 'ArrowDown' ? 1 : -1) * Math.round(box.clientHeight * 0.6), behavior: 'smooth' });
         document.querySelector<HTMLButtonElement>('[data-welcome-primary="true"]')?.focus({ preventScroll: true });
@@ -377,7 +384,7 @@ const WelcomePopup = ({ onOpenChange }: WelcomePopupProps) => {
       }
       if (key === 'ArrowLeft' || key === 'ArrowRight' || key === 'Tab') {
         e.preventDefault();
-        e.stopPropagation();
+        e.stopImmediatePropagation();
         document.querySelector<HTMLButtonElement>('[data-welcome-primary="true"]')?.focus({ preventScroll: true });
       }
     };

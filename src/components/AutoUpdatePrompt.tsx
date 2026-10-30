@@ -13,6 +13,8 @@ import { useVersion } from '@/hooks/useVersion';
 import { setPausableInterval } from '@/utils/pausableInterval';
 import { runAfter, runWhenIdle } from '@/utils/idle';
 import { recordingGuardNote } from '@/lib/recordSchedule';
+import { markBackHandled } from '@/lib/overlayBack';
+import { useBootPopupTurn } from '@/hooks/useBootPopupTurn';
 import {
   prepareSmcUpdate,
   installPreparedUpdate,
@@ -38,7 +40,6 @@ const SNOOZE_MS = 24 * 60 * 60 * 1000;
 // key pressed and no player open (see waitForHomeIdle). It was a full minute,
 // which most viewers never give it: they go straight into Live TV.
 const HOME_IDLE_MS = 10_000;
-const IDLE_POLL_MS = 5_000;
 
 /** Whether "Later" was said to `version` less than a day ago. A plain version
  *  string (what the app kept before 1.9.3, "never again") does not count. */
@@ -101,7 +102,23 @@ const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
   // is offered again without a restart.
   const preparedRef = useRef<PreparedUpdate | null>(null);
   preparedRef.current = prepared;
-  const [open, setOpen] = useState(false);
+  // `wanted`: an update is ready to offer. `open`: it is the prompt's turn
+  // on screen (utils/bootPopupQueue). It used to open over whatever was up —
+  // Welcome, the content bar offer, a device message — at the very top of
+  // the stack, so one OK both closed the popup it hid and answered (or
+  // cancelled) "Update now", or the box looked frozen under it.
+  const [wanted, setOpen] = useState(false);
+  // Only on Home: not while the app is off Home (`paused`) or a player is
+  // streaming. Waiting its turn behind another popup, it must not take the
+  // slot after the viewer has gone on to Live TV or a film meanwhile.
+  const [streaming, setStreaming] = useState(() => document.documentElement.classList.contains('streaming-active'));
+  useEffect(() => {
+    const el = document.documentElement;
+    const mo = new MutationObserver(() => setStreaming(el.classList.contains('streaming-active')));
+    mo.observe(el, { attributes: true, attributeFilter: ['class'] });
+    return () => mo.disconnect();
+  }, []);
+  const open = useBootPopupTurn('update', wanted && !paused && !streaming);
   const [installing, setInstalling] = useState(false);
   // A recording is running, or one starts within 30 minutes: installing ends the
   // app's process and the recording with it, so the prompt says so and "Later"
@@ -116,7 +133,10 @@ const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
   // When the box last showed signs of a viewer on Home: a key, or Home
   // coming back. The silent download waits for HOME_IDLE_MS past it.
   const activeAtRef = useRef(Date.now());
-  useEffect(() => { pausedRef.current = paused; activeAtRef.current = Date.now(); }, [paused]);
+  // Told when `paused` changes (Home left or back): a download waiting for
+  // a quiet Home wakes on it instead of polling.
+  const pausedWatchRef = useRef<(() => void) | null>(null);
+  useEffect(() => { pausedRef.current = paused; activeAtRef.current = Date.now(); pausedWatchRef.current?.(); }, [paused]);
   useEffect(() => {
     const onKey = () => { activeAtRef.current = Date.now(); };
     window.addEventListener('keydown', onKey, true);
@@ -152,16 +172,46 @@ const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
     const isNative = isNativePlatform();
 
     let cancelled = false;
+    // Downloads waiting for a quiet Home: woken (and rejected) on teardown.
+    const waits = new Set<() => void>();
 
     // A player streaming (any: Plex, Live TV, a film) or the viewer off Home.
     const playerOpen = () => pausedRef.current || document.documentElement.classList.contains('streaming-active');
     // Resolves once the box has been idle on Home for HOME_IDLE_MS with no
     // player open; rejects if this check is torn down first.
+    //
+    // While a player is open or the viewer is off Home nothing ticks: it
+    // waits for the `streaming-active` class to come off <html> (a
+    // MutationObserver) or for `paused` to change (pausedWatchRef), then
+    // times the quiet stretch. It used to look every 5 s for the rest of the
+    // session, playback included.
     const waitForHomeIdle = (version: string) => new Promise<void>((resolve, reject) => {
-      const step = () => {
-        if (cancelled) { reject(new Error('update check closed')); return; }
-        const idleFor = playerOpen() ? -1 : Date.now() - activeAtRef.current;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      let observer: MutationObserver | null = null;
+      const stopWatching = () => {
+        if (timer) { clearTimeout(timer); timer = null; }
+        observer?.disconnect();
+        observer = null;
+        if (pausedWatchRef.current === step) pausedWatchRef.current = null;
+        waits.delete(step);
+      };
+      const watchForHome = () => {
+        if (observer) return;
+        try {
+          observer = new MutationObserver(() => { if (!playerOpen()) step(); });
+          observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+        } catch { observer = null; }
+      };
+      function step() {
+        if (timer) { clearTimeout(timer); timer = null; }
+        if (cancelled) { stopWatching(); reject(new Error('update check closed')); return; }
+        pausedWatchRef.current = step;
+        if (playerOpen()) { watchForHome(); return; }
+        observer?.disconnect();
+        observer = null;
+        const idleFor = Date.now() - activeAtRef.current;
         if (idleFor >= HOME_IDLE_MS) {
+          stopWatching();
           // Subtle, non-blocking hint. Don't steal focus.
           toast({
             title: i18n.t('updater.prompt.downloadingTitle'),
@@ -170,8 +220,11 @@ const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
           resolve();
           return;
         }
-        setTimeout(step, idleFor < 0 ? IDLE_POLL_MS : Math.max(1000, Math.min(IDLE_POLL_MS, HOME_IDLE_MS - idleFor)));
-      };
+        // On Home: one timer for the rest of the quiet stretch (a key since
+        // then pushes it on when it fires).
+        timer = setTimeout(step, Math.max(1000, HOME_IDLE_MS - idleFor));
+      }
+      waits.add(step);
       step();
     });
 
@@ -266,6 +319,7 @@ const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
       cancelled = true;
       cancelIdle();
       cancelInterval();
+      Array.from(waits).forEach((wake) => wake());
     };
     // The prepared update is read through preparedRef, so state changes don't
     // re-run this effect (which would re-arm the hourly interval).
@@ -301,6 +355,7 @@ const AutoUpdatePrompt = ({ paused = false }: { paused?: boolean }) => {
       const idx = btns.indexOf(document.activeElement as HTMLButtonElement);
       if (e.key === 'Escape' || e.key === 'GoBack' || e.keyCode === 4) {
         e.preventDefault();
+        markBackHandled();
         if (!installing) {
           if (info?.version) snoozeVersion(info.version);
           setOpen(false);

@@ -8,6 +8,7 @@ import { kidsLevel } from '@/lib/kidsFilter';
 import RenewQR from './RenewQR';
 import { useTranslation } from 'react-i18next';
 import { serverDisplayName } from '@/lib/xtream';
+import { markBackHandled } from '@/lib/overlayBack';
 
 interface Props {
   open: boolean;
@@ -59,13 +60,15 @@ const ExpirationNoticeDialog = memo(({ open, serverLabel, days, username, onDism
         || e.keyCode === 4 || e.keyCode === 13 || e.keyCode === 23;
       if (!isNav) return;
       e.preventDefault();
-      e.stopPropagation();
+      // Immediate: Live TV's own window listeners must not act on it too.
+      e.stopImmediatePropagation();
       if (e.key === 'ArrowLeft') setFocusIdx(i => (i - 1 + BTN_COUNT) % BTN_COUNT);
       else if (e.key === 'ArrowRight') setFocusIdx(i => (i + 1) % BTN_COUNT);
       else if (e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 23) {
         if (showRenew && focusIdxRef.current === 0) openRenew();
         else handleDismiss();
       } else {
+        markBackHandled();
         handleDismiss(); // Back / Escape dismisses from the notice view
       }
     };

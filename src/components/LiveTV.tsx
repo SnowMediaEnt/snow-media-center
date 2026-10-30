@@ -245,6 +245,13 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
   // Expiration dialog — once per day per state (warn|expired).
   const [expNoticeKind, setExpNoticeKind] = useState<'warn' | 'expired' | null>(null);
   useEffect(() => { expNoticeOpenRef.current = !!expNoticeKind; }, [expNoticeKind]);
+  // The Live TV shell's server alert waits while the expiry notice is up (one
+  // popup at a time, as in Movies & Series). Either one on screen owns the
+  // remote: every section's isActive leaves it out (popupOver), or the
+  // section's capture listener, added first, took OK / Back before the popup
+  // heard it — OK played a channel under the alert, Back left full screen.
+  const shellAlertShown = !!serverAlert && !!serverLabel && !expNoticeKind;
+  const popupOver = !!expNoticeKind || shellAlertShown;
   useEffect(() => {
     if (!credsLoaded || !creds) return;
     if (playerDays === null) return;
@@ -1405,7 +1412,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         Snow Media Ent.
       </div>
 
-      {serverAlert && serverLabel && (
+      {shellAlertShown && serverAlert && serverLabel && (
         <PlayerServerAlertDialog
           alert={serverAlert}
           serverLabel={serverAlertApp ?? serverLabel}
@@ -1552,7 +1559,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         {inSection('live') && !liveShowsGuide && (
           <LiveSection
             creds={creds!}
-            isActive={pane === 'content' && !claimOpen && !trialAsking}
+            isActive={pane === 'content' && !claimOpen && !popupOver && !trialAsking}
             onExitLeft={onExitLeft}
             onExitUp={onExitUp}
             onBack={onBack}
@@ -1569,7 +1576,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
             <GuideSection
               key={section}
               creds={creds!}
-              isActive={pane === 'content' && !claimOpen && !(liveShowsGuide && trialAsking)}
+              isActive={pane === 'content' && !claimOpen && !popupOver && !(liveShowsGuide && trialAsking)}
               onExitLeft={onExitLeft}
               onExitUp={onExitUp}
               onNavigate={navigateViaRef}
@@ -1589,7 +1596,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <GameDaySection
               creds={creds}
-              isActive={pane === 'content' && !claimOpen}
+              isActive={pane === 'content' && !claimOpen && !popupOver}
               onExitLeft={onExitLeft}
               onExitUp={onExitUp}
               onWatch={onGameDayWatch}
@@ -1603,7 +1610,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         {inSection('recordings') && (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <RecordingsScreen
-              active={pane === 'content' && !claimOpen}
+              active={pane === 'content' && !claimOpen && !popupOver}
               onClose={onExitLeft}
               onExitUp={onExitUp}
             />
@@ -1614,7 +1621,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <MultiScreenSection
               creds={creds}
-              isActive={pane === 'content' && !claimOpen}
+              isActive={pane === 'content' && !claimOpen && !popupOver}
               onExitLeft={onExitLeft}
               onExitUp={onExitUp}
               onImmersiveChange={setMultiImmersive}
@@ -1626,7 +1633,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
         {inSection('originals') && (
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <OriginalsSection
-              isActive={pane === 'content' && !claimOpen}
+              isActive={pane === 'content' && !claimOpen && !popupOver}
               onExitLeft={onExitLeft}
               onExitUp={onExitUp}
             />
@@ -1642,7 +1649,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           ) : (
             <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
               <BackupsSection
-                isActive={pane === 'content' && !claimOpen}
+                isActive={pane === 'content' && !claimOpen && !popupOver}
                 onExitLeft={onExitLeft}
                 onExitUp={onExitUp}
                 serverLabel={serverLabel}
@@ -1657,7 +1664,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <VodSection
               creds={creds}
-              isActive={pane === 'content' && !claimOpen}
+              isActive={pane === 'content' && !claimOpen && !popupOver}
               onExitLeft={onExitLeft}
               onExitUp={onExitUp}
             />
@@ -1668,7 +1675,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <MoviesSection
               creds={creds!}
-              isActive={pane === 'content' && !claimOpen}
+              isActive={pane === 'content' && !claimOpen && !popupOver}
               onExitLeft={onExitLeft}
               onExitUp={onExitUp}
             />
@@ -1678,7 +1685,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
             <SeriesSection
               creds={creds!}
-              isActive={pane === 'content' && !claimOpen}
+              isActive={pane === 'content' && !claimOpen && !popupOver}
               onExitLeft={onExitLeft}
               onExitUp={onExitUp}
             />
@@ -1690,7 +1697,7 @@ const Player = memo(({ onBack, onNavigate }: Props) => {
           ) : (
             <Suspense fallback={<div className="flex-1 flex items-center justify-center"><Loader2 className="w-10 h-10 animate-spin text-brand-gold" /></div>}>
               <PlexSection
-                isActive={pane === 'content' && !claimOpen && !expNoticeKind && !serverAlert}
+                isActive={pane === 'content' && !claimOpen && !popupOver}
                 onExitLeft={onExitLeft}
                 onExitUp={onExitUp}
                 onNeedLiveTV={plexNeedLiveTV}

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import type { PlayerServerAlert } from '@/hooks/usePlayerServerAlert';
 import { serverDisplayName } from '@/lib/xtream';
+import { markBackHandled } from '@/lib/overlayBack';
 
 interface Props {
   alert: PlayerServerAlert;
@@ -27,6 +28,7 @@ const PlayerServerAlertDialog = memo(({ alert, serverLabel, onDismiss }: Props) 
       if (typing) return;
       if (e.keyCode === 4 || e.keyCode === 13 || e.keyCode === 23 || ['Enter', ' ', 'Escape', 'Backspace'].includes(e.key)) {
         e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        if (e.keyCode === 4 || e.key === 'Escape' || e.key === 'Backspace') markBackHandled();
         onDismiss();
       }
     };

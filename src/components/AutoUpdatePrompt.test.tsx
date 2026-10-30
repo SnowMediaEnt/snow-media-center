@@ -22,12 +22,15 @@ vi.mock('@/utils/updateCache', () => ({
 }));
 
 import AutoUpdatePrompt from './AutoUpdatePrompt';
+import { __resetBootPopupForTests } from '@/utils/bootPopupQueue';
 
 const dialog = () => document.querySelector('[data-autoupdate-dialog="true"]');
 const tick = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms); });
 
 beforeEach(() => {
   vi.useFakeTimers();
+  __resetBootPopupForTests();
+  document.body.innerHTML = '';
   localStorage.clear();
   prepareSmcUpdate.mockClear();
   installPreparedUpdate.mockClear();
@@ -203,6 +206,21 @@ describe('AutoUpdatePrompt: the silent download waits for an idle Home', () => {
     await tick(5 * 60_000);
     expect(started).toBe(0);
   });
+
+  it('nothing ticks while it waits for a stream to end; the stream ending wakes it', async () => {
+    render(<AutoUpdatePrompt paused={false} />);
+    await tick(5000);
+    document.documentElement.classList.add('streaming-active');
+    await tick(10_000);
+    // It used to look again every 5 s for the rest of the session.
+    expect(vi.getTimerCount()).toBe(0);
+    await tick(30 * 60_000);
+    expect(started).toBe(0);
+    document.documentElement.classList.remove('streaming-active');
+    await tick(0);
+    await tick(11_000);
+    expect(started).toBe(1);
+  });
 });
 
 // "Later" (or Back) used to hold that version back for good: one reflexive
@@ -242,5 +260,54 @@ describe('AutoUpdatePrompt: Later is for a day, not for good', () => {
     const kept = JSON.parse(localStorage.getItem(KEY) ?? 'null') as { v: string; until: number };
     expect(kept.v).toBe('1.7.9');
     expect(Math.abs(kept.until - (Date.now() + 24 * 60 * 60_000))).toBeLessThan(60_000);
+  });
+});
+
+// The prompt opened over whatever was on screen, at the very top: over
+// Welcome or the content bar offer one OK closed the hidden popup and
+// answered "Update now"; over a device message the box looked frozen.
+describe('AutoUpdatePrompt: one popup at a time', () => {
+  beforeEach(() => {
+    prepareSmcUpdate.mockImplementation(() => new Promise((resolve) => {
+      finishDownload = () => resolve({ filePath: '/cache/apk/1.7.9.apk', apkVersionName: '1.7.9', apkVersionCode: 179, apkPackageName: 'com.snowmedia.center' });
+    }));
+  });
+  it('waits for a popup on screen (a boot notice too) to close, then opens', async () => {
+    const other = document.createElement('div');
+    other.setAttribute('data-notice-layer', 'open');
+    document.body.appendChild(other);
+    render(<AutoUpdatePrompt paused={false} />);
+    await tick(5000);
+    await act(async () => { finishDownload?.(); await vi.advanceTimersByTimeAsync(0); });
+    await tick(3000);
+    expect(dialog()).toBeNull();
+    other.remove();
+    await tick(600);
+    expect(dialog()).not.toBeNull();
+  });
+
+  it('waits for the boot-popup slot held by another popup', async () => {
+    const { claimBootPopup, releaseBootPopup } = await import('@/utils/bootPopupQueue');
+    expect(claimBootPopup('welcome')).toBe(true);
+    render(<AutoUpdatePrompt paused={false} />);
+    await tick(5000);
+    await act(async () => { finishDownload?.(); await vi.advanceTimersByTimeAsync(0); });
+    await tick(3000);
+    expect(dialog()).toBeNull();
+    releaseBootPopup('welcome');
+    await tick(600);
+    expect(dialog()).not.toBeNull();
+  });
+
+  it('Back on it marks the press handled, so the system Back after it is not a Back on Home', async () => {
+    render(<AutoUpdatePrompt paused={false} />);
+    await tick(5000);
+    await act(async () => { finishDownload?.(); await vi.advanceTimersByTimeAsync(0); });
+    expect(dialog()).not.toBeNull();
+    (window as Window & { __overlayHandledBackAt?: number }).__overlayHandledBackAt = 0;
+    fireEvent.keyDown(window, { key: 'GoBack', keyCode: 4 });
+    await tick(0);
+    expect(dialog()).toBeNull();
+    expect(Date.now() - ((window as Window & { __overlayHandledBackAt?: number }).__overlayHandledBackAt ?? 0)).toBeLessThan(350);
   });
 });
