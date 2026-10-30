@@ -164,7 +164,6 @@ const PlexRecommendMenu = memo(({ item, server, isActive = true, onReport, onClo
         <div className="space-y-2">
           {rows.map((row, i) => {
             const focused = focus === i;
-            const muted = row.id === 'cancel' || row.id === 'ok';
             return (
               <button
                 key={row.id}
@@ -174,15 +173,18 @@ const PlexRecommendMenu = memo(({ item, server, isActive = true, onReport, onClo
                 disabled={!row.run}
                 onMouseEnter={() => setFocus(i)}
                 onClick={() => { if (!tapIsHoldLift()) row.run?.(); }}
-                // The icons' margin, not flex gap (Chrome 84).
-                className={`tv-ring appearance-none w-full text-left px-4 py-3 rounded-xl border border-white/10 font-nunito font-semibold transition-transform duration-150 ease-out flex items-center ${
-                  focused ? (muted ? 'bg-white/15 scale-[1.02] z-10' : 'bg-brand-gold/25 scale-[1.02] z-10') : 'bg-white/5 hover:bg-white/10'
+                // The icons' margin, not flex gap (Chrome 84). The highlight is
+                // the white face (plex.css .plex-face, the focus rule); at rest
+                // a quiet glass with white icons — gold only on the filled
+                // thumb of a title already recommended (a chosen state).
+                className={`plex-face tv-ring appearance-none w-full text-left px-4 py-3 rounded-xl border border-white/10 font-nunito font-semibold transition-transform duration-150 ease-out flex items-center ${
+                  focused ? 'scale-[1.02] z-10' : 'bg-white/5 hover:bg-white/10'
                 }`}
               >
-                {row.id === 'checking' ? <Loader2 className="w-5 h-5 mr-3 text-brand-gold flex-shrink-0 animate-spin" aria-hidden="true" />
-                  : row.id === 'report' ? <Flag className="w-5 h-5 mr-3 text-brand-gold flex-shrink-0" aria-hidden="true" />
-                  : row.id === 'add' || row.id === 'remove' ? <ThumbsUp className={`w-5 h-5 mr-3 text-brand-gold flex-shrink-0${row.id === 'remove' ? ' fill-current' : ''}`} aria-hidden="true" />
-                    : row.id === 'ok' ? <Check className="w-5 h-5 mr-3 text-brand-gold flex-shrink-0" aria-hidden="true" />
+                {row.id === 'checking' ? <Loader2 className="w-5 h-5 mr-3 text-brand-ice flex-shrink-0 animate-spin" aria-hidden="true" />
+                  : row.id === 'report' ? <Flag className="w-5 h-5 mr-3 text-brand-ice flex-shrink-0" aria-hidden="true" />
+                  : row.id === 'add' || row.id === 'remove' ? <ThumbsUp className={`w-5 h-5 mr-3 flex-shrink-0${row.id === 'remove' ? ' fill-current text-brand-gold' : ' text-brand-ice'}`} aria-hidden="true" />
+                    : row.id === 'ok' ? <Check className="w-5 h-5 mr-3 text-brand-ice flex-shrink-0" aria-hidden="true" />
                       : <X className="w-5 h-5 mr-3 text-brand-ice/70 flex-shrink-0" aria-hidden="true" />}
                 <span className="min-w-0 truncate">{row.label}</span>
               </button>

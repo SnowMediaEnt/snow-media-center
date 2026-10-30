@@ -25,6 +25,7 @@
 //     ends with every rail mounted at once: ~100 poster GETs and 7 composited
 //     scroll layers on a 1GB stick.
 
+import { Check } from 'lucide-react';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import PlexPosterTile from './PlexPosterTile';
 import { usePlexWatched } from './usePlexWatched';
@@ -881,12 +882,20 @@ const PlexLibraryRows = memo(({
 
   // The chip bar and its menu: over the filtered grid when a filter is on,
   // else under the rows, as the Apple TV app's "All Movies" line.
+  const chosenKey = !menu ? ''
+    : menu.chip === 'sort' ? (filters.sort ?? '')
+      : menu.chip === 'genre' ? (filters.genre?.key ?? '')
+        : menu.chip === 'year' ? (filters.year?.key ?? '')
+          : menu.chip === 'contentRating' ? (filters.contentRating?.key ?? '')
+            : null;
   const barBlock = (
     <>
         {/* CHIP BAR. gap-2 deliberately — it is in the html.no-flex-gap
             emulation allowlist; gap-5/6/8 are not and collapse on Chromium 66.
-            The chips are the Apple TV app's menu buttons (plex.css .plex-chip):
-            a white face under the highlight, gold once they hold a choice. */}
+            The chips are the Apple TV app's menu buttons (plex.css .plex-chip,
+            the focus rule): glass at rest, a gold outline + gold text once
+            they hold a choice (no fill), the white face only under the
+            highlight — which wins over the outline. */}
         <div className="plex-bar flex flex-wrap items-center gap-2">
           {!filtering && <span className="plex-rail-head font-montserrat mr-2">{t('plex.library.allHeading', { lib: libTitle })}</span>}
           {chips.map((chip, i) => {
@@ -899,8 +908,8 @@ const PlexLibraryRows = memo(({
                 onClick={() => { setZone('bar'); setChipId(chip.id); activateChip(chip.id); }}
                 data-focused={focused ? 'true' : 'false'}
                 className={`plex-chip tv-ring cursor-pointer font-nunito${
-                  focused ? ' z-10' : open ? ' plex-chip--open' : chip.set ? ' plex-chip--set' : ''
-                }`}
+                  open ? ' plex-chip--open' : chip.set ? ' plex-chip--set' : ''
+                }${focused ? ' z-10' : ''}`}
               >
                 {chip.label}
               </div>
@@ -929,17 +938,22 @@ const PlexLibraryRows = memo(({
               <div className="space-y-1">
                 {menu.options.map((opt, i) => {
                   const f = i === menu.idx;
+                  // The value the chip holds now ('' = All / default order):
+                  // a gold check, no fill (the focus rule).
+                  const chosen = opt.key === chosenKey;
                   return (
                     <div
                       key={`${opt.key}-${i}`}
                       ref={(el) => { if (f && el) el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }}
                       onClick={() => applyMenuChoice(menu.chip, opt)}
                       data-focused={f ? 'true' : 'false'}
-                      className={`tv-ring px-3 py-2 rounded-plex-sm font-nunito text-sm cursor-pointer ${
-                        f ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'
+                      data-chosen={chosen ? 'true' : undefined}
+                      className={`plex-face tv-ring px-3 py-2 rounded-plex-sm font-nunito text-sm cursor-pointer flex items-center justify-between ${
+                        f ? 'scale-[1.02] z-10' : 'text-brand-ice/90'
                       }`}
                     >
-                      {opt.title}
+                      <span className="truncate">{opt.title}</span>
+                      {chosen && <Check className="plex-check ml-2" aria-hidden="true" />}
                     </div>
                   );
                 })}

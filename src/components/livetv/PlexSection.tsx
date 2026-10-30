@@ -2058,11 +2058,13 @@ const SearchPanel = memo(({ isActive, base, token, adultKeys, onPlay, onExitToTa
             </div>
             <div className="mt-6 grid grid-cols-2 gap-3">
               <button type="button" disabled={requesting} onClick={() => void sendRequest(confirmReq)}
-                className={`h-12 rounded-xl text-lg font-quicksand font-bold bg-brand-gold text-slate-900 ${confirmIdx === 0 ? 'ring-4 ring-brand-ice scale-105' : ''}`}>
+                data-focused={confirmIdx === 0 ? 'true' : 'false'}
+                className={`plex-face tv-ring h-12 rounded-xl text-lg font-quicksand font-bold ${confirmIdx === 0 ? 'scale-105' : 'bg-white/15 text-white'}`}>
                 {requesting ? t('plex.search.sendingBtn') : t('plex.request.requestBtn')}
               </button>
               <button type="button" onClick={() => setConfirmReq(null)}
-                className={`h-12 rounded-xl text-lg font-quicksand font-bold bg-slate-800 border border-slate-600 text-white ${confirmIdx === 1 ? 'ring-4 ring-brand-ice scale-105' : ''}`}>
+                data-focused={confirmIdx === 1 ? 'true' : 'false'}
+                className={`plex-face tv-ring h-12 rounded-xl text-lg font-quicksand font-bold ${confirmIdx === 1 ? 'scale-105' : 'bg-white/10 text-white'}`}>
                 {t('common.cancel')}
               </button>
             </div>
@@ -2256,7 +2258,7 @@ const ManagePanel = memo(({ isActive, libraries, hidden, librariesError, onToggl
               <div key={lib.key}
                 ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
                 onClick={() => { setCursor(i); onToggle(lib.key); }}
-                className={`tv-ring flex items-center justify-between px-4 py-3 rounded-xl border border-white/10 cursor-pointer ${focused ? 'bg-brand-gold/20 scale-[1.02] z-10' : 'bg-black/40'}`}
+                className={`plex-face tv-ring flex items-center justify-between px-4 py-3 rounded-xl border border-white/10 cursor-pointer ${focused ? 'scale-[1.02] z-10' : 'bg-black/40'}`}
                 data-focused={focused ? 'true' : 'false'}>
                 <div>
                   <div className="font-quicksand text-white">{lib.title}</div>
@@ -2277,7 +2279,7 @@ const ManagePanel = memo(({ isActive, libraries, hidden, librariesError, onToggl
               <div key={lib.key}
                 ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
                 onClick={() => { setCursor(i); onToggle(lib.key); }}
-                className={`tv-ring flex items-center justify-between px-4 py-3 rounded-xl border border-white/10 cursor-pointer ${focused ? 'bg-brand-gold/20 scale-[1.02] z-10' : 'bg-black/40'}`}
+                className={`plex-face tv-ring flex items-center justify-between px-4 py-3 rounded-xl border border-white/10 cursor-pointer ${focused ? 'scale-[1.02] z-10' : 'bg-black/40'}`}
                 data-focused={focused ? 'true' : 'false'}>
                 <div>
                   <div className="font-quicksand text-white">{lib.title}</div>
@@ -2307,7 +2309,7 @@ const ManagePanel = memo(({ isActive, libraries, hidden, librariesError, onToggl
                 confirmTimerRef.current = window.setTimeout(() => setConfirmSignOut(false), 5000);
               }
             }}
-            className={`tv-ring mt-3 flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer ${confirmSignOut ? 'tv-ring-danger border-red-500/40' : 'border-white/10'} ${focused ? (confirmSignOut ? 'bg-red-500/25 scale-[1.02] z-10' : 'bg-brand-gold/20 scale-[1.02] z-10') : (confirmSignOut ? 'bg-red-500/15' : 'bg-black/40')}`}
+            className={`tv-ring mt-3 flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer ${confirmSignOut ? 'tv-ring-danger border-red-500/40' : 'plex-face border-white/10'} ${focused ? (confirmSignOut ? 'bg-red-500/25 scale-[1.02] z-10' : 'scale-[1.02] z-10') : (confirmSignOut ? 'bg-red-500/15' : 'bg-black/40')}`}
             data-focused={focused ? 'true' : 'false'}>
             <LogOut className={`w-4 h-4 ${confirmSignOut ? 'text-red-300' : 'text-brand-ice/70'}`} />
             <div className={`font-quicksand ${confirmSignOut ? 'text-red-200' : 'text-white'}`}>
@@ -2450,13 +2452,13 @@ const JustLinkedCard = memo(({ conn, accountToken, onContinue, onSignOut }: Just
           <button type="button"
             data-focused={focusIdx === 0 ? 'true' : 'false'}
             onClick={onContinue}
-            className={`tv-ring tv-ring-contrast px-6 py-3 rounded-xl font-quicksand font-bold ${focusIdx === 0 ? 'bg-brand-gold text-black scale-105 z-10' : 'bg-white/10 text-white'}`}>
+            className={`plex-face tv-ring px-6 py-3 rounded-xl font-quicksand font-bold ${focusIdx === 0 ? 'scale-105 z-10' : 'bg-white/10 text-white'}`}>
             {t('plex.linked.continueBtn')}
           </button>
           <button type="button"
             data-focused={focusIdx === 1 ? 'true' : 'false'}
             onClick={onSignOut}
-            className={`tv-ring tv-ring-contrast px-6 py-3 rounded-xl font-quicksand font-semibold ${focusIdx === 1 ? 'bg-brand-gold text-black scale-105 z-10' : 'bg-white/10 text-white'}`}>
+            className={`plex-face tv-ring px-6 py-3 rounded-xl font-quicksand font-semibold ${focusIdx === 1 ? 'scale-105 z-10' : 'bg-white/10 text-white'}`}>
             {t('common.signOut')}
           </button>
         </div>
@@ -5509,8 +5511,8 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       role="dialog" aria-modal="true">
       <div className="max-w-md w-full rounded-xl border border-brand-gold/40 bg-[#0b1622] p-6 text-center shadow-2xl">
         <p className="font-nunito text-white/90 text-base leading-relaxed">{demoDialogMsg()}</p>
-        <button type="button" autoFocus onClick={() => setDemoNotice(false)}
-          className="mt-5 px-6 py-2 rounded-lg bg-brand-gold text-black font-semibold font-nunito focus:outline-none focus:ring-2 focus:ring-white">
+        <button type="button" autoFocus data-focused="true" onClick={() => setDemoNotice(false)}
+          className="plex-face tv-ring mt-5 px-6 py-2 rounded-lg font-semibold font-nunito focus:outline-none">
           {i18n.t('common.ok')}
         </button>
       </div>
@@ -5599,7 +5601,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
             <p className="font-quicksand font-semibold mb-1">{t('plex.section.stillPreparing')}</p>
             <p className="text-sm text-brand-ice/70 font-nunito mb-4">{t('plex.section.slowToRespond')}</p>
             {/* Never auto-focused: OK presses it only after a key-up (see startAgainRef). */}
-            <button onClick={() => startAgainRef.current()} tabIndex={-1} data-start-again data-focused={startAgainArmed ? 'true' : undefined} className={`${startAgainArmed ? 'tv-ring tv-ring-contrast ' : ''}flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold`}>
+            <button onClick={() => startAgainRef.current()} tabIndex={-1} data-start-again data-focused={startAgainArmed ? 'true' : undefined} className={`plex-face tv-ring flex items-center gap-2 px-5 py-3 rounded-xl font-quicksand font-bold${startAgainArmed ? '' : ' bg-white/10 text-white'}`}>
               <RotateCw className="w-4 h-4" /> {t('plex.section.startAgain')}
             </button>
           </div>
@@ -5616,7 +5618,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
               if (convertGaveUp) retryConvert();
               else if (startError && playing) void playRatingKey(playing.ratingKey, playing.title, startPos, subCtx, playingResLabel, undefined, { version: playVersionRef.current, versions: playVersionsRef.current }, { trailer: playing.trailer });
               else native.retry();
-            }} autoFocus data-focused="true" className="tv-ring tv-ring-contrast flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-gold text-brand-navy font-quicksand font-bold">
+            }} autoFocus data-focused="true" className="plex-face tv-ring flex items-center gap-2 px-5 py-3 rounded-xl font-quicksand font-bold">
               <RotateCw className="w-4 h-4" /> {t('common.retry')}
             </button>
           </div>
@@ -5788,10 +5790,10 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
                 // focused row escaped because its ring is a box-shadow, which
                 // turns the native theme off. So does appearance: none.
                 // The Apple TV app's menu (plex.css .plex-menu-item): Montserrat,
-                // a gold-tinted highlight, the open page a faint gold fill (while
-                // the menu is open) and a gold icon.
+                // the highlight the white face with the gold ring, the open page
+                // gold text (while the menu is open) and a gold icon, no fill.
                 className={`plex-menu-item tv-ring appearance-none relative w-full flex items-center gap-3 mx-2 font-montserrat ${menuCollapsed ? 'justify-center px-0' : 'text-left px-3'}${
-                  selected && !menuCollapsed ? ' plex-menu-item--sel' : ''}${selected ? ' text-white' : ''}`}
+                  selected && !menuCollapsed ? ' plex-menu-item--sel' : ''}`}
                 style={{ width: 'calc(100% - 1rem)' }}
               >
                 <Icon className={`w-[18px] h-[18px] flex-shrink-0 ${selected ? 'text-brand-gold opacity-100' : 'opacity-80'}`} />

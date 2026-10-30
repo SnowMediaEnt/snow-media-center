@@ -17,10 +17,14 @@
      - Focus: the poster lifts 6 %, takes a 3 px gold ring and a soft gold
        glow, a gold play disc sits in its middle, and its title turns gold.
      - Title page: the poster on the left, a big extra-bold title, facts,
-       a gold ratings line, the summary, then gold (play) and white pill
-       buttons, as the tvOS DetailFrame does.
-     - Menu: Montserrat labels; the highlight a gold-tinted fill with the
-       gold ring, the open page a faint gold fill and a gold icon. Tailwind aliases in tailwind.config.ts
+       a gold ratings line, the summary, then glass pill buttons (Play /
+       Resume first, a touch brighter), as the tvOS DetailFrame does.
+     - Menu: Montserrat labels; the highlight the white face with the
+       gold ring, the open page gold text and a gold icon, no fill.
+     - FOCUS RULE (see "Pills and chips" below): focus is the ONLY white
+       face + gold ring on screen; nothing at rest is filled gold or white;
+       a chosen-but-unfocused thing gets a gold check / text / outline, no
+       fill. Tailwind aliases in tailwind.config.ts
    (rounded-plex-*, text-plex-*) point at these variables; nothing else
    should hard-code a Plex radius or size.
 
@@ -492,15 +496,19 @@ html.is-sideways .plex-page-title { padding-top: 8px; font-size: 18px; line-heig
   font-weight: 600;
   color: hsl(var(--brand-ice) / 0.85);
 }
+/* The open page: gold text and icon, no fill (look 3 of the focus rule). */
 .plex-menu-item--sel {
-  background-color: hsl(var(--brand-gold) / 0.1);
-  color: #fff;
+  color: hsl(var(--brand-gold));
 }
+/* The highlight: the white face (look 1). */
 .plex-menu-item[data-focused="true"] {
-  background-color: hsl(var(--brand-gold) / 0.25);
-  color: #fff;
+  background-color: #fff;
+  color: #0b1322;
   -webkit-transform: scale(1.02);
   transform: scale(1.02);
+}
+.plex-menu-item[data-focused="true"] svg {
+  color: inherit;
 }
 /* Each entry set apart, so the list is not flat (owner, 2026-10-24): a soft
    light from the left on every entry, a little more under a finger or the
@@ -541,9 +549,21 @@ html.is-upright .plex-menu-sep::before { display: none; }
 html.is-sideways .plex-menu-head { padding-top: 0; }
 
 /* ── Pills and chips (title page buttons, library filters) ───────────── */
-/* tvOS PillButton: gold (Play, Resume, Browse) or white, 8 px corners,
-   lifted 5 % with a ring when focused (tv-ring: gold on white, white on
-   gold via tv-ring-contrast). */
+/* THE FOCUS RULE (owner, 2026-10-29: "the white is highlighted the ring and
+   then the other is gold like it's highlighted, which one is selected").
+   Every Plex control has exactly three looks, and only one of them is lit:
+     1. FOCUS — where the remote is: a WHITE face, dark text, the gold
+        tv-ring and a slight lift. Nothing else on a Plex screen looks like it.
+     2. REST — a quiet glass: a translucent white fill, white text, a faint
+        hairline. Never a gold or white fill. A primary action (Play,
+        Resume) is told apart by its icon and its place first in the row,
+        and a slightly brighter glass (--primary) — not by colour.
+     3. CHOSEN, NOT FOCUSED — the picked version, a filter holding a value,
+        the current menu choice, the open page: a gold check and/or gold
+        text and a thin gold outline. NO fill. Focused, it takes look 1 and
+        keeps its check (the check turns the face's dark text colour).
+   Progress bars, the watched disc, ratings, the 4K chip, the scrub and
+   volume bars are not controls and keep their gold. */
 .plex-pill {
   display: inline-flex;
   align-items: center;
@@ -553,27 +573,29 @@ html.is-sideways .plex-menu-head { padding-top: 0; }
   font-size: 14px;
   font-weight: 700;
   white-space: nowrap;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14), 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 .plex-pill--sm {
   height: 32px;
   padding: 0 14px;
   font-size: 12.5px;
 }
-.plex-pill--gold {
-  background-image: linear-gradient(135deg, #e2c66c, #b8963f);
-  color: #fff;
-}
-.plex-pill--white {
-  background-image: linear-gradient(135deg, #fff, #f8f9fa);
-  color: #1f2937;
+/* The way in (Resume, else Play, or a show's episodes): a touch brighter
+   glass, still not a fill a viewer could take for the highlight. */
+.plex-pill--primary {
+  background-color: rgba(255, 255, 255, 0.18);
 }
 .plex-pill[data-focused="true"] {
+  background-color: #fff;
+  color: #0b1322;
   -webkit-transform: scale(1.05);
   transform: scale(1.05);
 }
-/* Filter and version chips: tvOS menu buttons. A white face when focused,
-   gold when it holds a choice. */
+/* Filter and version chips: tvOS menu buttons. Glass at rest, a gold
+   outline + gold text once they hold a choice, the white face when focused
+   (which wins over --set: (0,2,0) and (0,3,0) below beat (0,1,0)). */
 .plex-chip {
   display: inline-flex;
   align-items: center;
@@ -587,12 +609,15 @@ html.is-sideways .plex-menu-head { padding-top: 0; }
   color: rgba(255, 255, 255, 0.85);
 }
 .plex-chip--set {
-  background-color: hsl(var(--brand-gold) / 0.85);
-  color: hsl(var(--brand-navy));
+  color: hsl(var(--brand-gold));
+  box-shadow: inset 0 0 0 1.5px hsl(var(--brand-gold) / 0.8);
 }
+/* Its menu is open below it: the remote is in the menu, so the chip only
+   says which one it belongs to — gold text and outline over a darker glass. */
 .plex-chip--open {
   color: hsl(var(--brand-gold));
   background-color: rgba(0, 0, 0, 0.6);
+  box-shadow: inset 0 0 0 1.5px hsl(var(--brand-gold) / 0.8);
 }
 .plex-chip[data-focused="true"] {
   background-color: #fff;
@@ -607,6 +632,31 @@ html.is-sideways .plex-menu-head { padding-top: 0; }
   box-shadow:
     inset 0 0 0 3px hsl(var(--brand-gold)),
     0 0 10px 1px hsl(var(--brand-gold) / 0.45);
+}
+/* Rows in Plex's lists and menus (player menus, the filter menu, Manage
+   libraries, the recommend menu…): the same focus face as a pill. Gold or
+   ice text inside the row (a chosen check, a language code, a subtitle)
+   takes the face's dark colour while it is focused, so nothing gold sits on
+   white. A menu, not tiled: the attribute selectors here never meet a rail. */
+.plex-face[data-focused="true"] {
+  background-color: #fff;
+  color: #0b1322;
+}
+.plex-face[data-focused="true"] [class*="text-brand-"],
+.plex-face[data-focused="true"] [class*="text-white"] {
+  color: inherit;
+}
+/* A chosen value's mark in a list: a gold check, dark on the white face. */
+.plex-check {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: hsl(var(--brand-gold));
+}
+.plex-face[data-focused="true"] .plex-check,
+.plex-chip[data-focused="true"] .plex-check,
+.plex-pill[data-focused="true"] .plex-check {
+  color: inherit;
 }
 /* The Studios row's tiles: the chips' shape a size up — 40 px tall, wide
    enough to read across the room, names only (no logos). They sit in a

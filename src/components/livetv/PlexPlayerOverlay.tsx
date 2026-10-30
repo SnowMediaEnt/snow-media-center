@@ -8,7 +8,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAudioPassthrough } from '@/lib/audioOutput';
 import i18n from '@/i18n';
-import { Play, Pause, Rewind, FastForward, Subtitles, AudioLines, Download, Loader2, Gauge, Maximize, LifeBuoy, Volume2, VolumeX, SkipForward } from 'lucide-react';
+import { Play, Pause, Rewind, FastForward, Subtitles, AudioLines, Download, Loader2, Gauge, Maximize, LifeBuoy, Volume2, VolumeX, SkipForward, Check } from 'lucide-react';
 import type { VideoController, VideoTrackInfo } from './VideoPlayer';
 import type { SnowSubtitle } from '@/capacitor/SnowPlayer';
 import { searchOpenSubtitles, downloadOpenSubtitle, type OpenSubResult } from '@/lib/opensubtitles';
@@ -675,7 +675,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
   // while that is open; it steps aside while a menu is up.
   const promptEl = active && prompt && (!visible || menu === 'none') ? (
     <div className={`absolute right-12 ${visible ? 'bottom-44' : 'bottom-12'} z-30 pointer-events-none animate-fade-in`}>
-      <div className="rounded-2xl bg-black/85 border-2 border-brand-gold px-6 py-4 max-w-md" data-howto={isNextPrompt ? 'pp.upNext' : 'pp.skip'}>
+      <div className={`rounded-2xl bg-black/85 border-2 ${visible ? 'border-white/15' : 'border-brand-gold'} px-6 py-4 max-w-md`} data-howto={isNextPrompt ? 'pp.upNext' : 'pp.skip'}>
         {isNextPrompt && (
           <p className="text-xs uppercase tracking-wider text-brand-gold font-nunito mb-1">
             {prompt.countdown != null ? t('plex.player.upNextIn', { seconds: prompt.countdown }) : t('plex.player.upNext')}
@@ -683,7 +683,11 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
         )}
         {prompt.detail && <p className="text-white font-quicksand font-semibold text-lg leading-tight mb-2 truncate">{prompt.detail}</p>}
         <div className="flex items-center">
-          <span className="rounded-xl bg-brand-gold text-brand-navy font-bold font-quicksand px-5 py-2 text-base">
+          {/* With the bar hidden this is the one thing OK does, so it wears
+              the focus look (white face, gold ring). With the bar up the
+              remote is on the bar: a quiet glass, so there is one highlight. */}
+          <span data-pp-prompt-btn=""
+            className={`rounded-xl font-bold font-quicksand px-5 py-2 text-base ${visible ? 'bg-white/10 text-white' : 'bg-white text-[#0b1322] shadow-[inset_0_0_0_3px_hsl(var(--brand-gold)),0_0_14px_1px_hsl(var(--brand-gold)/0.45)]'}`}>
             {prompt.label}
           </span>
           <span className="ml-4 text-xs text-brand-ice/80 font-nunito">
@@ -770,11 +774,14 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             : menu === 'help' ? 'buffering'
               : null;
   const btnFocused = (r: Row) => (row === r && menuRow !== r ? 'true' : 'false');
+  // The focus rule (plex.css): the highlighted button is the white face with
+  // the gold ring (tv-ring, keyed on data-focused) and a lift, as everywhere
+  // else in Plex; the one whose menu is open keeps a gold outline, no fill.
   const focusVis = (r: Row) => menuRow === r
-    ? 'bg-black/60 text-brand-gold border-2 border-brand-gold scale-100'
+    ? 'tv-ring bg-black/60 text-brand-gold border-2 border-brand-gold scale-100'
     : row === r
-      ? 'bg-brand-gold text-brand-navy scale-110'
-      : 'bg-white/10 text-white';
+      ? 'tv-ring bg-white text-[#0b1322] scale-110'
+      : 'tv-ring bg-white/10 text-white';
 
   const subsList: Array<{ id: number; label: string; active: boolean }> = [
     { id: -1, label: t('plex.player.subsOff'), active: subs.every((s) => !s.active) },
@@ -889,12 +896,12 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           <PlayerMenuList focused={menuIdx} total={auds.length + 1}>
             {auds.map((a, i) => (
               <div key={`${a.id}-${a.label}`} data-focused={menuIdx === i ? 'true' : 'false'}
-                className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
-                <span className="truncate">{a.label}</span>{a.active && <span className="text-brand-gold text-xs">●</span>}
+                className={`plex-face tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
+                <span className="truncate">{a.label}</span>{a.active && <Check className="plex-check" aria-hidden="true" />}
               </div>
             ))}
             <div data-focused={menuIdx === auds.length ? 'true' : 'false'} data-howto="pp.fixAudio"
-              className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center gap-2 ${menuIdx === auds.length ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-gold'}`}>
+              className={`plex-face tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center gap-2 ${menuIdx === auds.length ? 'scale-[1.02] z-10' : 'text-white'}`}>
               <VolumeX className="w-3.5 h-3.5" />
               <span className="truncate">{t('plex.player.fixAudio')}</span>
             </div>
@@ -936,10 +943,10 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           <div className="space-y-1">
             {SCREEN_FORMATS.map((f, i) => (
               <div key={f.id} data-focused={menuIdx === i ? 'true' : 'false'}
-                className={`tv-ring px-3 py-2 rounded-xl font-nunito text-sm ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
+                className={`plex-face tv-ring px-3 py-2 rounded-xl font-nunito text-sm ${menuIdx === i ? 'scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
                 <div className="flex items-center justify-between">
                   <span className="truncate">{formatName(f)}</span>
-                  {f.id === screen.format && <span className="text-brand-gold text-xs">●</span>}
+                  {f.id === screen.format && <Check className="plex-check" aria-hidden="true" />}
                 </div>
                 <div className="text-[11px] text-brand-ice/60">{formatHint(f)}</div>
               </div>
@@ -963,8 +970,8 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             {qualityList.map((p, i) => (
               <div key={p.key} data-focused={menuIdx === i ? 'true' : 'false'}
                 ref={menuIdx === i ? (el) => { if (el) el.scrollIntoView({ block: 'nearest' }); } : undefined}
-                className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
-                <span className="truncate">{p.label}</span>{p.key === selectedQuality && <span className="text-brand-gold text-xs">●</span>}
+                className={`plex-face tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
+                <span className="truncate">{p.label}</span>{p.key === selectedQuality && <Check className="plex-check" aria-hidden="true" />}
               </div>
             ))}
           </div>
@@ -981,8 +988,8 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           <PlayerMenuList focused={menuIdx} total={subsList.length}>
             {subsList.map((r, i) => (
               <div key={`${r.id}-${r.label}-${i}`} data-focused={menuIdx === i ? 'true' : 'false'} data-howto={r.id === -2 ? 'pp.getSubs' : undefined}
-                className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : r.id === -2 ? 'text-brand-gold' : 'text-brand-ice/90'}`}>
-                <span className="truncate">{r.label}</span>{r.active && <span className="text-brand-gold text-xs">●</span>}
+                className={`plex-face tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'scale-[1.02] z-10' : r.id === -2 ? 'text-white' : 'text-brand-ice/90'}`}>
+                <span className="truncate">{r.label}</span>{r.active && <Check className="plex-check" aria-hidden="true" />}
               </div>
             ))}
           </PlayerMenuList>
@@ -1012,8 +1019,8 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
             {!osdlLoading && osdlResults.map((r, i) => (
               <div key={r.id}
                 data-focused={menuIdx === i ? 'true' : 'false'}
-                className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center gap-2 ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
-                <span className="uppercase font-quicksand font-bold w-8 text-brand-gold">{r.lang}</span>
+                className={`plex-face tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center gap-2 ${menuIdx === i ? 'scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
+                <span className="uppercase font-quicksand font-bold w-8 text-brand-ice">{r.lang}</span>
                 <span className="flex-1 truncate">{r.release || '—'}</span>
                 <span className="text-xs text-brand-ice/70 tabular-nums">{r.downloads}⬇</span>
                 {osdlBusyId === r.id && <Loader2 className="w-3 h-3 animate-spin text-brand-gold" />}
@@ -1037,9 +1044,9 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
           <div className="space-y-1">
             {HELP_ITEMS.map((labelKey, i) => (
               <div key={labelKey} data-focused={menuIdx === i ? 'true' : 'false'}
-                className={`tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'bg-brand-gold/20 text-white scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
+                className={`plex-face tv-ring px-3 py-3 rounded-xl font-nunito text-sm flex items-center justify-between ${menuIdx === i ? 'scale-[1.02] z-10' : 'text-brand-ice/90'}`}>
                 <span className="truncate">{t(labelKey)}</span>
-                {i === HELP_STATS && statsOpen && <span className="text-brand-gold text-xs">●</span>}
+                {i === HELP_STATS && statsOpen && <Check className="plex-check" aria-hidden="true" />}
               </div>
             ))}
           </div>

@@ -1044,9 +1044,11 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
               <div className="flex flex-wrap gap-2">
                 {detailButtons.map((b, i) => {
                   const focused = isActive && zone === 'buttons' && btn === i;
-                  // The Apple TV app's pills: the way in (Resume when there is
-                  // one, else Play, or a show's episodes) gold, the rest white.
-                  const gold = canResume ? b.id === 'resume' : b.id === 'play' || b.id === 'browse';
+                  // The way in (Resume when there is one, else Play, or a
+                  // show's episodes) a touch brighter glass; never a gold or
+                  // white fill, which only the focused pill has (plex.css,
+                  // the focus rule).
+                  const primary = canResume ? b.id === 'resume' : b.id === 'play' || b.id === 'browse';
                   return (
                     <button
                       key={b.id}
@@ -1057,7 +1059,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                       data-focused={focused ? 'true' : 'false'}
                       data-howto={DETAIL_HOWTO[b.id]}
                       onClick={() => { setZone('buttons'); setBtn(i); activateDetail(b.id); }}
-                      className={`plex-pill tv-ring ${gold ? 'plex-pill--gold tv-ring-contrast' : 'plex-pill--white'} gap-2 font-montserrat${focused ? ' z-10' : ''}`}>
+                      className={`plex-pill tv-ring${primary ? ' plex-pill--primary' : ''} gap-2 font-montserrat${focused ? ' z-10' : ''}`}>
                       {buttonIcon(b.id, listed, recommended)}
                       <span className="min-w-0 truncate">{b.label}</span>
                     </button>
@@ -1068,7 +1070,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                     type="button"
                     data-focused={isActive && zone === 'buttons' && btn === detailButtons.length ? 'true' : 'false'}
                     onClick={() => { void playCurrent(undefined); }}
-                    className="plex-pill plex-pill--gold tv-ring tv-ring-contrast gap-2 font-montserrat">
+                    className="plex-pill plex-pill--primary tv-ring gap-2 font-montserrat">
                     <Play className="w-4 h-4 fill-current" /> {t('plex.detail.play')}
                   </button>
                 )}
@@ -1089,7 +1091,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                       data-focused={focused ? 'true' : 'false'}
                       aria-label={t('plex.trailer.watch')}
                       onClick={() => { setZone('trailer'); playTrailer(); }}
-                      className={`plex-pill plex-pill--sm plex-pill--white tv-ring gap-2 font-montserrat${focused ? ' z-10' : ''}`}>
+                      className={`plex-pill plex-pill--sm tv-ring gap-2 font-montserrat${focused ? ' z-10' : ''}`}>
                       <Clapperboard className="w-4 h-4" aria-hidden="true" />
                       <span>{t('plex.trailer.button')}</span>
                     </button>
@@ -1113,8 +1115,11 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                           ref={(el) => { if (focused && el) el.scrollIntoView({ block: 'nearest' }); }}
                           data-focused={focused ? 'true' : 'false'}
                           onClick={() => { setZone('versions'); setVerIdx(i); setChosenId(v.id); }}
-                          className={`plex-chip tv-ring gap-2 font-nunito${focused ? ' z-10' : on ? ' plex-chip--set' : ''}`}>
-                          {on && <Check className="w-4 h-4" />}
+                          // Chosen: gold check + outline, no fill. Focused,
+                          // the white face wins and the check stays (dark).
+                          data-chosen={on ? 'true' : undefined}
+                          className={`plex-chip tv-ring gap-2 font-nunito${on ? ' plex-chip--set' : ''}${focused ? ' z-10' : ''}`}>
+                          {on && <Check className="plex-check" aria-hidden="true" />}
                           <span>{versionName(v, versions)}</span>
                           {v.bitrateKbps ? <span className="text-plex-micro opacity-70">{t('plex.detail.mbps', { value: Math.round(v.bitrateKbps / 100) / 10 })}</span> : null}
                           {note && is4k(v) && <span className="text-plex-micro opacity-80 inline-flex items-center gap-1"><Gauge className="w-3 h-3" />{note}</span>}

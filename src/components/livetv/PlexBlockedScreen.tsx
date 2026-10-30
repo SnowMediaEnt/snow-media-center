@@ -1,7 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { RefreshCw, ShieldAlert } from 'lucide-react';
 import { Trans, useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
 import { trackEvent } from '@/lib/analytics';
 import { isDemo } from '@/lib/demoMode';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
@@ -110,24 +109,22 @@ const PlexBlockedScreen = memo(({ serverLabel, onBack, feature = 'Plex' }: Props
         )}
         <div className="flex justify-center gap-3">
           {showRenew && (
-            <Button
-              variant="gold"
-              onClick={openRenew}
+            <button type="button" onClick={openRenew}
               data-focused={focusIdx === 0 ? 'true' : 'false'}
-              className={`min-w-[140px] h-12 rounded-xl text-base font-semibold tv-ring tv-ring-contrast relative transition-transform duration-150 ease-out ${focusIdx === 0 ? focusedCls : ''}`}
+              className={`min-w-[140px] h-12 rounded-xl text-base font-semibold plex-face tv-ring inline-flex items-center justify-center whitespace-nowrap relative transition-transform duration-150 ease-out ${focusIdx === 0 ? focusedCls : 'bg-white/10 text-white'}`}
             >
               <RefreshCw className="w-4 h-4 mr-2 shrink-0" /> <span className="min-w-0 truncate">{t('plex.blocked.renewBtn')}</span>
-            </Button>
+            </button>
           )}
-          <Button
+          <button
+            type="button"
             ref={okRef}
-            variant={showRenew ? 'white' : 'gold'}
             onClick={onBack}
             data-focused={focusIdx === BTN_COUNT - 1 ? 'true' : 'false'}
-            className={`min-w-[140px] h-12 rounded-xl text-base font-semibold tv-ring relative transition-transform duration-150 ease-out ${showRenew ? '' : 'tv-ring-contrast'} ${focusIdx === BTN_COUNT - 1 ? focusedCls : ''}`}
+            className={`min-w-[140px] h-12 rounded-xl text-base font-semibold plex-face tv-ring inline-flex items-center justify-center whitespace-nowrap relative transition-transform duration-150 ease-out ${focusIdx === BTN_COUNT - 1 ? focusedCls : 'bg-white/10 text-white'}`}
           >
             {t('common.ok')}
-          </Button>
+          </button>
         </div>
       </div>
     </div>
