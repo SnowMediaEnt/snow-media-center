@@ -129,12 +129,34 @@ const writeCache = (items: MediaItem[], parts?: { viewer: MediaItem[]; feed: Med
 // A play anywhere in the app (the Player, Plex) while Home is not on screen
 // changes "Continue watching": the next Home rebuilds the viewer's rows even
 // when the saved bar is younger than REFRESH_MS. Same for a sign-in change.
-let viewerDirty = false;
+// A new app start always rebuilds them once (a play in the last process
+// left no mark here), and so does any change to the viewer's lines, Plex
+// server or favourites: by event where there is one, and by comparing the
+// saved line and Plex server (which send none) with what the bar was built
+// from (viewerSig).
+let viewerDirty = true;
 let dirtyWatch = false;
+const VIEWER_KEYS = ['snow-player-account-v1', 'snow-plex-server-v1'];
+const VIEWER_EVENTS = [
+  'playerAccountRefresh', 'savedAccountsRefresh', 'plex-favorites:changed',
+  'smc:fav-order-changed', 'plex-progress:changed', 'plex-watched:changed',
+];
+const viewerSig = (): string => {
+  let h = 7;
+  for (const k of VIEWER_KEYS) {
+    let v = '';
+    try { v = localStorage.getItem(k) ?? ''; } catch { /* none */ }
+    for (let i = 0; i < v.length; i++) h = (h * 31 + v.charCodeAt(i)) >>> 0;
+    h = (h * 31 + 1) >>> 0;
+  }
+  return h.toString(36);
+};
+let builtSig: string | null = null;
 const watchViewerChanges = () => {
   if (dirtyWatch || typeof window === 'undefined') return;
   dirtyWatch = true;
   window.addEventListener(WATCH_HISTORY_EVENT, () => { viewerDirty = true; });
+  for (const ev of VIEWER_EVENTS) window.addEventListener(ev, () => { viewerDirty = true; });
   try {
     supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') viewerDirty = true;
@@ -438,6 +460,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer, onH
       if (DEMO) { setViewerLoaded(true); return; }
       try {
         viewerDirty = false;
+        builtSig = viewerSig();
         const { items: mine, hasLines, hasPlex } = await buildViewerBar();
         if (cancelled) return;
         viewerItemsRef.current = mine as MediaItem[];
@@ -458,6 +481,7 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer, onH
     // press; a fresh install (empty bar) loads straight away. A bar saved
     // less than REFRESH_MS ago is not reloaded at all (only the viewer's
     // rows, when something was played or the account changed meanwhile).
+    if (builtSig !== null && builtSig !== viewerSig()) viewerDirty = true;
     const firstLoad = cacheFresh ? (viewerDirty ? () => { void loadViewer(); } : null) : loadAll;
     const cancelFirst = !firstLoad
       ? () => {}
@@ -480,8 +504,15 @@ const MediaBar = memo(({ active = false, onExitDown, onExitUp, onOpenPlayer, onH
       if (document.documentElement.classList.contains('streaming-active')) return;
       loadAll();
     }, REFRESH_MS);
+    // A fresh saved bar skipped the first load: it is due when it turns
+    // REFRESH_MS old, not a whole REFRESH_MS after this mount.
+    const dueIn = cacheFresh && cacheFull ? Math.max(0, cacheFull.fetchedAt + REFRESH_MS - Date.now()) : -1;
+    const dueTimer = dueIn >= 0 ? window.setTimeout(() => {
+      if (!document.documentElement.classList.contains('streaming-active')) loadAll();
+    }, dueIn + 1000) : 0;
     return () => {
       cancelled = true;
+      if (dueTimer) window.clearTimeout(dueTimer);
       cancelFirst();
       cancelIdleFirst?.();
       cancelInterval();

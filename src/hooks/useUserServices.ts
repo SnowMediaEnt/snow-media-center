@@ -111,7 +111,9 @@ export const ensureCustomerRow = async (
  */
 
 const EMPTY_STATE: UserServicesState = { customerId: null, devices: [], services: [] };
-const FIRST_READ_DELAY_MS = 2500;
+// Short: a pinned app launched right after start-up needs its expiry alert,
+// which comes from this read (useAppAlerts.getAlertForApp).
+const FIRST_READ_DELAY_MS = 800;
 /** The longest the first read waits for a cloud write already under way. */
 const WRITE_WAIT_MS = 8000;
 
@@ -119,6 +121,10 @@ let svcState: UserServicesState = EMPTY_STATE;
 let svcLoading = true;
 let svcInflight: Promise<void> | null = null;
 let svcQueued: Promise<void> | null = null;
+// A full read was asked for while one was queued: the queued one is full.
+let svcQueuedFull = false;
+// Whose rows svcState holds: a services-only read is for that account only.
+let svcUserId: string | null = null;
 let svcHasFetched = false;
 let svcFirstScheduled: (() => void) | null = null;
 let svcWaitingForWrites = false;
@@ -153,7 +159,14 @@ const runUserServicesFetch = (opts: { servicesOnly?: boolean } = {}): Promise<vo
   if (svcInflight) {
     // A refresh asked for during a read: one more read after it, since the
     // rows may have changed after the running one read them.
-    if (!svcQueued) svcQueued = svcInflight.then(() => { svcQueued = null; return runUserServicesFetch(opts); });
+    if (!opts.servicesOnly) svcQueuedFull = true;
+    if (!svcQueued) {
+      svcQueued = svcInflight.then(() => {
+        const full = svcQueuedFull;
+        svcQueued = null; svcQueuedFull = false;
+        return runUserServicesFetch(full ? {} : { servicesOnly: true });
+      });
+    }
     return svcQueued;
   }
   svcFirstScheduled?.(); svcFirstScheduled = null;
@@ -168,19 +181,21 @@ const runUserServicesFetch = (opts: { servicesOnly?: boolean } = {}): Promise<vo
         ]);
         svcWaitingForWrites = false;
       }
+      const { data: auth } = await supabase.auth.getSession();
+      const user = auth?.session?.user;
       // Only the services changed (the Player's sync wrote one): the
-      // customer and the devices are what they were.
-      if (opts.servicesOnly && svcState.customerId) {
+      // customer and the devices are what they were — for the same account.
+      if (opts.servicesOnly && svcState.customerId && user && user.id === svcUserId) {
         const { data, error } = await readServices(svcState.customerId);
         if (!error) svcState = { ...svcState, services: toServices(data) };
         return;
       }
-      const { data: auth } = await supabase.auth.getSession();
-      const user = auth?.session?.user;
       if (!user) {
         svcState = EMPTY_STATE;
+        svcUserId = null;
         return;
       }
+      svcUserId = user.id;
       const customerId = await findCustomerId(user.id);
       if (!customerId) {
         svcState = EMPTY_STATE;
@@ -254,7 +269,7 @@ export const useMyUserServices = () => {
 /** Tests only. */
 export const __resetUserServicesForTests = (): void => {
   svcFirstScheduled?.(); svcFirstScheduled = null;
-  svcState = EMPTY_STATE; svcLoading = true; svcInflight = null; svcQueued = null;
+  svcState = EMPTY_STATE; svcLoading = true; svcInflight = null; svcQueued = null; svcQueuedFull = false; svcUserId = null;
   svcHasFetched = false; svcWaitingForWrites = false;
   svcListeners.clear(); pendingWrites.clear();
   customerIds.clear(); customerLookups.clear();

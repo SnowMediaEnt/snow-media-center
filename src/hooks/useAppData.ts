@@ -353,6 +353,8 @@ const runBackgroundSyncAndRefresh = async (shownFromCache: boolean) => {
     }
   } catch (err) {
     console.warn('[AppData] Background sync/refresh failed:', err);
+    // A failed sync is tried again next time, not 30 minutes later.
+    lastSyncAt = 0;
     if (shownFromCache) return;
   }
   if (shownFromCache) return;
