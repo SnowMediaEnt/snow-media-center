@@ -24,7 +24,6 @@
       "conflict_other": "Ya tienes {{count}} grabaciones a las {{time}}. Cancela una primero.",
       "conflict_many": "Ya tienes {{count}} grabaciones a las {{time}}. Cancela una primero.",
       "noSpace": "No hay suficiente espacio libre para unos {{length}} ({{usable}} utilizables).",
-      "rewindPaused": "Retroceso en pausa durante la grabación…",
       "updateRunning": "Hay una grabación en curso. Actualizar ahora la detendrá.",
       "sharingInternet": "Una grabación está usando parte de tu internet.",
       "updateSoon": "Hay una grabación programada que empezará pronto. Actualizar ahora la detendrá."
@@ -136,21 +135,14 @@
       "available": "-{{span}} disponible",
       "gettingReady": "El retroceso se está preparando",
       "liveLabel": "EN VIVO",
-      "extraStream": "Usa una conexión extra. Solo se activa cuando tu línea tiene una conexión libre y se apaga sola si otra TV la necesita.",
+      "extraStream": "No usa una conexión extra: el equipo guarda lo que ya estás viendo.",
       "notAvailable": "El retroceso no está disponible en este canal.",
       "gettingReadyRetry": "El retroceso se está preparando. Inténtalo de nuevo en unos segundos.",
       "needsLatestApp": "El retroceso necesita la última versión de Snow Media Center.",
       "watchingLive": "Estás viendo en vivo.",
       "archiveStep": "El archivo de este canal avanza de minuto en minuto. Presiona de nuevo o elige Ver en vivo.",
       "off": {
-        "streams": "Tu plan permite 1 conexión, así que el retroceso solo funciona en canales con diferido.",
-        "streamsUnknown": "Este equipo no sabe cuántas conexiones permite tu plan, así que el retroceso solo funciona en canales con diferido.",
-        "recording": "El retroceso está en pausa mientras se graba (las conexiones de tu plan están en uso).",
         "engine": "El retroceso necesita el motor ExoPlayer. Cámbialo en Ajustes de TV en vivo › Reproductor.",
-        "lineChecking": "El retroceso está comprobando si tu línea tiene una conexión libre. Inténtalo de nuevo en unos segundos.",
-        "lineFull": "El retroceso está desactivado: otro dispositivo está usando las conexiones de tu línea. Lo intentará de nuevo en el próximo canal.",
-        "lineUnknown": "El retroceso está desactivado: este equipo no pudo comprobar que tu línea tenga una conexión libre. Lo intentará de nuevo en el próximo canal.",
-        "lineTaken": "El retroceso se desactivó: otro dispositivo está usando las conexiones de tu línea.",
         "disabled": "El retroceso está desactivado. Activa Retroceder TV en vivo en los ajustes de TV en vivo."
       }
     },

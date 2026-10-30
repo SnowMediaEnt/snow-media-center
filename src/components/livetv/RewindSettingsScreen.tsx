@@ -5,10 +5,8 @@
 // left, so "now" is normally nothing and the useful figure is how much the
 // box would allow (Auto).
 //
-// Rewind on the box opens a second stream on the line while a channel is
-// full screen, so it says so: it turns on only when the line has a free stream
-// and turns itself off if another TV needs it. It also says why it does not
-// run on a one-stream plan (only channels with provider catch-up rewind there).
+// Rewind on the box keeps what the player is already receiving, so it says
+// it uses no extra stream of the line: it works on any plan, even one stream.
 //
 // "Recordings on a computer" (the last row) opens NetworkFolderScreen in this
 // page's place: the shared folder on a computer or NAS recordings can go to.
@@ -27,13 +25,11 @@ import { BackButton } from '@/components/ui/BackButton';
 import { SnowPlayer } from '@/capacitor/SnowPlayer';
 import { SnowRecorder, hasRecorder, type NetworkFolder } from '@/capacitor/SnowRecorder';
 import NetworkFolderScreen from './NetworkFolderScreen';
-import { usePlayerAccount } from '@/hooks/usePlayerAccount';
-import { bufferGate } from '@/hooks/useLiveRewind';
 import { AFTER_CHOICES, BEFORE_CHOICES, loadPadding, savePadding, type RecordPadding } from '@/lib/recordSchedule';
 import { isDemo } from '@/lib/demoMode';
 import { useTranslation } from 'react-i18next';
 import {
-  HARD_CAP_BYTES, MAX_REWIND_CHOICES, formatBytes, loadRewindSettings, rewindBudgetBytes, rewindOffMessage, saveRewindSettings,
+  HARD_CAP_BYTES, MAX_REWIND_CHOICES, formatBytes, loadRewindSettings, rewindBudgetBytes, saveRewindSettings,
   type RewindSettings,
 } from '@/lib/liveRewind';
 
@@ -51,10 +47,10 @@ const ROWS: Row[] = ['back', 'enabled', 'max', 'before', 'after'];
 const ROWS_NET: Row[] = [...ROWS, 'net'];
 
 /**
- * Said under the switch: what the buffer costs the line. This is the English text (the tests compare
- * against it); the screen shows i18n 'recordings.rewind.extraStream'.
+ * Said under the switch: what the buffer costs the line (nothing). This is the English text (the tests
+ * compare against it); the screen shows i18n 'recordings.rewind.extraStream'.
  */
-export const EXTRA_STREAM_LINE = 'Uses one extra stream. It turns on only when your line has a free stream, and turns off by itself if another TV needs it.';
+export const EXTRA_STREAM_LINE = 'Uses no extra stream: the box keeps what you are already watching.';
 
 const RewindSettingsScreen = memo(({ onBack, embedded = false, active = true }: Props) => {
   const { t } = useTranslation();
@@ -62,10 +58,6 @@ const RewindSettingsScreen = memo(({ onBack, embedded = false, active = true }: 
   const [pad, setPad] = useState<RecordPadding>(loadPadding);
   const [focus, setFocus] = useState<Row>('enabled');
   const [usage, setUsage] = useState<{ usedBytes: number; freeBytes: number; totalBytes: number } | null>(null);
-  const { account } = usePlayerAccount();
-  const gate = bufferGate(account?.maxConnections ?? null);
-  // The demo line is fixed and plays nothing: no plan to explain.
-  const plan = isDemo() || gate === 'ok' ? null : rewindOffMessage(gate === 'few' ? 'streams' : 'streams-unknown');
   // Recordings on a computer: only where recording is (the app on a box, not
   // the demo). 'off' also when the app's native side can't say (an older build).
   const [net, setNet] = useState<'off' | 'loading' | NetworkFolder>(() => (hasRecorder() && !isDemo() ? 'loading' : 'off'));
@@ -188,7 +180,6 @@ const RewindSettingsScreen = memo(({ onBack, embedded = false, active = true }: 
           <p data-rewind-extra-stream className={`${note} text-brand-gold mt-1 flex items-start`}>
             <Info className="w-3.5 h-3.5 mr-1.5 mt-0.5 flex-shrink-0" /> {t('recordings.rewind.extraStream')}
           </p>
-          {plan && <p data-rewind-plan className={`${note} text-amber-300 mt-1`}>{plan}</p>}
         </>
       );
     }

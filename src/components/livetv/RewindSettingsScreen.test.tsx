@@ -1,7 +1,7 @@
 /**
  * Live TV › Settings › Recording & Rewind (TRACKER 25): the switch and Max
- * rewind by remote, the "one extra stream" line, the explanation on a plan
- * that allows one stream, and Start early / End late for scheduled recordings.
+ * rewind by remote, the "no extra stream" line (on every plan, one stream
+ * included), and Start early / End late for scheduled recordings.
  */
 import { act, fireEvent, render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -25,20 +25,23 @@ const settle = async () => { await act(async () => { await Promise.resolve(); })
 beforeEach(() => { localStorage.removeItem(REWIND_SETTINGS_KEY); localStorage.removeItem(PADDING_KEY); h.plan = 2; h.demo = false; });
 
 describe('Rewind live TV settings', () => {
-  it('says it uses one extra stream, only when the line has a free one, and yields to another TV', async () => {
+  it('says it uses no extra stream', async () => {
     render(<RewindSettingsScreen onBack={vi.fn()} />);
     await settle();
-    expect(EXTRA_STREAM_LINE).toBe('Uses one extra stream. It turns on only when your line has a free stream, and turns off by itself if another TV needs it.');
+    expect(EXTRA_STREAM_LINE).toBe('Uses no extra stream: the box keeps what you are already watching.');
     expect(document.querySelector('[data-rewind-extra-stream]')?.textContent).toContain(EXTRA_STREAM_LINE);
-    // A plan with two streams has nothing else to explain.
     expect(document.querySelector('[data-rewind-plan]')).toBeNull();
   });
 
-  it('on a one-stream plan it says rewind works only on channels with catch-up', async () => {
-    h.plan = 1;
-    render(<RewindSettingsScreen onBack={vi.fn()} />);
-    await settle();
-    expect(document.querySelector('[data-rewind-plan]')?.textContent).toBe('Your plan allows 1 stream, so rewind works only on channels with catch-up.');
+  it('a one-stream plan, or one not known, has nothing more to explain', async () => {
+    for (const plan of [1, null]) {
+      h.plan = plan;
+      const r = render(<RewindSettingsScreen onBack={vi.fn()} />);
+      await settle();
+      expect(document.querySelector('[data-rewind-extra-stream]')?.textContent).toContain(EXTRA_STREAM_LINE);
+      expect(document.querySelector('[data-rewind-plan]')).toBeNull();
+      r.unmount();
+    }
   });
 
   it('OK turns it off and on; the choice is kept', async () => {

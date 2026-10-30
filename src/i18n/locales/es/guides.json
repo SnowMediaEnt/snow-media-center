@@ -128,7 +128,7 @@
         },
         "rewind": {
           "title": "¿Te perdiste algo? Atrás 10 s retrocede la TV en vivo.",
-          "line2": "Ver en vivo vuelve al momento actual. Necesita una conexión libre en tu plan o un canal con retroceso."
+          "line2": "Ver en vivo vuelve al momento actual."
         },
         "record": {
           "title": "Graba desde la barra, o mantén OK sobre un canal → Grabar…",

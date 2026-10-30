@@ -76,7 +76,7 @@ import { hasNativePlayer, SnowPlayer } from '@/capacitor/SnowPlayer';
 import { SnowRecorder, RECORDINGS_CHANGED_EVENT, hasRecorder, notifyRecordingsChanged, type RecordingJob } from '@/capacitor/SnowRecorder';
 import { programmeTimeUtcMs } from '@/lib/recordSchedule';
 import { isOffAirAnswer, useNativePlayer } from '@/hooks/useNativePlayer';
-import { useLiveRewind, rewindOffMessage, panelOffset, type RewindOffReason } from '@/hooks/useLiveRewind';
+import { useLiveRewind, rewindOffMessage, panelOffset } from '@/hooks/useLiveRewind';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
 import { usePlayerEngine } from '@/hooks/usePlayerEngine';
 import { recordEngineSample, sampleFromStats, shouldSampleEngines } from '@/lib/engineCompare';
@@ -122,7 +122,7 @@ import { XtreamHttpError } from '@/lib/xtreamListProxy';
 import { noteLivePlay } from '@/lib/gameDayAi';
 import { onMediaKey } from '@/lib/mediaKeys';
 import { createSkipQueue, MEDIA_SKIP_SEC } from '@/lib/skipQueue';
-import { MAX_SIMULTANEOUS_RECORDINGS, REWIND_PAUSED_NOTE, endsAtLabel, extraStreamNote, pauseRewindForRecording, recordingFileName } from '@/lib/recording';
+import { MAX_SIMULTANEOUS_RECORDINGS, endsAtLabel, extraStreamNote, recordingFileName } from '@/lib/recording';
 import {
   demoGetLiveCategories,
   demoGetLiveStreams,
@@ -2164,13 +2164,10 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   // channel plays the panel's archive address in place of the channel's (the
   // address carries the line's login: it goes to SnowPlayer.load only); the
   // on-box buffer is switched to inside the native player and changes nothing
-  // here. The buffer is a second stream on the line: the plan's stream count
-  // (known for the main line) and the running recordings decide if it runs.
+  // here. The buffer is fed by the player's own connection (never a second
+  // stream of the line), so neither the plan nor the recordings limit it.
   const rewindStream = nativeActive && playingChannelId ? playingStream ?? null : null;
   const { account: playerAccount } = usePlayerAccount();
-  const playingPlan = playerAccount && lineKey({ host: playerAccount.host, username: playerAccount.username }) === lineKey(playingLine)
-    ? playerAccount.maxConnections
-    : null;
   const rewind = useLiveRewind({
     active: nativeActive && !DEMO,
     directUrl: directLiveUrl,
@@ -2178,8 +2175,6 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     stream: rewindStream,
     watching: nativeActive && barVisible,
     engine: playerEngine,
-    maxConnections: playingPlan,
-    activeRecordings: recJobs.length,
   });
   const rewindRef = useRef(rewind);
   rewindRef.current = rewind;
@@ -2228,16 +2223,6 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
   liveCushionRef.current = liveCushion.playing;
   const rewindPausedChange = rewind.onPausedChange;
   useEffect(() => { rewindPausedChange(native.paused); }, [native.paused, rewindPausedChange]);
-
-  // A recording took the streams the buffer needs: say why the rewind row went.
-  const lastOffReasonRef = useRef<RewindOffReason | null>(null);
-  useEffect(() => {
-    const r = rewind.offReason;
-    if (r === 'recording' && lastOffReasonRef.current !== 'recording') {
-      try { toast({ title: rewindOffMessage('recording') }); } catch { /* ignore */ }
-    }
-    lastOffReasonRef.current = r;
-  }, [rewind.offReason]);
 
   // mpv couldn't start on this box: told once per fallback, not on every
   // render (useNativePlayer clears engineNotice on the next load).
@@ -3671,10 +3656,8 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
     // dialog, here, and in the error when the provider refuses (same words).
     const note = extraStreamNote(plan);
     try {
-      // The rewind buffer gives its stream up first, so the line never sees
-      // picture + buffer + recording together.
-      const paused = await pauseRewindForRecording(plan);
       // Its own connection, like the player's; the address is never logged.
+      // (The rewind buffer uses no stream next to the picture: it stays.)
       const r = await SnowRecorder.start({
         url: buildNativeLiveUrl(line, st.stream_id),
         channel: st.name,
@@ -3690,7 +3673,7 @@ const LiveSection = memo(({ creds, isActive, onExitLeft, onExitUp, onBack: _onBa
         description: t('live.toast.recordingDesc', {
           until: endsAt ? t('live.toast.recordingUntil', { time: endsAt }) : t('live.toast.recordingUntilStopped'),
           volume: r.volumeLabel,
-          note: `${note}${paused ? ` ${REWIND_PAUSED_NOTE}` : ''}`,
+          note,
         }),
       });
     } catch (e) {

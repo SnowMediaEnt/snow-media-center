@@ -18,7 +18,7 @@
 // whatever happens (a failed read is not retried sooner, a second caller
 // shares the read in flight), only while screens play and the app is in
 // front. A provider bans an IP for a burst of player_api calls (Vibez,
-// 2026-10-19), so nothing here ever loops on it. The same read Rewind makes
+// 2026-10-19), so nothing here ever loops on it. The account read
 // (authenticate + parseLineUsage): direct first, then Snow Media's list proxy
 // on an ISP block, an outside service only ever directly.
 import { useCallback, useEffect, useState } from 'react';
@@ -27,7 +27,7 @@ import { parseLineUsage } from '@/lib/liveRewind';
 import { lineKey } from '@/lib/favoritesSync';
 import { isDemo } from '@/lib/demoMode';
 
-/** At most one panel read per line this often (as Rewind's LINE_RECHECK_MS). */
+/** At most one panel read per line this often. */
 export const LINE_POLL_MS = 60_000;
 /** A line whose screens changed this recently is not read yet (the panel's count lags a moment). */
 export const LINE_SETTLE_MS = 4_000;

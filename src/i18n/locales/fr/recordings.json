@@ -24,7 +24,6 @@
       "conflict_other": "Vous avez déjà {{count}} enregistrements à {{time}}. Annulez-en un d'abord.",
       "conflict_many": "Vous avez déjà {{count}} enregistrements à {{time}}. Annulez-en un d'abord.",
       "noSpace": "Pas assez d'espace libre pour environ {{length}} ({{usable}} utilisables).",
-      "rewindPaused": "Rembobinage en pause pendant l'enregistrement…",
       "updateRunning": "Un enregistrement est en cours. Mettre à jour maintenant l'arrêtera.",
       "sharingInternet": "Un enregistrement utilise une partie de votre connexion internet.",
       "updateSoon": "Un enregistrement va bientôt démarrer. Mettre à jour maintenant l'arrêtera."
@@ -136,21 +135,14 @@
       "available": "-{{span}} disponible",
       "gettingReady": "Le rembobinage se prépare",
       "liveLabel": "DIRECT",
-      "extraStream": "Utilise une connexion supplémentaire. S'active seulement si votre ligne a une connexion libre, et s'éteint tout seul si une autre TV en a besoin.",
+      "extraStream": "N'utilise aucune connexion supplémentaire : le boîtier garde ce que vous regardez déjà.",
       "notAvailable": "Le rembobinage n'est pas disponible sur cette chaîne.",
       "gettingReadyRetry": "Le rembobinage se prépare. Réessayez dans quelques secondes.",
       "needsLatestApp": "Le rembobinage nécessite la dernière version de Snow Media Center.",
       "watchingLive": "Vous regardez en direct.",
       "archiveStep": "L'archive de cette chaîne avance d'une minute à la fois. Appuyez à nouveau, ou passez en direct.",
       "off": {
-        "streams": "Votre forfait autorise 1 connexion, donc le rembobinage ne fonctionne que sur les chaînes avec replay.",
-        "streamsUnknown": "Ce boîtier ne peut pas savoir combien de connexions votre forfait autorise, donc le rembobinage ne fonctionne que sur les chaînes avec replay.",
-        "recording": "Le rembobinage est en pause pendant l'enregistrement (les connexions de votre forfait sont utilisées).",
         "engine": "Le rembobinage nécessite le moteur ExoPlayer. Modifiez-le dans Paramètres TV en direct › Lecteur.",
-        "lineChecking": "Le rembobinage vérifie si votre ligne a une connexion libre. Réessayez dans quelques secondes.",
-        "lineFull": "Le rembobinage est désactivé : un autre appareil utilise les connexions de votre ligne. Il réessaiera sur la prochaine chaîne.",
-        "lineUnknown": "Le rembobinage est désactivé : ce boîtier n'a pas pu vérifier que votre ligne a une connexion libre. Il réessaiera sur la prochaine chaîne.",
-        "lineTaken": "Le rembobinage s'est désactivé : un autre appareil utilise les connexions de votre ligne.",
         "disabled": "Le rembobinage est désactivé. Activez Rembobiner la TV en direct dans les paramètres TV en direct."
       }
     },
