@@ -60,6 +60,10 @@ export const STAGE_AUDIO: VideoTrackInfo[] = [
   { id: 1, label: 'Español · Stereo', language: 'es', active: false },
 ];
 
+// ── VOD (a film from the demo line-up, for the held-OK menu) ───────────────
+
+export const STAGE_VOD = { title: 'The Last Horizon', streamId: 'demo-vod-1', category: 'Action and Adventure' } as const;
+
 // ── Plex (made-up catalogue title, drawn poster) ───────────────────────────
 
 export const STAGE_PLEX = {

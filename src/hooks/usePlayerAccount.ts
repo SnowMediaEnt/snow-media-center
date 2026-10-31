@@ -5,7 +5,7 @@ import {
   type PlayerAccount,
 } from '@/lib/xtream';
 import { expiryState, type ExpiryState } from '@/hooks/useUserServices';
-import { isDemo } from '@/lib/demoMode';
+import { isDemo, isHowtoCapture } from '@/lib/demoMode';
 
 interface PlayerAccountHookState {
   account: PlayerAccount | null;
@@ -31,7 +31,9 @@ export const usePlayerAccount = (): PlayerAccountHookState => {
     try {
       // Demo: never read a stored account — keeps ExpirationNoticeDialog,
       // exp-notice storage writes and token clearing inert for demo visitors.
-      const acc = isDemo() ? null : await loadPlayerAccount();
+      // The How-to pictures (developer build only) read the made-up one the
+      // capture script seeds, so My Account and the Dashboard show a line.
+      const acc = isDemo() && !isHowtoCapture() ? null : await loadPlayerAccount();
       // Every reconcile stamps a new lastCheckedAt; nothing else may have
       // changed. Keep the old object then, so nothing re-renders for it.
       setAccount((prev) => {

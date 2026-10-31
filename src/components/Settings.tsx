@@ -55,9 +55,9 @@ const ROW_ICON: Record<SettingsPage, typeof Home> = {
 };
 
 /** The How-to guide's hooks on the menu rows (data-howto; literals, so its check finds them).
- *  The content bar's hook is the Home screen row: the guide's "switches" picture shows
- *  Notifications' two switches, with the row that holds the content bar beside them. */
-const ROW_HOWTO: Partial<Record<SettingsPage, string>> = { home: 'set.contentBar', updates: 'set.updatesTab' };
+ *  The guide's "switches" picture shows Notifications' two switches, with the Home
+ *  screen row (the content bar's page) beside them. */
+const ROW_HOWTO: Partial<Record<SettingsPage, string>> = { home: 'set.homeRow', updates: 'set.updatesTab' };
 
 /** Pages whose rows the remote walks with Settings' own keys; the others are panels with keys of their own. */
 const LIST_PAGES: ReadonlySet<SettingsPage> = new Set<SettingsPage>(['account', 'home', 'profiles', 'remote', 'notifications', 'language']);
@@ -625,6 +625,7 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
           className="flex-1 min-w-0 min-h-0 flex flex-col"
           data-settings-preview={inPage ? 'false' : 'true'}
           data-settings-page={shownPage}
+          data-howto="set.page"
           onClickCapture={() => { if (!inPage) enterPage(shownPage); }}
         >
           <h2 className="text-base font-quicksand font-semibold text-brand-ice/90 mb-2 truncate">{t(`settings.hub.rows.${shownPage}`)}</h2>

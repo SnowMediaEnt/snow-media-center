@@ -15,8 +15,10 @@ export const HOWTO_DIAGRAMS = { remote: ['remote.arrows', 'remote.ok', 'remote.b
 export const HOWTO_SHOTS = {
   'home': ['home.clock', 'home.profile', 'home.dashboard', 'home.settings', 'home.voice', 'home.ticker', 'home.recommended', 'home.cards', 'home.cardLivetv', 'home.cardPlex', 'home.cardSupport', 'home.cardStore'], // Home, focus on Live TV card
   'home-bar': ['home.recommended', 'home.recTile', 'home.recArrows', 'home.recDots'], // Home, focus in Recommended (2nd tile)
+  'home-tilemenu': ['home.tileMenu', 'home.tileMove', 'home.tileChange', 'home.tileReset'], // Home, OK held on the Live TV tile (its menu)
   'settings-remote': ['set.remoteQr', 'set.remoteCode', 'set.remoteSteps'], // Settings → Phone Remote
-  'live-signin': ['signin.username', 'signin.password', 'signin.submit', 'signin.note'], // stage (CredentialsForm)
+  'live-signin': ['signin.username', 'signin.password', 'signin.submit', 'signin.note', 'signin.pinBtn'], // stage (CredentialsForm)
+  'live-pin': ['signin.pinInput', 'signin.pinSubmit', 'signin.note'], // stage (CredentialsForm, "Sign in with a PIN" pressed)
   'live-layout': ['live.layoutCards'], // Live TV, first visit (layout chooser)
   'live-list': ['live.back', 'live.updateChannels', 'live.settingsBtn', 'live.sections', 'live.lineGroup', 'live.categories', 'live.favorites', 'live.searchBtn', 'live.recordingsBtn', 'live.channels', 'live.preview', 'live.nowNext'], // Live TV, Classic, 2 services, "Sports" category, channel 2 focused
   'live-search': ['live.searchBox', 'live.channels'], // Live TV, Search open, "sum" typed
@@ -32,14 +34,18 @@ export const HOWTO_SHOTS = {
   'multi': ['multi.layouts'], // stage (Multi-Screen layout picker)
   'backups': ['backups.list', 'backups.refresh'], // Live TV → Backups
   'vod': ['vod.categories', 'vod.grid'], // Live TV → VOD
-  'live-settings': ['hub.services', 'hub.channels', 'hub.appearance', 'hub.rewind', 'hub.signOut'], // Live TV → Settings (hub menu)
+  'vod-holdmenu': ['menu.report'], // stage over vod (a film's held-OK menu)
+  'live-settings': ['hub.account', 'hub.services', 'hub.channels', 'hub.appearance', 'hub.rewind', 'hub.player', 'hub.help', 'hub.signOut'], // Live TV → Settings (hub menu)
+  'live-account': ['hub.account', 'acct.pin', 'acct.pinBtn'], // Live TV → Settings → My Account, the sign-in PIN shown
+  'live-player-page': ['hub.player', 'player.liveBuffer'], // Live TV → Settings → Player, the remote on Live buffer
   'plex-connect': ['plexauth.connect', 'plexauth.ownServer'], // stage (PlexAuthScreen, signed out, line saved)
   'plex-link': ['plexauth.code', 'plexauth.url'], // stage (PlexAuthScreen, link code)
   'plex-home': ['plex.menu', 'plex.continue', 'plex.recent'], // Plex card → Plex Home
   'plex-discover': ['plex.discover'], // Plex → Discover
   'plex-search': ['plex.searchBox', 'plex.results'], // Plex → Search, "star" typed
   'plex-detail': ['detail.play', 'detail.myList', 'detail.version', 'detail.cast'], // Plex, a movie with 2 versions
-  'plex-player': ['pp.skip', 'pp.seek', 'pp.controls', 'pp.subs', 'pp.audio'], // stage (PlexPlayerOverlay, Skip Intro prompt, controls shown)
+  'plex-related': ['detail.related'], // the same page, the remote down on the related rows
+  'plex-player': ['pp.skip', 'pp.seek', 'pp.controls', 'pp.subs', 'pp.audio', 'pp.next'], // stage (PlexPlayerOverlay, Skip Intro prompt, controls shown, Next episode on the bar)
   'plex-upnext': ['pp.upNext'], // stage (Up next prompt)
   'plex-subs': ['pp.getSubs'], // stage (Subtitles menu open)
   'plex-audio': ['pp.fixAudio'], // stage (Audio menu open)
@@ -49,7 +55,8 @@ export const HOWTO_SHOTS = {
   'gems': ['gems.packs'], // Dashboard → Snow Gems (view `credits`)
   'gems-qr': ['gems.qr'], // Snow Gems, a pack picked: the pay code
   'dashboard': ['dash.player', 'dash.services', 'dash.gems', 'dash.games', 'dash.signOut'], // Home → Dashboard (demo signed-in user)
-  'support-help': ['sup.helpTab', 'sup.aiTab', 'sup.postsTab', 'sup.howto', 'sup.speed', 'sup.guide', 'sup.videos', 'sup.tickets', 'sup.remote', 'sup.cleaner', 'sup.apps'], // Support, Help tab
+  'support-help': ['sup.helpTab', 'sup.aiTab', 'sup.postsTab', 'sup.howto', 'sup.speed', 'sup.guide', 'sup.deviceCheck', 'sup.videos', 'sup.tickets', 'sup.remote', 'sup.cleaner', 'sup.apps'], // Support, Help tab
+  'device-check': ['ds.overall', 'ds.found', 'ds.picks', 'ds.ask'], // Support → Device check, scan done
   'support-ai': ['ai.input'], // Support, AI Chat tab
   'support-posts': ['posts.list'], // Support, Posts tab
   'voice': ['voice.mic'], // Home, voice panel open (listening)
@@ -57,8 +64,9 @@ export const HOWTO_SHOTS = {
   'speedtest': ['speed.start'], // Support → Speedtest (before Start)
   'buffering': ['bg.steps'], // Support → Buffering Guide, step 1
   'videos': ['videos.grid'], // Support → Support Videos
-  'settings-ui': ['set.tabs', 'set.updatesTab'], // Settings → UI (top)
-  'settings-switches': ['set.contentBar', 'set.postNotify', 'set.alerts'], // Settings → UI, scrolled to the switches
+  'settings-ui': ['set.tabs', 'set.page', 'set.updatesTab'], // Settings: the menu with My account beside it
+  'settings-home': ['set.homeRow', 'set.contentBar', 'set.barSource', 'set.barShow', 'set.tilesReset'], // Settings → Home screen, the remote on Show from
+  'settings-switches': ['set.homeRow', 'set.postNotify', 'set.alerts'], // Settings → Notifications (its switches), the Home screen row beside them
   'settings-language': ['set.language'], // Settings → UI, scrolled to Language, current language focused
   'settings-media': ['set.wallpaper'], // Settings → Media Manager
   'profiles-pick': ['prof.list', 'prof.kids', 'prof.manage'], // "Who's watching?" (Me, Sam, Kids profile with PIN)

@@ -3,7 +3,7 @@ import { Tv, KeyRound, Palette, LogOut, Loader2, ListVideo, Gauge, History, Laye
 import type { XtreamCreds } from '@/lib/xtream';
 import type { LiveLayout } from '@/lib/liveLayout';
 import { useToast } from '@/hooks/use-toast';
-import { isDemo } from '@/lib/demoMode';
+import { isDemo, isHowtoCapture } from '@/lib/demoMode';
 import { openSupportTool } from '@/lib/appActions';
 import { BackButton } from '@/components/ui/BackButton';
 import { useBillingEnabled } from '@/hooks/useBillingEnabled';
@@ -82,13 +82,15 @@ const fallback = (
 
 /** The How-to guide's hooks on the menu rows (data-howto; literals, so its check finds them). */
 const HUB_HOWTO: Partial<Record<MenuId, string>> = {
-  services: 'hub.services', channels: 'hub.channels', appearance: 'hub.appearance', rewind: 'hub.rewind', signout: 'hub.signOut',
+  account: 'hub.account', services: 'hub.services', channels: 'hub.channels', appearance: 'hub.appearance', rewind: 'hub.rewind',
+  player: 'hub.player', help: 'hub.help', signout: 'hub.signOut',
 };
 
 /** Pages drawn beside the menu (Sign out has none: OK signs out). */
 const EMBEDDED: ReadonlySet<MenuId> = new Set<MenuId>(['account', 'services', 'channels', 'appearance', 'rewind', 'player', 'help']);
-/** In the demo only these work; the account and line pages are inert there. */
-const DEMO_OK: ReadonlySet<MenuId> = new Set<MenuId>(['appearance', 'rewind', 'player', 'help']);
+/** In the demo only these work; the account and line pages are inert there. The
+ *  How-to pictures (developer build only) draw My Account too, with a made-up PIN. */
+const DEMO_OK: ReadonlySet<MenuId> = new Set<MenuId>(['appearance', 'rewind', 'player', 'help', ...(isHowtoCapture() ? ['account' as const] : [])]);
 /** The page beside the menu follows the highlight once it rests this long (no page mounts for every row passed). */
 const PREVIEW_REST_MS = 250;
 

@@ -1178,7 +1178,7 @@ const PlexDetail = memo(({ isActive, base, token, item, onPlay, onPlayEpisode, o
                   other related hubs; focus zone 'related'. Slim posters,
                   margins (no flex gap on old WebViews). */}
               {related.map((hub, r) => (
-                <div key={`${hub.title}-${r}`} className="mt-3" data-plex-related-row={hub.collection ? 'collection' : 'related'}>
+                <div key={`${hub.title}-${r}`} className="mt-3" data-plex-related-row={hub.collection ? 'collection' : 'related'} data-howto="detail.related">
                   <div className="plex-rail-head font-montserrat truncate">{hub.title || t('plex.detail.moreLikeThis')}</div>
                   <div className="flex overflow-x-auto pb-2 pt-2 px-2 -mx-2">
                     {hub.items.map((it, i) => {

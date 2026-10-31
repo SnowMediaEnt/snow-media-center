@@ -421,7 +421,10 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     const openHowTo = () => { setTab('help'); setHelpView('menu'); setShowHowTo(true); };
     const openCleaner = () => { if (kids) return; setTab('help'); setHelpView('cleaner'); };
     const openPosts = () => { if (kids) return; setChildFocusActive(false); setTab('mail'); };
+    // The How-to guide's "Open it" on the Device check slide (not on a Kids profile: no card).
+    const openDevice = () => { if (kids) return; setTab('help'); setHelpView('menu'); setShowDevice(true); };
     window.addEventListener('support:focus-tab', handler as EventListener);
+    window.addEventListener('support:open-device', openDevice);
     window.addEventListener('support:open-tickets', openTickets);
     window.addEventListener('support:open-cleaner', openCleaner);
     window.addEventListener('support:open-posts', openPosts);
@@ -429,6 +432,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     window.addEventListener('support:open-howto', openHowTo);
     return () => {
       window.removeEventListener('support:focus-tab', handler as EventListener);
+      window.removeEventListener('support:open-device', openDevice);
       window.removeEventListener('support:open-tickets', openTickets);
       window.removeEventListener('support:open-cleaner', openCleaner);
       window.removeEventListener('support:open-posts', openPosts);
@@ -595,6 +599,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
                 size="lg"
                 tabIndex={0}
                 data-support-tv-focus-id="help-device"
+                data-howto="sup.deviceCheck"
                 data-device-scan-card=""
                 className="bg-teal-700/60 border-teal-400/70 text-white hover:bg-teal-600/70 h-[4.5rem] px-6 shadow-md grid grid-cols-[2.5rem_1fr] content-center items-center gap-x-4 gap-y-0.5 text-left"
               >
