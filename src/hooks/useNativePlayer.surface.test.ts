@@ -119,10 +119,17 @@ describe('SnowPlayerPlugin.kt — the main player on a SurfaceView (pinned)', ()
     expect(plugin).toContain('s.tunneled = !live && tunneled && s.usesSurfaceView && s.volume <= 1f');
   });
 
-  it('a film is paused when the app leaves the screen (no 4K decoding into nothing)', () => {
+  it('a film is parked when the app leaves the screen (no 4K decoding into nothing, no loading, nothing playing it again)', () => {
     const onStop = plugin.slice(plugin.indexOf('override fun handleOnStop()'), plugin.indexOf('override fun handleOnDestroy()'));
-    expect(onStop).toContain('s.player?.playWhenReady = false');
-    expect(onStop).toContain('releaseHold(s)');
+    expect(onStop).toContain('BackgroundFilmRule.parks(true, true, s.isLive, s.engine == EngineChoice.EXO)) parkFilm(s)');
+    const park = plugin.slice(plugin.indexOf('private fun parkFilm('), plugin.indexOf('private fun scheduleUnpark('));
+    // Paused and stopped where it is (Media3 keeps the item and its place),
+    // its timers (and so a start-up hold) gone.
+    expect(park).toContain('cancelTimers(s)');
+    expect(park).toContain('p.playWhenReady = false');
+    expect(park).toContain('p.stop()');
+    expect(park).toContain('s.parked = true');
+    expect(plugin).toMatch(/private fun cancelTimers\(s: PlayerSlot\) \{[\s\S]*?s\.holding = false[\s\S]*?s\.unparkRunnable = null/);
   });
 
   it('no HDR is turned into SDR: no tone mapping anywhere', () => {

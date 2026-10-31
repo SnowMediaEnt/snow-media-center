@@ -4069,6 +4069,12 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     onReload: () => { armSlowLoadTimerRef.current?.(); },
     health: { context: 'plex', title: playingTitle || playing?.title || null, neededKbps: stallNeedKbps ?? null },
   });
+  // The app in the background (useNativePlayer `away`): the film is stopped
+  // and loads again on return. Every start-up and recovery timer below
+  // stands down meanwhile. 2026-10-30: behind the launcher the slow-load
+  // watchdog still showed "Still preparing", the buffering card counted to
+  // 277 s, and their recoveries swapped streams the player then opened.
+  const nativeAwayRef = useRef(native.away); nativeAwayRef.current = native.away;
   // Reset the safety-net guard whenever the underlying title changes.
   useEffect(() => { audioSafetyRef.current = null; }, [playing?.ratingKey]);
   // Help → "Check this stream (1 minute)": the title on screen, as it plays.
@@ -4244,9 +4250,11 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     const fire = async (): Promise<void> => {
       slowLoadTimerRef.current = null;
       if (!stillLoadingRef.current || token !== slowTokenRef.current) return;
+      // Away: the return re-arms it (the arming effect below, onReload).
+      if (nativeAwayRef.current) return;
       if (isPreBuffering() || convertRecoveringRef.current) { again(2000); return; }
       const drawn = await frameDrawn();
-      if (!stillLoadingRef.current || token !== slowTokenRef.current) return;
+      if (!stillLoadingRef.current || token !== slowTokenRef.current || nativeAwayRef.current) return;
       if (drawn) { markLoaded(); return; }
       // Nothing drawn: a start the server feeds too little is rescued first
       // (before any card shows); one still receiving data is waited for.
@@ -4261,15 +4269,18 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // A new stream: the last one's start-up hold (if any) is over.
     clearPreBuffer();
     if (!fullscreen) { clearSlowLoadTimer(); stillLoadingRef.current = false; setSlowLoad(false); return; }
+    // Away: no countdown and no "Still preparing" off screen. Back, the
+    // film loads again, so its start is watched again from here.
+    if (native.away) { clearSlowLoadTimer(); setSlowLoad(false); return; }
     armSlowLoadTimer();
     return () => { clearSlowLoadTimer(); };
-  }, [fullscreen, streamUrl, clearSlowLoadTimer, armSlowLoadTimer]);
+  }, [fullscreen, streamUrl, native.away, clearSlowLoadTimer, armSlowLoadTimer]);
   // Only clear the slow-load watchdog when playback ACTUALLY starts — i.e.
   // the native player reports playing or the polled position advances past 0.
   // The onPlayStateChangeCb above already clears on the 'playing' event; this
   // interval is a belt-and-braces poll in case that event is missed.
   useEffect(() => {
-    if (!fullscreen || !streamUrl) return;
+    if (!fullscreen || !streamUrl || native.away) return;
     let lastPos: number | null = null;
     let alive = true;
     let tick = 0;
@@ -4317,7 +4328,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // place again at a converted preset that rate carries (tryRescue).
   useEffect(() => {
     if (!(slowLoad && playing && conn)) return;
-    if (convertRecoveringRef.current) return;
+    if (convertRecoveringRef.current || nativeAwayRef.current) return;
     if (tryRescueRef.current('slow') === 'rescued') { setSlowLoad(false); return; }
     if (!useTranscode) return;
     setSlowLoad(false);
@@ -4490,7 +4501,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   useEffect(() => {
     if (!(nativeActive && playing)) return;
     const id = window.setInterval(() => {
-      if (stillLoadingRef.current || bufferingRef.current) return;
+      if (stillLoadingRef.current || bufferingRef.current || nativeAwayRef.current) return;
       void plexGetPosition().then((p) => { if (p.position > 0) lastKnownPosRef.current = p.position; }).catch(() => { /* ignore */ });
     }, 5_000);
     return () => window.clearInterval(id);
@@ -4515,7 +4526,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     } catch { /* ignore */ }
   }, [restartAt]);
   useEffect(() => {
-    if (!(nativeActive && native.buffering)) return;
+    if (!(nativeActive && native.buffering) || native.away) return;
     if (stillLoadingRef.current) return;
     if (native.serverBusy != null) return;
     const st = autoQRef.current;
@@ -4535,7 +4546,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     let timer = 0;
     let done = false;
     const check = () => {
-      if (done || autoQRef.current !== st || st.key !== playingKeyRef.current) return;
+      if (done || autoQRef.current !== st || st.key !== playingKeyRef.current || nativeAwayRef.current) return;
       if (serverBusyRef.current != null) { timer = window.setTimeout(check, RATE_TICK_MS); return; }
       const need = needNowRef.current();
       const d = st.aq.delivery(rates(), Date.now(), stallCtx(at), at, need);
@@ -4547,7 +4558,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     };
     check();
     return () => { done = true; window.clearTimeout(timer); };
-  }, [native.buffering, native.serverBusy, nativeActive, autoLadder, applyAutoMove, stallCtx, rates]);
+  }, [native.buffering, native.serverBusy, native.away, nativeActive, autoLadder, applyAutoMove, stallCtx, rates]);
   // The way back up, checked every 15 s while playing smoothly. When the
   // player's own downloads can't show the speed (a converted stream arrives
   // only as fast as the server converts it), a short read of the file itself
@@ -4562,6 +4573,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
       const st = autoQRef.current;
       // The player's rates are kept for 3 minutes; the title's best is kept for good.
       if (st.key && st.key === playingKeyRef.current) noteSustained();
+      if (nativeAwayRef.current) return;
       if (stillLoadingRef.current || bufferingRef.current || !st.key || st.key !== playingKeyRef.current) return;
       const now = Date.now();
       const { ladder, index, ceiling } = autoLadder();
@@ -5112,11 +5124,13 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   // session the server hears nothing from is ended, after which its next
   // segment came back with an error status.
   useEffect(() => {
-    if (!(nativeActive && native.paused && streamUrl && transcodeStopUrl(streamUrl))) return;
+    // Not from the background: the server may end the session then, and
+    // the return's load recovers that (a fresh session) like any other.
+    if (!(nativeActive && native.paused && !native.away && streamUrl && transcodeStopUrl(streamUrl))) return;
     const url = streamUrl;
     const id = window.setInterval(() => { pingPlexTranscode(url); }, TRANSCODE_PING_MS);
     return () => window.clearInterval(id);
-  }, [nativeActive, native.paused, streamUrl]);
+  }, [nativeActive, native.paused, native.away, streamUrl]);
 
   // Every converting session playback leaves (a quality change, a fallback,
   // the auto-revert, Back, the end, the next episode, Plex closing) is
@@ -5159,7 +5173,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
   const netRetriesRef = useRef(0);
   useEffect(() => { netRetriesRef.current = 0; }, [playing?.ratingKey]);
   useEffect(() => {
-    if (!(nativeActive && native.error && isNetworkPlaybackError(native.error.code))) return;
+    if (!(nativeActive && native.error && isNetworkPlaybackError(native.error.code)) || native.away) return;
     // Rescued at a lighter quality, or too slow even for the lowest: the
     // same stream again is no way out.
     if (rescuedErrRef.current === native.error) return;
@@ -5178,7 +5192,7 @@ const PlexSection = memo(({ isActive, onExitLeft, onExitUp, onOpenBufferingGuide
     // genuinely dead stream is not hammered.
     const t = window.setTimeout(kick, Math.min(60_000, 4000 * 2 ** netRetriesRef.current));
     return () => { window.removeEventListener('online', kick); window.clearTimeout(t); };
-  }, [nativeActive, native.error, native, playing]);
+  }, [nativeActive, native.error, native.away, native, playing]);
 
   // plex_error — track native player fatal error transitions (single fire per message).
   const lastPlexErrRef = useRef<string | null>(null);

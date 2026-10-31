@@ -139,6 +139,10 @@ export interface NativePlayerState {
    *  useNativePlayer's engineFallback listener) or before any fallback. */
   engineNotice: string | null;
   retry: () => void;
+  /** The app is in the background (Home, another app over it): a film is
+   *  stopped and nothing loads it until the app is back, and the caller's own
+   *  start-up and recovery timers stand down meanwhile. */
+  away: boolean;
   /** Goes up on every reload of the same address (a retry, the app coming
    *  back): each one starts up again, like a new address. */
   loads: number;
@@ -241,6 +245,20 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   // Where a film was when the app went to the background: the player is
   // stopped then, so the reload can't ask it any more.
   const hiddenAtRef = useRef<Promise<number> | null>(null);
+  // The app in the background, for the hook's whole life (not one stream's):
+  // a stream that starts while it is away must know it too. 2026-10-30: a
+  // Plex film left behind the launcher (Home) was stopped, but its stale
+  // buffering and the section's start-up watchdog ran on, and the stream
+  // they swapped in was loaded at once, minutes later and off screen.
+  const awayRef = useRef(typeof document !== 'undefined' && document.hidden === true);
+  const [away, setAway] = useState(awayRef.current);
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  // This player was stopped as the app left, and has not been turned off
+  // since: the return loads it again. (A live channel turned off and on
+  // while away loaded then, and is not loaded twice; as before.)
+  const stoppedAwayRef = useRef(false);
+  useEffect(() => { stoppedAwayRef.current = false; }, [active]);
   // A film's next 'playing' is it beginning to play: after a load (a start,
   // a resume, a quality change, a reload) or a seek, not after a stall.
   // Automatic quality leaves the first half minute after it alone
@@ -478,6 +496,11 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   // Main load pipeline — runs on (active, url, retryNonce) changes.
   useEffect(() => {
     if (!active || !url) return;
+    // A film never opens while the app is in the background, whatever asked
+    // (a retry, a quality change, a recovery): the return loads it (the
+    // listener below), at the place it was stopped. Nothing is consumed
+    // here, so that load is this one. Live TV as before.
+    if (!live && awayRef.current) return;
     const myNonce = ++nonceRef.current;
     let cancelled = false;
     // This run's blank cover went out, and its load did (see the cleanup).
@@ -661,25 +684,45 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
     };
   }, []);
 
-  // Background/resume parity with VideoPlayer.
+  // Background/resume parity with VideoPlayer. Listening for the hook's
+  // whole life (awayRef), acting on the stream only while it is active.
   useEffect(() => {
-    if (!active) return;
     let capH: { remove?: () => void } | undefined;
     let cancelled = false;
     // visibilitychange and appStateChange both fire on every background and
     // resume; without this flag the stream was opened twice on each resume.
-    let hidden = false;
     const onHidden = () => {
-      if (hidden) return;
-      hidden = true;
+      if (awayRef.current) return;
+      awayRef.current = true;
+      setAway(true);
+      if (!activeRef.current) return;
+      stoppedAwayRef.current = true;
+      const film = !liveRef.current;
       // A film's place, read before the stop below clears it.
-      if (!liveRef.current) hiddenAtRef.current = positionNow();
+      if (film) hiddenAtRef.current = positionNow();
       void SnowPlayer.stop().catch(() => { /* ignore */ }); markStreaming(false); quietOff(); try { diagEnd(); } catch { /* ignore */ }
+      if (film) {
+        // Stopped is not buffering: the section's buffering card, its count
+        // and its quality moves read this and stood on for minutes off
+        // screen. No retry is due either; the return loads it.
+        clearRetryTimer();
+        inStallRef.current = false;
+        setBuffering(false);
+        setServerBusy(null);
+      }
     };
     const onVisible = () => {
-      if (!hidden) return;
-      hidden = false;
-      reloadRef.current = true;
+      if (!awayRef.current) return;
+      awayRef.current = false;
+      setAway(false);
+      const stopped = stoppedAwayRef.current;
+      stoppedAwayRef.current = false;
+      // A film's load is held back while away, so a film on now always
+      // loads; a channel only if it was the one stopped.
+      if (!activeRef.current || (liveRef.current && !stopped)) return;
+      // A film stopped as the app left goes on from its place; one that was
+      // first asked for while away (its load held back) starts at its own.
+      reloadRef.current = liveRef.current || hiddenAtRef.current != null || reloadRef.current;
       try { cbReloadRef.current?.(); } catch { /* ignore */ } setRetryNonce((n) => n + 1);
     };
     const onVis = () => { if (document.hidden) onHidden(); else onVisible(); };
@@ -700,7 +743,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
       document.removeEventListener('visibilitychange', onVis);
       capH?.remove?.();
     };
-  }, [active]);
+  }, []);
 
   const seekTo = useCallback(async (seconds: number) => {
     // The viewer's jump (Plex only, jumpGrace: everyone else keeps the
@@ -743,7 +786,7 @@ export function useNativePlayer({ active, url, volume, live = true, subtitles, s
   }, [active, background, live, skipKeys]);
 
   return useMemo(
-    () => ({ controller, buffering, serverBusy, paused, error, audioWarning, engineNotice, retry, loads: retryNonce, seekTo, getPosition }),
-    [controller, buffering, serverBusy, paused, error, audioWarning, engineNotice, retry, retryNonce, seekTo, getPosition],
+    () => ({ controller, buffering, serverBusy, paused, error, audioWarning, engineNotice, retry, away, loads: retryNonce, seekTo, getPosition }),
+    [controller, buffering, serverBusy, paused, error, audioWarning, engineNotice, retry, away, retryNonce, seekTo, getPosition],
   );
 }

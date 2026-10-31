@@ -23,7 +23,7 @@ type NativeState = {
   error: { code?: string; message: string; httpStatus?: number } | null; buffering: boolean; paused: boolean;
   audioWarning: { codecs: string; ffmpegAvailable: boolean } | null; controller: null;
   getPosition: () => Promise<{ position: number; duration: number; playing: boolean }>;
-  seekTo: (sec?: number) => Promise<void>; retry: () => void; loads?: number;
+  seekTo: (sec?: number) => Promise<void>; retry: () => void; loads?: number; away?: boolean;
 };
 
 const h = vi.hoisted(() => {
@@ -619,6 +619,44 @@ describe('the Plex Relay', () => {
     fireEvent.click(screen.getByText('Retry'));
     await until(() => expect(lastUrl()).not.toBe(fresh));
     expect(cap(lastUrl())).toBe('2000');
+  });
+});
+
+/**
+ * 2026-10-30, the owner's Fire TV: a Plex film left behind the launcher
+ * (Home) showed "Still preparing…" and "Buffering · 277s" minutes later, and
+ * the section's recoveries swapped in streams the player then opened. While
+ * the app is away (useNativePlayer `away`) every start-up and recovery timer
+ * stands down; back, they watch the reloaded film as any start.
+ */
+describe('the app in the background', () => {
+  const setAway = (on: boolean) => { act(() => { h.native = { ...h.native, away: on }; h.kick?.(); }); };
+
+  it('a conversion the server never feeds: no "Still preparing", no fresh session off screen; back, the start is watched again', async () => {
+    h.conn.route = 'relay';
+    h.pos.playing = false; h.pos.position = 0; h.pos.duration = 0;
+    await openDune();
+    await play('Dune');
+    const relayUrl = lastUrl();
+    setAway(true);
+    await wait(70_000);
+    expect(h.urls).toEqual([relayUrl]);
+    expect(stops()).toEqual([]);
+    expect(screen.queryByText('Still preparing…')).toBeNull();
+    setAway(false);
+    await wait(31_000);
+    await until(() => expect(lastUrl()).not.toBe(relayUrl));
+    expect(isTranscode(lastUrl())).toBe(true);
+  });
+
+  it('a stall the line is too slow for: no quality move while away', async () => {
+    await playingDune();
+    for (let i = 0; i < 10; i += 1) await report(4000);
+    setAway(true);
+    await deliverInStall([4000, 4000, 4000]);
+    await wait(15_000);
+    expect(h.urls).toHaveLength(1);
+    expect(toastTitles().filter((t) => t.indexOf('Switched') === 0 || t.indexOf('Lowered') === 0)).toEqual([]);
   });
 });
 

@@ -232,6 +232,11 @@ class SnowPlayerPlugin : Plugin() {
         var watchdogRunnable: Runnable? = null
         var reconnectRunnable: Runnable? = null
         var positionTickRunnable: Runnable? = null
+        // A film off screen (BackgroundFilmRule): stopped where it was, and
+        // nothing loads or plays it until the app is back (handleOnStart).
+        var parked: Boolean = false
+        // handleOnStart's later look at a film still parked (see there).
+        var unparkRunnable: Runnable? = null
         // VOD only: while we hold playback with playWhenReady=false until the
         // player has PREBUFFER_TARGET_MS buffered (or PreBufferRule's time limit
         // wall-clock elapse). Prevents the initial "playing → immediate
@@ -404,7 +409,8 @@ class SnowPlayerPlugin : Plugin() {
     // Whether this box is low on RAM (isLowRamBox), read once.
     private var lowRamBox: Boolean? = null
     // The app is off screen (handleOnStop until handleOnStart): no picture
-    // to rescue (NoPictureRescue.Seen.onScreen).
+    // to rescue (NoPictureRescue.Seen.onScreen), and a film is parked
+    // (BackgroundFilmRule).
     private var appStopped = false
     // Frame-rate matching: the display mode this plugin asked the window
     // for (preferredDisplayModeId; 0 = none, the system's own), and the mode
@@ -556,6 +562,9 @@ class SnowPlayerPlugin : Plugin() {
         s.noPictureSound = false
         s.blankGuard?.let { mainHandler.removeCallbacks(it) }
         s.blankGuard = null
+        // A load or a stop settles a parked film itself (handleOnStart).
+        s.unparkRunnable?.let { mainHandler.removeCallbacks(it) }
+        s.unparkRunnable = null
     }
 
     /**
@@ -774,6 +783,8 @@ class SnowPlayerPlugin : Plugin() {
      *  on the position tick: a seek to the same place, then a rebuild there.
      *  True when it rebuilt (the new player has its own tick). */
     private fun checkStuck(s: PlayerSlot, p: ExoPlayer): Boolean {
+        // Off screen nothing is restarted (BackgroundFilmRule).
+        if (s.parked) return false
         val buffering = p.playbackState == Player.STATE_BUFFERING
         if (!buffering) { s.stuckSinceMs = 0L; s.stuckSteps = 0; return false }
         val aheadMs = (p.bufferedPosition - p.currentPosition).coerceAtLeast(0L)
@@ -960,6 +971,8 @@ class SnowPlayerPlugin : Plugin() {
      * steps wait for it to end).
      */
     private fun rebuildForPicture(s: PlayerSlot, screenId: String) {
+        // Off screen nothing is rebuilt (BackgroundFilmRule).
+        if (s.parked) return
         val old = s.player ?: return
         val url = s.currentUrl ?: return
         val live = s.isLive
@@ -1107,6 +1120,8 @@ class SnowPlayerPlugin : Plugin() {
             override fun run() {
                 val p = s.player ?: return
                 if (s.currentUrl == null || s.currentUrl != url) return
+                // Its end sets the film playing: never off screen (BackgroundFilmRule).
+                if (s.parked) { s.preBufferRunnable = null; return }
                 val bufMs = (p.bufferedPosition - p.currentPosition).coerceAtLeast(0L)
                 val now = SystemClock.elapsedRealtime()
                 val elapsed = now - startedAt
@@ -1194,6 +1209,9 @@ class SnowPlayerPlugin : Plugin() {
      *  lowered is restored for the try. */
     private fun reconnect(s: PlayerSlot, screenId: String, reason: String, delayMs: Long = RECONNECT_DELAY_MS, busyStatus: Int? = null) {
         val url = s.currentUrl ?: return
+        // Off screen a film is not reconnected, a busy server's quiet
+        // retries included (BackgroundFilmRule): the return loads it again.
+        if (s.parked) return
         if (busyStatus == null && s.reconnectAttempts >= MAX_RECONNECTS) {
             releaseWifiIfStopped(s)
             notifyListeners(
@@ -1215,7 +1233,7 @@ class SnowPlayerPlugin : Plugin() {
         s.reconnectRunnable?.let { mainHandler.removeCallbacks(it) }
         val r = Runnable {
             val p = s.player ?: return@Runnable
-            if (s.currentUrl == null) return@Runnable
+            if (s.currentUrl == null || s.parked) return@Runnable
             s.firstFrameSeen = false
             s.lastHttpAddress = false
             if (s.isLive) {
@@ -1828,6 +1846,8 @@ class SnowPlayerPlugin : Plugin() {
      * until another title loads.
      */
     private fun restartWithSoftwareAudio(s: PlayerSlot, screenId: String, code: String) {
+        // Off screen nothing is rebuilt (BackgroundFilmRule).
+        if (s.parked) return
         val old = s.player ?: return
         val url = s.currentUrl ?: return
         val pos = old.currentPosition.takeIf { it > 0L } ?: s.lastPositionMs
@@ -2839,6 +2859,19 @@ class SnowPlayerPlugin : Plugin() {
             // start and restart; told before prepare() selects its tracks.
             s.loadControl?.beginStream(film = !live, liveStartMs = liveStartBufferMs, liveRebufferMs = liveRebufferMs)
             if (startMs > 0) p.setMediaItem(item, startMs) else p.setMediaItem(item)
+            s.parked = false
+            if (BackgroundFilmRule.parks(appStopped, screenId == MAIN, live, exo = true)) {
+                // A film loaded while the app is off screen (the page's
+                // timers run on behind the launcher): kept at its place,
+                // never opened or played until the app is back
+                // (handleOnStart, or the page's own load on return).
+                s.holding = false
+                p.playWhenReady = false
+                s.parked = true
+                releaseWifi()
+                call.resolve()
+                return@runOnUiThread
+            }
             p.prepare()
             if (live) {
                 p.playWhenReady = true
@@ -2866,6 +2899,8 @@ class SnowPlayerPlugin : Plugin() {
             if (s.engine == EngineChoice.MPV) { s.second?.play(); call.resolve(); return@runOnUiThread }
             // Rewind live TV: after a long pause the channel resumes from the
             // buffer where it stopped (tsOnPlay); otherwise exactly as before.
+            // A parked film never plays off screen (BackgroundFilmRule).
+            if (s.parked) { reportPaused(s, screenId); call.resolve(); return@runOnUiThread }
             releaseHold(s); if (!(screenId == MAIN && tsOnPlay(s))) s.player?.play(); reportPaused(s, screenId); call.resolve()
         }
     }
@@ -3252,6 +3287,7 @@ class SnowPlayerPlugin : Plugin() {
         s.firstFrameSeen = false
         s.noPicture = null
         s.noPictureGaveUp = false
+        s.parked = false
         if (s.engine == EngineChoice.MPV) s.second?.stop()
         s.player?.stop()
         s.player?.clearMediaItems()
@@ -4125,6 +4161,7 @@ class SnowPlayerPlugin : Plugin() {
      */
     override fun handleOnStart() {
         appStopped = false
+        slots[MAIN]?.let { s -> if (s.parked) scheduleUnpark(s) }
         super.handleOnStart()
     }
 
@@ -4133,20 +4170,69 @@ class SnowPlayerPlugin : Plugin() {
         tsReset()
         tsManager?.wipeAll()
         // A film doesn't play on behind the screen (with a SurfaceView a 4K
-        // decoder would keep going into the placeholder surface). Paused;
-        // playing again is the viewer's choice, as before (the WebView loads
-        // the film again on return).
+        // decoder would keep going into the placeholder surface), and since
+        // 2026-10-30 it doesn't load either: parked (BackgroundFilmRule).
+        // Only pausing it left Media3 loading to its buffer target and every
+        // restart path (reconnects, a busy server's retries, rebuilds, the
+        // stuck-buffer steps, the hold's end) running, some setting it
+        // playing again. Playing again is the viewer's choice, as before
+        // (the WebView loads the film again on return).
         slots[MAIN]?.let { s ->
-            if (!s.isLive && s.currentUrl != null && s.engine == EngineChoice.EXO) {
-                releaseHold(s)
-                s.player?.playWhenReady = false
-            }
+            if (s.currentUrl != null && BackgroundFilmRule.parks(true, true, s.isLive, s.engine == EngineChoice.EXO)) parkFilm(s)
         }
         // The app leaves the screen: so does a film's display mode. The
         // WebView stops the player too and loads it again on return, which
         // matches the mode again.
         restoreDisplayMode()
         super.handleOnStop()
+    }
+
+    /** Stop a film's loading where it is (BackgroundFilmRule). Media3's
+     *  stop() keeps the item and its place; prepare() opens it there again. */
+    private fun parkFilm(s: PlayerSlot) {
+        val p = s.player ?: return
+        val pos = p.currentPosition
+        if (pos > 0L) s.lastPositionMs = pos
+        // The watchdog, reconnects (a busy server's included), the
+        // stuck-buffer tick, the start-up hold, the bandwidth reports.
+        cancelTimers(s)
+        s.reconnecting = false
+        s.parked = true
+        p.playWhenReady = false
+        p.stop()
+        releaseWifi()
+    }
+
+    /** Back on screen. The page normally stopped the film as the app left
+     *  and loads it again now (its load ends the park, cancelTimers drops
+     *  this look). One still parked a moment later (a page that never heard
+     *  the app go) is opened again where it was, paused, as a stop used to
+     *  leave it. */
+    private fun scheduleUnpark(s: PlayerSlot) {
+        s.unparkRunnable?.let { mainHandler.removeCallbacks(it) }
+        val r = Runnable {
+            s.unparkRunnable = null
+            if (appStopped) return@Runnable
+            when (BackgroundFilmRule.onReturn(s.parked, s.currentUrl != null && s.player != null)) {
+                BackgroundFilmRule.Return.NOTHING -> Unit
+                BackgroundFilmRule.Return.FORGET -> s.parked = false
+                BackgroundFilmRule.Return.PREPARE_PAUSED -> {
+                    val p = s.player ?: return@Runnable
+                    s.parked = false
+                    s.firstFrameSeen = false
+                    s.shutterView?.visibility = View.VISIBLE
+                    holdWifi()
+                    p.playWhenReady = false
+                    p.prepare()
+                    reportPaused(s, MAIN)
+                    scheduleWatchdog(s, MAIN)
+                    schedulePositionTick(s)
+                    scheduleBandwidthTick(s, MAIN)
+                }
+            }
+        }
+        s.unparkRunnable = r
+        mainHandler.postDelayed(r, BackgroundFilmRule.RETURN_PREPARE_DELAY_MS)
     }
 
     /**

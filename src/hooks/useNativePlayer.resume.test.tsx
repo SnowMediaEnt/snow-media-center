@@ -227,9 +227,129 @@ describe('useNativePlayer — where a film starts and resumes', () => {
     player.position = 4000;
     await setHidden(true);
     // A different title while away: the saved place belonged to the old one.
+    // It opens on return, not off screen (2026-10-30).
     h.rerender({ url: `${FILM}?v=2`, live: false, startPosition: 30 });
+    await new Promise((r) => { setTimeout(r, 50); });
+    expect(loads()).toHaveLength(1);
+    await setHidden(false);
     await waitFor(() => expect(loads()).toHaveLength(2));
-    expect(loads()[1].opts).toMatchObject({ startPosition: 30 });
+    expect(loads()[1].opts).toMatchObject({ url: `${FILM}?v=2`, startPosition: 30 });
+  });
+});
+
+/**
+ * 2026-10-30, the owner's Fire TV: a Plex film left behind the launcher
+ * (Home) kept trying to start. The player was stopped, but its buffering
+ * stayed on (the section's card counted to 277 s) and whatever the section
+ * swapped in or retried was loaded at once, off screen.
+ */
+describe('useNativePlayer — a film while the app is in the background', () => {
+  type AwayProps = { active: boolean; url: string | null; live?: boolean; startPosition?: number };
+  const mountAway = (initial: AwayProps) => renderHook(
+    (p: AwayProps) => useNativePlayer({ active: p.active, url: p.url, volume: 1, live: p.live ?? false, startPosition: p.startPosition }),
+    { initialProps: initial },
+  );
+
+  it('going away stops it and says so: no buffering, no busy server, `away` set; back, it loads once where it was', async () => {
+    const h = mountAway({ active: true, url: FILM });
+    await waitFor(() => expect(loads()).toHaveLength(1));
+    fire('playerState', { state: 'buffering', reconnect: true, serverBusy: true, httpStatus: 503 });
+    expect(h.result.current.buffering).toBe(true);
+    expect(h.result.current.serverBusy).toBe(503);
+    player.position = 1234;
+    await setHidden(true);
+    expect(h.result.current.away).toBe(true);
+    expect(h.result.current.buffering).toBe(false);
+    expect(h.result.current.serverBusy).toBeNull();
+    expect(calls.some((c) => c.fn === 'stop')).toBe(true);
+    await setHidden(false);
+    expect(h.result.current.away).toBe(false);
+    await waitFor(() => expect(loads()).toHaveLength(2));
+    expect(loads()[1].opts).toMatchObject({ url: FILM, startPosition: 1234 });
+  });
+
+  it('nothing reloads it off screen: a retry, a late error\'s retry, a quality change wait for the return', async () => {
+    const h = mountAway({ active: true, url: FILM });
+    await waitFor(() => expect(loads()).toHaveLength(1));
+    await waitFor(() => expect(listeners.get('playerError')?.length).toBe(1));
+    player.position = 600;
+    await setHidden(true);
+    act(() => { h.result.current.retry(); });
+    fire('playerError', { code: 'ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT', message: 'x' });
+    h.rerender({ active: true, url: `${FILM}?q=720`, startPosition: 600 });
+    await new Promise((r) => { setTimeout(r, 1500); });
+    expect(loads()).toHaveLength(1);
+    await setHidden(false);
+    await waitFor(() => expect(loads()).toHaveLength(2));
+    await new Promise((r) => { setTimeout(r, 1500); });
+    // One load on return, of the stream the section wants now, at its place.
+    expect(loads()).toHaveLength(2);
+    expect(loads()[1].opts).toMatchObject({ url: `${FILM}?q=720`, startPosition: 600 });
+  });
+
+  it('the player turned off and on again while away (a stream swapped through null) still waits for the return', async () => {
+    const h = mountAway({ active: true, url: FILM });
+    await waitFor(() => expect(loads()).toHaveLength(1));
+    await setHidden(true);
+    h.rerender({ active: false, url: null });
+    h.rerender({ active: true, url: `${FILM}?v=3`, startPosition: 90 });
+    await new Promise((r) => { setTimeout(r, 50); });
+    expect(loads()).toHaveLength(1);
+    expect(h.result.current.away).toBe(true);
+    await setHidden(false);
+    await waitFor(() => expect(loads()).toHaveLength(2));
+    expect(loads()[1].opts).toMatchObject({ url: `${FILM}?v=3`, startPosition: 90 });
+  });
+
+  it('a player that was off when the app left and stays off loads nothing on return', async () => {
+    const h = mountAway({ active: false, url: null });
+    await setHidden(true);
+    await setHidden(false);
+    await new Promise((r) => { setTimeout(r, 50); });
+    expect(loads()).toHaveLength(0);
+    expect(h.result.current.away).toBe(false);
+  });
+
+  it('the plugin parks a film off screen: no reconnect, rebuild, stuck-buffer step, hold end or play, and a load is not opened (BackgroundFilmRule.kt)', () => {
+    const body = (from: string) => plugin.slice(plugin.indexOf(from), plugin.indexOf('\n    }\n', plugin.indexOf(from)));
+    expect(body('private fun reconnect(')).toContain('if (s.parked) return');
+    expect(body('private fun reconnect(')).toContain('if (s.currentUrl == null || s.parked) return@Runnable');
+    expect(body('private fun rebuildForPicture(')).toContain('if (s.parked) return');
+    expect(body('private fun restartWithSoftwareAudio(')).toContain('if (s.parked) return');
+    expect(body('private fun checkStuck(')).toContain('if (s.parked) return false');
+    expect(plugin).toContain('if (s.parked) { s.preBufferRunnable = null; return }');
+    expect(plugin).toContain('if (s.parked) { reportPaused(s, screenId); call.resolve(); return@runOnUiThread }');
+    // A load while stopped keeps its item and place, unopened (before prepare()).
+    const load = plugin.slice(plugin.indexOf('fun load(call: PluginCall)'), plugin.indexOf('fun play(call: PluginCall)'));
+    const parkAt = load.indexOf('BackgroundFilmRule.parks(appStopped, screenId == MAIN, live, exo = true)');
+    expect(parkAt).toBeGreaterThan(load.indexOf('p.setMediaItem(item)'));
+    expect(parkAt).toBeLessThan(load.indexOf('p.prepare()'));
+    // Back on screen: a look a moment later, which the page's own load (or a stop) cancels.
+    expect(body('override fun handleOnStart()')).toContain('if (s.parked) scheduleUnpark(s)');
+    expect(body('private fun stopSlot(')).toContain('s.parked = false');
+  });
+
+  it('Live TV is as before: a channel asked for while away still loads', async () => {
+    const h = mountAway({ active: true, url: CHANNEL, live: true });
+    await waitFor(() => expect(loads()).toHaveLength(1));
+    await setHidden(true);
+    h.rerender({ active: true, url: `${CHANNEL}?2`, live: true });
+    await waitFor(() => expect(loads()).toHaveLength(2));
+    // Back: the channel that was stopped as the app left loads again.
+    await setHidden(false);
+    await waitFor(() => expect(loads()).toHaveLength(3));
+  });
+
+  it('Live TV: a channel turned off and on while away (it loaded then) is not loaded twice on return, as before', async () => {
+    const h = mountAway({ active: true, url: CHANNEL, live: true });
+    await waitFor(() => expect(loads()).toHaveLength(1));
+    await setHidden(true);
+    h.rerender({ active: false, url: null, live: true });
+    h.rerender({ active: true, url: `${CHANNEL}?2`, live: true });
+    await waitFor(() => expect(loads()).toHaveLength(2));
+    await setHidden(false);
+    await new Promise((r) => { setTimeout(r, 50); });
+    expect(loads()).toHaveLength(2);
   });
 });
 
@@ -447,7 +567,9 @@ describe('SnowPlayerPlugin.kt — a stream that starts fine keeps playing', () =
     const load = body('fun load(call: PluginCall)');
     expect(load).toMatch(/if \(screenId == MAIN\) \{\s*if \(live\) releaseWifi\(\) else holdWifi\(\)\s*\}/);
     expect(load).not.toContain('if (screenId == MAIN) holdWifi()');
-    expect(plugin.match(/holdWifi\(\)/g)).toHaveLength(2); // the definition and load()
+    // The definition, load(), and a parked film opened again on return (scheduleUnpark).
+    expect(plugin.match(/holdWifi\(\)/g)).toHaveLength(3);
+    expect(body('private fun scheduleUnpark(')).toContain('holdWifi()');
     expect(body('private fun stopSlot(')).toContain('if (slots[MAIN] === s) releaseWifi()');
     expect(body('override fun handleOnDestroy()')).toContain('releaseWifi()');
   });
