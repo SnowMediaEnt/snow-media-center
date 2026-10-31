@@ -1,17 +1,42 @@
 {
   "settings": {
     "title": "Paramètres",
-    "subtitle": "Personnalisez votre expérience Snow Media Center",
-    "tabs": {
-      "media": "Gestionnaire de médias",
-      "ui": "Interface",
-      "updates": "Mises à jour",
-      "alerts": "Alertes d'applis",
-      "ai": "IA",
-      "profiles": "Profils",
-      "remote": "Télécommande mobile"
+    "hub": {
+      "rows": {
+        "account": "Mon compte",
+        "home": "Écran d'accueil",
+        "backgrounds": "Fonds d'écran",
+        "profiles": "Profils",
+        "remote": "Télécommande mobile",
+        "notifications": "Notifications",
+        "language": "Langue",
+        "updates": "Mises à jour",
+        "alerts": "Alertes de l'app",
+        "ai": "IA"
+      },
+      "state": {
+        "notSignedIn": "Non connecté",
+        "barOn": "Barre de contenu activée",
+        "barOff": "Barre de contenu désactivée",
+        "dashLarge": "Grand tableau de bord",
+        "dashCompact": "Tableau de bord compact",
+        "bgCustom": "Votre propre fond",
+        "bgStandard": "Fond standard",
+        "phones_one": "{{count}} téléphone connecté",
+        "phones_many": "{{count}} téléphones connectés",
+        "phones_other": "{{count}} téléphones connectés",
+        "paired": "Téléphone associé",
+        "notPaired": "Non associé",
+        "postsOn": "Publications activées",
+        "postsOff": "Publications désactivées",
+        "alertsOn": "Alertes activées",
+        "alertsOff": "Alertes désactivées",
+        "version": "Version {{version}}",
+        "admin": "Administrateurs uniquement"
+      },
+      "accountEmpty": "Non connecté. Connectez-vous à Live TV et votre ligne s’affichera ici.",
+      "unpairDesc": "Aucun téléphone associé ne sert plus de télécommande tant qu'il n'est pas associé à nouveau."
     },
-    "mediaManagerHeading": "Gestionnaire de médias",
     "contentBar": {
       "title": "Barre de contenu",
       "description": "Affiche les titres tendance Plex et le sport en direct sur l'écran d'accueil. Désactivez-la sur les appareils lents pour une expérience plus fluide.",

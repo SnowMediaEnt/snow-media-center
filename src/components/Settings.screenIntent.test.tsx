@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 
 // Settings already on screen when a voice command (or the assistant) asks for
-// one of its tabs: it switches now, and nothing is left for the next visit.
+// one of its pages: it switches now, and nothing is left for the next visit.
 let kidsLevel: string | null = null;
 vi.mock('@/hooks/useActiveProfile', () => ({
   useActiveProfile: () => ({ profile: { id: kidsLevel ? 'kid' : 'main', name: kidsLevel ? 'Kid' : 'Main', avatar: 'blue', kidsLevel, pinHash: null, position: 0, t: 0 } }),
@@ -38,7 +38,8 @@ vi.mock('@/lib/phoneRemote', () => ({
 import Settings from './Settings';
 import { generateWallpaper, INTENT_KEYS, openScreen, openSettingsPlace } from '@/lib/appActions';
 
-const selected = () => screen.getAllByRole('tab').find((t) => t.getAttribute('aria-selected') === 'true')?.getAttribute('data-settings-focus');
+const page = () => document.querySelector('[data-settings-page]')?.getAttribute('data-settings-page');
+const focused = () => document.querySelector('[data-settings-focus][data-focused="true"]')?.getAttribute('data-settings-focus');
 
 beforeEach(() => {
   sessionStorage.clear(); localStorage.clear();
@@ -47,54 +48,57 @@ beforeEach(() => {
   window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
 });
 
-describe('Settings asked for a tab while it is open', () => {
+describe('Settings asked for a page while it is open', () => {
   it('switches at once and keeps nothing for the next visit', async () => {
     kidsLevel = null;
     render(<Settings onBack={vi.fn()} />);
-    expect(selected()).toBe('tab-media');
+    expect(page()).toBe('account');
 
+    // The old "UI" tab is Home screen now.
     await act(async () => { openScreen('settings_ui', vi.fn()); });
-    expect(selected()).toBe('tab-ui');
+    expect(page()).toBe('home');
     expect(sessionStorage.getItem(INTENT_KEYS.settings)).toBeNull();
-    // The highlight is on that tab, not on something the old tab showed.
-    expect(document.querySelector('[data-settings-focus="tab-ui"]')?.getAttribute('data-focused')).toBe('true');
+    // The highlight is on that row, not on something the old page showed.
+    expect(focused()).toBe('row-home');
 
     await act(async () => { openScreen('phone_remote', vi.fn()); });
-    expect(selected()).toBe('tab-remote');
+    expect(page()).toBe('remote');
+    expect(focused()).toBe('row-remote');
   });
 
-  it('a background asked for on another tab opens the wallpaper maker with it', async () => {
+  it('a background asked for on another page opens the wallpaper maker with it', async () => {
     kidsLevel = null;
     render(<Settings onBack={vi.fn()} />);
     await act(async () => { openScreen('settings_ui', vi.fn()); });
     await act(async () => { generateWallpaper('a beach at sunset', vi.fn()); });
-    expect(selected()).toBe('tab-media');
+    expect(page()).toBe('backgrounds');
     expect(screen.getByText(/media-manager a beach at sunset/)).toBeTruthy();
   });
 
-  it('a Kids profile gets only its own tabs', async () => {
+  it('a Kids profile gets only its own pages', async () => {
     kidsLevel = 'kids';
     render(<Settings onBack={vi.fn()} />);
+    expect(page()).toBe('home');
     sessionStorage.setItem(INTENT_KEYS.settings, 'updates');
     await act(async () => { window.dispatchEvent(new CustomEvent('smc:screen-intent', { detail: 'settings' })); });
-    expect(selected()).toBe('tab-media');
-    await act(async () => { openScreen('settings_ui', vi.fn()); });
-    expect(selected()).toBe('tab-ui');
+    expect(page()).toBe('home');
+    await act(async () => { openScreen('phone_remote', vi.fn()); });
+    expect(page()).toBe('remote');
   });
 
-  it('the assistant\'s "Home screen" opens UI on its Home screen rows, now or on the next visit', async () => {
+  it('the assistant\'s "Home screen" opens Home screen with the remote on its first row, now or on the next visit', async () => {
     kidsLevel = null;
     openSettingsPlace('home_screen', vi.fn());
     const first = render(<Settings onBack={vi.fn()} />);
-    expect(selected()).toBe('tab-ui');
-    expect(document.querySelector('[data-settings-focus="ui-home-bar-source"]')?.getAttribute('data-focused')).toBe('true');
+    expect(page()).toBe('home');
+    expect(focused()).toBe('ui-content-bar-toggle');
     first.unmount();
 
     render(<Settings onBack={vi.fn()} />);
-    expect(selected()).toBe('tab-media');
+    expect(page()).toBe('account');
     await act(async () => { openSettingsPlace('home_screen', vi.fn()); });
-    expect(selected()).toBe('tab-ui');
-    expect(document.querySelector('[data-settings-focus="ui-home-bar-source"]')?.getAttribute('data-focused')).toBe('true');
+    expect(page()).toBe('home');
+    expect(focused()).toBe('ui-content-bar-toggle');
     expect(sessionStorage.getItem(INTENT_KEYS.settings)).toBeNull();
   });
 });

@@ -2,9 +2,9 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import i18n from '@/i18n';
 
-// Settings > UI: the Player Account panel's "Sign out of player" is reachable
-// by remote (owner, 2026-10-15): Up from the first setting, never where Right
-// lands, and it takes OK twice.
+// Settings › My account: the Player Account panel's "Sign out of player" is
+// reachable by remote (owner, 2026-10-15): Up from the first setting, never
+// where Right lands, and it takes OK twice.
 const flags = vi.hoisted(() => ({ admin: false, signOutPlayer: vi.fn(async () => {}) }));
 vi.mock('@/lib/playerSignOut', () => ({ signOutPlayer: flags.signOutPlayer }));
 vi.mock('@/hooks/usePlayerAccount', () => ({
@@ -19,7 +19,8 @@ vi.mock('@/hooks/useActiveProfile', () => ({
 }));
 vi.mock('@/hooks/useAdminRole', () => ({ useAdminRole: () => ({ isAdmin: flags.admin }) }));
 vi.mock('@/lib/demoMode', () => ({ isDemo: () => false, isHowtoCapture: () => false }));
-vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: null }) }));
+// Signed in, so My account has a row (Rate Snow Media Center) under the panel.
+vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'u1', email: 'a@b.c' } }) }));
 vi.mock('@/hooks/useMediaBarEnabled', () => ({ useMediaBarEnabled: () => [true, vi.fn()] }));
 vi.mock('@/hooks/useDeviceAlerts', () => ({ useDeviceAlerts: () => ({ supported: false, status: { enabled: false }, busy: false, setEnabled: vi.fn() }) }));
 vi.mock('@/hooks/useFeatureFlag', () => ({ useFeatureFlag: () => ({ enabled: true }), setFeatureFlag: vi.fn() }));
@@ -65,13 +66,14 @@ beforeEach(() => {
 });
 afterEach(async () => { await act(async () => { await i18n.changeLanguage('en'); }); });
 
-describe('Settings > UI: Sign out of player by remote', () => {
+describe('Settings › My account: Sign out of player by remote', () => {
   it('Right lands on the first setting, Up reaches Sign out, and it takes OK twice', async () => {
     render(<Settings onBack={vi.fn()} />);
-    key('ArrowDown'); key('ArrowDown'); // Back -> Media -> UI
+    // My account is the first row; its state is the line's username.
+    expect(focused()).toBe('row-account');
+    expect(document.querySelector('[data-settings-row="account"] [data-settings-state]')?.textContent).toBe('jane');
     key('ArrowRight');
-    await waitFor(() => expect(focused()).not.toBe('tab-ui'));
-    expect(focused()).not.toBe('ui-player-signout');
+    expect(focused()).toBe('ui-rate-app');
     key('ArrowUp');
     expect(focused()).toBe('ui-player-signout');
     key('Enter');
@@ -83,13 +85,24 @@ describe('Settings > UI: Sign out of player by remote', () => {
 
   it('moving away disarms it', () => {
     render(<Settings onBack={vi.fn()} />);
-    key('ArrowDown'); key('ArrowDown'); key('ArrowRight'); key('ArrowUp');
+    key('ArrowRight'); key('ArrowUp');
     key('Enter');
     expect(screen.getByText('Press OK again to sign out')).toBeTruthy();
     key('ArrowDown');
     key('ArrowUp');
     expect(screen.queryByText('Press OK again to sign out')).toBeNull();
     key('Enter');
+    expect(flags.signOutPlayer).not.toHaveBeenCalled();
+  });
+
+  it('going back to the menu disarms it too', () => {
+    render(<Settings onBack={vi.fn()} />);
+    key('ArrowRight'); key('ArrowUp');
+    key('Enter');
+    expect(screen.getByText('Press OK again to sign out')).toBeTruthy();
+    key('Escape');
+    expect(focused()).toBe('row-account');
+    expect(screen.queryByText('Press OK again to sign out')).toBeNull();
     expect(flags.signOutPlayer).not.toHaveBeenCalled();
   });
 });

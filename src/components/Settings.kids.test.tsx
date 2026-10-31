@@ -36,6 +36,13 @@ import { openProfiles } from '@/lib/profilesUi';
 import { __setViewerForTests } from '@/lib/viewer';
 
 const key = (k: string) => act(() => { fireEvent.keyDown(window, { key: k }); });
+const focused = () => document.querySelector('[data-settings-focus][data-focused="true"]')?.getAttribute('data-settings-focus');
+const rows = () => [...document.querySelectorAll('[data-settings-row]')].map((e) => e.getAttribute('data-settings-row'));
+const toRow = (id: string) => {
+  for (let i = 0; i < 15 && focused() !== 'back'; i += 1) key('ArrowUp');
+  for (let i = 0; i < 15 && focused() !== `row-${id}`; i += 1) key('ArrowDown');
+  expect(focused()).toBe(`row-${id}`);
+};
 
 beforeEach(() => {
   sessionStorage.clear(); localStorage.clear();
@@ -46,25 +53,23 @@ beforeEach(() => {
 });
 
 describe('Settings on a Kids profile', () => {
-  it('shows only Media, UI, Profiles and Phone Remote — no Updates or admin tabs, even for an admin', () => {
+  it('shows only Home screen, Backgrounds, Profiles, Phone remote and Language — no account, Updates or admin rows, even for an admin', () => {
     kidsLevel = 'kids';
     render(<Settings onBack={vi.fn()} />);
-    const tabs = screen.getAllByRole('tab').map((t) => t.textContent?.trim());
-    expect(tabs).toHaveLength(4);
-    expect(tabs.join('|')).toMatch(/Profiles/);
-    expect(tabs.join('|')).toMatch(/Phone Remote/);
+    expect(rows()).toEqual(['home', 'backgrounds', 'profiles', 'remote', 'language']);
     expect(screen.queryByText('app-updater')).toBeNull();
+    expect(screen.queryByText('player-account')).toBeNull();
   });
 
-  it('UI has the content bar and languages only (Profiles lives in its own tab and the menu)', () => {
+  it('Home screen has the content bar only', () => {
     kidsLevel = 'kids';
     const { container } = render(<Settings onBack={vi.fn()} />);
-    key('ArrowDown'); // back → media tab
-    key('ArrowDown'); // → UI tab, next in the column (opens it)
-    const focusIds = [...container.querySelectorAll('[data-settings-focus^="ui-"]')].map((e) => e.getAttribute('data-settings-focus'));
-    expect(focusIds[0]).toBe('ui-content-bar-toggle');
-    expect(focusIds.slice(1).every((id) => id?.startsWith('ui-language-'))).toBe(true);
-    expect(screen.queryByText('player-account')).toBeNull();
+    expect(focused()).toBe('row-home');
+    key('ArrowRight');
+    const focusIds = [...container.querySelectorAll('[data-settings-page] [data-settings-focus]')].map((e) => e.getAttribute('data-settings-focus'));
+    expect(focusIds).toEqual(['ui-content-bar-toggle']);
+    expect(focused()).toBe('ui-content-bar-toggle');
+    expect(document.querySelector('[data-settings-row="home"] [data-settings-state]')?.textContent).toBe('Content bar on');
     expect(screen.queryByText('Large dashboard')).toBeNull();
     expect(screen.queryByText('Post notifications')).toBeNull();
     expect(screen.queryByText('Alerts on this device')).toBeNull();
@@ -75,8 +80,9 @@ describe('Settings on a Kids profile', () => {
     // Signed in, so the missing Parent PIN row is the Kids check, not the signed-out note.
     __setViewerForTests('u1');
     const { container } = render(<Settings onBack={vi.fn()} />);
-    key('ArrowDown'); key('ArrowDown'); key('ArrowDown'); // → Profiles tab (third in the column)
-    expect(container.querySelector('[data-settings-focus="profiles-switch"]')).not.toBeNull();
+    toRow('profiles');
+    key('ArrowRight');
+    expect(focused()).toBe('profiles-switch');
     expect(container.querySelector('[data-settings-focus="profiles-manage"]')).toBeNull();
     expect(container.querySelector('[data-settings-focus="profiles-parent"]')).toBeNull();
     expect(screen.queryByText('Sign in to your Snow Media account to protect profiles with a parent PIN.')).toBeNull();
@@ -85,7 +91,7 @@ describe('Settings on a Kids profile', () => {
   it('a grown-up profile on the same admin account keeps everything', () => {
     kidsLevel = null;
     render(<Settings onBack={vi.fn()} />);
-    expect(screen.getAllByRole('tab')).toHaveLength(7);
+    expect(rows()).toEqual(['account', 'home', 'backgrounds', 'profiles', 'remote', 'notifications', 'language', 'updates', 'alerts', 'ai']);
   });
 });
 
@@ -94,7 +100,7 @@ describe('Settings → Profiles: the Parent PIN row', () => {
     kidsLevel = null;
     __setViewerForTests('u1');
     const { container } = render(<Settings onBack={vi.fn()} />);
-    key('ArrowDown'); key('ArrowDown'); key('ArrowDown'); // Back → Media → UI → Profiles (the column)
+    toRow('profiles');
     key('ArrowRight'); key('ArrowDown'); key('ArrowDown'); // switch → manage → Parent PIN
     expect(container.querySelector('[data-settings-focus="profiles-parent"]')?.getAttribute('data-focused')).toBe('true');
     // No Kids profile on this account: not needed yet (owner, 2026-10-16).
@@ -107,7 +113,8 @@ describe('Settings → Profiles: the Parent PIN row', () => {
     kidsLevel = null;
     __setViewerForTests('device');
     const { container } = render(<Settings onBack={vi.fn()} />);
-    key('ArrowDown'); key('ArrowDown'); key('ArrowDown'); // → the Profiles tab in the column
+    toRow('profiles');
+    key('ArrowRight');
     expect(container.querySelector('[data-settings-focus="profiles-parent"]')).toBeNull();
     expect(screen.getByText('Sign in to your Snow Media account to protect profiles with a parent PIN.')).toBeTruthy();
   });

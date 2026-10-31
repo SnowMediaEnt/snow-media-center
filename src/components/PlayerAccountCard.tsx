@@ -94,12 +94,14 @@ const PlayerAccountCard = memo(({ compact = false, actions, panel = false, signO
           {account.isTrial && (
             <Badge className="bg-amber-500/30 text-amber-100 border border-amber-400/40 mr-2">{t('liveAccount.account.trial')}</Badge>
           )}
+          {/* An outline, not a white fill: in Settings only the remote's highlight may
+              look highlighted (owner, 2026-10-29: one focus look). */}
           <Button
-            variant="white"
+            variant="ghost"
             size="sm"
             onClick={handleSignOut}
             {...(signOutFocus?.attrs ?? {})}
-            className={`h-8 ml-auto ${signOutFocus ? (signOutFocus.armed ? 'tv-ring-danger' : 'tv-ring') : 'tv-focusable'} ${signOutFocus?.focused ? 'z-10' : ''}`}
+            className={`h-8 ml-auto border border-white/25 text-white hover:bg-white/10 ${signOutFocus ? (signOutFocus.armed ? 'tv-ring-danger' : 'tv-ring') : 'tv-focusable'} ${signOutFocus?.focused ? 'z-10' : ''}`}
           >
             <LogOut className="w-4 h-4 mr-2" /> {signOutFocus?.armed ? t('liveAccount.playerCard.confirmSignOut') : t('liveAccount.playerCard.signOutBtn')}
           </Button>

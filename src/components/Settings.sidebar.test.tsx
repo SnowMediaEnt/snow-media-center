@@ -2,9 +2,10 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import i18n from '@/i18n';
 
-// Settings' tabs stand in a column on the left (like Live TV's Account info):
-// Up / Down walk the column and switch the content, Right / OK go into the
-// content, and Up at the top of the content or Left come back to the column.
+// Settings is laid out like Live TV › Settings (owner, 2026-10-30): a menu
+// column on the left, each row's page on the right. Up / Down walk the menu
+// and the page follows once the highlight rests; Right / OK go into the page;
+// Back, Left at its edge or Up at its top come back to the menu.
 const flags = vi.hoisted(() => ({ admin: false }));
 vi.mock('@/hooks/useActiveProfile', () => ({
   useActiveProfile: () => ({ profile: { id: 'main', name: 'Main', avatar: 'blue', kidsLevel: null, pinHash: null, position: 0, t: 0 } }),
@@ -47,7 +48,16 @@ import Settings from './Settings';
 
 const key = (k: string) => act(() => { fireEvent.keyDown(window, { key: k }); });
 const focused = () => document.querySelector('[data-settings-focus][data-focused="true"]')?.getAttribute('data-settings-focus');
-const selected = () => screen.getAllByRole('tab').find((t) => t.getAttribute('aria-selected') === 'true')?.getAttribute('data-settings-focus');
+const page = () => document.querySelector('[data-settings-page]')?.getAttribute('data-settings-page');
+const rows = () => [...document.querySelectorAll('[data-settings-row]')].map((e) => e.getAttribute('data-settings-row'));
+/** Let the highlight rest so the page beside the menu follows it. */
+const rest = () => act(() => new Promise((r) => setTimeout(r, 300)));
+/** On the menu: up to Back, then down to the row. */
+const toRow = (id: string) => {
+  for (let i = 0; i < 15 && focused() !== 'back'; i += 1) key('ArrowUp');
+  for (let i = 0; i < 15 && focused() !== `row-${id}`; i += 1) key('ArrowDown');
+  expect(focused()).toBe(`row-${id}`);
+};
 
 beforeEach(() => {
   sessionStorage.clear(); localStorage.clear();
@@ -58,150 +68,141 @@ beforeEach(() => {
 });
 afterEach(async () => { await act(async () => { await i18n.changeLanguage('en'); }); });
 
-describe('Settings tab column', () => {
-  it('is one vertical list of tabs, still the How-to "set.tabs" hook', () => {
+describe('Settings menu column', () => {
+  it('is one column of rows, each with a state line, still the How-to hooks', () => {
     render(<Settings onBack={vi.fn()} />);
-    const list = screen.getByRole('tablist');
-    expect(list.getAttribute('data-howto')).toBe('set.tabs');
-    expect(list.getAttribute('aria-orientation')).toBe('vertical');
-    expect(screen.getAllByRole('tab').map((t) => t.getAttribute('data-settings-focus')))
-      .toEqual(['tab-media', 'tab-ui', 'tab-profiles', 'tab-remote', 'tab-updates']);
+    expect(rows()).toEqual(['account', 'home', 'backgrounds', 'profiles', 'remote', 'notifications', 'language', 'updates']);
+    expect(document.querySelector('[data-settings-menu]')?.getAttribute('data-howto')).toBe('set.tabs');
+    expect(document.querySelector('[data-settings-row="updates"]')?.getAttribute('data-howto')).toBe('set.updatesTab');
+    expect(document.querySelector('[data-settings-row="home"]')?.getAttribute('data-howto')).toBe('set.contentBar');
+    const state = (id: string) => document.querySelector(`[data-settings-row="${id}"] [data-settings-state]`)?.textContent;
+    expect(state('account')).toBe('Not signed in');
+    expect(state('home')).toBe('Content bar on · Compact dashboard');
+    expect(state('profiles')).toBe('Main');
+    expect(state('remote')).toBe('Not paired');
+    expect(state('notifications')).toBe('Posts on');
+    expect(state('language')).toBe('English');
   });
 
-  it('Down from Back reaches the column; Up / Down move through it and switch the content', () => {
-    render(<Settings onBack={vi.fn()} />);
-    expect(focused()).toBe('back');
-    key('ArrowDown');
-    expect(focused()).toBe('tab-media');
-    expect(screen.getByText('media-manager-idle')).toBeTruthy();
-
-    key('ArrowDown');
-    expect(focused()).toBe('tab-ui');
-    expect(selected()).toBe('tab-ui');
-    expect(screen.getByText('Content Bar')).toBeTruthy();
-
-    key('ArrowDown');
-    expect(focused()).toBe('tab-profiles');
-    expect(selected()).toBe('tab-profiles');
-    expect(document.querySelector('[data-settings-focus="profiles-switch"]')).not.toBeNull();
-
-    key('ArrowDown'); key('ArrowDown');
-    expect(focused()).toBe('tab-updates');
-    expect(screen.getByText('app-updater')).toBeTruthy();
-    // The last tab stays put.
-    key('ArrowDown');
-    expect(focused()).toBe('tab-updates');
-
-    key('ArrowUp');
-    expect(focused()).toBe('tab-remote');
-    expect(selected()).toBe('tab-remote');
-    expect(screen.getByText('pairing-qr')).toBeTruthy();
-  });
-
-  it('Up from the first tab goes to Back, and OK there leaves Settings', () => {
+  it('opens on the first row with its page; Up reaches Back, and OK there leaves', () => {
     const onBack = vi.fn();
     render(<Settings onBack={onBack} />);
-    key('ArrowDown');
+    expect(focused()).toBe('row-account');
+    expect(page()).toBe('account');
     key('ArrowUp');
     expect(focused()).toBe('back');
-    expect(selected()).toBe('tab-media');
     key('Enter');
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
-  it('Left on a tab does nothing', () => {
+  it('Down walks the rows and the page follows once the highlight rests, dimmed until the remote goes in', async () => {
     render(<Settings onBack={vi.fn()} />);
-    key('ArrowDown'); key('ArrowDown');
-    key('ArrowLeft');
-    expect(focused()).toBe('tab-ui');
-    expect(selected()).toBe('tab-ui');
+    key('ArrowDown');
+    expect(focused()).toBe('row-home');
+    await rest();
+    expect(page()).toBe('home');
+    expect(screen.getByText('Content Bar')).toBeTruthy();
+    expect(document.querySelector('[data-settings-preview]')?.getAttribute('data-settings-preview')).toBe('true');
+    // The last row stays put.
+    for (let i = 0; i < 10; i += 1) key('ArrowDown');
+    expect(focused()).toBe('row-updates');
+    await rest();
+    expect(screen.getByText('app-updater')).toBeTruthy();
   });
 
-  it('Right goes into the content of each tab, and OK does the same', () => {
+  it('Left on the menu does nothing; Back on the menu leaves', () => {
+    const onBack = vi.fn();
+    render(<Settings onBack={onBack} />);
+    key('ArrowDown');
+    key('ArrowLeft');
+    expect(focused()).toBe('row-home');
+    expect(onBack).not.toHaveBeenCalled();
+    key('Escape');
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('My account with nothing to pick says so and keeps the remote on the menu', () => {
     render(<Settings onBack={vi.fn()} />);
-    key('ArrowDown'); // Media
+    key('ArrowRight');
+    expect(focused()).toBe('row-account');
+    expect(screen.getByText('Not signed in. Sign in to Live TV and your line shows here.')).toBeTruthy();
+  });
+
+  it('Right or OK goes into each page; Up at its top, Left and Back come back to its row', () => {
+    render(<Settings onBack={vi.fn()} />);
+    toRow('home');
+    key('ArrowRight');
+    expect(focused()).toBe('ui-content-bar-toggle');
+    expect(document.querySelector('[data-settings-preview]')?.getAttribute('data-settings-preview')).toBe('false');
+    // While the remote is in the page, its row keeps a quiet gold edge (no fill that looks like focus).
+    expect(document.querySelector('[data-settings-row="home"]')?.className).toContain('border-brand-gold/50');
+    key('ArrowUp');
+    expect(focused()).toBe('row-home');
+    expect(document.querySelector('[data-settings-row="home"]')?.className).not.toContain('border-brand-gold/50');
+    key('Enter');
+    expect(focused()).toBe('ui-content-bar-toggle');
+    key('ArrowDown');
+    key('ArrowLeft');
+    expect(focused()).toBe('row-home');
+
+    toRow('backgrounds');
     key('ArrowRight');
     expect(screen.getByText('media-manager-active')).toBeTruthy();
-    // The media manager's own Left edge hands the remote back to the column.
+    // The media manager's own Left edge hands the remote back to the menu.
     fireEvent.click(screen.getByText('media-left-edge'));
     expect(screen.getByText('media-manager-idle')).toBeTruthy();
-    expect(focused()).toBe('tab-media');
+    expect(focused()).toBe('row-backgrounds');
 
-    key('ArrowDown'); // UI
-    key('ArrowRight');
-    expect(focused()).toBe('ui-content-bar-toggle');
-    key('ArrowUp');
-    expect(focused()).toBe('tab-ui');
-    key('Enter');
-    expect(focused()).toBe('ui-content-bar-toggle');
-    key('ArrowUp');
-
-    key('ArrowDown'); // Profiles
+    toRow('profiles');
     key('Enter');
     expect(focused()).toBe('profiles-switch');
-    key('ArrowUp');
-    expect(focused()).toBe('tab-profiles');
+    key('ArrowDown');
+    expect(focused()).toBe('profiles-manage');
+    key('ArrowLeft');
+    expect(focused()).toBe('row-profiles');
 
-    key('ArrowDown'); // Phone Remote
+    toRow('remote');
     key('ArrowRight');
     expect(focused()).toBe('remote-hint');
-    key('ArrowUp');
-    expect(focused()).toBe('tab-remote');
+    key('ArrowDown');
+    expect(focused()).toBe('remote-unpair');
+    key('ArrowUp'); key('ArrowUp');
+    expect(focused()).toBe('row-remote');
 
-    key('ArrowDown'); // Updates
+    toRow('notifications');
+    key('ArrowRight');
+    expect(focused()).toBe('ui-mail-notify-toggle');
+    key('Backspace');
+    expect(focused()).toBe('row-notifications');
+
+    toRow('updates');
     key('ArrowRight');
     expect(document.querySelector('[data-settings-focus="updates-content"]')?.getAttribute('data-focused')).toBe('true');
     key('ArrowUp');
-    expect(focused()).toBe('tab-updates');
+    expect(focused()).toBe('row-updates');
   });
 
-  it('Left from the content comes back to the tab in the column', () => {
+  it('an admin gets App alerts and AI, and Left from either panel comes back', () => {
     flags.admin = true;
     render(<Settings onBack={vi.fn()} />);
-    key('ArrowDown'); key('ArrowDown'); // UI
-    key('ArrowRight'); key('ArrowDown');
-    expect(focused()).toBe('ui-dashboard-size-toggle');
-    key('ArrowLeft');
-    expect(focused()).toBe('tab-ui');
-    expect(selected()).toBe('tab-ui');
-
-    key('ArrowDown'); // Profiles
-    key('ArrowRight'); key('ArrowDown');
-    expect(focused()).toBe('profiles-manage');
-    key('ArrowLeft');
-    expect(focused()).toBe('tab-profiles');
-
-    key('ArrowDown'); // Phone Remote: the switch and Unpair share a row
-    key('ArrowRight'); key('ArrowRight');
-    expect(focused()).toBe('remote-unpair');
-    key('ArrowLeft');
-    expect(focused()).toBe('remote-hint');
-    key('ArrowLeft');
-    expect(focused()).toBe('tab-remote');
-
-    key('ArrowDown'); // Updates
-    key('ArrowRight');
-    key('ArrowLeft');
-    expect(focused()).toBe('tab-updates');
-
-    key('ArrowDown'); // Alerts (admin)
+    expect(rows().slice(-2)).toEqual(['alerts', 'ai']);
+    toRow('alerts');
     key('ArrowRight');
     expect(document.querySelector('[data-settings-focus="alerts-content"]')?.getAttribute('data-focused')).toBe('true');
     key('ArrowLeft');
-    expect(focused()).toBe('tab-alerts');
-
-    key('ArrowDown'); // AI (admin)
+    expect(focused()).toBe('row-alerts');
+    key('ArrowDown');
     key('ArrowRight');
     expect(document.querySelector('[data-settings-focus="ai-content"]')?.getAttribute('data-focused')).toBe('true');
-    key('ArrowLeft');
-    expect(focused()).toBe('tab-ai');
+    key('Escape');
+    expect(focused()).toBe('row-ai');
   });
 
-  it('the language tiles keep Left / Right between them, OK picks one, and Left from the first goes to the column', async () => {
+  it('the language tiles keep Left / Right between them, OK picks one, and Left from the first goes to the menu', async () => {
     render(<Settings onBack={vi.fn()} />);
-    key('ArrowDown'); key('ArrowDown'); // UI
+    toRow('language');
     key('ArrowRight');
-    for (let i = 0; i < 12 && !focused()?.startsWith('ui-language-'); i += 1) key('ArrowDown');
+    // The remote lands on the language in use.
     expect(focused()).toBe('ui-language-en');
 
     key('ArrowRight');
@@ -218,6 +219,13 @@ describe('Settings tab column', () => {
     await waitFor(() => expect(i18n.language).toBe('en'));
 
     key('ArrowLeft');
-    expect(focused()).toBe('tab-ui');
+    expect(focused()).toBe('row-language');
+  });
+
+  it('a tap on a row opens its page with the remote in it', () => {
+    render(<Settings onBack={vi.fn()} />);
+    fireEvent.click(document.querySelector('[data-settings-row="remote"]')!);
+    expect(page()).toBe('remote');
+    expect(focused()).toBe('remote-hint');
   });
 });

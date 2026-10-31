@@ -35,13 +35,17 @@ vi.mock('@/lib/phoneRemote', () => ({
 }));
 
 import Settings from './Settings';
-import { openScreen } from '@/lib/appActions';
+import { INTENT_KEYS } from '@/lib/appActions';
 
 const NAMES = ['English', 'Español', 'Français', 'Deutsch', 'العربية'];
+/** The language tiles on the page (the row's state line shows the language in use too). */
+const tiles = () => [...document.querySelectorAll('[data-settings-page] [data-settings-focus^="ui-language-"]')] as HTMLElement[];
+const tile = (name: string) => tiles().find((b) => b.textContent === name)!;
 
-const openUiTab = async () => {
-  render(<Settings onBack={vi.fn()} />);
-  await act(async () => { openScreen('settings_ui', vi.fn()); });
+/** Settings, opened on its Language page. */
+const openLanguage = () => {
+  sessionStorage.setItem(INTENT_KEYS.settings, 'language');
+  return render(<Settings onBack={vi.fn()} />);
 };
 
 beforeEach(() => {
@@ -54,33 +58,36 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => { await i18n.changeLanguage('en'); }); });
 
 describe('Settings language picker', () => {
-  it('is shown to an ordinary (non-admin) account, with English selected', async () => {
-    await openUiTab();
-    for (const name of NAMES) expect(screen.getByText(name)).toBeTruthy();
-    const english = screen.getByText('English').closest('button')!;
+  it('is shown to an ordinary (non-admin) account, with English selected (an outline and a check, no fill)', () => {
+    openLanguage();
+    expect(tiles().map((b) => b.textContent)).toEqual(NAMES);
+    const english = tile('English');
     expect(english.className).toContain('border-brand-gold');
+    expect(english.className).not.toMatch(/bg-brand-gold/);
+    expect(document.querySelector('[data-settings-row="language"] [data-settings-state]')?.textContent).toBe('English');
   });
 
-  it('is shown to an admin, on a Kids profile, and in the website demo', async () => {
+  it('is shown to an admin, on a Kids profile, and in the website demo', () => {
     for (const setup of [() => { flags.admin = true; }, () => { flags.kidsLevel = 'kids'; }, () => { flags.demo = true; }, () => { flags.kidsLevel = 'kids'; flags.demo = true; }]) {
       flags.kidsLevel = null; flags.admin = false; flags.demo = false;
       setup();
-      const { unmount } = render(<Settings onBack={vi.fn()} />);
-      await act(async () => { openScreen('settings_ui', vi.fn()); });
-      for (const name of NAMES) expect(screen.getByText(name)).toBeTruthy();
+      const { unmount } = openLanguage();
+      expect(document.querySelector('[data-settings-row="language"]')).not.toBeNull();
+      expect(tiles().map((b) => b.textContent)).toEqual(NAMES);
       unmount();
     }
   });
 
   it('changes the language of the screen when a customer picks one, and back again', async () => {
-    await openUiTab();
-    expect(screen.getByText('Customize your Snow Media Center experience')).toBeTruthy();
+    openLanguage();
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Settings');
 
-    fireEvent.click(screen.getByText('Español').closest('button')!);
-    await waitFor(() => expect(screen.getByText('Ajustes')).toBeTruthy());
+    fireEvent.click(tile('Español'));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Ajustes'));
+    expect(document.querySelector('[data-settings-row="language"] [data-settings-label]')?.textContent).toBe('Idioma');
     expect(localStorage.getItem('smc_lang')).toBe('es');
 
-    fireEvent.click(screen.getByText('English').closest('button')!);
-    await waitFor(() => expect(screen.getByText('Settings')).toBeTruthy());
+    fireEvent.click(tile('English'));
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Settings'));
   });
 });

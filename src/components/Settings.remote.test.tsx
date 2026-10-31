@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
-// Settings opened on a tab by a landing intent ("Set up profiles", Phone Remote).
+// Settings opened on a page by a landing intent ("Set up profiles", Phone Remote).
 const kidsLevel: string | null = null;
 vi.mock('@/hooks/useActiveProfile', () => ({
   useActiveProfile: () => ({ profile: { id: kidsLevel ? 'kid' : 'main', name: kidsLevel ? 'Kid' : 'Main', avatar: 'blue', kidsLevel, pinHash: null, position: 0, t: 0 } }),
@@ -35,6 +35,7 @@ import Settings from './Settings';
 
 const key = (k: string) => act(() => { fireEvent.keyDown(window, { key: k }); });
 const focused = (c: HTMLElement) => c.querySelector('[data-focused="true"]')?.getAttribute('data-settings-focus');
+const page = () => document.querySelector('[data-settings-page]')?.getAttribute('data-settings-page');
 
 beforeEach(() => {
   sessionStorage.clear(); localStorage.clear();
@@ -43,30 +44,28 @@ beforeEach(() => {
   window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
 });
 
-describe('Settings opened on a tab', () => {
-  it('"Set up profiles": Down from Back goes to the Profiles tab that is showing, and Right on to its buttons', () => {
+describe('Settings opened on a page', () => {
+  it('"Set up profiles": the Profiles row has the highlight with its page beside it, and Right goes on to its buttons', () => {
     sessionStorage.setItem('smc-settings-tab', 'profiles');
     const { container } = render(<Settings onBack={vi.fn()} />);
-    expect(focused(container)).toBe('back');
-    key('ArrowDown');
-    expect(focused(container)).toBe('tab-profiles');
-    expect(screen.getByRole('tab', { name: /Profiles/ }).getAttribute('data-state')).toBe('active');
+    expect(focused(container)).toBe('row-profiles');
+    expect(page()).toBe('profiles');
     key('ArrowRight');
     expect(focused(container)).toBe('profiles-switch');
   });
 
-  it('Phone Remote: Down, Right reaches the typing-card switch', () => {
+  it('Phone remote: Right reaches the typing-card switch', () => {
     sessionStorage.setItem('smc-settings-tab', 'remote');
     const { container } = render(<Settings onBack={vi.fn()} />);
-    key('ArrowDown');
-    expect(focused(container)).toBe('tab-remote');
+    expect(focused(container)).toBe('row-remote');
+    expect(screen.getByText('pairing-qr')).toBeTruthy();
     key('ArrowRight');
     expect(focused(container)).toBe('remote-hint');
   });
 
-  it('with no intent, Down from Back still lands on Media', () => {
+  it('with no intent, it opens on My account', () => {
     const { container } = render(<Settings onBack={vi.fn()} />);
-    key('ArrowDown');
-    expect(focused(container)).toBe('tab-media');
+    expect(focused(container)).toBe('row-account');
+    expect(page()).toBe('account');
   });
 });

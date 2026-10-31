@@ -1,17 +1,42 @@
 {
   "settings": {
     "title": "Ajustes",
-    "subtitle": "Personaliza tu experiencia en Snow Media Center",
-    "tabs": {
-      "media": "Gestor de medios",
-      "ui": "Interfaz",
-      "updates": "Actualizaciones",
-      "alerts": "Alertas de apps",
-      "ai": "IA",
-      "profiles": "Perfiles",
-      "remote": "Control desde el celular"
+    "hub": {
+      "rows": {
+        "account": "Mi cuenta",
+        "home": "Pantalla de inicio",
+        "backgrounds": "Fondos",
+        "profiles": "Perfiles",
+        "remote": "Control con el teléfono",
+        "notifications": "Notificaciones",
+        "language": "Idioma",
+        "updates": "Actualizaciones",
+        "alerts": "Alertas de la app",
+        "ai": "IA"
+      },
+      "state": {
+        "notSignedIn": "Sin iniciar sesión",
+        "barOn": "Barra de contenido activada",
+        "barOff": "Barra de contenido desactivada",
+        "dashLarge": "Panel grande",
+        "dashCompact": "Panel compacto",
+        "bgCustom": "Tu propio fondo",
+        "bgStandard": "Fondo estándar",
+        "phones_one": "{{count}} teléfono conectado",
+        "phones_many": "{{count}} teléfonos conectados",
+        "phones_other": "{{count}} teléfonos conectados",
+        "paired": "Teléfono vinculado",
+        "notPaired": "Sin vincular",
+        "postsOn": "Publicaciones activadas",
+        "postsOff": "Publicaciones desactivadas",
+        "alertsOn": "Alertas activadas",
+        "alertsOff": "Alertas desactivadas",
+        "version": "Versión {{version}}",
+        "admin": "Solo administradores"
+      },
+      "accountEmpty": "Sin iniciar sesión. Inicia sesión en Live TV y tu línea aparecerá aquí.",
+      "unpairDesc": "Ningún teléfono vinculado funcionará como control hasta que se vuelva a vincular."
     },
-    "mediaManagerHeading": "Gestor de medios",
     "contentBar": {
       "title": "Barra de contenido",
       "description": "Muestra títulos populares de Plex y deportes en vivo en la pantalla de inicio. Desactívala en dispositivos lentos para una experiencia más fluida.",

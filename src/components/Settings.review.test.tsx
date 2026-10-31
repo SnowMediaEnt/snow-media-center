@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeAll, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
-// Settings → UI → "Rate Snow Media Center": for a grown-up on a signed-in box,
+// Settings → My account → "Rate Snow Media Center": for a grown-up on a signed-in box,
 // opens the review screen; not on a Kids profile.
 let kidsLevel: string | null = 'kids';
 vi.mock('@/hooks/useActiveProfile', () => ({
@@ -51,36 +51,30 @@ beforeEach(() => {
   window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
 });
 
-// Back → Media tab → UI tab (the tabs stand in a column; Down is the next one).
-const openUiTab = () => { key('ArrowDown'); key('ArrowDown'); };
-
 describe('Settings → Rate Snow Media Center', () => {
-  it('is in the UI tab for a grown-up, and OK opens the review screen', async () => {
+  it('is on My account for a grown-up, and OK opens the review screen', async () => {
     kidsLevel = null;
     const { container } = render(<Settings onBack={vi.fn()} />);
-    openUiTab();
     expect(screen.getByText(ENTRY)).toBeTruthy();
-    const order = [...container.querySelectorAll('[data-settings-focus^="ui-"]')].map((e) => e.getAttribute('data-settings-focus'));
-    expect(order).toContain('ui-rate-app');
-    // Walk down to it with the remote: Right goes into the tab, Down through its cards.
+    // Walk down to it with the remote: Right goes into the page, Down through its rows.
     key('ArrowRight');
-    for (let i = 0; i < order.indexOf('ui-rate-app'); i += 1) key('ArrowDown');
+    for (let i = 0; i < 5 && container.querySelector('[data-settings-focus="ui-rate-app"]')?.getAttribute('data-focused') !== 'true'; i += 1) key('ArrowDown');
     expect(container.querySelector('[data-settings-focus="ui-rate-app"]')?.getAttribute('data-focused')).toBe('true');
     key('Enter');
     expect(await screen.findByText('Enjoying Snow Media Center?')).toBeTruthy();
     expect(events).toContain('review_prompt_shown');
   });
 
-  it('is not there on a Kids profile or a signed-out box', () => {
+  it('is not there on a Kids profile (no My account at all) or a signed-out box', () => {
     kidsLevel = 'kids';
     const r = render(<Settings onBack={vi.fn()} />);
-    openUiTab();
+    expect(document.querySelector('[data-settings-row="account"]')).toBeNull();
     expect(screen.queryByText(ENTRY)).toBeNull();
     r.unmount();
     kidsLevel = null;
     signedIn = false;
     render(<Settings onBack={vi.fn()} />);
-    openUiTab();
+    expect(document.querySelector('[data-settings-page]')?.getAttribute('data-settings-page')).toBe('account');
     expect(screen.queryByText(ENTRY)).toBeNull();
   });
 });

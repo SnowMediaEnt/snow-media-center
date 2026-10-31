@@ -1,17 +1,41 @@
 {
   "settings": {
     "title": "Einstellungen",
-    "subtitle": "Passe dein Snow Media Center an",
-    "tabs": {
-      "media": "Medien-Manager",
-      "ui": "Oberfläche",
-      "updates": "Updates",
-      "alerts": "App-Hinweise",
-      "ai": "KI",
-      "profiles": "Profile",
-      "remote": "Handy-Fernbedienung"
+    "hub": {
+      "rows": {
+        "account": "Mein Konto",
+        "home": "Startbildschirm",
+        "backgrounds": "Hintergründe",
+        "profiles": "Profile",
+        "remote": "Handy-Fernbedienung",
+        "notifications": "Benachrichtigungen",
+        "language": "Sprache",
+        "updates": "Updates",
+        "alerts": "App-Hinweise",
+        "ai": "KI"
+      },
+      "state": {
+        "notSignedIn": "Nicht angemeldet",
+        "barOn": "Inhaltsleiste an",
+        "barOff": "Inhaltsleiste aus",
+        "dashLarge": "Großes Dashboard",
+        "dashCompact": "Kompaktes Dashboard",
+        "bgCustom": "Eigener Hintergrund",
+        "bgStandard": "Standardhintergrund",
+        "phones_one": "{{count}} Handy verbunden",
+        "phones_other": "{{count}} Handys verbunden",
+        "paired": "Handy gekoppelt",
+        "notPaired": "Nicht gekoppelt",
+        "postsOn": "Beiträge an",
+        "postsOff": "Beiträge aus",
+        "alertsOn": "Hinweise an",
+        "alertsOff": "Hinweise aus",
+        "version": "Version {{version}}",
+        "admin": "Nur für Admins"
+      },
+      "accountEmpty": "Nicht angemeldet. Melde dich bei Live TV an, dann erscheint deine Leitung hier.",
+      "unpairDesc": "Kein gekoppeltes Handy funktioniert mehr als Fernbedienung, bis es neu gekoppelt wird."
     },
-    "mediaManagerHeading": "Medien-Manager",
     "contentBar": {
       "title": "Inhaltsleiste",
       "description": "Zeigt angesagte Plex-Titel und Live-Sport auf dem Startbildschirm. Auf langsameren Geräten für ein flüssigeres Erlebnis deaktivieren.",

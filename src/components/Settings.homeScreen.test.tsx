@@ -2,9 +2,9 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import i18n from '@/i18n';
 
-// Settings › UI › Home screen: what the content bar shows (Source, Show) and
-// the Home tiles' Reset, with the remote (OK steps through the choices) and
-// with a tap on a choice.
+// Settings › Home screen: the content bar (on/off, Source, Show), the
+// Dashboard's size and the Home tiles' Reset, with the remote (OK steps
+// through the choices) and with a tap on a choice.
 const flags = vi.hoisted(() => ({ admin: false }));
 vi.mock('@/hooks/useActiveProfile', () => ({
   useActiveProfile: () => ({ profile: { id: 'main', name: 'Main', avatar: 'blue', kidsLevel: null, pinHash: null, position: 0, t: 0 } }),
@@ -62,22 +62,30 @@ beforeEach(() => {
 });
 afterEach(async () => { await act(async () => { await i18n.changeLanguage('en'); }); });
 
-/** Into the UI tab, then Down until `row` has the highlight. */
+/** Into Home screen (the second row), then Down until `row` has the highlight. */
 const toRow = (row: string) => {
-  key('ArrowDown'); key('ArrowDown'); key('ArrowRight');
+  key('ArrowDown'); key('ArrowRight');
   for (let i = 0; i < 12 && focused() !== row; i += 1) key('ArrowDown');
   expect(focused()).toBe(row);
 };
 
-describe('Settings › UI › Home screen', () => {
-  it('has its own section under the list, before the languages', () => {
+describe('Settings › Home screen', () => {
+  it('has the content bar, what it shows, the Dashboard size and the tiles, in that order', () => {
     render(<Settings onBack={vi.fn()} />);
-    key('ArrowDown'); key('ArrowDown'); // the UI tab
-    expect(screen.getByText('Home screen')).toBeTruthy();
-    const ids = [...document.querySelectorAll('[data-settings-focus^="ui-"]')].map((e) => e.getAttribute('data-settings-focus'));
-    const at = ids.indexOf('ui-home-bar-source');
-    expect(ids.slice(at, at + 3)).toEqual(['ui-home-bar-source', 'ui-home-bar-show', 'ui-home-tiles-reset']);
-    expect(ids[at + 3]).toMatch(/^ui-language-/);
+    key('ArrowDown'); key('ArrowRight');
+    expect(document.querySelector('[data-settings-page]')?.getAttribute('data-settings-page')).toBe('home');
+    const ids = [...document.querySelectorAll('[data-settings-page] [data-settings-focus]')].map((e) => e.getAttribute('data-settings-focus'));
+    expect(ids).toEqual(['ui-content-bar-toggle', 'ui-home-bar-source', 'ui-home-bar-show', 'ui-dashboard-size-toggle', 'ui-home-tiles-reset']);
+    expect(focused()).toBe('ui-content-bar-toggle');
+  });
+
+  it('the choice in use has a gold outline and a check, not a fill (one focus look)', () => {
+    render(<Settings onBack={vi.fn()} />);
+    toRow('ui-home-bar-source');
+    const on = document.querySelector('[data-settings-focus="ui-home-bar-source"] [aria-pressed="true"]')!;
+    expect(on.className).toContain('border-brand-gold');
+    expect(on.className).not.toMatch(/bg-brand-gold/);
+    expect(on.querySelector('svg')).not.toBeNull();
   });
 
   it('OK steps the Source through Live TV and Plex → Live TV only → Plex only → Off → back on', () => {

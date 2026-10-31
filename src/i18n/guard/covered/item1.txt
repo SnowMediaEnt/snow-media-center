@@ -7,6 +7,14 @@ src/components/MediaBarPrompt.tsx
 src/components/NewsTicker.tsx
 src/components/WelcomePopup.tsx
 src/components/Settings.tsx
+src/components/settings/SettingsRows.tsx
+src/components/settings/AccountPage.tsx
+src/components/settings/HomeScreenPage.tsx
+src/components/settings/NotificationsPage.tsx
+src/components/settings/LanguagePage.tsx
+src/components/settings/ProfilesPage.tsx
+src/components/settings/RemotePage.tsx
+src/components/settings/useSettingsStates.ts
 src/components/AppAlertDialog.tsx
 src/components/BroadcastAlertPopup.tsx
 src/components/PreEventStepsDialog.tsx

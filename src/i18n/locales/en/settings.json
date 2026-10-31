@@ -1,17 +1,41 @@
 {
   "settings": {
     "title": "Settings",
-    "subtitle": "Customize your Snow Media Center experience",
-    "tabs": {
-      "media": "Media Manager",
-      "ui": "UI",
-      "updates": "Updates",
-      "alerts": "App Alerts",
-      "ai": "AI",
-      "profiles": "Profiles",
-      "remote": "Phone Remote"
+    "hub": {
+      "rows": {
+        "account": "My account",
+        "home": "Home screen",
+        "backgrounds": "Backgrounds",
+        "profiles": "Profiles",
+        "remote": "Phone remote",
+        "notifications": "Notifications",
+        "language": "Language",
+        "updates": "Updates",
+        "alerts": "App alerts",
+        "ai": "AI"
+      },
+      "state": {
+        "notSignedIn": "Not signed in",
+        "barOn": "Content bar on",
+        "barOff": "Content bar off",
+        "dashLarge": "Large dashboard",
+        "dashCompact": "Compact dashboard",
+        "bgCustom": "Your own background",
+        "bgStandard": "Standard background",
+        "phones_one": "{{count}} phone connected",
+        "phones_other": "{{count}} phones connected",
+        "paired": "Phone paired",
+        "notPaired": "Not paired",
+        "postsOn": "Posts on",
+        "postsOff": "Posts off",
+        "alertsOn": "Alerts on",
+        "alertsOff": "Alerts off",
+        "version": "Version {{version}}",
+        "admin": "Admin only"
+      },
+      "accountEmpty": "Not signed in. Sign in to Live TV and your line shows here.",
+      "unpairDesc": "Every paired phone stops working as a remote until it pairs again."
     },
-    "mediaManagerHeading": "Media Manager",
     "contentBar": {
       "title": "Content Bar",
       "description": "Shows trending Plex titles and live sports on the home screen. Turn off on slower devices for a smoother experience.",
@@ -65,9 +89,9 @@
       "pinTag": "PIN",
       "watchingTag": "watching",
       "switchTitle": "Switch who's watching",
-      "switchDesc": "Pick another profile. Each one has its own Continue Watching, My List, favourites and home screen.",
+      "switchDesc": "Pick another profile. Each one has its own Continue Watching, My List, favorites and home screen.",
       "manageTitle": "Add or edit profiles",
-      "manageDesc": "Add someone (up to 8 profiles), make a Kids profile, rename, change the colour, or add a PIN.",
+      "manageDesc": "Add someone (up to 8 profiles), make a Kids profile, rename, change the color, or add a PIN.",
       "parentTitle": "Parent PIN",
       "parentDescOn": "On. Needed to add, change or delete profiles and to leave a Kids profile. Change it or turn it off.",
       "parentDescOff": "Off. Create one so kids can't add profiles or switch to a grown-up's.",

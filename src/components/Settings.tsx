@@ -1,21 +1,16 @@
-import { lazy, Suspense, useState, useEffect, useRef, type ComponentType, type HTMLAttributes, type ReactNode } from 'react';
-import { Trans, useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Switch } from '@/components/ui/switch';
+import { lazy, Suspense, useState, useEffect, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDashboardSize, saveDashboardSize } from '@/lib/dashboardSize';
 import { useMailNotify, saveMailNotify } from '@/lib/snowMail';
 import { peekIntent, clearIntent, takeIntent, INTENT_KEYS, SCREEN_INTENT_EVENT } from '@/lib/appActions';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { isDemo, isHowtoCapture } from '@/lib/demoMode';
-import { ArrowLeft, Image, RefreshCw, AlertTriangle, Bell, Bot, Tv, Sliders, Languages, Check, LayoutDashboard, Newspaper, UsersRound, Smartphone, Star, ChevronRight, Lock, Home, Rows3, LayoutGrid } from 'lucide-react';
-import { BAR_SHOWS, BAR_SHOW_KEYS, BAR_SOURCES, BAR_SOURCE_KEYS, chooseBarShow, chooseBarSource, useBarPrefs } from '@/lib/homeBar';
+import { AlertTriangle, Bell, Bot, Home, Image, KeyRound, Languages, RefreshCw, Settings as SettingsIcon, Smartphone, UsersRound } from 'lucide-react';
+import { BAR_SHOWS, BAR_SOURCES, chooseBarShow, chooseBarSource, useBarPrefs } from '@/lib/homeBar';
 import { loadSavedTiles, saveTiles } from '@/lib/homeTiles';
 import { openProfiles } from '@/lib/profilesUi';
-import { avatarColors, hasParentPin, loadProfiles, pinsAvailable, profileName, PROFILES_EVENT } from '@/lib/profiles';
+import { loadProfiles, pinsAvailable, PROFILES_EVENT } from '@/lib/profiles';
 import { useActiveProfile } from '@/hooks/useActiveProfile';
 import { usePlayerAccount } from '@/hooks/usePlayerAccount';
-import PairingQR from '@/components/remote/PairingQR';
 import { PHONE_REMOTE_EVENT, connectedPhones, isPaired, setTypingHintEnabled, typingHintEnabled, unpairAllPhones } from '@/lib/phoneRemote';
 import { getPreferredTier, loadAiTiers, setPreferredTier, type AiTier, type AiTierInfo } from '@/lib/aiTiers';
 import { useAuth } from '@/hooks/useAuth';
@@ -24,16 +19,24 @@ import AppUpdater from '@/components/AppUpdater';
 import AppAlertsManager from '@/components/AppAlertsManager';
 import ApkCacheViewer from '@/components/ApkCacheViewer';
 import AdminAIPanel from '@/components/AdminAIPanel';
-import PlayerAccountCard from '@/components/PlayerAccountCard';
 import { useAdminRole } from '@/hooks/useAdminRole';
 import { useMediaBarEnabled } from '@/hooks/useMediaBarEnabled';
 import { useDeviceAlerts } from '@/hooks/useDeviceAlerts';
 import { useFeatureFlag, setFeatureFlag } from '@/hooks/useFeatureFlag';
 import { useToast } from '@/hooks/use-toast';
 import { SUPPORTED_LANGUAGES, LANG_STORAGE_KEY } from '@/i18n';
-import { BackButton, HEADER_ROW } from '@/components/ui/BackButton';
+import { BackButton } from '@/components/ui/BackButton';
 import { openScreen } from '@/lib/appActions';
 import { trackEvent } from '@/lib/analytics';
+import { keepInView } from '@/utils/keepInView';
+import type { PageFocus } from '@/components/settings/SettingsRows';
+import { useSettingsStates, type SettingsPage } from '@/components/settings/useSettingsStates';
+import AccountPage from '@/components/settings/AccountPage';
+import HomeScreenPage from '@/components/settings/HomeScreenPage';
+import NotificationsPage from '@/components/settings/NotificationsPage';
+import LanguagePage from '@/components/settings/LanguagePage';
+import ProfilesPage from '@/components/settings/ProfilesPage';
+import RemotePage from '@/components/settings/RemotePage';
 
 const ReviewDialog = lazy(() => import('@/components/review/ReviewDialog'));
 
@@ -45,97 +48,86 @@ interface SettingsProps {
   onNavigate?: (view: string) => void;
 }
 
-type SettingsFocus =
-  | 'back'
-  | 'tab-media'
-  | 'tab-ui'
-  | 'tab-updates'
-  | 'tab-alerts'
-  | 'tab-ai'
-  | 'media-content'
-  | 'tab-profiles'
-  | 'tab-remote'
-  | 'remote-hint'
-  | 'remote-unpair'
-  | 'profiles-switch'
-  | 'profiles-manage'
-  | 'profiles-parent'
-  | 'ui-player-signout'
-  | 'ui-ai-tier'
-  | 'ui-content-bar-toggle'
-  | 'ui-dashboard-size-toggle'
-  | 'ui-mail-notify-toggle'
-  | 'ui-player-toggle'
-  | 'ui-device-alerts-toggle'
-  | 'ui-rate-app'
-  | 'ui-home-bar-source'
-  | 'ui-home-bar-show'
-  | 'ui-home-tiles-reset'
-  | 'updates-content'
-  | 'alerts-content'
-  | 'ai-content'
-  | `ui-language-${string}`;
+/** Each menu row: its icon and its name (one key, so a rename is one string). */
+const ROW_ICON: Record<SettingsPage, typeof Home> = {
+  account: KeyRound, home: Home, backgrounds: Image, profiles: UsersRound, remote: Smartphone,
+  notifications: Bell, language: Languages, updates: RefreshCw, alerts: AlertTriangle, ai: Bot,
+};
+
+/** The How-to guide's hooks on the menu rows (data-howto; literals, so its check finds them).
+ *  The content bar's hook is the Home screen row: the guide's "switches" picture shows
+ *  Notifications' two switches, with the row that holds the content bar beside them. */
+const ROW_HOWTO: Partial<Record<SettingsPage, string>> = { home: 'set.contentBar', updates: 'set.updatesTab' };
+
+/** Pages whose rows the remote walks with Settings' own keys; the others are panels with keys of their own. */
+const LIST_PAGES: ReadonlySet<SettingsPage> = new Set<SettingsPage>(['account', 'home', 'profiles', 'remote', 'notifications', 'language']);
+
+/** The page beside the menu follows the highlight once it rests this long (no page mounts for every row passed). */
+const PREVIEW_REST_MS = 250;
 
 /**
- * One setting in a grouped list: icon, title, a short line under it, and its
- * control on the right. Rows sit in one panel (SettingsGroup) instead of each
- * in a card of its own, so a 960x540 screen shows the whole list, not two
- * boxes (owner, 2026-10-14). The remote highlight is the tv-ring plus a faint
- * fill; no zoom, which a row inside a panel would only clip.
+ * What the assistant, a voice command or another screen asks Settings to open
+ * (INTENT_KEYS.settings). The old tab names still work: 'media' is
+ * Backgrounds, 'ui' (the old catch-all tab) is Home screen, and 'ui-home' is
+ * Home screen with the remote already on its first row.
  */
-const SettingRow = ({ focused, icon: Icon, title, description, control, children, className = '', ...rest }: {
-  focused: boolean;
-  icon: ComponentType<{ className?: string }>;
-  title: ReactNode;
-  description?: ReactNode;
-  control?: ReactNode;
-  children?: ReactNode;
-  className?: string;
-} & HTMLAttributes<HTMLDivElement>) => (
-  <div
-    tabIndex={0}
-    role="button"
-    {...rest}
-    className={`tv-ring flex items-start rounded-xl px-3.5 py-3 cursor-pointer transition-colors duration-150 ${focused ? 'bg-white/[0.07]' : 'hover:bg-white/[0.04]'} ${className}`}
-  >
-    {/* Beside the title, not the middle of a two-line row; the control stays centred. */}
-    <Icon className="w-5 h-5 text-brand-gold shrink-0 mr-3.5 mt-0.5" />
-    <div className="min-w-0 flex-1">
-      <div className="text-base font-semibold text-white leading-snug">{title}</div>
-      {description ? <div className="text-sm text-white/65 leading-snug mt-0.5">{description}</div> : null}
-      {children}
-    </div>
-    {control ? <div className="shrink-0 ml-4 self-center">{control}</div> : null}
-  </div>
-);
+const INTENT_PAGE: Record<string, SettingsPage> = {
+  media: 'backgrounds', backgrounds: 'backgrounds', ui: 'home', 'ui-home': 'home', home: 'home',
+  account: 'account', profiles: 'profiles', remote: 'remote', notifications: 'notifications',
+  language: 'language', updates: 'updates', alerts: 'alerts', ai: 'ai',
+};
 
-/** A quiet panel that holds a run of related rows. (space-y, not flex gap: old box WebViews.) */
-const SettingsGroup = ({ children, ...rest }: { children: ReactNode } & HTMLAttributes<HTMLElement>) => (
-  <section {...rest} className="rounded-2xl bg-slate-800/55 border border-white/10 p-1.5 space-y-0.5">
-    {children}
-  </section>
-);
+const isBackKey = (e: KeyboardEvent) => e.key === 'Escape' || e.key === 'Backspace' || e.keyCode === 4 || e.which === 4 || e.code === 'GoBack';
+const NAV_KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '];
 
+/**
+ * Settings, from Home. Laid out like Live TV › Settings (owner, 2026-10-30:
+ * "make the main settings like the settings in Live TV"): a menu column on
+ * the left, each row with its state in small text under the name, and the
+ * highlighted row's page on the right. OK or Right moves the remote into the
+ * page; Back, or Left at its left edge / Up at its top, returns to the menu;
+ * Back on the menu leaves. Only the page scrolls, never the whole screen.
+ *
+ * The old "UI" tab held everything (the Player account, Snow AI, the content
+ * bar, the Dashboard's size, posts, alerts, the Home screen, languages); it is
+ * split into short pages so each row means one thing.
+ *
+ * The highlight is `tv-ring` + data-focused="true", driven by state, never by
+ * native .focus() on a row: ring-* and shadow-[…] classes compile into one
+ * box-shadow that index.css strips on low-memory boxes (a Fire TV showed no
+ * highlight at all), and focusing a row hands the browser's own focus style a
+ * second highlight. The panels that own real DOM focus (Updates, App alerts,
+ * AI) keep it, and lose it on the way back to the menu.
+ */
 const Settings = ({ onBack, onNavigate }: SettingsProps) => {
   const { t, i18n } = useTranslation();
   const { isAdmin: hasAdminRole } = useAdminRole();
   // Website demo: never surface admin tooling (even to a signed-in admin) and
-  // hide the Updates tab entirely — APK self-updating is a device-only concern.
+  // hide Updates entirely — APK self-updating is a device-only concern.
   const demo = isDemo();
   const { profile: currentProfile } = useActiveProfile();
-  // A Kids profile gets a short Settings: backgrounds (kept kids-safe by the
-  // server), the content bar, language, switching profile and the phone
-  // remote. No updates and no admin tools, even on an admin's account.
-  // The language picker is for everyone: admin or not, Kids profile or not, demo too.
+  // A Kids profile gets a short Settings: the content bar, backgrounds (kept
+  // kids-safe by the server), switching profile, the phone remote and the
+  // language. No account, no updates and no admin tools, even on an admin's account.
   const kids = !!currentProfile.kidsLevel;
   const isAdmin = hasAdminRole && !demo && !kids;
-  // The How-to pictures show the tab a real box has (developer build only).
+  // The How-to pictures show the row a real box has (developer build only).
   const showUpdates = (!demo || isHowtoCapture()) && !kids;
+
+  const rows: SettingsPage[] = kids
+    ? ['home', 'backgrounds', 'profiles', 'remote', 'language']
+    : [
+      'account', 'home', 'backgrounds', 'profiles', 'remote', 'notifications', 'language',
+      ...(showUpdates ? ['updates' as const] : []),
+      ...(isAdmin ? ['alerts' as const, 'ai' as const] : []),
+    ];
+
   const [mediaBarEnabled, setMediaBarEnabledState] = useMediaBarEnabled();
   // Home screen (grown-up profiles): what the content bar shows, and the tiles.
   const { source: barSource, show: barShow } = useBarPrefs();
   const cycleBarSource = () => chooseBarSource(BAR_SOURCES[(BAR_SOURCES.indexOf(barSource) + 1) % BAR_SOURCES.length]);
   const cycleBarShow = () => chooseBarShow(BAR_SHOWS[(BAR_SHOWS.indexOf(barShow) + 1) % BAR_SHOWS.length]);
+  const { toast } = useToast();
   const resetHomeTiles = () => {
     const had = loadSavedTiles() !== null;
     saveTiles(null);
@@ -145,19 +137,17 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
   const mailNotify = useMailNotify();
   const deviceAlerts = useDeviceAlerts();
   const { enabled: playerEnabled } = useFeatureFlag('player_enabled', true);
-  const { toast } = useToast();
-  const currentProfileId = currentProfile.id;
   const [profilesList, setProfilesList] = useState(() => loadProfiles());
   useEffect(() => {
     const on = () => setProfilesList(loadProfiles());
     window.addEventListener(PROFILES_EVENT, on);
     return () => window.removeEventListener(PROFILES_EVENT, on);
   }, []);
-  // Phone remote: pairing lives here (Settings → Phone Remote).
+  // Phone remote: pairing lives here (Settings › Phone remote).
   const [remoteTick, setRemoteTick] = useState(0);
   const remotePhonesRef = useRef(-1);
   useEffect(() => {
-    const on = () => setRemoteTick((t) => t + 1);
+    const on = () => setRemoteTick((n) => n + 1);
     window.addEventListener(PHONE_REMOTE_EVENT, on);
     // Phones drop off the count by time alone (no event): look every 15 s,
     // but re-render all of Settings only when the count actually changed.
@@ -169,6 +159,7 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
   remotePhonesRef.current = remotePhones;
   const remotePaired = isPaired();
   const remoteHint = typingHintEnabled();
+  const unpair = () => { void unpairAllPhones(); toast({ title: i18n.t('settings.toast.unpairedTitle'), description: i18n.t('settings.toast.unpairedDesc') }); };
   // Snow AI level for AI Chat and voice commands: Free (included) or Premium
   // (the top model, Snow Gems a message). Premium needs a signed-in account.
   const { user } = useAuth();
@@ -176,7 +167,7 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
   const [aiPremium, setAiPremium] = useState<AiTierInfo | null>(null);
   useEffect(() => {
     let alive = true;
-    void loadAiTiers().then((t) => { if (alive) setAiPremium(t.chat.premium); });
+    void loadAiTiers().then((tiers) => { if (alive) setAiPremium(tiers.chat.premium); });
     return () => { alive = false; };
   }, []);
   const aiTierShown = !!aiPremium && !demo && !kids;
@@ -190,7 +181,7 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
     try { trackEvent('review_prompt_shown', 'review', { source: 'settings' }); } catch { /* never blocks */ }
   };
   const toggleAiTier = () => {
-    // i18n.t, not t: the key handler that calls this keeps the render it was made in.
+    // i18n.t, not t: the key handler that calls this may hold an older render.
     if (!canPremium) { toast({ title: i18n.t('settings.toast.aiSignInTitle'), description: i18n.t('settings.toast.aiSignInDesc') }); return; }
     const next: AiTier = aiTier === 'premium' ? 'free' : 'premium';
     setPreferredTier('chat', next);
@@ -221,15 +212,12 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
       }
       toast({
         title: next ? i18n.t('settings.toast.alertsOnTitle') : i18n.t('settings.toast.alertsOffTitle'),
-        description: next
-          ? i18n.t('settings.toast.alertsOnDesc')
-          : i18n.t('settings.toast.alertsOffDesc'),
+        description: next ? i18n.t('settings.toast.alertsOnDesc') : i18n.t('settings.toast.alertsOffDesc'),
       });
     } catch (e) {
       toast({ title: i18n.t('settings.toast.alertsFailTitle'), description: (e as Error).message, variant: 'destructive' });
     }
   };
-
   const togglePlayer = async (next: boolean) => {
     try {
       await setFeatureFlag('player_enabled', next);
@@ -238,978 +226,399 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
       toast({ title: i18n.t('settings.toast.updateFailTitle'), description: (e as Error).message, variant: 'destructive' });
     }
   };
-  // 'ui-home' (the assistant's "Settings › UI › Home screen"): the UI tab,
-  // on its Home screen rows (a grown-up's; a Kids profile gets the tab).
-  const [activeTab, setActiveTab] = useState(() => {
-    const want = peekIntent(INTENT_KEYS.settings) === 'ui-home' ? 'ui' : peekIntent(INTENT_KEYS.settings);
-    const open = kids ? ['media', 'ui', 'profiles', 'remote'] : ['media', 'ui', 'profiles', 'remote', 'updates', 'alerts', 'ai'];
-    return want && open.includes(want) ? want : 'media';
-  });
-  const [focusedElement, setFocusedElement] = useState<SettingsFocus>(() => (!kids && peekIntent(INTENT_KEYS.settings) === 'ui-home' ? 'ui-home-bar-source' : 'back'));
-  // Opened on the Home screen rows: bring them into view once drawn.
-  const homeAskedRef = useRef(focusedElement === 'ui-home-bar-source');
-  useEffect(() => {
-    if (!homeAskedRef.current || focusedElement !== 'ui-home-bar-source') return;
-    homeAskedRef.current = false;
-    const timer = window.setTimeout(() => {
-      (document.querySelector('[data-settings-focus="ui-home-bar-source"]') as HTMLElement | null)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    }, 60);
-    return () => window.clearTimeout(timer);
-  }, [focusedElement]);
-  // The Player Account panel (UI tab) and its sign-out, armed by a first OK.
   const { account: playerAccount } = usePlayerAccount();
+
+  /** The items of a list page, top to bottom, as the remote walks them. */
+  const pageItems = (p: SettingsPage): string[] => {
+    switch (p) {
+      // The Player account panel's sign-out sits above the rows (Up from the first row).
+      case 'account': return [
+        ...(playerAccount ? ['ui-player-signout'] : []),
+        ...(aiTierShown ? ['ui-ai-tier'] : []),
+        ...(rateShown ? ['ui-rate-app'] : []),
+        ...(isAdmin ? ['ui-player-toggle'] : []),
+      ];
+      // A Kids profile keeps its own Home as it is: the content bar's switch only.
+      case 'home': return kids
+        ? ['ui-content-bar-toggle']
+        : ['ui-content-bar-toggle', 'ui-home-bar-source', 'ui-home-bar-show', 'ui-dashboard-size-toggle', 'ui-home-tiles-reset'];
+      case 'notifications': return ['ui-mail-notify-toggle', ...(deviceAlerts.supported ? ['ui-device-alerts-toggle'] : [])];
+      case 'language': return SUPPORTED_LANGUAGES.map((l) => `ui-language-${l.code}`);
+      case 'profiles': return ['profiles-switch', ...(kids ? [] : ['profiles-manage', ...(pinsAvailable() ? ['profiles-parent'] : [])])];
+      case 'remote': return ['remote-hint', 'remote-unpair'];
+      default: return [];
+    }
+  };
+  /** Where the remote lands in a list page. */
+  const firstItem = (p: SettingsPage): string | null => {
+    const items = pageItems(p);
+    // Into the rows, not onto Sign out: Right then OK must never start a sign-out.
+    if (p === 'account') return items.find((i) => i !== 'ui-player-signout') ?? items[0] ?? null;
+    // On the language in use (the How-to picture of each language starts there too).
+    if (p === 'language') return items.find((i) => currentLang.startsWith(i.replace('ui-language-', ''))) ?? items[0];
+    return items[0] ?? null;
+  };
+
+  // Opened on a page (the assistant's "open Phone remote", "Set up profiles"):
+  // that row highlighted with its page beside it; 'ui-home' puts the remote in the page.
+  const resolveIntent = (asked: string | null): { page: SettingsPage; enter: boolean } | null => {
+    const page = asked ? INTENT_PAGE[asked] : undefined;
+    if (!page || !rows.includes(page)) return null;
+    return { page, enter: asked === 'ui-home' && !kids };
+  };
+  const [opened] = useState(() => resolveIntent(peekIntent(INTENT_KEYS.settings)));
+  const [menuIdx, setMenuIdx] = useState(() => (opened ? rows.indexOf(opened.page) + 1 : 1)); // 0 = Back
+  const [shown, setShown] = useState<SettingsPage>(() => opened?.page ?? rows[0]);
+  const [pane, setPane] = useState<'menu' | 'page'>(() => (opened?.enter ? 'page' : 'menu'));
+  // The row the remote is on inside a list page.
+  const [item, setItem] = useState<string | null>(() => (opened?.enter ? firstItem(opened.page) : null));
+  useEffect(() => { clearIntent(INTENT_KEYS.settings); }, []);
+  // The rows change under the remote (admin rights arrive, a profile switch): stay on the menu.
+  const rowCount = rows.length;
+  useEffect(() => { setMenuIdx((i) => Math.min(i, rowCount)); }, [rowCount]);
+  const shownPage: SettingsPage = rows.includes(shown) ? shown : rows[0];
+
+  // Sign out of the Player: OK once arms it ("press OK again"), OK again does it.
   const [signOutArmed, setSignOutArmed] = useState(false);
-  const signOutArmedRef = useRef(signOutArmed);
-  signOutArmedRef.current = signOutArmed;
   useEffect(() => {
     if (!signOutArmed) return;
-    if (focusedElement !== 'ui-player-signout') { setSignOutArmed(false); return; }
+    if (item !== 'ui-player-signout' || pane !== 'page') { setSignOutArmed(false); return; }
     const timer = window.setTimeout(() => setSignOutArmed(false), 4000);
     return () => window.clearTimeout(timer);
-  }, [signOutArmed, focusedElement]);
-  const [mediaManagerActive, setMediaManagerActive] = useState(false);
-  useEffect(() => { clearIntent(INTENT_KEYS.settings); }, []);
+  }, [signOutArmed, item, pane]);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const toMenu = useCallback(() => {
+    // A control in the page may hold real DOM focus (Updates, App alerts, AI);
+    // let go of it so it can't answer keys meant for the menu.
+    const active = document.activeElement as HTMLElement | null;
+    if (active && active !== document.body && containerRef.current?.contains(active) && typeof active.blur === 'function') active.blur();
+    setPane('menu');
+    setItem(null);
+    setSignOutArmed(false);
+  }, []);
+
+  /** The remote goes into a page (OK / Right on its row, a tap in it, an intent). */
+  const enterPage = (p: SettingsPage) => {
+    setShown(p);
+    if (LIST_PAGES.has(p)) {
+      const first = firstItem(p);
+      // A page with nothing to pick (My account, signed out) keeps the remote on the menu.
+      if (!first) return;
+      setItem(first);
+      setPane('page');
+      return;
+    }
+    setItem(null);
+    setPane('page');
+    if (p === 'updates') {
+      // The updater's buttons take real DOM focus (their own keys move it).
+      window.setTimeout(() => {
+        const btn = document.querySelector<HTMLElement>('[data-app-updater-btn="check"], [data-app-updater-btn="download"]')
+          ?? document.querySelector<HTMLElement>('[data-apk-cache-first]');
+        btn?.focus();
+        btn?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }, 30);
+    }
+  };
+
   // The same asked for while Settings is already open (a voice command, the
-  // assistant): navigating here changed nothing, so switch tabs now rather
-  // than on the next visit. The highlight goes to that tab.
+  // assistant): navigating here changed nothing, so switch pages now rather
+  // than on the next visit. The highlight goes to that row.
+  const intentRef = useRef<(asked: string | null) => void>(() => {});
+  intentRef.current = (asked) => {
+    const want = resolveIntent(asked);
+    if (!want) return;
+    toMenu();
+    setMenuIdx(rows.indexOf(want.page) + 1);
+    setShown(want.page);
+    if (want.enter) enterPage(want.page);
+  };
   useEffect(() => {
     const on = (e: Event) => {
       if ((e as CustomEvent<string>).detail !== 'settings') return;
-      const asked = takeIntent(INTENT_KEYS.settings);
-      const home = asked === 'ui-home';
-      const want = home ? 'ui' : asked;
-      const open = kids ? ['media', 'ui', 'profiles', 'remote'] : ['media', 'ui', 'profiles', 'remote', 'updates', 'alerts', 'ai'];
-      if (!want || !open.includes(want)) return;
-      if (home && !kids) { homeAskedRef.current = true; setActiveTab(want); setFocusedElement('ui-home-bar-source'); return; }
-      if (want === activeTab) return;
-      setActiveTab(want);
-      setFocusedElement(`tab-${want}` as SettingsFocus);
+      intentRef.current(takeIntent(INTENT_KEYS.settings));
     };
     window.addEventListener(SCREEN_INTENT_EVENT, on);
     return () => window.removeEventListener(SCREEN_INTENT_EVENT, on);
-  }, [kids, activeTab]);
-  const containerRef = useRef<HTMLDivElement>(null);
+  }, []);
 
+  // The page follows the highlight once it rests (Back keeps the last page).
+  const restingOn = menuIdx >= 1 ? rows[menuIdx - 1] : undefined;
   useEffect(() => {
-    setMediaManagerActive(false);
-  }, [activeTab]);
+    if (pane !== 'menu' || !restingOn || restingOn === shown) return;
+    const timer = window.setTimeout(() => setShown(restingOn), PREVIEW_REST_MS);
+    return () => window.clearTimeout(timer);
+  }, [restingOn, pane, shown]);
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      // Bail when any Radix modal dialog is open — let it trap D-pad.
-      if (document.querySelector('[role="alertdialog"][data-state="open"], [role="dialog"][data-state="open"]')) {
-        return;
-      }
-      if (mediaManagerActive) {
+  /** What OK does on an item of a list page. */
+  const activate = (id: string) => {
+    if (id === 'ui-player-signout') {
+      if (!signOutArmed) { setSignOutArmed(true); return; }
+      setSignOutArmed(false);
+      document.querySelector<HTMLElement>('[data-settings-focus="ui-player-signout"]')?.click();
+      return;
+    }
+    if (id === 'ui-ai-tier') toggleAiTier();
+    else if (id === 'ui-rate-app') openReview();
+    else if (id === 'ui-player-toggle') void togglePlayer(!playerEnabled);
+    else if (id === 'ui-content-bar-toggle') setMediaBarEnabledState(!mediaBarEnabled);
+    else if (id === 'ui-dashboard-size-toggle') saveDashboardSize(dashboardSize === 'large' ? 'compact' : 'large');
+    else if (id === 'ui-home-bar-source') cycleBarSource();
+    else if (id === 'ui-home-bar-show') cycleBarShow();
+    else if (id === 'ui-home-tiles-reset') resetHomeTiles();
+    else if (id === 'ui-mail-notify-toggle') saveMailNotify(!mailNotify);
+    else if (id === 'ui-device-alerts-toggle') { if (!deviceAlerts.busy) void toggleDeviceAlerts(!deviceAlerts.status.enabled); }
+    else if (id.startsWith('ui-language-')) handleLanguageSelect(id.replace('ui-language-', ''));
+    else if (id === 'profiles-switch') openProfiles('pick');
+    else if (id === 'profiles-manage') openProfiles('manage');
+    else if (id === 'profiles-parent') openProfiles('parent');
+    else if (id === 'remote-hint') setTypingHintEnabled(!typingHintEnabled());
+    else if (id === 'remote-unpair') unpair();
+  };
 
-        if (event.key === 'Escape' || event.key === 'Backspace' ||
-            event.keyCode === 4 || event.which === 4) {
-          const target = event.target as HTMLElement;
-          const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
-          if (isTyping && event.key === 'Backspace') return;
-        }
-        return;
-      }
+  // One window listener for the screen's life, reading the latest render
+  // through a ref: it stays ahead of the embedded panels' own listeners (they
+  // re-register as they change), so a Back the Backgrounds page hands back to
+  // the menu is never read again by the menu as "leave Settings".
+  const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  keyRef.current = (e: KeyboardEvent) => {
+    // Bail when any Radix modal dialog is open — let it trap the D-pad.
+    if (document.querySelector('[role="alertdialog"][data-state="open"], [role="dialog"][data-state="open"]')) return;
+    const target = e.target as HTMLElement;
+    const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+    const back = isBackKey(e);
+    const stop = () => { e.preventDefault(); e.stopPropagation(); };
 
-      const getUiFocusOrder = (): SettingsFocus[] => {
-        const order: SettingsFocus[] = kids
-          ? ['ui-content-bar-toggle']
-          : [
-            // The Player Account panel's sign-out sits above the list (Up from the first row).
-            ...(playerAccount ? ['ui-player-signout' as SettingsFocus] : []),
-            ...(aiTierShown ? ['ui-ai-tier' as SettingsFocus] : []), 'ui-content-bar-toggle', 'ui-dashboard-size-toggle', 'ui-mail-notify-toggle'];
-        if (!kids && deviceAlerts.supported) order.push('ui-device-alerts-toggle');
-        if (rateShown) order.push('ui-rate-app');
-        if (isAdmin) order.push('ui-player-toggle');
-        // Home screen: grown-up profiles (a Kids profile keeps its own Home as it is).
-        if (!kids) order.push('ui-home-bar-source', 'ui-home-bar-show', 'ui-home-tiles-reset');
-        order.push(...SUPPORTED_LANGUAGES.map((lang) => `ui-language-${lang.code}` as SettingsFocus));
-        return order;
-      };
-
-      // The tabs stand in a column on the left of the content. Up / Down walk
-      // it (and switch the content), Right / OK go into the content, and from
-      // the content Up at the top — or Left wherever Left has nothing else to
-      // do — comes back to the tab in the column.
-      const tabs: SettingsFocus[] = (isAdmin
-        ? ['tab-media', 'tab-ui', 'tab-profiles', 'tab-remote', 'tab-updates', 'tab-alerts', 'tab-ai']
-        : ['tab-media', 'tab-ui', 'tab-profiles', 'tab-remote', 'tab-updates']
-      ).filter((tab) => showUpdates || tab !== 'tab-updates') as SettingsFocus[];
-      const toColumn = (tab: SettingsFocus) => {
-        // A control in the content may hold real DOM focus (Updates, Alerts,
-        // AI); let go of it so it can't answer keys meant for the column.
-        const active = document.activeElement as HTMLElement | null;
-        if (active && active !== document.body && containerRef.current?.contains(active) && typeof active.blur === 'function') active.blur();
-        setFocusedElement(tab);
-      };
-
-      if (focusedElement === 'remote-hint' || focusedElement === 'remote-unpair') {
-        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key) || event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
-          event.preventDefault(); event.stopPropagation();
-        }
-        // The switch and the Unpair button share a row (Unpair on the right).
-        if ((event.key === 'ArrowRight' || event.key === 'ArrowDown') && focusedElement === 'remote-hint') setFocusedElement('remote-unpair');
-        else if (event.key === 'ArrowLeft' && focusedElement === 'remote-unpair') setFocusedElement('remote-hint');
-        else if (event.key === 'ArrowLeft') toColumn('tab-remote');
-        else if (event.key === 'ArrowUp') toColumn('tab-remote');
-        else if (event.key === 'Enter' || event.key === ' ') {
-          if (focusedElement === 'remote-hint') setTypingHintEnabled(!typingHintEnabled());
-          else { void unpairAllPhones(); toast({ title: i18n.t('settings.toast.unpairedTitle'), description: i18n.t('settings.toast.unpairedDesc') }); }
-        } else if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) setFocusedElement('tab-remote');
-        return;
-      }
-
-      if (focusedElement === 'profiles-switch' || focusedElement === 'profiles-manage' || focusedElement === 'profiles-parent') {
-        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key) || event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
-          event.preventDefault(); event.stopPropagation();
-        }
-        // A Kids profile only switches; adding and editing, and the Parent
-        // PIN (signed in only), are for grown-ups.
-        if (event.key === 'ArrowDown' && focusedElement === 'profiles-switch' && !kids) setFocusedElement('profiles-manage');
-        else if (event.key === 'ArrowDown' && focusedElement === 'profiles-manage' && pinsAvailable()) setFocusedElement('profiles-parent');
-        else if (event.key === 'ArrowUp') {
-          if (focusedElement === 'profiles-parent') setFocusedElement('profiles-manage');
-          else if (focusedElement === 'profiles-manage') setFocusedElement('profiles-switch');
-          else toColumn('tab-profiles');
-        } else if (event.key === 'ArrowLeft') toColumn('tab-profiles');
-        else if (event.key === 'Enter' || event.key === ' ') openProfiles(focusedElement === 'profiles-switch' ? 'pick' : focusedElement === 'profiles-parent' ? 'parent' : 'manage');
-        else if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) setFocusedElement('tab-profiles');
-        return;
-      }
-
-      if (focusedElement.startsWith('ui-')) {
-        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key) ||
-            event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
-          event.preventDefault();
-          event.stopPropagation();
-        }
-
-        const order = getUiFocusOrder();
-        const currentIdx = order.indexOf(focusedElement);
-        const moveTo = (next: SettingsFocus) => {
-          setFocusedElement(next);
-          setTimeout(() => {
-            const el = document.querySelector(`[data-settings-focus="${next}"]`) as HTMLElement | null;
-            el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-          }, 30);
-        };
-
-        if (event.key === 'ArrowUp') {
-          if (currentIdx <= 0) toColumn('tab-ui');
-          else moveTo(order[currentIdx - 1]);
-          return;
-        }
-        if (event.key === 'ArrowDown') {
-          if (currentIdx >= 0 && currentIdx < order.length - 1) moveTo(order[currentIdx + 1]);
-          return;
-        }
-        if (event.key === 'ArrowLeft') {
-          // The language tiles keep Left / Right between them; from the first
-          // tile, and from every other card, Left goes back to the column.
-          const prev = currentIdx > 0 ? order[currentIdx - 1] : undefined;
-          if (focusedElement.startsWith('ui-language-') && prev?.startsWith('ui-language-')) moveTo(prev);
-          else toColumn('tab-ui');
-          return;
-        }
-        if (event.key === 'ArrowRight' && focusedElement.startsWith('ui-language-')) {
-          if (currentIdx >= 0 && currentIdx < order.length - 1) moveTo(order[currentIdx + 1]);
-          return;
-        }
-        if (event.key === 'Enter' || event.key === ' ') {
-          // Sign out of the Player: OK once arms it ("press OK again"), OK again does it.
-          if (focusedElement === 'ui-player-signout') {
-            if (signOutArmedRef.current) {
-              setSignOutArmed(false);
-              (document.querySelector('[data-settings-focus="ui-player-signout"]') as HTMLElement | null)?.click();
-            } else {
-              setSignOutArmed(true);
-            }
-            return;
-          }
-          if (focusedElement === 'ui-ai-tier') toggleAiTier();
-          else if (focusedElement === 'ui-content-bar-toggle') setMediaBarEnabledState(!mediaBarEnabled);
-          else if (focusedElement === 'ui-dashboard-size-toggle') saveDashboardSize(dashboardSize === 'large' ? 'compact' : 'large');
-          else if (focusedElement === 'ui-mail-notify-toggle') saveMailNotify(!mailNotify);
-          else if (focusedElement === 'ui-device-alerts-toggle') void toggleDeviceAlerts(!deviceAlerts.status.enabled);
-          else if (focusedElement === 'ui-rate-app') openReview();
-          else if (focusedElement === 'ui-player-toggle') void togglePlayer(!playerEnabled);
-          else if (focusedElement === 'ui-home-bar-source') cycleBarSource();
-          else if (focusedElement === 'ui-home-bar-show') cycleBarShow();
-          else if (focusedElement === 'ui-home-tiles-reset') resetHomeTiles();
-          else if (focusedElement.startsWith('ui-language-')) {
-            handleLanguageSelect(focusedElement.replace('ui-language-', ''));
-          }
-          return;
-        }
-        if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
-          setFocusedElement('tab-ui');
-          return;
-        }
-        return;
-      }
-
-      // Alerts and AI are one-way doors without this. Right / OK from their tab
-      // moves focus into the panel, but the panel is not in the `tabs` array, so
-      // currentTabIdx is -1 and every arrow case below is a no-op — Up, Down,
-      // Left and Right all dead, with only Back working, which exits Settings
-      // entirely rather than returning to the tab. Updates already had this
-      // escape hatch; these two never got one.
-      if (focusedElement === 'alerts-content' || focusedElement === 'ai-content') {
-        const isBack = event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4;
-        const target = event.target as HTMLElement;
-        const inField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable;
-        // Left moves the caret in a text field; anywhere else it goes back to the column.
-        if (isBack || event.key === 'ArrowUp' || (event.key === 'ArrowLeft' && !inField)) {
-          event.preventDefault();
-          event.stopPropagation();
-          toColumn(focusedElement === 'alerts-content' ? 'tab-alerts' : 'tab-ai');
-          return;
-        }
-        // Everything else belongs to the panel's own controls.
-        return;
-      }
-
-      if (focusedElement === 'updates-content') {
-        if (event.key === 'Escape' || event.key === 'Backspace' || event.keyCode === 4) {
-          event.preventDefault();
-          event.stopPropagation();
-          setFocusedElement('tab-updates');
-          return;
-        }
-        if (event.key === 'ArrowLeft') {
-          // Left is taken where a button has a neighbour on its left (Clear all,
-          // a row's Delete, "Update anyway"); from everything else it goes back
-          // to the column.
-          const active = document.activeElement as HTMLElement | null;
-          if (!active?.matches('[data-apk-clear-all], [data-apk-row-delete], [data-app-updater-btn="anyway"]')) {
-            event.preventDefault();
-            event.stopPropagation();
-            toColumn('tab-updates');
-          }
-          return;
-        }
-        if (event.key === 'ArrowDown') {
-          const active = document.activeElement as HTMLElement | null;
-          const inApkCache = !!active?.closest('[data-apk-cache-root]');
-          if (!inApkCache) {
-            // From the AppUpdater button (or lost focus) → drop into the cache list.
-            const apkBtn = document.querySelector('[data-apk-cache-first]') as HTMLElement | null;
-            if (apkBtn) {
-              event.preventDefault();
-              event.stopPropagation();
-              apkBtn.focus();
-              apkBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-            }
-          }
-          // Already inside the cache → do NOT block; the ApkCacheViewer's own
-          // onKeyDown handlers move focus within the list (rows, install/delete).
-          return;
-        }
-        if (event.key === 'ArrowUp') {
-          const active = document.activeElement as HTMLElement | null;
-          const inApkCache = !!active?.closest('[data-apk-cache-root]');
-          if (inApkCache) {
-            // Only leave the cache when on its TOP row (Refresh / Clear all);
-            // inside the file rows, let the ApkCacheViewer's own ArrowUp move up.
-            if (active?.matches('[data-apk-cache-first], [data-apk-clear-all]')) {
-              event.preventDefault();
-              event.stopPropagation();
-              const updBtn = document.querySelector('[data-app-updater-btn="check"], [data-app-updater-btn="download"]') as HTMLElement | null;
-              if (updBtn) {
-                updBtn.focus();
-                updBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-              } else {
-                toColumn('tab-updates');
-              }
-            }
-            return;
-          }
-          // On the AppUpdater button (or lost focus) → back to the tab in the column.
-          event.preventDefault();
-          event.stopPropagation();
-          toColumn('tab-updates');
-          return;
-        }
-        return;
-      }
-      const target = event.target as HTMLElement;
-      const isTyping = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
-
-      if (event.key === 'Escape' || event.keyCode === 4 || event.code === 'GoBack' ||
-          (event.key === 'Backspace' && !isTyping)) {
-        event.preventDefault();
-        event.stopPropagation();
-        onBack();
-        return;
-      }
-
-      if (event.key === 'Backspace' && isTyping) return;
-      if (isTyping) return;
-
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '].includes(event.key)) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-
-      const currentTabIdx = tabs.indexOf(focusedElement as SettingsFocus);
-
-      const tabValueFor = (f: SettingsFocus): string | null => {
-        if (f === 'tab-media') return 'media';
-        if (f === 'tab-ui') return 'ui';
-        if (f === 'tab-profiles') return 'profiles';
-        if (f === 'tab-remote') return 'remote';
-        if (f === 'tab-updates') return 'updates';
-        if (f === 'tab-alerts') return 'alerts';
-        if (f === 'tab-ai') return 'ai';
-        return null;
-      };
-      // Moving through the column shows that tab's content at once.
-      const selectTab = (next: SettingsFocus) => {
-        setFocusedElement(next);
-        const v = tabValueFor(next);
-        if (v) setActiveTab(v);
-      };
-      // Into the content of the tab that is showing (what Down did when the
-      // tabs were a row across the top).
-      const enterContent = () => {
-        if (focusedElement === 'tab-media' && activeTab === 'media') {
-          setMediaManagerActive(true);
-        } else if (focusedElement === 'tab-ui' && activeTab === 'ui') {
-          // Into the list, not onto Sign out: Right then OK must never sign anyone out.
-          const first = getUiFocusOrder().find((f) => f !== 'ui-player-signout') ?? getUiFocusOrder()[0];
-          setFocusedElement(first);
-          setTimeout(() => {
-            const card = document.querySelector(`[data-settings-focus="${first}"]`) as HTMLElement | null;
-            card?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-          }, 30);
-        } else if (focusedElement === 'tab-profiles' && activeTab === 'profiles') {
-          setFocusedElement('profiles-switch');
-        } else if (focusedElement === 'tab-remote' && activeTab === 'remote') {
-          setFocusedElement('remote-hint');
-        } else if (focusedElement === 'tab-updates' && activeTab === 'updates') {
-          setFocusedElement('updates-content');
-          setTimeout(() => {
-            const btn = document.querySelector('[data-app-updater-btn="check"], [data-app-updater-btn="download"]') as HTMLElement | null;
-            if (btn) {
-              btn.focus();
-              btn.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-            } else {
-              const apk = document.querySelector('[data-apk-cache-first]') as HTMLElement | null;
-              apk?.focus();
-              apk?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-            }
-          }, 30);
-        } else if (focusedElement === 'tab-alerts' && activeTab === 'alerts') {
-          setFocusedElement('alerts-content');
-        } else if (focusedElement === 'tab-ai' && activeTab === 'ai') {
-          setFocusedElement('ai-content');
-        }
-      };
-
-      switch (event.key) {
-        case 'ArrowUp':
-          // Up from the first tab reaches Back in the header.
-          if (currentTabIdx === 0) setFocusedElement('back');
-          else if (currentTabIdx > 0) selectTab(tabs[currentTabIdx - 1]);
-          break;
-        case 'ArrowDown':
-          if (focusedElement === 'back') {
-            // The tab that is showing (Settings may open on Profiles or
-            // Phone Remote), so Right / OK from there reaches its content.
-            const showing = `tab-${activeTab}` as SettingsFocus;
-            setFocusedElement(tabs.includes(showing) ? showing : 'tab-media');
-          } else if (currentTabIdx >= 0 && currentTabIdx < tabs.length - 1) {
-            selectTab(tabs[currentTabIdx + 1]);
-          }
-          break;
-        case 'ArrowRight':
-          if (currentTabIdx >= 0) enterContent();
-          break;
-        case 'ArrowLeft':
-          // The column is the left edge of the screen: nothing to the left.
-          break;
-        case 'Enter':
-        case ' ':
-          if (focusedElement === 'back') onBack();
-          else if (currentTabIdx >= 0) {
-            const v = tabValueFor(focusedElement);
-            // A tab that isn't showing yet (touch, a voice command) opens
-            // first; on the one that is showing, OK goes into it like Right.
-            if (v && v !== activeTab) setActiveTab(v);
-            else enterContent();
-          }
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown, { capture: true });
-    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  // toggleAiTier reads the state below; it is recreated with it.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusedElement, activeTab, onBack, mediaManagerActive, isAdmin, showUpdates, kids, mediaBarEnabled, playerEnabled, setMediaBarEnabledState, deviceAlerts.supported, deviceAlerts.status.enabled, dashboardSize, mailNotify, aiTierShown, aiTier, canPremium, rateShown, playerAccount, barSource, barShow]);
-
-  useEffect(() => {
-    const scrollAllToTop = () => {
-      containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
-      document
-        .querySelectorAll<HTMLElement>('.tv-scroll-container')
-        .forEach((el) => el.scrollTo({ top: 0, behavior: 'smooth' }));
-    };
-
-    if (focusedElement === 'back' || focusedElement.startsWith('tab-')) {
-      const topAnchor = document.getElementById('settings-top');
-      topAnchor?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      scrollAllToTop();
-      // NOTE: Do NOT call .focus() on the back/tab elements. The visible
-      // highlight ring is driven by `focusedElement` state, and calling
-      // native .focus() on a Radix TabsTrigger triggers roving focus +
-      // can swap the visible ring with the browser's focus-visible style
-      // (which the user perceives as "no highlight"). The window-level
-      // keydown handler routes by state, not by document.activeElement.
+    if (pane === 'menu') {
+      if (typing) return;
+      if (back) { stop(); onBack(); return; }
+      if (!NAV_KEYS.includes(e.key)) return;
+      stop();
+      if (e.key === 'ArrowDown') setMenuIdx((i) => Math.min(rows.length, i + 1));
+      else if (e.key === 'ArrowUp') setMenuIdx((i) => Math.max(0, i - 1));
+      else if (e.key === 'ArrowLeft') return; // the menu is the left edge
+      else if (menuIdx === 0) { if (e.key !== 'ArrowRight') onBack(); }
+      else if (!e.repeat) enterPage(rows[menuIdx - 1]);
       return;
     }
 
-    const el = document.querySelector(`[data-settings-focus="${focusedElement}"]`) as HTMLElement | null;
-    if (el) {
-      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    // Backgrounds: the media manager has the remote (isActive); its own Back
+    // and Left edge hand it back (onBack / onExitLeft).
+    if (shownPage === 'backgrounds') return;
+
+    if (shownPage === 'alerts' || shownPage === 'ai') {
+      // Left moves the caret in a text field; anywhere else it goes back to the menu.
+      const inField = typing || target.tagName === 'SELECT';
+      if (back || e.key === 'ArrowUp' || (e.key === 'ArrowLeft' && !inField)) { stop(); toMenu(); }
+      // Everything else belongs to the panel's own controls.
+      return;
     }
-  }, [focusedElement]);
 
+    if (shownPage === 'updates') {
+      const active = document.activeElement as HTMLElement | null;
+      if (back) { stop(); toMenu(); return; }
+      if (e.key === 'ArrowLeft') {
+        // Left is taken where a button has a neighbor on its left (Clear all,
+        // a row's Delete, "Update anyway"); from everything else it goes back.
+        if (!active?.matches('[data-apk-clear-all], [data-apk-row-delete], [data-app-updater-btn="anyway"]')) { stop(); toMenu(); }
+        return;
+      }
+      const inApkCache = !!active?.closest('[data-apk-cache-root]');
+      if (e.key === 'ArrowDown') {
+        // From the updater's button (or lost focus) into the cache list; inside
+        // the cache its own handlers move between the rows.
+        const apkBtn = inApkCache ? null : document.querySelector<HTMLElement>('[data-apk-cache-first]');
+        if (apkBtn) { stop(); apkBtn.focus(); apkBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        if (inApkCache) {
+          // Only leave the cache from its top row (Refresh / Clear all).
+          if (active?.matches('[data-apk-cache-first], [data-apk-clear-all]')) {
+            stop();
+            const updBtn = document.querySelector<HTMLElement>('[data-app-updater-btn="check"], [data-app-updater-btn="download"]');
+            if (updBtn) { updBtn.focus(); updBtn.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } else toMenu();
+          }
+          return;
+        }
+        stop(); toMenu();
+      }
+      return;
+    }
 
-  const isFocused = (id: string) => focusedElement === id && !mediaManagerActive;
-  /**
-   * The focus highlight, on the app's standard contract.
-   *
-   * It used to be built from `ring-4 ring-offset-2 shadow-[0_0_28px_...]`.
-   * Tailwind compiles ring, ring-offset and shadow-[…] into the SAME
-   * box-shadow declaration, and index.css strips box-shadow outright from any
-   * element whose class contains `shadow-[` under native-low-memory — so on a
-   * Fire TV every highlight on this screen was deleted, and the only cue left
-   * was a 5% scale-up. `tv-ring` + data-focused is the contract that survives
-   * there, because the low-memory rules are written around it.
-   *
-   * Nothing here says `relative z-30` any more either: `.tv-ring` sets
-   * position itself, and z-30 on a focused Card was lifting it over the tab
-   * strip.
-   */
-  const focusRing = (id: string) => (isFocused(id) ? 'scale-105' : '');
-  const settingsFocusAttrs = (id: SettingsFocus) => ({
-    'data-settings-focus': id,          // queried by the scroll effects
-    'data-focused': isFocused(id) ? 'true' : 'false',
-  });
+    // A list page: Up / Down walk its items; the language tiles keep Left /
+    // Right between them; Left elsewhere, Up at the top and Back go to the menu.
+    if (typing) return;
+    if (!back && !NAV_KEYS.includes(e.key)) return;
+    stop();
+    const order = pageItems(shownPage);
+    const at = item ? order.indexOf(item) : -1;
+    const tile = (i: number) => !!order[i]?.startsWith('ui-language-');
+    if (back) toMenu();
+    else if (e.key === 'ArrowUp') { if (at <= 0) toMenu(); else setItem(order[at - 1]); }
+    else if (e.key === 'ArrowDown') { if (at >= 0 && at < order.length - 1) setItem(order[at + 1]); }
+    else if (e.key === 'ArrowLeft') { if (tile(at) && tile(at - 1)) setItem(order[at - 1]); else toMenu(); }
+    else if (e.key === 'ArrowRight') { if (tile(at) && tile(at + 1)) setItem(order[at + 1]); }
+    else if (item && !e.repeat) activate(item);
+  };
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => keyRef.current(e);
+    window.addEventListener('keydown', handler, { capture: true });
+    return () => window.removeEventListener('keydown', handler, { capture: true });
+  }, []);
 
-  const handleMediaManagerBack = () => {
-    setMediaManagerActive(false);
-    setFocusedElement('tab-media');
+  // Follow the highlight down the menu (an admin's ten rows, a bigger text size).
+  const menuScrollRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = menuScrollRef.current;
+    if (!node || pane !== 'menu') return;
+    if (menuIdx <= 1) { node.scrollTop = 0; return; }
+    const el = node.querySelector<HTMLElement>('[data-focused="true"]');
+    if (el) keepInView(node, el, 24);
+  }, [menuIdx, pane]);
+  // Only the page scrolls: to the top for a new page, then after the remote.
+  const pageScrollRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => { if (pageScrollRef.current) pageScrollRef.current.scrollTop = 0; }, [shownPage]);
+  useEffect(() => {
+    const node = pageScrollRef.current;
+    if (!node || !item) return;
+    const el = node.querySelector<HTMLElement>(`[data-settings-focus="${item}"]`);
+    if (el) keepInView(node, el, 12);
+  }, [item]);
+
+  const inPage = pane === 'page';
+  const f: PageFocus = {
+    attrs: (id) => ({ 'data-settings-focus': id, 'data-focused': inPage && item === id ? 'true' : 'false' }),
+    is: (id) => inPage && item === id,
+    pick: (id) => { setItem(id); setPane('page'); },
   };
 
-  // One button in the tab column: icon + label, full width, the gold fill on
-  // the tab that is showing and the tv-ring highlight on the one the remote
-  // is on. (Margins, not flex gap, between them: Chrome 66 has no flex gap.)
-  const tabClass = (id: SettingsFocus) =>
-    `tv-ring tv-ring-contrast data-[state=active]:bg-brand-gold w-full min-w-0 justify-start text-left h-11 px-3 text-sm lg:text-base transition-all duration-200 ${focusRing(id)}`;
+  // Each row's state line; read again when the remote comes back to the menu.
+  const states = useSettingsStates({
+    kids,
+    profile: currentProfile,
+    phones: remotePhones,
+    paired: remotePaired,
+    deviceAlertsOn: deviceAlerts.supported ? deviceAlerts.status.enabled : null,
+    language: currentLang,
+  }, pane);
+
+  const page = (() => {
+    switch (shownPage) {
+      case 'account': return (
+        <AccountPage
+          f={f} hasPlayerAccount={!!playerAccount} signOutArmed={signOutArmed}
+          aiTierShown={aiTierShown} aiTier={aiTier} canPremium={canPremium} aiPremium={aiPremium} onToggleAiTier={toggleAiTier}
+          rateShown={rateShown} onRate={openReview}
+          isAdmin={isAdmin} playerEnabled={playerEnabled} onTogglePlayer={(next) => void togglePlayer(next)}
+        />
+      );
+      case 'home': return (
+        <HomeScreenPage
+          f={f} kids={kids}
+          mediaBarEnabled={mediaBarEnabled} onToggleBar={() => setMediaBarEnabledState(!mediaBarEnabled)}
+          largeDashboard={dashboardSize === 'large'} onToggleDashboard={() => saveDashboardSize(dashboardSize === 'large' ? 'compact' : 'large')}
+          barSource={barSource} barShow={barShow} onCycleSource={cycleBarSource} onCycleShow={cycleBarShow} onResetTiles={resetHomeTiles}
+        />
+      );
+      // No panel around it and no second title: its own slim panels sit straight in the page.
+      case 'backgrounds': return <MediaManager onBack={toMenu} onExitLeft={toMenu} embedded={true} isActive={inPage} />;
+      case 'profiles': return <ProfilesPage f={f} kids={kids} profiles={profilesList} currentId={currentProfile.id} />;
+      case 'remote': return (
+        <RemotePage f={f} phones={remotePhones} paired={remotePaired} typingHint={remoteHint} onToggleHint={() => setTypingHintEnabled(!remoteHint)} onUnpair={unpair} />
+      );
+      case 'notifications': return (
+        <NotificationsPage
+          f={f} mailNotify={mailNotify} onToggleMail={() => saveMailNotify(!mailNotify)}
+          // The How-to pictures show the row a box has (on the web it can't do anything).
+          alertsShown={deviceAlerts.supported || isHowtoCapture()} alertsOn={deviceAlerts.status.enabled} alertsBusy={deviceAlerts.busy}
+          alertsBlocked={!!deviceAlerts.status.channelBlocked} onToggleAlerts={() => void toggleDeviceAlerts(!deviceAlerts.status.enabled)}
+        />
+      );
+      case 'language': return <LanguagePage f={f} current={currentLang} onPick={handleLanguageSelect} />;
+      case 'updates': return (
+        <div className="space-y-3">
+          <section {...f.attrs('updates-content')} data-focused={inPage ? 'true' : 'false'} className="tv-ring rounded-2xl bg-slate-800/55 border border-white/10 p-5">
+            <AppUpdater />
+          </section>
+          <ApkCacheViewer />
+        </div>
+      );
+      case 'alerts': return (
+        <section {...f.attrs('alerts-content')} data-focused={inPage ? 'true' : 'false'} className="tv-ring rounded-2xl bg-slate-800/55 border border-white/10 p-5">
+          <AppAlertsManager />
+        </section>
+      );
+      case 'ai': return (
+        <div {...f.attrs('ai-content')} data-focused={inPage ? 'true' : 'false'} className="tv-ring rounded-2xl">
+          <AdminAIPanel />
+        </div>
+      );
+      default: return null;
+    }
+  })();
 
   return (
-    <div ref={containerRef} className="tv-scroll-container tv-safe text-white">
-      <div id="settings-top" className="scroll-mt-4" />
-      <div className={HEADER_ROW}>
-        <div className="justify-self-start">
-          <BackButton
-            {...settingsFocusAttrs('back')}
-            onFocus={() => setFocusedElement('back')}
-            onClick={onBack}
-            label={t('common.backToHome')}
-            focused={focusedElement === 'back'}
-          />
+    <div ref={containerRef} className="h-screen overflow-hidden flex flex-col text-white bg-black/70">
+      <div className="flex items-center px-6 py-4 border-b border-white/10 bg-black/30">
+        <BackButton
+          data-settings-focus="back"
+          onClick={onBack}
+          label={t('common.backToHome')}
+          focused={!inPage && menuIdx === 0}
+        />
+        <div className="flex items-center ml-3 min-w-0">
+          <SettingsIcon className="w-7 h-7 text-brand-gold mr-2 shrink-0" />
+          <h1 className="text-2xl font-quicksand font-bold text-white truncate">{t('settings.title')}</h1>
         </div>
-        <div className="text-center px-4 min-w-0">
-          <h1 className="text-2xl font-bold text-white leading-tight">{t('settings.title')}</h1>
-          <p className="text-sm text-blue-200/80">{t('settings.subtitle')}</p>
-        </div>
-        <div />
       </div>
-      {/* The width of the screen (inside the TV-safe margins): the 72rem cap
-          this had left a 1920-wide box a third of the screen empty at the
-          sides. The cap that is left only stops a desktop browser's very wide
-          window. */}
-      <div className="max-w-[120rem] mx-auto pb-16">
 
-        {/* The tabs stand in a column on the left and the tab's content fills
-            the right (on a phone the column sits above it). */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} orientation="vertical" className="w-full flex flex-col md:flex-row md:items-start">
-          <TabsList
-            className="grid grid-cols-2 gap-2 h-auto w-full p-1.5 mb-4 rounded-2xl bg-slate-900/45 border border-white/10 md:flex md:flex-col md:items-stretch md:justify-start md:gap-0 md:space-y-1 md:w-52 lg:w-60 md:shrink-0 md:mb-0 md:mr-5"
-            data-howto="set.tabs"
-          >
-            <TabsTrigger
-              {...settingsFocusAttrs('tab-media')}
-              onFocus={() => setFocusedElement('tab-media')}
-              value="media"
-              className={tabClass('tab-media')}
-            >
-              <Image className="w-[18px] h-[18px] mr-2.5 shrink-0" />
-              <span className="min-w-0 truncate">{t('settings.tabs.media')}</span>
-            </TabsTrigger>
-            <TabsTrigger
-              {...settingsFocusAttrs('tab-ui')}
-              onFocus={() => setFocusedElement('tab-ui')}
-              value="ui"
-              className={tabClass('tab-ui')}
-            >
-              <Sliders className="w-[18px] h-[18px] mr-2.5 shrink-0" />
-              <span className="min-w-0 truncate">{t('settings.tabs.ui')}</span>
-            </TabsTrigger>
-            <TabsTrigger
-              {...settingsFocusAttrs('tab-profiles')}
-              onFocus={() => setFocusedElement('tab-profiles')}
-              value="profiles"
-              className={tabClass('tab-profiles')}
-            >
-              <UsersRound className="w-[18px] h-[18px] mr-2.5 shrink-0" />
-              <span className="min-w-0 truncate">{t('settings.tabs.profiles')}</span>
-            </TabsTrigger>
-            <TabsTrigger
-              {...settingsFocusAttrs('tab-remote')}
-              onFocus={() => setFocusedElement('tab-remote')}
-              value="remote"
-              className={tabClass('tab-remote')}
-            >
-              <Smartphone className="w-[18px] h-[18px] mr-2.5 shrink-0" />
-              <span className="min-w-0 truncate">{t('settings.tabs.remote')}</span>
-            </TabsTrigger>
-            {showUpdates && (
-              <TabsTrigger
-                {...settingsFocusAttrs('tab-updates')}
-                onFocus={() => setFocusedElement('tab-updates')}
-                value="updates"
-                data-howto="set.updatesTab"
-                className={tabClass('tab-updates')}
-              >
-                <RefreshCw className="w-[18px] h-[18px] mr-2.5 shrink-0" />
-                <span className="min-w-0 truncate">{t('settings.tabs.updates')}</span>
-              </TabsTrigger>
-            )}
-            {isAdmin && (
-              <TabsTrigger
-                {...settingsFocusAttrs('tab-alerts')}
-                onFocus={() => setFocusedElement('tab-alerts')}
-                value="alerts"
-                className={tabClass('tab-alerts')}
-              >
-                <AlertTriangle className="w-[18px] h-[18px] mr-2.5 shrink-0" />
-                <span className="min-w-0 truncate">{t('settings.tabs.alerts')}</span>
-              </TabsTrigger>
-            )}
-            {isAdmin && (
-              <TabsTrigger
-                {...settingsFocusAttrs('tab-ai')}
-                onFocus={() => setFocusedElement('tab-ai')}
-                value="ai"
-                className={tabClass('tab-ai')}
-              >
-                <Bot className="w-[18px] h-[18px] mr-2.5 shrink-0" />
-                <span className="min-w-0 truncate">{t('settings.tabs.ai')}</span>
-              </TabsTrigger>
-            )}
-          </TabsList>
-
-          <div className="flex-1 min-w-0">
-          <TabsContent value="media" className="mt-0">
-            {/* No panel around it and no second "Media Manager" title (the tab
-                says so): its own slim panels sit straight in the column, so
-                nothing is a box inside a box and it gets the whole width. */}
-            <MediaManager
-              onBack={handleMediaManagerBack}
-              onExitLeft={handleMediaManagerBack}
-              embedded={true}
-              isActive={mediaManagerActive}
-            />
-          </TabsContent>
-
-          <TabsContent value="ui" className="mt-0 space-y-4">
-            {!kids && (
-              <PlayerAccountCard
-                panel
-                signOutFocus={{ attrs: settingsFocusAttrs('ui-player-signout'), focused: isFocused('ui-player-signout'), armed: signOutArmed }}
-              />
-            )}
-
-            {/* Every on/off setting in one list: a 960x540 screen shows them all. */}
-            <SettingsGroup>
-              {aiTierShown && (
-                <SettingRow
-                  {...settingsFocusAttrs('ui-ai-tier')}
-                  focused={isFocused('ui-ai-tier')}
-                  aria-pressed={aiTier === 'premium'}
-                  onFocus={() => setFocusedElement('ui-ai-tier')}
-                  onClick={toggleAiTier}
-                  icon={Bot}
-                  title={aiTier === 'premium' && canPremium ? t('settings.aiTier.titlePremium') : t('settings.aiTier.titleFree')}
-                  description={canPremium
-                    ? t('settings.aiTier.descPremium', { gems: aiPremium?.gems ?? '' })
-                    : t('settings.aiTier.descSignIn')}
-                  control={(
-                    <Switch
-                      checked={aiTier === 'premium' && canPremium}
-                      onCheckedChange={toggleAiTier}
-                      disabled={!canPremium}
-                      aria-label={t('settings.aiTier.aria')}
-                    />
-                  )}
-                />
-              )}
-
-              <SettingRow
-                {...settingsFocusAttrs('ui-content-bar-toggle')}
-                focused={isFocused('ui-content-bar-toggle')}
-                aria-pressed={mediaBarEnabled}
-                onFocus={() => setFocusedElement('ui-content-bar-toggle')}
-                onClick={() => setMediaBarEnabledState(!mediaBarEnabled)}
-                data-howto="set.contentBar"
-                icon={Tv}
-                title={t('settings.contentBar.title')}
-                description={t('settings.contentBar.description')}
-                control={<Switch checked={mediaBarEnabled} onCheckedChange={setMediaBarEnabledState} aria-label={t('settings.contentBar.aria')} />}
-              />
-
-              {!kids && (<>
-                <SettingRow
-                  {...settingsFocusAttrs('ui-dashboard-size-toggle')}
-                  focused={isFocused('ui-dashboard-size-toggle')}
-                  aria-pressed={dashboardSize === 'large'}
-                  onFocus={() => setFocusedElement('ui-dashboard-size-toggle')}
-                  onClick={() => saveDashboardSize(dashboardSize === 'large' ? 'compact' : 'large')}
-                  icon={LayoutDashboard}
-                  title={t('settings.dashboardSize.title')}
-                  description={t('settings.dashboardSize.description')}
-                  control={<Switch checked={dashboardSize === 'large'} onCheckedChange={(v) => saveDashboardSize(v ? 'large' : 'compact')} aria-label={t('settings.dashboardSize.title')} />}
-                />
-
-                <SettingRow
-                  {...settingsFocusAttrs('ui-mail-notify-toggle')}
-                  focused={isFocused('ui-mail-notify-toggle')}
-                  aria-pressed={mailNotify}
-                  onFocus={() => setFocusedElement('ui-mail-notify-toggle')}
-                  onClick={() => saveMailNotify(!mailNotify)}
-                  data-howto="set.postNotify"
-                  icon={Newspaper}
-                  title={t('settings.postNotify.title')}
-                  description={t('settings.postNotify.description')}
-                  control={<Switch checked={mailNotify} onCheckedChange={saveMailNotify} aria-label={t('settings.postNotify.title')} />}
-                />
-
-                {/* The How-to pictures show the row a box has (on the web it can't do anything). */}
-                {(deviceAlerts.supported || isHowtoCapture()) && (
-                  <SettingRow
-                    {...settingsFocusAttrs('ui-device-alerts-toggle')}
-                    focused={isFocused('ui-device-alerts-toggle')}
-                    aria-pressed={deviceAlerts.status.enabled}
-                    onFocus={() => setFocusedElement('ui-device-alerts-toggle')}
-                    onClick={() => void toggleDeviceAlerts(!deviceAlerts.status.enabled)}
-                    data-howto="set.alerts"
-                    icon={Bell}
-                    title={t('settings.deviceAlerts.title')}
-                    description={t('settings.deviceAlerts.description')}
-                    control={(
-                      <Switch
-                        checked={deviceAlerts.status.enabled}
-                        disabled={deviceAlerts.busy}
-                        onCheckedChange={toggleDeviceAlerts}
-                        aria-label={t('settings.deviceAlerts.title')}
-                      />
-                    )}
-                  >
-                    {deviceAlerts.status.channelBlocked && (
-                      <p className="text-sm text-amber-300 mt-1">{t('settings.deviceAlerts.blocked')}</p>
-                    )}
-                  </SettingRow>
-                )}
-              </>)}
-
-              {rateShown && (
-                <SettingRow
-                  {...settingsFocusAttrs('ui-rate-app')}
-                  focused={isFocused('ui-rate-app')}
-                  onFocus={() => setFocusedElement('ui-rate-app')}
-                  onClick={openReview}
-                  icon={Star}
-                  title={t('review.settings.title')}
-                  description={t('review.settings.description')}
-                  control={<ChevronRight className="w-5 h-5 text-white/40" />}
-                />
-              )}
-              {isAdmin && (
-                <SettingRow
-                  {...settingsFocusAttrs('ui-player-toggle')}
-                  focused={isFocused('ui-player-toggle')}
-                  aria-pressed={playerEnabled}
-                  onFocus={() => setFocusedElement('ui-player-toggle')}
-                  onClick={() => void togglePlayer(!playerEnabled)}
-                  icon={Tv}
-                  title={t('settings.player.title')}
-                  description={t('settings.player.description')}
-                  control={<Switch checked={playerEnabled} onCheckedChange={togglePlayer} aria-label={t('settings.player.aria')} />}
-                />
-              )}
-
-            </SettingsGroup>
-
-            {/* Home screen: what the content bar shows, and the four tiles.
-                OK steps through the choices; a tap picks one. */}
-            {!kids && (
-              <section data-settings-home aria-label={t('homeEdit.settings.sectionTitle')}>
-                <h3 className="flex items-center text-sm font-bold uppercase tracking-wider text-brand-gold px-2 mb-2">
-                  <Home className="w-4 h-4 mr-2" />{t('homeEdit.settings.sectionTitle')}
-                </h3>
-                <SettingsGroup>
-                  <SettingRow
-                    {...settingsFocusAttrs('ui-home-bar-source')}
-                    focused={isFocused('ui-home-bar-source')}
-                    onFocus={() => setFocusedElement('ui-home-bar-source')}
-                    onClick={cycleBarSource}
-                    icon={Rows3}
-                    title={t('homeEdit.settings.sourceTitle')}
-                    description={t('homeEdit.settings.sourceDesc')}
-                  >
-                    <div className="flex flex-wrap mt-2 -ml-1">
-                      {BAR_SOURCES.map((src) => (
-                        <button
-                          key={src}
-                          type="button"
-                          data-choice={src}
-                          aria-pressed={barSource === src}
-                          onClick={(e) => { e.stopPropagation(); setFocusedElement('ui-home-bar-source'); chooseBarSource(src); }}
-                          className={`ml-1 mt-1 rounded-lg border px-3 py-1.5 text-sm font-semibold ${barSource === src ? 'bg-brand-gold/25 border-brand-gold text-white' : 'bg-slate-900/60 border-white/15 text-slate-200'}`}
-                        >
-                          {t(BAR_SOURCE_KEYS[src])}
-                        </button>
-                      ))}
-                    </div>
-                  </SettingRow>
-                  <SettingRow
-                    {...settingsFocusAttrs('ui-home-bar-show')}
-                    focused={isFocused('ui-home-bar-show')}
-                    onFocus={() => setFocusedElement('ui-home-bar-show')}
-                    onClick={cycleBarShow}
-                    icon={Star}
-                    title={t('homeEdit.settings.showTitle')}
-                    description={t('homeEdit.settings.showDesc')}
-                  >
-                    <div className="flex flex-wrap mt-2 -ml-1">
-                      {BAR_SHOWS.map((sh) => (
-                        <button
-                          key={sh}
-                          type="button"
-                          data-choice={sh}
-                          aria-pressed={barShow === sh}
-                          onClick={(e) => { e.stopPropagation(); setFocusedElement('ui-home-bar-show'); chooseBarShow(sh); }}
-                          className={`ml-1 mt-1 rounded-lg border px-3 py-1.5 text-sm font-semibold ${barShow === sh ? 'bg-brand-gold/25 border-brand-gold text-white' : 'bg-slate-900/60 border-white/15 text-slate-200'}`}
-                        >
-                          {t(BAR_SHOW_KEYS[sh])}
-                        </button>
-                      ))}
-                    </div>
-                  </SettingRow>
-                  <SettingRow
-                    {...settingsFocusAttrs('ui-home-tiles-reset')}
-                    focused={isFocused('ui-home-tiles-reset')}
-                    onFocus={() => setFocusedElement('ui-home-tiles-reset')}
-                    onClick={resetHomeTiles}
-                    icon={LayoutGrid}
-                    title={t('homeEdit.settings.tilesTitle')}
-                    description={t('homeEdit.settings.tilesDesc')}
-                    control={<span className="rounded-lg bg-white/10 border border-white/15 px-3 py-1.5 text-sm font-semibold text-white">{t('homeEdit.settings.resetBtn')}</span>}
-                  />
-                </SettingsGroup>
-              </section>
-            )}
-
-            {/* Everyone can pick a language: admin or not, Kids profile or not, demo too. */}
-            {/* px-5 lines its icon and title up with the rows above (panel p-1.5 + row px-3.5). */}
-            <section className="rounded-2xl bg-slate-800/55 border border-white/10 px-5 py-3.5" data-howto="set.language">
-              <div className="flex items-center mb-3">
-                <Languages className="w-5 h-5 text-brand-gold mr-3.5 shrink-0" />
-                <div className="min-w-0">
-                  <h3 className="text-base font-semibold text-white leading-snug">{t('settings.language.title')}</h3>
-                  <p className="text-sm text-white/65 leading-snug mt-0.5">{t('settings.language.description')}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-                {SUPPORTED_LANGUAGES.map((lang) => {
-                  const selected = currentLang.startsWith(lang.code);
-                  return (
-                    <button
-                      key={lang.code}
-                      type="button"
-                      {...settingsFocusAttrs(`ui-language-${lang.code}`)}
-                      onFocus={() => setFocusedElement(`ui-language-${lang.code}`)}
-                      onClick={() => {
-                        setFocusedElement(`ui-language-${lang.code}`);
-                        handleLanguageSelect(lang.code);
-                      }}
-                      tabIndex={0}
-                      className={`tv-ring flex items-center justify-between px-3.5 py-2.5 rounded-lg border text-sm lg:text-base transition-all duration-150 ${focusRing(`ui-language-${lang.code}`)} ${
-                        selected
-                          ? 'bg-brand-gold/20 border-brand-gold text-white'
-                          : 'bg-slate-900/60 border-white/15 text-slate-100 hover:bg-slate-700/60'
-                      }`}
-                    >
-                      <span dir="auto" className="font-medium min-w-0 truncate">{lang.nativeName}</span>
-                      {selected && <Check className="w-4 h-4 text-brand-gold shrink-0 ml-2" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-          </TabsContent>
-
-          <TabsContent value="remote" className="mt-0">
-            <Card className="bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-5">
-              <div className="flex flex-wrap items-start">
-                <div className="mr-6 mb-3">
-                  {/* Smaller on short layouts (960x540) so the code under it is on screen. */}
-                  {activeTab === 'remote' /* i18n-ignore */ && <PairingQR size={window.innerHeight < 640 ? 150 : 220} />}
-                </div>
-                <div className="flex-1 min-w-[16rem]">
-                  <h3 className="text-xl font-bold text-white mb-1">{t('settings.remote.title')}</h3>
-                  <ol className="text-white/80 space-y-0.5 mb-2 list-decimal pl-5" data-howto="set.remoteSteps">
-                    <li><Trans i18nKey="settings.remote.step1" components={{ 1: <span className="font-semibold text-white" /> }} /></li>
-                    <li>{t('settings.remote.step2')}</li>
-                    <li>{t('settings.remote.step3')}</li>
-                  </ol>
-                  <p className="text-sm text-white/60 mb-3">
-                    {remotePhones > 0 ? t('settings.remote.connected', { count: remotePhones }) : remotePaired ? t('settings.remote.paired') : t('settings.remote.none')}
-                    {' '}{t('settings.remote.stayPaired')}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center mt-1">
-                <Card
-                  {...settingsFocusAttrs('remote-hint')}
-                  tabIndex={0}
-                  role="button"
-                  aria-pressed={remoteHint}
-                  onFocus={() => setFocusedElement('remote-hint')}
-                  onClick={() => setTypingHintEnabled(!remoteHint)}
-                  className={`tv-ring flex-1 min-w-0 mr-3 bg-slate-800/80 border-slate-600 px-4 py-3 transition-all duration-150 ${focusRing('remote-hint')}`}
+      {/* Margins, not flex gap: older box WebViews (Chrome < 84) ignore gap. */}
+      <div className="flex-1 min-h-0 flex flex-col md:flex-row p-4 lg:p-6">
+        <div ref={menuScrollRef} className="md:w-64 lg:w-72 shrink-0 overflow-auto mb-4 md:mb-0 md:mr-4 lg:mr-5">
+          {/* Eight rows of name + state fit 960×540 without scrolling: keep them this short. */}
+          <div className="space-y-1" data-settings-menu data-howto="set.tabs">
+            {rows.map((id, i) => {
+              const Icon = ROW_ICON[id];
+              const focused = !inPage && menuIdx === i + 1;
+              // The page on the right is this row's: a quiet gold edge, so the
+              // viewer can tell where the remote came from while it is in the page.
+              const current = inPage && id === shownPage;
+              return (
+                <div
+                  key={id}
+                  data-settings-focus={`row-${id}`}
+                  data-settings-row={id}
+                  data-focused={focused ? 'true' : 'false'}
+                  data-howto={ROW_HOWTO[id]}
+                  onClick={() => { setMenuIdx(i + 1); toMenu(); enterPage(id); }}
+                  className={`tv-ring flex items-center rounded-xl px-3.5 py-1.5 border cursor-pointer ${current ? 'bg-brand-gold/15 border-brand-gold/50' : 'bg-slate-900/60 border-white/10'} ${focused ? 'scale-[1.02] z-10' : ''}`}
                 >
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <div className="font-semibold text-white">{t('settings.remote.typingHintTitle')}</div>
-                      <div className="text-sm text-white/70">{t('settings.remote.typingHintDesc')}</div>
-                    </div>
-                    <Switch checked={remoteHint} onCheckedChange={(v) => setTypingHintEnabled(!!v)} aria-label={t('settings.remote.typingHintTitle')} />
-                  </div>
-                </Card>
-                <Button
-                  {...settingsFocusAttrs('remote-unpair')}
-                  variant="outline"
-                  onFocus={() => setFocusedElement('remote-unpair')}
-                  onClick={() => { void unpairAllPhones(); toast({ title: t('settings.toast.unpairedTitle'), description: t('settings.toast.unpairedDesc') }); }}
-                  title={t('settings.remote.unpairBtn')}
-                  className={`tv-ring shrink-0 min-w-0 max-w-[14rem] ${focusRing('remote-unpair')}`}
-                >
-                  <span className="min-w-0 truncate">{t('settings.remote.unpairBtn')}</span>
-                </Button>
-              </div>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="profiles" className="mt-0 space-y-4">
-            <div className="flex flex-wrap items-center mb-2">
-              {profilesList.map((p) => (
-                <div key={p.id} className="flex items-center mr-5 mb-2">
-                  <span
-                    className="inline-flex items-center justify-center rounded-lg font-bold text-white mr-2"
-                    style={{ width: 36, height: 36, backgroundColor: avatarColors(p.avatar).bg }}
-                  >
-                    {(profileName(p).trim()[0] || '?').toUpperCase()}
-                  </span>
-                  <span className="text-white/90">
-                    {profileName(p)}{p.kidsLevel ? ` · ${t('settings.profiles.kidsTag')}` : ''}{p.pinHash ? ` · ${t('settings.profiles.pinTag')}` : ''}{p.id === currentProfileId ? ` (${t('settings.profiles.watchingTag')})` : ''}
-                  </span>
-                </div>
-              ))}
-            </div>
-            {(kids ? (['profiles-switch'] as const) : (['profiles-switch', 'profiles-manage'] as const)).map((id) => (
-              <Card
-                key={id}
-                {...settingsFocusAttrs(id)}
-                tabIndex={0}
-                role="button"
-                onFocus={() => setFocusedElement(id)}
-                onClick={() => openProfiles(id === 'profiles-switch' ? 'pick' : 'manage')}
-                className={`tv-ring bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing(id)}`}
-              >
-                <div className="flex items-start gap-3">
-                  <UsersRound className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
-                  <div>
-                    <h3 className="text-lg font-bold text-white">{id === 'profiles-switch' ? t('settings.profiles.switchTitle') : t('settings.profiles.manageTitle')}</h3>
-                    <p className="text-sm text-white/70 mt-1">
-                      {id === 'profiles-switch'
-                        ? t('settings.profiles.switchDesc')
-                        : t('settings.profiles.manageDesc')}
-                    </p>
+                  <Icon className="w-[18px] h-[18px] mr-2.5 text-brand-gold shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p data-settings-label className="text-sm leading-5 font-quicksand font-semibold truncate">{t(`settings.hub.rows.${id}`)}</p>
+                    {/* Always one line tall, so the rows don't jump while a state is read. */}
+                    <p data-settings-state className="text-xs leading-4 font-nunito text-brand-ice/70 truncate">{states[id] || ' '}</p>
                   </div>
                 </div>
-              </Card>
-            ))}
-            {/* The Parent PIN: change it or turn it off. It needs an account (a
-                forgotten one is reset through it), and isn't for Kids profiles. */}
-            {!kids && (pinsAvailable() ? (
-              <Card
-                {...settingsFocusAttrs('profiles-parent')}
-                tabIndex={0}
-                role="button"
-                onFocus={() => setFocusedElement('profiles-parent')}
-                onClick={() => openProfiles('parent')}
-                className={`tv-ring bg-gradient-to-br from-slate-700 to-slate-900 border-slate-600 p-6 transition-all duration-150 ${focusRing('profiles-parent')}`}
-              >
-                <div className="flex items-start gap-3">
-                  <Lock className="w-6 h-6 text-brand-gold mt-1 shrink-0" />
-                  <div>
-                    <h3 className="text-lg font-bold text-white">{t('settings.profiles.parentTitle')}</h3>
-                    <p className="text-sm text-white/70 mt-1">{hasParentPin() ? t('settings.profiles.parentDescOn') : loadProfiles().some((pr) => !!pr.kidsLevel) ? t('settings.profiles.parentDescOff') : t('settings.profiles.parentDescNoKids')}</p>
-                  </div>
-                </div>
-              </Card>
-            ) : (
-              <p className="text-sm text-white/60">{t('settings.profiles.parentSignIn')}</p>
-            ))}
-          </TabsContent>
-
-          {showUpdates && (
-          <TabsContent value="updates" className="mt-0 space-y-4">
-            <Card
-              {...settingsFocusAttrs('updates-content')}
-              className={`tv-ring bg-gradient-to-br from-orange-600 to-orange-800 border-orange-500 p-6 transition-all duration-150 ${focusRing('updates-content')}`}
-            >
-              <AppUpdater />
-            </Card>
-
-            <ApkCacheViewer />
-          </TabsContent>
-          )}
-
-          {isAdmin && (
-            <TabsContent value="alerts" className="mt-0">
-              <Card {...settingsFocusAttrs('alerts-content')} className={`tv-ring bg-gradient-to-br from-yellow-700 to-yellow-900 border-yellow-600 p-6 transition-all duration-150 ${focusRing('alerts-content')}`}>
-                <AppAlertsManager />
-              </Card>
-            </TabsContent>
-          )}
-          {isAdmin && (
-            <TabsContent value="ai" className="mt-0">
-              <div {...settingsFocusAttrs('ai-content')} className={`tv-ring transition-all duration-150 ${focusRing('ai-content')}`}>
-                <AdminAIPanel />
-              </div>
-            </TabsContent>
-          )}
+              );
+            })}
           </div>
-        </Tabs>
+        </div>
+
+        {/* A tap or air-mouse click in the page takes the remote into it, as OK would. */}
+        <div
+          className="flex-1 min-w-0 min-h-0 flex flex-col"
+          data-settings-preview={inPage ? 'false' : 'true'}
+          data-settings-page={shownPage}
+          onClickCapture={() => { if (!inPage) enterPage(shownPage); }}
+        >
+          <h2 className="text-base font-quicksand font-semibold text-brand-ice/90 mb-2 truncate">{t(`settings.hub.rows.${shownPage}`)}</h2>
+          <div ref={pageScrollRef} className={`flex-1 min-h-0 overflow-auto pb-4 transition-opacity duration-150 ${inPage ? '' : 'opacity-80'}`}>
+            {page}
+          </div>
+        </div>
       </div>
       {reviewOpen && (
         <Suspense fallback={null}>
