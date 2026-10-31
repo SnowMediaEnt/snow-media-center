@@ -329,16 +329,16 @@
         "title": "Settings",
         "subtitle": "Language, looks and profiles",
         "language": {
-          "title": "Change the language: Settings → UI → Language.",
-          "line2": "Every screen and button changes, and so do the AI assistant's answers, Live TV and Plex. Channel and programme names come from the provider.",
+          "title": "Change the language: Settings → Language.",
+          "line2": "Every screen and button changes, and so do the AI assistant's answers, Live TV and Plex. Channel and program names come from the provider.",
           "linkBtn": "Take me there"
         },
         "wallpaper": {
-          "title": "Change your wallpaper in Settings → Media Manager.",
+          "title": "Change your wallpaper in Settings → Backgrounds.",
           "line2": "Upload your own, or describe one and AI makes it."
         },
         "switches": {
-          "title": "Settings → UI has the switches.",
+          "title": "Settings → Home screen and Notifications have the switches.",
           "line2": "The Recommended row, Large dashboard, and alerts."
         },
         "profiles": {

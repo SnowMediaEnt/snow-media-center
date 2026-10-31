@@ -8,7 +8,7 @@ export const kidsAiTitle = (): string => i18n.t('ai.kids.title');
 export const kidsAiNotice = (): string => i18n.t('ai.kids.notice');
 export const kidsAiShort = (): string => i18n.t('ai.kids.short');
 
-// The same for the background maker (Settings → Media Manager). The server rewrites
+// The same for the background maker (Settings → Backgrounds). The server rewrites
 // or turns down the prompt for the profile's level (_shared/kidsSafe.ts).
 export const kidsImageTitle = (): string => i18n.t('ai.kids.imageTitle');
 export const kidsImageNotice = (level: 'little' | 'kids' | 'teen'): string =>

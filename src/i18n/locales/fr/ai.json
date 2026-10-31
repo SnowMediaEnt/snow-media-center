@@ -105,7 +105,7 @@
         "backgroundSettingsTitle": "Paramètres de l'arrière-plan",
         "backgroundSettingsDesc": "Ouverture des paramètres pour changer l'arrière-plan",
         "backgroundChangeTitle": "Changement d'arrière-plan",
-        "backgroundThemesDesc": "Vous pouvez changer l'arrière-plan dans Paramètres → Gestionnaire de médias.",
+        "backgroundThemesDesc": "Vous pouvez changer l'arrière-plan dans Paramètres → Fonds d'écran.",
         "backgroundUploadDesc": "Vous pouvez importer des arrière-plans personnalisés dans Paramètres",
         "storeTitle": "Boutique",
         "openingStore": "Ouverture de la boutique {{section}}",
@@ -248,7 +248,7 @@
       "gameLounge": "Salon de jeux",
       "giveaway": "Concours",
       "settings": "Paramètres",
-      "settingsUi": "Paramètres → Interface",
+      "settingsUi": "Paramètres → Écran d'accueil",
       "wallpaper": "Créateur de fonds d'écran",
       "phoneRemote": "Paramètres → Télécommande mobile",
       "store": "Boutique"
@@ -319,9 +319,9 @@
         "player": "Paramètres TV en direct › Lecteur",
         "fix_a_problem": "Paramètres TV en direct › Résoudre un problème",
         "settings": "Paramètres",
-        "settings_ui": "Paramètres › UI",
-        "home_screen": "Paramètres › UI › Écran d'accueil",
-        "wallpaper": "Paramètres › Média"
+        "settings_ui": "Paramètres › Écran d'accueil",
+        "home_screen": "Paramètres › Écran d'accueil",
+        "wallpaper": "Paramètres › Fonds d'écran"
       },
       "request": {
         "requested": "{{title}} est demandé. Il est ajouté à Plex automatiquement, et ce téléviseur vous prévient quand il est prêt.",

@@ -236,7 +236,7 @@ const VoiceCommandHost = ({ navigate, blocked = false }: { navigate: Navigate; b
     try {
       const currentVersion = await fetch('/version.json').then((r) => r.json()).then((d) => d.currentVersion).catch(() => undefined);
       const { data: { session } } = await supabase.auth.getSession();
-      // The Snow AI level chosen under Settings → UI (Premium needs an account;
+      // The Snow AI level chosen under Settings → My account (Premium needs an account;
       // the server charges its gems). Never for a Kids profile (its Settings
       // has no such switch), nor from the phone remote.
       let premium = !phone && !!session?.user && !kidsLevel() && getPreferredTier('chat') === 'premium';

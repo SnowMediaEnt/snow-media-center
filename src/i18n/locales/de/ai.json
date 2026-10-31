@@ -105,7 +105,7 @@
         "backgroundSettingsTitle": "Hintergrundeinstellungen",
         "backgroundSettingsDesc": "Einstellungen zum Ändern des Hintergrunds werden geöffnet",
         "backgroundChangeTitle": "Hintergrund ändern",
-        "backgroundThemesDesc": "Du kannst Hintergründe unter Einstellungen → Medien-Manager ändern.",
+        "backgroundThemesDesc": "Du kannst Hintergründe unter Einstellungen → Hintergründe ändern.",
         "backgroundUploadDesc": "Du kannst eigene Hintergründe in den Einstellungen hochladen",
         "storeTitle": "Shop",
         "openingStore": "Shop {{section}} wird geöffnet",
@@ -248,7 +248,7 @@
       "gameLounge": "Spielelounge",
       "giveaway": "Gewinnspiel",
       "settings": "Einstellungen",
-      "settingsUi": "Einstellungen → Oberfläche",
+      "settingsUi": "Einstellungen → Startbildschirm",
       "wallpaper": "Hintergrund-Ersteller",
       "phoneRemote": "Einstellungen → Handy-Fernbedienung",
       "store": "Shop"
@@ -319,9 +319,9 @@
         "player": "Live-TV-Einstellungen › Player",
         "fix_a_problem": "Live-TV-Einstellungen › Problem beheben",
         "settings": "Einstellungen",
-        "settings_ui": "Einstellungen › UI",
-        "home_screen": "Einstellungen › UI › Startbildschirm",
-        "wallpaper": "Einstellungen › Medien"
+        "settings_ui": "Einstellungen › Startbildschirm",
+        "home_screen": "Einstellungen › Startbildschirm",
+        "wallpaper": "Einstellungen › Hintergründe"
       },
       "request": {
         "requested": "{{title}} wurde angefragt. Es kommt automatisch zu Plex, und dieser Fernseher sagt dir, wenn es bereit ist.",

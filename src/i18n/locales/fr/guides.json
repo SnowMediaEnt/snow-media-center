@@ -329,16 +329,16 @@
         "title": "Paramètres",
         "subtitle": "Langue, apparence et profils",
         "language": {
-          "title": "Changez la langue : Paramètres → Interface → Langue.",
+          "title": "Changez la langue : Paramètres → Langue.",
           "line2": "Tous les écrans et boutons changent, ainsi que les réponses de l'assistant IA, TV en direct et Plex. Les noms des chaînes et émissions viennent du fournisseur.",
           "linkBtn": "M'y emmener"
         },
         "wallpaper": {
-          "title": "Changez votre fond d'écran dans Paramètres → Gestionnaire de médias.",
+          "title": "Changez votre fond d'écran dans Paramètres → Fonds d'écran.",
           "line2": "Importez le vôtre, ou décrivez-en un et l'IA le crée."
         },
         "switches": {
-          "title": "Paramètres → Interface contient les interrupteurs.",
+          "title": "Paramètres → Écran d'accueil et Notifications contiennent les interrupteurs.",
           "line2": "La ligne Recommandations, le grand tableau de bord et les alertes."
         },
         "profiles": {

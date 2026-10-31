@@ -1,4 +1,4 @@
-// The content bar for each Source and Show (Settings › UI › Home screen):
+// The content bar for each Source and Show (Settings › Home screen):
 // a sensible row every time, a short hint when a row has nothing, and the
 // remote's OK — a press opens the tile, a hold the bar's menu.
 import { act, render, screen, waitFor, fireEvent } from '@testing-library/react';

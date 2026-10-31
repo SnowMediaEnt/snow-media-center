@@ -516,7 +516,7 @@ const UserDashboard = ({ onViewChange, onManageMedia, onViewSettings, onCommunit
     );
   }
 
-  // Compact fits one 1080p screen; Large is the roomier original (Settings → UI).
+  // Compact fits one 1080p screen; Large is the roomier original (Settings → Home screen).
   const sz = large ? {
     gap: 'gap-4', rowGap: 'mb-6',
     h1: 'text-3xl', sub: 'text-lg', hdrBtn: 'min-h-12 px-5',

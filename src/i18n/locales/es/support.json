@@ -115,7 +115,7 @@
     },
     "mail": {
       "heading": "Novedades de Snow Media Entertainment",
-      "notifOff": "Notificaciones desactivadas (Ajustes → Interfaz)",
+      "notifOff": "Notificaciones desactivadas (Ajustes → Notificaciones)",
       "checking": "Buscando novedades…",
       "emptyTitle": "Aún no hay nada",
       "emptyDesc": "Cuando Snow Media publique noticias, ofertas o eventos, aparecerán aquí, con fecha y marcadas hasta que las abras.",

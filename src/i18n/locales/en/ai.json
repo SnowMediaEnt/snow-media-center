@@ -105,7 +105,7 @@
         "backgroundSettingsTitle": "Background Settings",
         "backgroundSettingsDesc": "Opening settings to change background",
         "backgroundChangeTitle": "Background Change",
-        "backgroundThemesDesc": "You can change backgrounds in Settings → Media Manager.",
+        "backgroundThemesDesc": "You can change backgrounds in Settings → Backgrounds.",
         "backgroundUploadDesc": "You can upload custom backgrounds in Settings",
         "storeTitle": "Store",
         "openingStore": "Opening {{section}} store",
@@ -248,7 +248,7 @@
       "gameLounge": "the Game Lounge",
       "giveaway": "the Giveaway",
       "settings": "Settings",
-      "settingsUi": "Settings → UI",
+      "settingsUi": "Settings → Home screen",
       "wallpaper": "the wallpaper maker",
       "phoneRemote": "Settings → Phone Remote",
       "store": "the Store"
@@ -319,9 +319,9 @@
         "player": "Live TV Settings › Player",
         "fix_a_problem": "Live TV Settings › Fix a problem",
         "settings": "Settings",
-        "settings_ui": "Settings › UI",
-        "home_screen": "Settings › UI › Home screen",
-        "wallpaper": "Settings › Media"
+        "settings_ui": "Settings › Home screen",
+        "home_screen": "Settings › Home screen",
+        "wallpaper": "Settings › Backgrounds"
       },
       "request": {
         "requested": "Requested {{title}}. It's added to Plex automatically, and this TV tells you when it's ready.",

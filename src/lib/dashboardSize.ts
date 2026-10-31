@@ -1,6 +1,6 @@
 // How big the Dashboard draws. Compact fits a 1080p TV without scrolling;
 // Large is the roomier original for anyone who finds the compact text small.
-// Chosen under Settings → UI and remembered on the device.
+// Chosen under Settings → Home screen and remembered on the device.
 import { useEffect, useState } from 'react';
 
 export type DashboardSize = 'compact' | 'large';

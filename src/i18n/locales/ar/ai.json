@@ -105,7 +105,7 @@
         "backgroundSettingsTitle": "إعدادات الخلفية",
         "backgroundSettingsDesc": "جارٍ فتح الإعدادات لتغيير الخلفية",
         "backgroundChangeTitle": "تغيير الخلفية",
-        "backgroundThemesDesc": "يمكنك تغيير الخلفيات من الإعدادات ← مدير الوسائط.",
+        "backgroundThemesDesc": "يمكنك تغيير الخلفيات من الإعدادات ← الخلفيات.",
         "backgroundUploadDesc": "يمكنك رفع خلفيات مخصصة من الإعدادات",
         "storeTitle": "المتجر",
         "openingStore": "جارٍ فتح متجر {{section}}",
@@ -248,7 +248,7 @@
       "gameLounge": "ركن الألعاب",
       "giveaway": "السحب",
       "settings": "الإعدادات",
-      "settingsUi": "الإعدادات ← الواجهة",
+      "settingsUi": "الإعدادات ← الشاشة الرئيسية",
       "wallpaper": "منشئ الخلفيات",
       "phoneRemote": "الإعدادات ← التحكم عبر الهاتف",
       "store": "المتجر"
@@ -319,9 +319,9 @@
         "player": "إعدادات البث المباشر › المشغّل",
         "fix_a_problem": "إعدادات البث المباشر › حل مشكلة",
         "settings": "الإعدادات",
-        "settings_ui": "الإعدادات › الواجهة",
-        "home_screen": "الإعدادات › الواجهة › الشاشة الرئيسية",
-        "wallpaper": "الإعدادات › الوسائط"
+        "settings_ui": "الإعدادات › الشاشة الرئيسية",
+        "home_screen": "الإعدادات › الشاشة الرئيسية",
+        "wallpaper": "الإعدادات › الخلفيات"
       },
       "request": {
         "requested": "تم طلب {{title}}. يُضاف إلى Plex تلقائيًا، وسيخبرك هذا التلفاز عندما يصبح جاهزًا.",

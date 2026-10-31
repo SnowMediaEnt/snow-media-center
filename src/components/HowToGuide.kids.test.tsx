@@ -123,7 +123,7 @@ describe('How to use SMC on a grown-up profile', () => {
   it('shows the Language slide\'s picture and words', () => {
     render(<HowToGuide onClose={vi.fn()} onNavigate={vi.fn()} />);
     openSlide('extras', 'language');
-    expect(screen.getByText('Change the language: Settings → UI → Language.')).toBeTruthy();
-    expect(screen.getByText(/Channel and programme names come from the provider/)).toBeTruthy();
+    expect(screen.getByText('Change the language: Settings → Language.')).toBeTruthy();
+    expect(screen.getByText(/Channel and program names come from the provider/)).toBeTruthy();
   });
 });

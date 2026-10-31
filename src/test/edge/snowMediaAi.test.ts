@@ -211,7 +211,7 @@ describe('snow-media-ai', () => {
       const prompt = sentPrompt();
       expect(prompt).toContain('SMC APP GUIDE (version 1.9.7');
       expect(prompt).not.toContain('1.7.3');
-      for (const s of ['Sign in with a PIN', 'Devices on this line', 'Snow Originals', 'Still buffering?', 'up to 5 channels', 'Settings › UI › Home screen']) expect(prompt).toContain(s);
+      for (const s of ['Sign in with a PIN', 'Devices on this line', 'Snow Originals', 'Still buffering?', 'up to 5 channels', 'Settings › Home screen']) expect(prompt).toContain(s);
       expect(prompt).toMatch(/call exactly ONE function \([^)]*open_live_tv, open_plex, open_settings, request_plex_title\)/);
     });
   });

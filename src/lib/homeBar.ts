@@ -1,4 +1,4 @@
-// What Home's content bar shows, as each viewer set it (Settings › UI ›
+// What Home's content bar shows, as each viewer set it (Settings ›
 // Home screen, or hold OK on the bar › Customize).
 //
 //   source: where the tiles come from — Live TV and Plex (the default),

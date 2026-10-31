@@ -329,16 +329,16 @@
         "title": "Ajustes",
         "subtitle": "Idioma, apariencia y perfiles",
         "language": {
-          "title": "Cambia el idioma: Ajustes → Interfaz → Idioma.",
+          "title": "Cambia el idioma: Ajustes → Idioma.",
           "line2": "Cambian todas las pantallas y botones, y también las respuestas del asistente de IA, TV en vivo y Plex. Los nombres de canales y programas los da el proveedor.",
           "linkBtn": "Llévame allí"
         },
         "wallpaper": {
-          "title": "Cambia tu fondo de pantalla en Ajustes → Gestor de medios.",
+          "title": "Cambia tu fondo de pantalla en Ajustes → Fondos.",
           "line2": "Sube el tuyo o descríbelo y la IA lo crea."
         },
         "switches": {
-          "title": "Ajustes → Interfaz tiene los interruptores.",
+          "title": "Ajustes → Pantalla de inicio y Notificaciones tienen los interruptores.",
           "line2": "La fila Recomendado, el Panel grande y los avisos."
         },
         "profiles": {

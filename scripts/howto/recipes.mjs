@@ -39,16 +39,17 @@ const liveSection = (n) => [...LIVE, 'ArrowLeft', ...(n ? [`ArrowDown*${n}`] : [
 // Support Videos, Submit a Ticket | Remote Access, Device Cleaner | Main Apps.
 const helpCard = (row, col) => [...SUPPORT, `ArrowDown*${row + 2}`, ...(col ? ['ArrowRight'] : []), 'Enter', { wait: 2500 }];
 
-/** From English to each language on Settings → UI → Language: the tiles go
- *  one after another (English, Español, Français, Deutsch, العربية); Right is the next. */
-const LANG_PATH = { en: [], es: ['ArrowRight'], fr: ['ArrowRight*2'], de: ['ArrowRight*3'], ar: ['ArrowRight*4'] };
+/** Settings: Down the menu until a row has the highlight (the menu opens on its
+ *  first row: My account, Home screen, Backgrounds, Profiles, Phone remote,
+ *  Notifications, Language, Updates), then let its page come in beside it. */
+const settingsRow = (id) => ({ press: 'ArrowDown', until: (row) => !!document.querySelector(`[data-settings-row="${row}"][data-focused="true"]`), arg: id, max: 12 });
 
 export const RECIPES = [
   // ── Home ──
   { id: 'home', start: 'home', keys: [], ready: hook('home.cardLivetv') },
   { id: 'home-bar', start: 'home', keys: ['ArrowUp', 'ArrowRight', { wait: 800 }], ready: hook('home.recTile') },
-  // Settings' tabs stand in a column: Down from Back reaches Media, three more Downs Phone Remote.
-  { id: 'settings-remote', start: 'home', keys: [...SETTINGS, 'ArrowDown*4', { wait: 2000 }], ready: hook('set.remoteQr') },
+  // Settings' menu stands in a column; the page beside it follows the highlight.
+  { id: 'settings-remote', start: 'home', keys: [...SETTINGS, settingsRow('remote'), { wait: 2000 }], ready: hook('set.remoteQr') },
 
   // ── Live TV ──
   { id: 'live-signin', start: 'stage', keys: [{ wait: 800 }], ready: hook('signin.username') },
@@ -119,27 +120,20 @@ export const RECIPES = [
   { id: 'videos', start: 'home', keys: [...helpCard(1, 1), { wait: 1000 }], ready: hook('videos.grid'), settle: 600 },
 
   // ── Settings and profiles ──
-  // Settings opens on Media Manager; Down reaches the tab column (Media Manager, UI, Profiles,
-  // Phone Remote, Updates) and walks it, Right goes into the tab that is showing.
-  { id: 'settings-ui', start: 'home', keys: [...SETTINGS, 'ArrowDown*2', { wait: 1000 }], ready: hook('set.updatesTab') },
-  // Down the UI tab to Post notifications (the page follows the highlight).
-  // The Alerts card below it is only drawn for the picture on the web (it
-  // can't be picked there), so the page is scrolled to bring the three
-  // switches on screen, Content Bar at the top.
-  { id: 'settings-switches', start: 'home', keys: [...SETTINGS, 'ArrowDown*2', 'ArrowRight', { wait: 800 },
-    { press: 'ArrowDown', until: () => !!document.querySelector('[data-settings-focus="ui-mail-notify-toggle"][data-focused="true"]'), max: 12 },
-    { wait: 800 }, { scrollTo: hook('set.contentBar'), block: 'start', margin: -30 }, { wait: 600 }], ready: hook('set.alerts') },
+  // The menu with My account beside it (the Updates row is in the menu).
+  { id: 'settings-ui', start: 'home', keys: [...SETTINGS, { wait: 1000 }], ready: hook('set.updatesTab') },
+  // Notifications, the remote on Post notifications: its two switches, with the
+  // Home screen row (where the content bar's switch lives) in the menu beside them.
+  { id: 'settings-switches', start: 'home', keys: [...SETTINGS, settingsRow('notifications'), 'ArrowRight', { wait: 800 }], ready: hook('set.alerts') },
   {
     id: 'settings-language', start: 'home',
-    keys: (lang) => [...SETTINGS, 'ArrowDown*2', 'ArrowRight', { wait: 800 },
-      // Down the UI tab to the language grid (English first), then to the current language.
-      { press: 'ArrowDown', until: () => !!document.querySelector('[data-settings-focus^="ui-language-"][data-focused="true"]'), max: 25 },
-      ...LANG_PATH[lang],
+    // OK on Language puts the remote on the language in use.
+    keys: (lang) => [...SETTINGS, settingsRow('language'), 'ArrowRight',
       { waitFor: `[data-settings-focus="ui-language-${lang}"][data-focused="true"]` },
       { wait: 600 }],
     ready: hook('set.language'),
   },
-  { id: 'settings-media', start: 'home', keys: [...SETTINGS, 'ArrowDown', { wait: 1500 }], ready: hook('set.wallpaper') },
+  { id: 'settings-media', start: 'home', keys: [...SETTINGS, settingsRow('backgrounds'), { wait: 1500 }], ready: hook('set.wallpaper') },
   { id: 'profiles-pick', start: 'home', seed: { pick: true }, startReady: 'body', keys: [{ wait: 3000 }], ready: hook('prof.list') },
   // Manage profiles → Kids → its PIN (1234, see seed.mjs) → the editor.
   { id: 'profile-edit', start: 'home', seed: { pick: true }, startReady: 'body', keys: [{ wait: 3000 }, 'ArrowDown', 'Enter', { wait: 1500 }, 'ArrowRight*2', 'Enter', { wait: 1500 }, { type: '1234' }, { wait: 2000 },

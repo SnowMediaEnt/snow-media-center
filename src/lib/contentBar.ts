@@ -346,7 +346,7 @@ export interface FavoritesBar {
 }
 
 /**
- * The bar's Favorites row (Settings › UI › Home screen › Show: Favorites):
+ * The bar's Favorites row (Settings › Home screen › Show: Favorites):
  * the viewer's Live TV favourites in their own order (favoritesOrder, one
  * order across every line, A–Z when they picked that), each with what is on
  * now, then — unless `source` says Live TV only — their Plex My List. Plex

@@ -110,7 +110,7 @@ describe('open_settings', () => {
     expect(openSettingsPlace('home_screen', nav, true)).toBeNull();
     expect(nav).not.toHaveBeenCalled();
     expect(await runAssistantAction('open_settings', { page: 'services' }, nav, { kids: true })).toMatch(/grown-up/);
-    expect(await runAssistantAction('open_settings', { page: 'settings_ui' }, nav, { kids: true })).toBe('Opening Settings › UI…');
+    expect(await runAssistantAction('open_settings', { page: 'settings_ui' }, nav, { kids: true })).toBe('Opening Settings › Home screen…');
   });
 });
 

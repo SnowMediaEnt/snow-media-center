@@ -329,16 +329,16 @@
         "title": "Einstellungen",
         "subtitle": "Sprache, Look und Profile",
         "language": {
-          "title": "Sprache ändern: Einstellungen → Oberfläche → Sprache.",
+          "title": "Sprache ändern: Einstellungen → Sprache.",
           "line2": "Alle Bildschirme und Tasten ändern sich, ebenso die Antworten des KI-Assistenten, Live-TV und Plex. Sender- und Sendungsnamen kommen vom Anbieter.",
           "linkBtn": "Bring mich hin"
         },
         "wallpaper": {
-          "title": "Ändere dein Hintergrundbild unter Einstellungen → Medien-Manager.",
+          "title": "Ändere dein Hintergrundbild unter Einstellungen → Hintergründe.",
           "line2": "Lade dein eigenes hoch oder beschreibe eins, und die KI erstellt es."
         },
         "switches": {
-          "title": "Einstellungen → Oberfläche hat die Schalter.",
+          "title": "Einstellungen → Startbildschirm und Benachrichtigungen haben die Schalter.",
           "line2": "Die Empfohlen-Zeile, das große Dashboard und Hinweise."
         },
         "profiles": {

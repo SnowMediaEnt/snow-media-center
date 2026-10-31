@@ -105,7 +105,7 @@
         "backgroundSettingsTitle": "Ajustes de fondo",
         "backgroundSettingsDesc": "Abriendo ajustes para cambiar el fondo",
         "backgroundChangeTitle": "Cambio de fondo",
-        "backgroundThemesDesc": "Puedes cambiar los fondos en Ajustes → Gestor de medios.",
+        "backgroundThemesDesc": "Puedes cambiar los fondos en Ajustes → Fondos.",
         "backgroundUploadDesc": "Puedes subir fondos personalizados en Ajustes",
         "storeTitle": "Tienda",
         "openingStore": "Abriendo la tienda de {{section}}",
@@ -248,7 +248,7 @@
       "gameLounge": "Sala de juegos",
       "giveaway": "Sorteo",
       "settings": "Ajustes",
-      "settingsUi": "Ajustes → Interfaz",
+      "settingsUi": "Ajustes → Pantalla de inicio",
       "wallpaper": "Creador de fondos",
       "phoneRemote": "Ajustes → Control desde el celular",
       "store": "Tienda"
@@ -319,9 +319,9 @@
         "player": "Ajustes de TV en vivo › Reproductor",
         "fix_a_problem": "Ajustes de TV en vivo › Resolver un problema",
         "settings": "Ajustes",
-        "settings_ui": "Ajustes › UI",
-        "home_screen": "Ajustes › UI › Pantalla de inicio",
-        "wallpaper": "Ajustes › Media"
+        "settings_ui": "Ajustes › Pantalla de inicio",
+        "home_screen": "Ajustes › Pantalla de inicio",
+        "wallpaper": "Ajustes › Fondos"
       },
       "request": {
         "requested": "Solicitaste {{title}}. Se añade a Plex automáticamente y este televisor te avisa cuando esté listo.",

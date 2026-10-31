@@ -115,7 +115,7 @@
     },
     "mail": {
       "heading": "Posts from Snow Media Entertainment",
-      "notifOff": "Notifications off (Settings → UI)",
+      "notifOff": "Notifications off (Settings → Notifications)",
       "checking": "Checking for posts…",
       "emptyTitle": "Nothing here yet",
       "emptyDesc": "When Snow Media posts news, deals or event announcements, they land here — dated, and marked until you open them.",
