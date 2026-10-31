@@ -81,6 +81,9 @@ export function seedFor(lang, opts = {}) {
     [`smc-profiles-pulled:${acc}`]: '1',
     [`smc-last-profile:${acc}`]: 'main',
     'snow-player-account-v1': JSON.stringify(PLAYER_ACCOUNT),
+    // A Parent PIN already made (2468; sha256 of smc-pin:<account>:__parent__:<pin>),
+    // so "Who's watching?" opens without asking a grown-up to create one.
+    [`smc-parent-pin:${acc}`]: JSON.stringify({ h: 'e6beb27bcfb183c4b1ff5be1497fb596d728c059570d008f102bc364b299ff14', base: null, up: true, known: true }),
     // A second service beside the demo line (which Live TV adds itself), so
     // Live TV shows two services in one list. The host must not be demo://.
     'snow-livetv-saved-accounts-v1': JSON.stringify([

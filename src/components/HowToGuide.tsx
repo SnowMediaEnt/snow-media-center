@@ -291,7 +291,7 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
                     tabIndex={-1}
                     data-focused={focused ? 'true' : 'false'}
                     data-howto-chapter={ch.id}
-                    className={`tv-ring w-full h-10 ${idx > 0 ? 'mt-1.5' : ''} px-2 rounded-lg border flex items-center text-left transition-transform duration-150 ${focused ? 'bg-white/10 border-white/25 scale-[1.01] z-10' : 'bg-white/[0.04] border-white/10'}`}
+                    className={`tv-ring w-full h-10 ${idx > 0 ? 'mt-1' : ''} px-2 rounded-lg border flex items-center text-left transition-transform duration-150 ${focused ? 'bg-white/10 border-white/25 scale-[1.01] z-10' : 'bg-white/[0.04] border-white/10'}`}
                   >
                     <span className={`w-7 h-7 rounded-md border flex items-center justify-center flex-shrink-0 ${ch.color}`}>
                       <ChIcon className="w-4 h-4" />

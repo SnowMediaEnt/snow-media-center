@@ -1524,10 +1524,13 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
             first time opens the drawer (the D-pad's rule); a touch opens it
             here. Later in the day, "◀ earlier" says ◀ moves time back. */}
         <div data-guide-times className="flex-shrink-0 border-b border-white/10 bg-black/50 flex px-3" style={{ height: timesH }}>
+          {/* The How-to guide's hooks (data-howto) sit on the compact guide too: its
+              category at the time bar, each row's channel cell and program lane. */}
           {touch ? (
             <button
               type="button"
               data-guide-cat-button
+              data-howto="guide.categories"
               aria-label={t('guide.categories')}
               onClick={() => (drawerOpen ? closeDrawer() : openDrawer())}
               className="flex-shrink-0 border-r border-white/10 flex items-center px-2 text-left text-white font-quicksand font-semibold text-sm overflow-hidden"
@@ -1537,7 +1540,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
               <span data-guide-cat-label className="truncate">{catName}</span>
             </button>
           ) : (
-            <div className="flex-shrink-0 border-r border-white/10 flex items-center pr-2 font-nunito text-[13px] overflow-hidden" style={{ width: colW }}>
+            <div data-howto="guide.categories" className="flex-shrink-0 border-r border-white/10 flex items-center pr-2 font-nunito text-[13px] overflow-hidden" style={{ width: colW }}>
               {!canGoEarlier && <ChevronLeft className={`w-4 h-4 flex-shrink-0 ${isActive && focusZone === 'grid' ? 'text-brand-gold' : 'text-brand-ice/60'}`} />}
               <span data-guide-cat-label className={`truncate font-quicksand font-semibold text-white ${canGoEarlier ? 'pl-1' : ''}`}>{catName}</span>
               {canGoEarlier && <span className="ml-auto pl-2 flex-shrink-0 text-brand-gold">{t('guide.earlier')}</span>}
@@ -1599,7 +1602,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                       data-focused={focused ? 'true' : 'false'}
                       className={`tv-ring h-full flex border-b border-white/[0.07] ${focused ? 'bg-brand-gold/25 z-10' : ''}`}
                     >
-                      <div data-guide-cell className="flex-shrink-0 flex items-center pr-2 border-r border-white/10 overflow-hidden" style={{ width: colW }}>
+                      <div data-guide-cell data-howto="guide.channels" className="flex-shrink-0 flex items-center pr-2 border-r border-white/10 overflow-hidden" style={{ width: colW }}>
                         {!upright && (
                           <span className={`w-9 flex-shrink-0 text-right pr-2 font-nunito tabular-nums text-[13px] ${focused ? 'text-brand-gold' : 'text-brand-ice/70'}`}>{c.num ?? ''}</span>
                         )}
@@ -1611,7 +1614,7 @@ const GuideSection = memo(({ creds, isActive, onExitLeft, onExitUp, onNavigate: 
                         {flag && <AlertTriangle data-guide-report={flag.report} className={`ml-1 w-3.5 h-3.5 flex-shrink-0 ${flag.report === 'buffering' ? 'text-amber-400' : 'text-red-400'}`} aria-label={flag.label} />}
                         {favs.has(c.stream_id) && <Star data-guide-fav className="ml-1 w-3.5 h-3.5 text-brand-gold fill-brand-gold flex-shrink-0" />}
                       </div>
-                      <div className="flex-1 relative overflow-hidden">
+                      <div className="flex-1 relative overflow-hidden" data-howto="guide.grid">
                         {!programs && (
                           <div className="absolute inset-0 flex items-center px-2 text-brand-ice/60 font-nunito text-xs">
                             <Loader2 className="w-3 h-3 animate-spin mr-2" /> {t('guide.epgLoading')}

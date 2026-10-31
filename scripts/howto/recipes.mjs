@@ -162,8 +162,8 @@ export const RECIPES = [
   },
   { id: 'settings-media', start: 'home', keys: [...SETTINGS, settingsRow('backgrounds'), { wait: 1500 }], ready: hook('set.wallpaper') },
   { id: 'profiles-pick', start: 'home', seed: { pick: true }, startReady: 'body', keys: [{ wait: 3000 }], ready: hook('prof.list') },
-  // Manage profiles → Kids → its PIN (1234, see seed.mjs) → the editor.
-  { id: 'profile-edit', start: 'home', seed: { pick: true }, startReady: 'body', keys: [{ wait: 3000 }, 'ArrowDown', 'Enter', { wait: 1500 }, 'ArrowRight*2', 'Enter', { wait: 1500 }, { type: '1234' }, { wait: 2000 },
+  // Manage profiles asks the Parent PIN (2468, see seed.mjs) → Kids → its own PIN (1234) → the editor.
+  { id: 'profile-edit', start: 'home', seed: { pick: true }, startReady: 'body', keys: [{ wait: 3000 }, 'ArrowDown', 'Enter', { wait: 1500 }, { type: '2468' }, { wait: 2500 }, 'ArrowRight*2', 'Enter', { wait: 1500 }, { type: '1234' }, { wait: 2500 },
     // The PIN button sits just under the fold; the highlight stays on the name.
     { scrollTo: hook('prof.pinBtn') }, { wait: 400 }], ready: hook('prof.kidsLevel') },
 ];
