@@ -36,6 +36,17 @@
           "title": "Recommandations : ce qui passe et ce qu'il y a à voir.",
           "line2": "Appuyez sur Haut depuis les grands boutons. Gauche et Droite font défiler ; les points indiquent la page.",
           "line2Touch": "Faites glisser ou touchez ◀ ▶ pour défiler ; les points indiquent la page."
+        },
+        "customize": {
+          "title": "Personnalisez l'accueil : maintenez OK sur une tuile du bas.",
+          "titleTouch": "Personnalisez l'accueil : gardez le doigt sur une tuile du bas.",
+          "line2": "Déplacez-la, changez ce qu'elle ouvre ou réinitialisez-la. Maintenez OK sur la rangée Recommandés pour changer ce qu'elle montre.",
+          "line2Touch": "Déplacez-la, changez ce qu'elle ouvre ou réinitialisez-la. Gardez le doigt sur la rangée Recommandés pour changer ce qu'elle montre."
+        },
+        "homeScreen": {
+          "title": "Paramètres → Écran d'accueil règle la barre de contenu.",
+          "line2": "Afficher depuis : TV en direct et Plex, l'un des deux, ou rien. Afficher : recommandations, reprendre ou favoris. Réinitialiser les tuiles remet les gros boutons.",
+          "linkBtn": "M'y emmener"
         }
       },
       "livetv": {
@@ -48,7 +59,11 @@
         },
         "signin": {
           "title": "Première fois ? Connectez-vous avec les identifiants de votre vendeur.",
-          "line2": "Les identifiants e-mail se connectent à Vibez ; tous les autres à DreamStreams."
+          "line2": "Les identifiants e-mail vont sur Vibez, les autres sur DreamStreams. Vous avez un PIN à 10 chiffres ? Appuyez sur Se connecter avec un PIN."
+        },
+        "pin": {
+          "title": "Connexion par PIN : tapez les 10 chiffres de votre vendeur.",
+          "line2": "Le même PIN marche sur tous vos appareils et ne change pas au renouvellement. Il est dans Paramètres TV en direct → Mon compte sur un boîtier déjà connecté."
         },
         "services": {
           "title": "Plusieurs services ? Ils apparaissent tous dans une seule liste.",
@@ -106,9 +121,22 @@
           "title": "Paramètres de TV en direct",
           "line2": "Mon compte, les services, les chaînes, l'apparence, l'enregistrement, le lecteur et de l'aide en cas de problème."
         },
+        "myAccount": {
+          "title": "Mon compte montre votre ligne et son PIN de connexion.",
+          "line2": "Afficher le PIN le révèle : servez-vous-en sur vos autres appareils. Expiration, jours restants et Appareils sur cette ligne sont là aussi."
+        },
+        "buffer": {
+          "title": "La chaîne coupe sans arrêt ? Montez le tampon direct.",
+          "line2": "Paramètres TV en direct → Lecteur. Auto choisit une taille par chaîne. Grand charge plus avant de lire : moins de coupures sur un serveur lent, mais les chaînes démarrent plus lentement."
+        },
         "vod": {
           "title": "VOD : les films de votre service.",
           "line2": "Choisissez une catégorie, OK sur une affiche, puis Lire le film."
+        },
+        "vodReport": {
+          "title": "Un film ne se lance pas ? Maintenez OK sur son affiche.",
+          "titleTouch": "Un film ne se lance pas ? Gardez le doigt sur son affiche.",
+          "line2": "Signaler un problème part directement chez Snow Media, avec le titre et votre service."
         },
         "multi": {
           "title": "Multi-écran lit 2 ou 4 chaînes à la fois.",
@@ -192,7 +220,7 @@
         },
         "menu": {
           "title": "Le menu : Accueil, Découvrir, vos bibliothèques, Rechercher, Demander.",
-          "line2": "Maintenez OK sur une bibliothèque pour la masquer."
+          "line2": "Maintenez OK sur une bibliothèque pour la masquer. Dans une bibliothèque, la rangée Studios ne montre que les titres d'un studio."
         },
         "home": {
           "title": "Accueil affiche ce que vous regardiez et les nouveautés."
@@ -213,17 +241,25 @@
           "title": "Certains titres existent en plusieurs versions.",
           "line2": "4K ou 1080p : choisissez celle qui passe le mieux avec votre internet."
         },
+        "related": {
+          "title": "Sous la distribution : dans le même genre.",
+          "line2": "La collection du film d'abord, puis des titres proches. OK en ouvre un ; Retour vous ramène ici."
+        },
         "controls": {
           "title": "OK affiche les commandes.",
           "line2": "Haut mène à la barre de progression. Gauche et Droite avancent ou reculent."
         },
         "skip": {
           "title": "Passer l'intro s'affiche au début d'un épisode.",
-          "line2": "Appuyez sur OK pour la passer."
+          "line2": "Appuyez sur OK pour le passer. N'apparaît que si le serveur a marqué l'intro."
         },
         "next": {
           "title": "À suivre lance l'épisode suivant.",
-          "line2": "OK le lance tout de suite. Retour continue l'épisode en cours."
+          "line2": "Apparaît environ une minute avant la fin. OK le lance tout de suite. Retour continue la lecture."
+        },
+        "nextBtn": {
+          "title": "Vers la fin, la barre reçoit un bouton Épisode suivant.",
+          "line2": "Dans les cinq dernières minutes, ou dès le générique. OK dessus lance l'épisode suivant aussitôt."
         },
         "subs": {
           "title": "Besoin de sous-titres ? Ouvrez Sous-titres → « Obtenir des sous-titres… »."
@@ -281,6 +317,11 @@
           "title": "La TV se met souvent en pause ? Le Guide anti-coupures vous guide vers les solutions.",
           "linkBtn": "L'ouvrir"
         },
+        "device": {
+          "title": "Vérification de l'appareil analyse le boîtier et votre connexion.",
+          "line2": "Vert, jaune, orange ou rouge, avec quoi changer. Lancez le test de débit pour la connexion ; Demander à l'assistant envoie les résultats au chat IA.",
+          "linkBtn": "L'ouvrir"
+        },
         "videos": {
           "title": "Vidéos d'assistance : de courtes vidéos pratiques."
         },
@@ -327,7 +368,12 @@
       },
       "extras": {
         "title": "Paramètres",
-        "subtitle": "Langue, apparence et profils",
+        "subtitle": "Compte, écran d'accueil, fonds, profils, télécommande téléphone, notifications, langue, mises à jour",
+        "layout": {
+          "title": "Paramètres : un menu à gauche, sa page à droite.",
+          "line2": "Chaque ligne affiche son état dessous. OK ou Droite entre dans la page ; Retour revient au menu.",
+          "linkBtn": "M'y emmener"
+        },
         "language": {
           "title": "Changez la langue : Paramètres → Langue.",
           "line2": "Tous les écrans et boutons changent, ainsi que les réponses de l'assistant IA, TV en direct et Plex. Les noms des chaînes et émissions viennent du fournisseur.",
@@ -338,8 +384,8 @@
           "line2": "Importez le vôtre, ou décrivez-en un et l'IA le crée."
         },
         "switches": {
-          "title": "Paramètres → Écran d'accueil et Notifications contiennent les interrupteurs.",
-          "line2": "La ligne Recommandations, le grand tableau de bord et les alertes."
+          "title": "Paramètres → Écran d'accueil et Notifications ont les interrupteurs.",
+          "line2": "La barre de contenu et le grand tableau de bord sous Écran d'accueil ; alertes des publications et du service sous Notifications."
         },
         "profiles": {
           "title": "Chacun peut avoir son propre profil.",
@@ -357,9 +403,9 @@
       "labels": {
         "ageLevel": "Niveau d'âge",
         "aiChat": "Chat IA",
-        "appearance": "Apparence",
         "apps": "Applis",
         "askAnything": "Posez une question",
+        "askAssistant": "Demander à l'assistant",
         "audio": "Audio",
         "back": "Retour",
         "back10": "Reculer 10 s",
@@ -369,8 +415,10 @@
         "categories": "Catégories",
         "chDown": "Chaîne −",
         "chUp": "Chaîne +",
+        "changeShortcut": "Changer le raccourci",
         "channels": "Chaînes",
         "cleaner": "Nettoyeur d'appareil",
+        "contentBar": "Barre de contenu",
         "continueWatching": "Reprendre la lecture",
         "controls": "Commandes",
         "dashboard": "Tableau de bord",
@@ -380,6 +428,7 @@
         "favorite": "Favori",
         "favorites": "Favoris",
         "fixAudio": "Réparer le son",
+        "fixProblem": "Résoudre un problème",
         "freeSpace": "Espace libre",
         "gameLounge": "Salon de jeux",
         "getSubs": "Obtenir des sous-titres",
@@ -387,20 +436,25 @@
         "goLive": "Revenir en direct",
         "help": "Aide",
         "holdToReport": "Maintenez OK : signaler",
+        "homeScreen": "Écran d'accueil",
         "howFar": "Jusqu'où reculer",
         "howLong": "Durée",
         "ideas": "Idées",
+        "itsPage": "Sa page",
         "language": "Langue",
         "leagues": "Ligues",
         "liveAccount": "Compte TV en direct",
+        "liveBuffer": "Tampon direct",
         "liveTv": "TV en direct",
         "mainApps": "Applis principales",
         "manage": "Gérer",
         "mayNotHave": "Peut-être absent",
         "menu": "Menu",
         "more": "Plus",
+        "moreLikeThis": "Dans le même genre",
         "move": "Déplacer",
         "movies": "Films",
+        "myAccount": "Mon compte",
         "myList": "Ma liste",
         "newArrivals": "Nouveau",
         "newTicket": "Nouveau ticket",
@@ -410,6 +464,7 @@
         "okHold": "OK · maintenir pour plus",
         "okPlays": "OK lance la lecture",
         "orCode": "Ou saisissez ce code",
+        "orPin": "Ou avec un PIN",
         "ourPick": "Choix de Snow Media",
         "pages": "Pages",
         "password": "Mot de passe",
@@ -419,6 +474,7 @@
         "pickShow": "Choisissez une émission",
         "pin": "PIN",
         "play": "Lire",
+        "player": "Lecteur",
         "playerBar": "Barre du lecteur",
         "plexVod": "Films et séries",
         "postAlerts": "Alertes des actus",
@@ -427,14 +483,16 @@
         "preview": "Aperçu",
         "products": "Produits",
         "profiles": "Profils",
-        "recommendedRow": "Ligne Recommandations",
+        "rating": "Évaluation",
         "record": "Enregistrer",
         "recordIt": "Enregistrez-la",
         "refresh": "Actualiser",
         "remindMe": "Me rappeler",
         "remoteAccess": "Accès à distance",
         "report": "Signaler",
+        "reportProblem": "Signaler un problème",
         "reportedDown": "⚠️ Signalé en panne",
+        "reset": "Réinitialiser",
         "results": "Résultats",
         "rewindSettings": "Enregistrer et rembobiner",
         "saveTo": "Où enregistrer",
@@ -443,16 +501,21 @@
         "scheduled": "Programmés",
         "seekBar": "Barre de progression",
         "serviceAlerts": "Alertes de service",
+        "services": "Services",
         "settings": "Paramètres",
+        "show": "Afficher",
+        "showFrom": "Afficher depuis",
+        "showPin": "Afficher ou masquer",
         "signIn": "Se connecter",
+        "signInPin": "Votre PIN de connexion",
         "signOut": "Se déconnecter",
         "skipIntro": "Passer l'intro",
         "snowGems": "Snow Gems",
         "start": "Démarrer",
         "steps": "Étapes",
         "subtitles": "Sous-titres",
-        "services": "Services",
         "talkNow": "Parlez maintenant",
+        "tenDigits": "Tapez les 10 chiffres",
         "todaysGames": "Matchs du jour",
         "typeHere": "Saisissez ici",
         "typeOrTalk": "Tapez ou parlez",
@@ -463,6 +526,7 @@
         "videos": "Vidéos",
         "voice": "Voix",
         "wallpaper": "Fond d'écran",
+        "whatWeFound": "Ce que nous avons trouvé",
         "whatsOn": "Au programme",
         "whatsWrong": "Choisissez le problème",
         "whereOn": "Où le voir",

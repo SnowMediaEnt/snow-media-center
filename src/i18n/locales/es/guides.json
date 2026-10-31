@@ -36,6 +36,17 @@
           "title": "Recomendado: lo que dan y lo que puedes ver.",
           "line2": "Presiona Arriba desde los botones grandes. Izquierda y Derecha desplazan; los puntos marcan la página.",
           "line2Touch": "Desliza o toca ◀ ▶ para desplazarte; los puntos muestran la página."
+        },
+        "customize": {
+          "title": "Haz tuyo el Inicio: mantén OK en un mosaico inferior.",
+          "titleTouch": "Haz tuyo el Inicio: mantén el dedo en un mosaico inferior.",
+          "line2": "Muévelo, cambia lo que abre o restablécelo. Mantén OK en la fila Recomendados para cambiar lo que muestra.",
+          "line2Touch": "Muévelo, cambia lo que abre o restablécelo. Mantén el dedo en la fila Recomendados para cambiar lo que muestra."
+        },
+        "homeScreen": {
+          "title": "Ajustes → Pantalla de inicio configura la barra de contenido.",
+          "line2": "Mostrar de: TV en vivo y Plex, uno de los dos, o apagada. Mostrar: recomendaciones, seguir viendo o favoritos. Restablecer mosaicos devuelve los botones grandes.",
+          "linkBtn": "Llévame allí"
         }
       },
       "livetv": {
@@ -48,7 +59,11 @@
         },
         "signin": {
           "title": "¿Primera vez? Inicia sesión con los datos de tu vendedor.",
-          "line2": "Los usuarios con correo se conectan a Vibez; los demás, a DreamStreams."
+          "line2": "Los usuarios con correo conectan con Vibez; el resto con DreamStreams. ¿Tienes un PIN de 10 dígitos? Pulsa Iniciar sesión con PIN."
+        },
+        "pin": {
+          "title": "Inicia sesión con PIN: escribe los 10 dígitos de tu vendedor.",
+          "line2": "El mismo PIN sirve en todos tus dispositivos y no cambia al renovar. Lo encuentras en Ajustes de TV en vivo → Mi cuenta en un equipo ya conectado."
         },
         "services": {
           "title": "¿Más de un servicio? Todos salen en una sola lista.",
@@ -106,9 +121,22 @@
           "title": "Ajustes de TV en vivo",
           "line2": "Mi cuenta, servicios, canales, la apariencia, la grabación, el reproductor y ayuda cuando algo falla."
         },
+        "myAccount": {
+          "title": "Mi cuenta muestra tu línea y su PIN de acceso.",
+          "line2": "Mostrar PIN lo revela: úsalo para iniciar sesión en tus otros dispositivos. También están el vencimiento, los días restantes y Dispositivos en esta línea."
+        },
+        "buffer": {
+          "title": "¿El canal se detiene? Sube el búfer en vivo.",
+          "line2": "Ajustes de TV en vivo → Reproductor. Auto elige un tamaño por canal. Grande carga más antes de reproducir: menos cortes en un servidor lento, pero los canales tardan más en empezar."
+        },
         "vod": {
           "title": "VOD: las películas de tu servicio.",
           "line2": "Elige una categoría, OK sobre un póster y luego Ver película."
+        },
+        "vodReport": {
+          "title": "¿Una película no reproduce? Mantén OK en su póster.",
+          "titleTouch": "¿Una película no reproduce? Mantén el dedo en su póster.",
+          "line2": "Reportar un problema llega directo a Snow Media, con el título y tu servicio."
         },
         "multi": {
           "title": "Multipantalla reproduce 2 o 4 canales a la vez.",
@@ -192,7 +220,7 @@
         },
         "menu": {
           "title": "El menú: Inicio, Descubrir, tus bibliotecas, Buscar y Solicitar.",
-          "line2": "Mantén OK sobre una biblioteca para ocultarla."
+          "line2": "Mantén OK en una biblioteca para ocultarla. Dentro de una biblioteca, la fila Estudios muestra los títulos de un solo estudio."
         },
         "home": {
           "title": "Inicio muestra lo que estabas viendo y las novedades."
@@ -213,17 +241,25 @@
           "title": "Algunos títulos tienen más de una versión.",
           "line2": "4K o 1080p: elige la que mejor se vea con tu internet."
         },
+        "related": {
+          "title": "Debajo del reparto: más como esta.",
+          "line2": "Primero la colección de la película, luego títulos parecidos. OK abre uno; Atrás te trae de vuelta aquí."
+        },
         "controls": {
           "title": "OK muestra los controles.",
           "line2": "Arriba va a la barra de progreso. Izquierda y Derecha saltan."
         },
         "skip": {
           "title": "Saltar intro aparece al inicio de un episodio.",
-          "line2": "Presiona OK para saltarla."
+          "line2": "Pulsa OK para saltarla. Solo aparece cuando el servidor tiene marcada la intro."
         },
         "next": {
           "title": "A continuación reproduce el siguiente episodio.",
-          "line2": "OK lo reproduce ya. Atrás sigue con el actual."
+          "line2": "Aparece cerca de un minuto antes del final. OK lo reproduce ya. Atrás sigue viendo."
+        },
+        "nextBtn": {
+          "title": "Cerca del final, la barra tiene un botón Siguiente episodio.",
+          "line2": "En los últimos cinco minutos, o cuando empiezan los créditos. OK en él inicia el siguiente episodio al momento."
         },
         "subs": {
           "title": "¿Necesitas subtítulos? Abre Subtítulos → «Buscar subtítulos…»."
@@ -281,6 +317,11 @@
           "title": "¿La TV se pausa seguido? La Guía de buffering te lleva por las soluciones.",
           "linkBtn": "Abrirla"
         },
+        "device": {
+          "title": "Revisión del dispositivo analiza el equipo y tu conexión.",
+          "line2": "Verde, amarillo, naranja o rojo, con qué cambiar. Ejecuta la prueba de velocidad para la conexión; Pregunta al asistente envía los resultados al chat de IA.",
+          "linkBtn": "Ábrela"
+        },
         "videos": {
           "title": "Videos de soporte: videos cortos para aprender."
         },
@@ -327,7 +368,12 @@
       },
       "extras": {
         "title": "Ajustes",
-        "subtitle": "Idioma, apariencia y perfiles",
+        "subtitle": "Cuenta, pantalla de inicio, fondos, perfiles, control por teléfono, notificaciones, idioma, actualizaciones",
+        "layout": {
+          "title": "Ajustes: un menú a la izquierda, su página a la derecha.",
+          "line2": "Cada fila muestra su estado debajo. OK o Derecha entra en la página; Atrás vuelve al menú.",
+          "linkBtn": "Llévame allí"
+        },
         "language": {
           "title": "Cambia el idioma: Ajustes → Idioma.",
           "line2": "Cambian todas las pantallas y botones, y también las respuestas del asistente de IA, TV en vivo y Plex. Los nombres de canales y programas los da el proveedor.",
@@ -339,7 +385,7 @@
         },
         "switches": {
           "title": "Ajustes → Pantalla de inicio y Notificaciones tienen los interruptores.",
-          "line2": "La fila Recomendado, el Panel grande y los avisos."
+          "line2": "La barra de contenido y el panel grande en Pantalla de inicio; avisos de publicaciones y del servicio en Notificaciones."
         },
         "profiles": {
           "title": "Cada persona puede tener su propio perfil.",
@@ -357,9 +403,9 @@
       "labels": {
         "ageLevel": "Nivel de edad",
         "aiChat": "Chat con IA",
-        "appearance": "Apariencia",
         "apps": "Apps",
         "askAnything": "Pregunta lo que quieras",
+        "askAssistant": "Pregunta al asistente",
         "audio": "Audio",
         "back": "Atrás",
         "back10": "Atrás 10 s",
@@ -369,8 +415,10 @@
         "categories": "Categorías",
         "chDown": "Canal −",
         "chUp": "Canal +",
+        "changeShortcut": "Cambiar acceso",
         "channels": "Canales",
         "cleaner": "Limpiador del equipo",
+        "contentBar": "Barra de contenido",
         "continueWatching": "Seguir viendo",
         "controls": "Controles",
         "dashboard": "Panel",
@@ -380,6 +428,7 @@
         "favorite": "Favorito",
         "favorites": "Favoritos",
         "fixAudio": "Arreglar audio",
+        "fixProblem": "Resolver un problema",
         "freeSpace": "Espacio libre",
         "gameLounge": "Sala de juegos",
         "getSubs": "Buscar subtítulos",
@@ -387,20 +436,25 @@
         "goLive": "Ver en vivo",
         "help": "Ayuda",
         "holdToReport": "Mantén OK y reporta",
+        "homeScreen": "Pantalla de inicio",
         "howFar": "Cuánto retroceder",
         "howLong": "Cuánto tiempo",
         "ideas": "Ideas",
+        "itsPage": "Su página",
         "language": "Idioma",
         "leagues": "Ligas",
         "liveAccount": "Cuenta de TV en vivo",
+        "liveBuffer": "Búfer en vivo",
         "liveTv": "TV en vivo",
         "mainApps": "Apps principales",
         "manage": "Administrar",
         "mayNotHave": "Puede que no lo dé",
         "menu": "Menú",
         "more": "Más",
+        "moreLikeThis": "Más como esta",
         "move": "Mover",
         "movies": "Películas",
+        "myAccount": "Mi cuenta",
         "myList": "Mi lista",
         "newArrivals": "Nuevo",
         "newTicket": "Nuevo ticket",
@@ -410,6 +464,7 @@
         "okHold": "OK · mantén para más",
         "okPlays": "OK lo reproduce",
         "orCode": "O escribe este código",
+        "orPin": "O usa un PIN",
         "ourPick": "Elegido por Snow Media",
         "pages": "Páginas",
         "password": "Contraseña",
@@ -419,6 +474,7 @@
         "pickShow": "Elige un programa",
         "pin": "PIN",
         "play": "Reproducir",
+        "player": "Reproductor",
         "playerBar": "Barra del reproductor",
         "plexVod": "Películas y series",
         "postAlerts": "Avisos de novedades",
@@ -427,14 +483,16 @@
         "preview": "Vista previa",
         "products": "Productos",
         "profiles": "Perfiles",
-        "recommendedRow": "Fila Recomendado",
+        "rating": "Valoración",
         "record": "Grabar",
         "recordIt": "Grábalo",
         "refresh": "Actualizar",
         "remindMe": "Recuérdame",
         "remoteAccess": "Acceso remoto",
         "report": "Reportar",
+        "reportProblem": "Reportar un problema",
         "reportedDown": "⚠️ Reportado caído",
+        "reset": "Restablecer",
         "results": "Resultados",
         "rewindSettings": "Grabación y retroceso",
         "saveTo": "Dónde guardar",
@@ -443,16 +501,21 @@
         "scheduled": "Programadas",
         "seekBar": "Barra de progreso",
         "serviceAlerts": "Avisos del servicio",
+        "services": "Servicios",
         "settings": "Ajustes",
+        "show": "Mostrar",
+        "showFrom": "Mostrar de",
+        "showPin": "Mostrar u ocultar",
         "signIn": "Iniciar sesión",
+        "signInPin": "Tu PIN de acceso",
         "signOut": "Cerrar sesión",
         "skipIntro": "Saltar intro",
         "snowGems": "Snow Gems",
         "start": "Iniciar",
         "steps": "Pasos",
         "subtitles": "Subtítulos",
-        "services": "Servicios",
         "talkNow": "Habla ahora",
+        "tenDigits": "Escribe los 10 dígitos",
         "todaysGames": "Partidos de hoy",
         "typeHere": "Escribe aquí",
         "typeOrTalk": "Escribe o habla",
@@ -463,6 +526,7 @@
         "videos": "Videos",
         "voice": "Voz",
         "wallpaper": "Fondo de pantalla",
+        "whatWeFound": "Lo que encontramos",
         "whatsOn": "Qué dan",
         "whatsWrong": "Elige qué falla",
         "whereOn": "Dónde lo dan",

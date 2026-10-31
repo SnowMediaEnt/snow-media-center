@@ -36,6 +36,17 @@
           "title": "Recommended: what's on and what to watch.",
           "line2": "Press Up from the big buttons. Left and Right scroll; the dots show the page.",
           "line2Touch": "Swipe or tap ◀ ▶ to scroll; the dots show the page."
+        },
+        "customize": {
+          "title": "Make Home yours: hold OK on a bottom tile.",
+          "titleTouch": "Make Home yours: hold a finger on a bottom tile.",
+          "line2": "Move it, change what it opens, or reset it. Hold OK on the Recommended row to change what it shows.",
+          "line2Touch": "Move it, change what it opens, or reset it. Hold a finger on the Recommended row to change what it shows."
+        },
+        "homeScreen": {
+          "title": "Settings → Home screen sets the content bar.",
+          "line2": "Show from: Live TV and Plex, one of them, or off. Show: recommendations, continue watching or favorites. Reset tiles puts the big buttons back.",
+          "linkBtn": "Take me there"
         }
       },
       "livetv": {
@@ -48,7 +59,11 @@
         },
         "signin": {
           "title": "First time? Sign in with the details from your seller.",
-          "line2": "Email usernames connect to Vibez; all others to DreamStreams."
+          "line2": "Email usernames connect to Vibez; all others to DreamStreams. Got a 10-digit PIN instead? Press Sign in with a PIN."
+        },
+        "pin": {
+          "title": "Sign in with a PIN: type the 10 digits from your seller.",
+          "line2": "The same PIN works on every device and stays the same when you renew. Find it under Live TV Settings → My Account on a box already signed in."
         },
         "services": {
           "title": "More than one service? They all show in one list.",
@@ -106,9 +121,22 @@
           "title": "Live TV Settings",
           "line2": "My account, services, channels, the look, recording, the player, and help when something's wrong."
         },
+        "myAccount": {
+          "title": "My Account shows your line and its sign-in PIN.",
+          "line2": "Show sign-in PIN reveals it: use it to sign in on your other devices. Expiry, days left and Devices on this line are here too."
+        },
+        "buffer": {
+          "title": "Channel keeps stopping? Raise the Live buffer.",
+          "line2": "Live TV Settings → Player. Auto picks a size per channel. Large loads more before playing: fewer stops on a slow server, slower channel starts."
+        },
         "vod": {
           "title": "VOD: your service's movies.",
           "line2": "Pick a category, OK on a poster, then Play Movie."
+        },
+        "vodReport": {
+          "title": "A movie won't play? Hold OK on its poster.",
+          "titleTouch": "A movie won't play? Hold a finger on its poster.",
+          "line2": "Report a problem goes straight to Snow Media, with the title and your service."
         },
         "multi": {
           "title": "Multi-Screen plays 2 or 4 channels at once.",
@@ -192,7 +220,7 @@
         },
         "menu": {
           "title": "The menu: Home, Discover, your libraries, Search, Request.",
-          "line2": "Hold OK on a library to hide it."
+          "line2": "Hold OK on a library to hide it. Inside a library, the Studios row shows one studio's titles."
         },
         "home": {
           "title": "Home shows what you were watching and what's new."
@@ -213,17 +241,25 @@
           "title": "Some titles come in more than one version.",
           "line2": "4K or 1080p: pick the one that plays best on your internet."
         },
+        "related": {
+          "title": "Under the cast: more like this.",
+          "line2": "A film's collection comes first, then similar titles. OK opens one; Back brings you back here."
+        },
         "controls": {
           "title": "OK shows the controls.",
           "line2": "Up goes to the seek bar. Left and Right jump."
         },
         "skip": {
           "title": "Skip Intro shows at the start of an episode.",
-          "line2": "Press OK to skip it."
+          "line2": "Press OK to skip it. It only shows when the server has marked the intro."
         },
         "next": {
           "title": "Up next plays the next episode.",
-          "line2": "OK plays it now. Back keeps watching."
+          "line2": "It shows about a minute before the end. OK plays it now. Back keeps watching."
+        },
+        "nextBtn": {
+          "title": "Near the end, the bar gets a Next episode button.",
+          "line2": "In the last five minutes, or once the credits roll. OK on it starts the next episode right away."
         },
         "subs": {
           "title": "Need subtitles? Open Subtitles → \"Get subtitles…\"."
@@ -281,6 +317,11 @@
           "title": "TV keeps pausing? The Buffering Guide walks you through the fixes.",
           "linkBtn": "Open it"
         },
+        "device": {
+          "title": "Device check scans the box and your connection.",
+          "line2": "Green, yellow, orange or red, with what to change. Run the speed test for the connection; Ask the assistant sends the results to AI Chat.",
+          "linkBtn": "Open it"
+        },
         "videos": {
           "title": "Support Videos: short how-to videos."
         },
@@ -327,7 +368,12 @@
       },
       "extras": {
         "title": "Settings",
-        "subtitle": "Language, looks and profiles",
+        "subtitle": "Account, Home screen, backgrounds, profiles, phone remote, notifications, language, updates",
+        "layout": {
+          "title": "Settings: a menu on the left, its page on the right.",
+          "line2": "Each row shows its state underneath. OK or Right goes into the page; Back returns to the menu.",
+          "linkBtn": "Take me there"
+        },
         "language": {
           "title": "Change the language: Settings → Language.",
           "line2": "Every screen and button changes, and so do the AI assistant's answers, Live TV and Plex. Channel and program names come from the provider.",
@@ -339,7 +385,7 @@
         },
         "switches": {
           "title": "Settings → Home screen and Notifications have the switches.",
-          "line2": "The Recommended row, Large dashboard, and alerts."
+          "line2": "The content bar and Large dashboard under Home screen; post alerts and service alerts under Notifications."
         },
         "profiles": {
           "title": "Everyone can have their own profile.",
@@ -357,9 +403,9 @@
       "labels": {
         "ageLevel": "Age level",
         "aiChat": "AI Chat",
-        "appearance": "Appearance",
         "apps": "Apps",
         "askAnything": "Ask anything",
+        "askAssistant": "Ask the assistant",
         "audio": "Audio",
         "back": "Back",
         "back10": "Back 10s",
@@ -369,8 +415,10 @@
         "categories": "Categories",
         "chDown": "Channel −",
         "chUp": "Channel +",
+        "changeShortcut": "Change shortcut",
         "channels": "Channels",
         "cleaner": "Device Cleaner",
+        "contentBar": "Content bar",
         "continueWatching": "Continue Watching",
         "controls": "Controls",
         "dashboard": "Dashboard",
@@ -380,6 +428,7 @@
         "favorite": "Favorite",
         "favorites": "Favorites",
         "fixAudio": "Fix audio",
+        "fixProblem": "Fix a problem",
         "freeSpace": "Free space",
         "gameLounge": "Game Lounge",
         "getSubs": "Get subtitles",
@@ -387,20 +436,25 @@
         "goLive": "Go live",
         "help": "Help",
         "holdToReport": "Hold OK to report",
+        "homeScreen": "Home screen",
         "howFar": "How far back",
         "howLong": "How long",
         "ideas": "Ideas",
+        "itsPage": "Its page",
         "language": "Language",
         "leagues": "Leagues",
         "liveAccount": "Live TV account",
+        "liveBuffer": "Live buffer",
         "liveTv": "Live TV",
         "mainApps": "Main Apps",
         "manage": "Manage",
         "mayNotHave": "May not have it",
         "menu": "Menu",
         "more": "More",
+        "moreLikeThis": "More like this",
         "move": "Move",
         "movies": "Movies",
+        "myAccount": "My Account",
         "myList": "My List",
         "newArrivals": "New",
         "newTicket": "New ticket",
@@ -410,6 +464,7 @@
         "okHold": "OK · hold for more",
         "okPlays": "OK plays it",
         "orCode": "Or type this code",
+        "orPin": "Or use a PIN",
         "ourPick": "Picked by Snow Media",
         "pages": "Pages",
         "password": "Password",
@@ -419,6 +474,7 @@
         "pickShow": "Pick a show",
         "pin": "PIN",
         "play": "Play",
+        "player": "Player",
         "playerBar": "Player bar",
         "plexVod": "Movies & shows",
         "postAlerts": "Post alerts",
@@ -427,14 +483,16 @@
         "preview": "Preview",
         "products": "Products",
         "profiles": "Profiles",
-        "recommendedRow": "Recommended row",
+        "rating": "Rating",
         "record": "Record",
         "recordIt": "Record it",
         "refresh": "Refresh",
         "remindMe": "Remind me",
         "remoteAccess": "Remote Access",
         "report": "Report",
+        "reportProblem": "Report a problem",
         "reportedDown": "⚠️ Reported down",
+        "reset": "Reset",
         "results": "Results",
         "rewindSettings": "Recording & Rewind",
         "saveTo": "Where to save",
@@ -443,16 +501,21 @@
         "scheduled": "Scheduled",
         "seekBar": "Seek bar",
         "serviceAlerts": "Service alerts",
+        "services": "Services",
         "settings": "Settings",
+        "show": "Show",
+        "showFrom": "Show from",
+        "showPin": "Show or hide it",
         "signIn": "Sign in",
+        "signInPin": "Your sign-in PIN",
         "signOut": "Sign Out",
         "skipIntro": "Skip Intro",
         "snowGems": "Snow Gems",
         "start": "Start",
         "steps": "Steps",
         "subtitles": "Subtitles",
-        "services": "Services",
         "talkNow": "Talk now",
+        "tenDigits": "Type the 10 digits",
         "todaysGames": "Today's games",
         "typeHere": "Type here",
         "typeOrTalk": "Type or talk",
@@ -463,6 +526,7 @@
         "videos": "Videos",
         "voice": "Voice",
         "wallpaper": "Wallpaper",
+        "whatWeFound": "What we found",
         "whatsOn": "What's on",
         "whatsWrong": "Pick what's wrong",
         "whereOn": "Where it's on",
