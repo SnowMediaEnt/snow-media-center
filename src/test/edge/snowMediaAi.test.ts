@@ -213,6 +213,28 @@ describe('snow-media-ai', () => {
       expect(prompt).not.toContain('1.7.3');
       for (const s of ['Sign in with a PIN', 'Devices on this line', 'Snow Originals', 'Still buffering?', 'up to 5 channels', 'Settings › Home screen']) expect(prompt).toContain(s);
       expect(prompt).toMatch(/call exactly ONE function \([^)]*open_live_tv, open_plex, open_settings, request_plex_title\)/);
+      // A 1.9.7 box hears about its own Settings, and that the 1.9.8 things are coming.
+      expect(prompt).toContain('UI (Home screen, content bar');
+      expect(prompt).toContain('comes with the next update');
+      expect(prompt).not.toContain('Live buffer: Auto');
+      expect(prompt).not.toContain('Studios row (Angel Studios first');
+      const screen = sentTools().find((t) => t.name === 'open_screen');
+      expect(screen?.parameters?.properties?.screen?.enum).not.toContain('device_check');
+      const settings = sentTools().find((t) => t.name === 'open_settings');
+      expect(settings?.parameters?.properties?.page?.enum).not.toContain('notifications');
+    });
+
+    it('a 1.9.8 build (app_actions 3) gets the 1.9.8 guide, Device check and every Settings page', async () => {
+      await ask({ message: 'where are my settings', app_actions: 3 });
+      const prompt = sentPrompt();
+      expect(prompt).toContain('SMC APP GUIDE (version 1.9.8');
+      for (const s of ['a menu on the left, each row\'s page on the right', 'Live buffer: Auto', 'Device check (rates the box', 'Studios row (Angel Studios first', 'Next episode button', 'Sign-in PIN']) expect(prompt).toContain(s);
+      expect(prompt).not.toContain('comes with the next update');
+      expect(prompt).not.toContain('UI (Home screen, content bar');
+      const screen = sentTools().find((t) => t.name === 'open_screen');
+      expect(screen?.parameters?.properties?.screen?.enum).toContain('device_check');
+      const settings = sentTools().find((t) => t.name === 'open_settings');
+      expect(settings?.parameters?.properties?.page?.enum).toEqual(expect.arrayContaining(['home_screen', 'app_account', 'profiles', 'phone_remote', 'notifications', 'language', 'updates']));
     });
   });
 });

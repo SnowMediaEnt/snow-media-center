@@ -104,6 +104,24 @@ describe('open_settings', () => {
     expect(sessionStorage.getItem(INTENT_KEYS.settings)).toBe('media');
   });
 
+  it.each([
+    ['app_account', 'account'], ['profiles', 'profiles'], ['phone_remote', 'remote'],
+    ['notifications', 'notifications'], ['language', 'language'], ['updates', 'updates'],
+  ])('%s opens the app\'s Settings on its page (1.9.8)', (place, page) => {
+    const nav = vi.fn();
+    expect(openSettingsPlace(place, nav)).toBe(place);
+    expect(nav).toHaveBeenLastCalledWith('settings');
+    expect(sessionStorage.getItem(INTENT_KEYS.settings)).toBe(page);
+  });
+
+  it('a Kids profile gets Profiles, Phone remote and Language, not My account, Notifications or Updates', async () => {
+    const nav = vi.fn();
+    for (const p of ['app_account', 'notifications', 'updates']) expect(openSettingsPlace(p, nav, true)).toBeNull();
+    expect(nav).not.toHaveBeenCalled();
+    for (const p of ['profiles', 'phone_remote', 'language']) expect(openSettingsPlace(p, nav, true)).toBe(p);
+    expect(await runAssistantAction('open_settings', { page: 'updates' }, nav, { kids: true })).toMatch(/grown-up/);
+  });
+
   it('keeps Live TV Settings and Home screen from a Kids profile', async () => {
     const nav = vi.fn();
     expect(openSettingsPlace('my_account', nav, true)).toBeNull();

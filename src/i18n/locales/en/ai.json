@@ -251,7 +251,8 @@
       "settingsUi": "Settings → Home screen",
       "wallpaper": "the wallpaper maker",
       "phoneRemote": "Settings → Phone Remote",
-      "store": "the Store"
+      "store": "the Store",
+      "deviceCheck": "Support › Device check"
     },
     "prefs": {
       "liveLayout": "Live TV is set to the {{layout}} layout.",
@@ -321,7 +322,13 @@
         "settings": "Settings",
         "settings_ui": "Settings › Home screen",
         "home_screen": "Settings › Home screen",
-        "wallpaper": "Settings › Backgrounds"
+        "wallpaper": "Settings › Backgrounds",
+        "app_account": "Settings › My account",
+        "profiles": "Settings › Profiles",
+        "phone_remote": "Settings › Phone remote",
+        "notifications": "Settings › Notifications",
+        "language": "Settings › Language",
+        "updates": "Settings › Updates"
       },
       "request": {
         "requested": "Requested {{title}}. It's added to Plex automatically, and this TV tells you when it's ready.",

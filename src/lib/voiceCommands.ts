@@ -30,7 +30,7 @@ const TRAILING = /\s+(?:please|now|for me|right now)$/;
 /** Words that name a screen, longest first so "tv guide" beats "guide". */
 const SCREEN_WORDS: Array<[string, Screen | 'profiles']> = [
   ['player settings', 'player_settings'], ['player appearance', 'player_appearance'],
-  ['buffering guide', 'buffering_guide'], ['device cleaner', 'device_cleaner'], ['speed test', 'speed_test'],
+  ['buffering guide', 'buffering_guide'], ['device cleaner', 'device_cleaner'], ['device check', 'device_check'], ['check my device', 'device_check'], ['speed test', 'speed_test'],
   ['speedtest', 'speed_test'], ['support videos', 'support_videos'], ['how to use', 'how_to'],
   ['multi screen', 'multi_screen'], ['multiscreen', 'multi_screen'], ['multi view', 'multi_screen'], ['multiview', 'multi_screen'],
   ['phone remote', 'phone_remote'], ['pair my phone', 'phone_remote'], ['pair phone', 'phone_remote'],

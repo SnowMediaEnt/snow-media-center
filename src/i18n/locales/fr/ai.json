@@ -251,7 +251,8 @@
       "settingsUi": "Paramètres → Écran d'accueil",
       "wallpaper": "Créateur de fonds d'écran",
       "phoneRemote": "Paramètres → Télécommande mobile",
-      "store": "Boutique"
+      "store": "Boutique",
+      "deviceCheck": "Assistance › Bilan de l'appareil"
     },
     "prefs": {
       "liveLayout": "TV en direct utilise la disposition {{layout}}.",
@@ -321,7 +322,13 @@
         "settings": "Paramètres",
         "settings_ui": "Paramètres › Écran d'accueil",
         "home_screen": "Paramètres › Écran d'accueil",
-        "wallpaper": "Paramètres › Fonds d'écran"
+        "wallpaper": "Paramètres › Fonds d'écran",
+        "app_account": "Paramètres › Mon compte",
+        "profiles": "Paramètres › Profils",
+        "phone_remote": "Paramètres › Télécommande mobile",
+        "notifications": "Paramètres › Notifications",
+        "language": "Paramètres › Langue",
+        "updates": "Paramètres › Mises à jour"
       },
       "request": {
         "requested": "{{title}} est demandé. Il est ajouté à Plex automatiquement, et ce téléviseur vous prévient quand il est prêt.",

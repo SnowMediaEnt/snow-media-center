@@ -251,7 +251,8 @@
       "settingsUi": "Ajustes → Pantalla de inicio",
       "wallpaper": "Creador de fondos",
       "phoneRemote": "Ajustes → Control desde el celular",
-      "store": "Tienda"
+      "store": "Tienda",
+      "deviceCheck": "Soporte › Revisión del dispositivo"
     },
     "prefs": {
       "liveLayout": "TV en vivo usa el diseño {{layout}}.",
@@ -321,7 +322,13 @@
         "settings": "Ajustes",
         "settings_ui": "Ajustes › Pantalla de inicio",
         "home_screen": "Ajustes › Pantalla de inicio",
-        "wallpaper": "Ajustes › Fondos"
+        "wallpaper": "Ajustes › Fondos",
+        "app_account": "Ajustes › Mi cuenta",
+        "profiles": "Ajustes › Perfiles",
+        "phone_remote": "Ajustes › Control con el teléfono",
+        "notifications": "Ajustes › Notificaciones",
+        "language": "Ajustes › Idioma",
+        "updates": "Ajustes › Actualizaciones"
       },
       "request": {
         "requested": "Solicitaste {{title}}. Se añade a Plex automáticamente y este televisor te avisa cuando esté listo.",

@@ -94,15 +94,15 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
   const helpIds = useMemo(() => (kids ? HELP_IDS.filter((id) => !KIDS_HIDDEN.has(id)) : [...HELP_IDS]), [kids]);
   const [landing] = useState(() => {
     const l = peekIntent(INTENT_KEYS.support);
-    return kids && (l === 'tickets' || l === 'cleaner' || l === 'posts') ? null : l;
+    return kids && (l === 'tickets' || l === 'cleaner' || l === 'posts' || l === 'devicecheck') ? null : l;
   });
   useEffect(() => { clearIntent(INTENT_KEYS.support); }, []);
   const [tab, setTab] = useState<Tab>(landing === 'posts' ? 'mail' : landing === 'ai' ? 'ai' : 'help');
   const [helpView, setHelpView] = useState<HelpView>(landing === 'tickets' ? 'tickets' : landing === 'cleaner' ? 'cleaner' : landing === 'videos' ? 'videos' : 'menu');
   const [childFocusActive, setChildFocusActive] = useState(false);
   const [showSpeedTest, setShowSpeedTest] = useState(landing === 'speedtest');
-  // Device check: a layer over the menu, opened from its card only.
-  const [showDevice, setShowDevice] = useState(false);
+  // Device check: a layer over the menu, opened from its card (or the assistant).
+  const [showDevice, setShowDevice] = useState(landing === 'devicecheck');
   // Synchronous handoff from the Plex player's "Buffering?" shortcut: LiveTV
   // sets this flag BEFORE navigating to Support so the guide opens in the
   // same commit (no setTimeout race with the CustomEvent fallback).
@@ -134,13 +134,14 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
       const flag = (key: string) => takeIntent(key) === '1';
       const guide = flag('smc-open-buffering-guide');
       const howTo = flag('smc-open-howto');
-      if (kids && (l === 'tickets' || l === 'cleaner' || l === 'posts')) return;
+      if (kids && (l === 'tickets' || l === 'cleaner' || l === 'posts' || l === 'devicecheck')) return;
       if (l === 'posts') { setChildFocusActive(false); setTab('mail'); return; }
       if (l === 'ai') { setTab('ai'); return; }
       if (!l && !guide && !howTo) return;
       setTab('help');
       setHelpView(l === 'tickets' ? 'tickets' : l === 'cleaner' ? 'cleaner' : l === 'videos' ? 'videos' : 'menu');
       if (l === 'speedtest') setShowSpeedTest(true);
+      if (l === 'devicecheck') setShowDevice(true);
       if (guide) setShowGuide(true);
       if (howTo) setShowHowTo(true);
     };

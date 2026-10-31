@@ -251,7 +251,8 @@
       "settingsUi": "Einstellungen → Startbildschirm",
       "wallpaper": "Hintergrund-Ersteller",
       "phoneRemote": "Einstellungen → Handy-Fernbedienung",
-      "store": "Shop"
+      "store": "Shop",
+      "deviceCheck": "Support › Gerätecheck"
     },
     "prefs": {
       "liveLayout": "Live-TV nutzt das Layout „{{layout}}“.",
@@ -321,7 +322,13 @@
         "settings": "Einstellungen",
         "settings_ui": "Einstellungen › Startbildschirm",
         "home_screen": "Einstellungen › Startbildschirm",
-        "wallpaper": "Einstellungen › Hintergründe"
+        "wallpaper": "Einstellungen › Hintergründe",
+        "app_account": "Einstellungen › Mein Konto",
+        "profiles": "Einstellungen › Profile",
+        "phone_remote": "Einstellungen › Handy-Fernbedienung",
+        "notifications": "Einstellungen › Benachrichtigungen",
+        "language": "Einstellungen › Sprache",
+        "updates": "Einstellungen › Updates"
       },
       "request": {
         "requested": "{{title}} wurde angefragt. Es kommt automatisch zu Plex, und dieser Fernseher sagt dir, wenn es bereit ist.",

@@ -22,7 +22,7 @@ export type Navigate = (section: string) => void;
 export type Screen =
   | 'home' | 'player' | 'live_tv' | 'guide' | 'game_day' | 'multi_screen' | 'plex' | 'backups' | 'player_appearance' | 'player_settings'
   | 'main_apps' | 'support' | 'posts' | 'tickets' | 'device_cleaner' | 'buffering_guide' | 'how_to' | 'support_videos' | 'speed_test' | 'ai_chat'
-  | 'dashboard' | 'snow_gems' | 'game_lounge' | 'giveaway' | 'settings' | 'settings_ui' | 'wallpaper' | 'phone_remote' | 'store';
+  | 'dashboard' | 'snow_gems' | 'game_lounge' | 'giveaway' | 'settings' | 'settings_ui' | 'wallpaper' | 'phone_remote' | 'store' | 'device_check';
 
 export type PreferenceKey = 'live_layout' | 'dashboard_size' | 'post_notifications' | 'content_bar';
 
@@ -30,7 +30,7 @@ export interface ReportIntent { search: string; issue?: string; details?: string
 
 export const INTENT_KEYS = {
   player: 'smc-player-intent',      // { section?: 'live'|'guide'|'multi'|'movies'|'backups'|'gameday'|'recordings', settings?: 'appearance'|'hub', report?: ReportIntent }
-  support: 'smc-support-open',      // 'posts' | 'tickets' | 'cleaner' | 'speedtest' | 'videos' | 'ai'
+  support: 'smc-support-open',      // 'posts' | 'tickets' | 'cleaner' | 'devicecheck' | 'speedtest' | 'videos' | 'ai'
   settings: 'smc-settings-tab',     // a Settings page: 'media' (Backgrounds) | 'ui' / 'ui-home' (Home screen) | 'account' | 'profiles' | 'remote' | 'notifications' | 'language' | 'updates' | 'alerts' | 'ai'
   installApp: 'smc-install-app',    // app name
   wallpaper: 'smc-wallpaper-prompt', // prompt text
@@ -75,6 +75,7 @@ const SCREEN_LABEL_KEYS: Record<Screen, string> = {
   support_videos: 'ai.screens.supportVideos', speed_test: 'ai.screens.speedTest', ai_chat: 'ai.screens.aiChat', dashboard: 'ai.screens.dashboard',
   snow_gems: 'ai.screens.snowGems', game_lounge: 'ai.screens.gameLounge', giveaway: 'ai.screens.giveaway', settings: 'ai.screens.settings',
   settings_ui: 'ai.screens.settingsUi', wallpaper: 'ai.screens.wallpaper', phone_remote: 'ai.screens.phoneRemote', store: 'ai.screens.store',
+  device_check: 'ai.screens.deviceCheck',
 };
 
 /** A screen's name in the app's language, at the moment it is spoken or shown. */
@@ -85,7 +86,7 @@ export const screenLabel = (screen: Screen): string => (SCREEN_LABEL_KEYS[screen
 export const KIDS_BLOCKED_SCREENS: ReadonlySet<Screen> = new Set<Screen>([
   'game_lounge', 'snow_gems', 'giveaway', 'dashboard', 'backups',
   'player_settings', 'player_appearance', 'main_apps', 'tickets', 'device_cleaner',
-  'store',
+  'store', 'device_check',
 ]);
 
 export function openScreen(screen: Screen, navigate: Navigate): string {
@@ -105,6 +106,7 @@ export function openScreen(screen: Screen, navigate: Navigate): string {
     case 'posts': toScreen('support', INTENT_KEYS.support, 'posts', navigate); break;
     case 'tickets': toScreen('support', INTENT_KEYS.support, 'tickets', navigate); break;
     case 'device_cleaner': toScreen('support', INTENT_KEYS.support, 'cleaner', navigate); break;
+    case 'device_check': toScreen('support', INTENT_KEYS.support, 'devicecheck', navigate); break;
     case 'buffering_guide': toScreen('support', 'smc-open-buffering-guide', '1', navigate); break;
     case 'how_to': toScreen('support', 'smc-open-howto', '1', navigate); break;
     case 'support_videos': toScreen('support', INTENT_KEYS.support, 'videos', navigate); break;
@@ -309,8 +311,10 @@ export function generateWallpaper(prompt: string, navigate: Navigate, generate =
 
 // ── The assistant's newer actions (app_actions 2) ─────────────────────────
 /** Sent to snow-media-ai as `app_actions`: which of its tools this build can
- *  carry out. An older build sends none, and is only offered the old ones. */
-export const ASSISTANT_ACTIONS_VERSION = 2;
+ *  carry out. An older build sends none, and is only offered the old ones.
+ *  3 (1.9.8): open_screen device_check, and open_settings on each of the
+ *  app's Settings pages (the menu-and-page Settings). */
+export const ASSISTANT_ACTIONS_VERSION = 3;
 
 // open_live_tv, open_plex, open_settings and request_plex_title. The chat and
 // the voice host both hand them to runAssistantAction, so the two cannot
@@ -362,14 +366,19 @@ export function openPlexPlace(tab: string, words: string, navigate: Navigate, ki
 /** Live TV Settings pages and the app's own Settings, as the assistant names them. */
 export type SettingsPlace =
   | 'live_tv_settings' | 'my_account' | 'devices' | 'services' | 'channels' | 'appearance' | 'recording_rewind' | 'player' | 'fix_a_problem'
-  | 'settings' | 'settings_ui' | 'home_screen' | 'wallpaper';
+  | 'settings' | 'settings_ui' | 'home_screen' | 'wallpaper'
+  // The app's Settings pages (1.9.8: a menu with a page per row).
+  | 'app_account' | 'profiles' | 'phone_remote' | 'notifications' | 'language' | 'updates';
 const LIVE_SETTINGS: Partial<Record<SettingsPlace, 'hub' | LiveSettingsPage>> = {
   live_tv_settings: 'hub', my_account: 'account', devices: 'devices', services: 'services', channels: 'channels',
   appearance: 'appearance', recording_rewind: 'rewind', player: 'player', fix_a_problem: 'help',
 };
 const APP_SETTINGS: Partial<Record<SettingsPlace, string | null>> = {
   settings: null, settings_ui: 'ui', home_screen: 'ui-home', wallpaper: 'media',
+  app_account: 'account', profiles: 'profiles', phone_remote: 'remote', notifications: 'notifications', language: 'language', updates: 'updates',
 };
+/** Settings pages a Kids profile's short Settings doesn't have. */
+const KIDS_NO_SETTINGS: ReadonlySet<SettingsPlace> = new Set<SettingsPlace>(['home_screen', 'app_account', 'notifications', 'updates']);
 
 /** Open a Settings page. Live TV Settings is a grown-up's (sign-out, the
  *  line's details, billing); a Kids profile gets the app's short Settings
@@ -381,7 +390,7 @@ export function openSettingsPlace(place: string, navigate: Navigate, kids = fals
     if (kids) return null;
     toPlayer({ section: 'live', settings: live }, navigate);
   } else if (p in APP_SETTINGS) {
-    if (kids && p === 'home_screen') return null;
+    if (kids && KIDS_NO_SETTINGS.has(p)) return null;
     const tab = APP_SETTINGS[p];
     if (tab) toScreen('settings', INTENT_KEYS.settings, tab, navigate);
     else navigate('settings');
@@ -471,7 +480,7 @@ export async function runAssistantAction(
     case 'open_settings': {
       const place = str('page');
       const ok = openSettingsPlace(place, navigate, kids);
-      if (!ok) return kids && (place in LIVE_SETTINGS || place === 'home_screen') ? said('ai.actions.grownUp') : said('ai.actions.unknownPlace');
+      if (!ok) return kids && (place in LIVE_SETTINGS || KIDS_NO_SETTINGS.has(place as SettingsPlace)) ? said('ai.actions.grownUp') : said('ai.actions.unknownPlace');
       return said('ai.actions.openingSettings', { where: said(`ai.actions.settings.${place}`) });
     }
     case 'request_plex_title': {

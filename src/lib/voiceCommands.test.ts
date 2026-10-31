@@ -9,6 +9,7 @@ describe('parseVoiceCommand', () => {
     ['go home', { kind: 'screen', screen: 'home' }],
     ['Hey Snow, open settings please', { kind: 'screen', screen: 'settings' }],
     ['device cleaner', { kind: 'screen', screen: 'device_cleaner' }],
+    ['device check', { kind: 'screen', screen: 'device_check' }],
     ['switch profile', { kind: 'profiles' }],
     ['put on ESPN', { kind: 'channel', name: 'espn' }],
     ['turn on channel Fox Sports 1', { kind: 'channel', name: 'fox sports 1' }],
