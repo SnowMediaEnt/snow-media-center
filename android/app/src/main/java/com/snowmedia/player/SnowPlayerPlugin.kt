@@ -2867,6 +2867,9 @@ class SnowPlayerPlugin : Plugin() {
                 // (handleOnStart, or the page's own load on return).
                 s.holding = false
                 p.playWhenReady = false
+                // A player still prepared (a channel the page didn't stop)
+                // would buffer the new item at once: idle it first.
+                p.stop()
                 s.parked = true
                 releaseWifi()
                 call.resolve()
