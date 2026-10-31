@@ -177,7 +177,9 @@ describe('Settings menu column', () => {
 
     toRow('updates');
     key('ArrowRight');
-    expect(document.querySelector('[data-settings-focus="updates-content"]')?.getAttribute('data-focused')).toBe('true');
+    // In the page; no ring round the panel (its buttons hold real focus and show it).
+    expect(document.querySelector('[data-settings-preview]')?.getAttribute('data-settings-preview')).toBe('false');
+    expect(document.querySelector('[data-settings-focus="updates-content"]')?.getAttribute('data-focused')).not.toBe('true');
     key('ArrowUp');
     expect(focused()).toBe('row-updates');
   });

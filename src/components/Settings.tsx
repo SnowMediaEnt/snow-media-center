@@ -242,7 +242,7 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
       case 'home': return kids
         ? ['ui-content-bar-toggle']
         : ['ui-content-bar-toggle', 'ui-home-bar-source', 'ui-home-bar-show', 'ui-dashboard-size-toggle', 'ui-home-tiles-reset'];
-      case 'notifications': return ['ui-mail-notify-toggle', ...(deviceAlerts.supported ? ['ui-device-alerts-toggle'] : [])];
+      case 'notifications': return ['ui-mail-notify-toggle', ...(deviceAlerts.supported || isHowtoCapture() ? ['ui-device-alerts-toggle'] : [])];
       case 'language': return SUPPORTED_LANGUAGES.map((l) => `ui-language-${l.code}`);
       case 'profiles': return ['profiles-switch', ...(kids ? [] : ['profiles-manage', ...(pinsAvailable() ? ['profiles-parent'] : [])])];
       case 'remote': return ['remote-hint', 'remote-unpair'];
@@ -297,6 +297,16 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
     setItem(null);
     setSignOutArmed(false);
   }, []);
+
+  // The item under the remote went away (Sign out of the Player took the card
+  // and Rate with it): the page's first item, or the menu if nothing is left.
+  const itemGone = pane === 'page' && !!item && LIST_PAGES.has(shownPage) && !pageItems(shownPage).includes(item);
+  useEffect(() => {
+    if (!itemGone) return;
+    const first = firstItem(shownPage);
+    if (first) setItem(first); else toMenu();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemGone]);
 
   /** The remote goes into a page (OK / Right on its row, a tap in it, an intent). */
   const enterPage = (p: SettingsPage) => {
@@ -410,7 +420,9 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
     if (shownPage === 'alerts' || shownPage === 'ai') {
       // Left moves the caret in a text field; anywhere else it goes back to the menu.
       const inField = typing || target.tagName === 'SELECT';
-      if (back || e.key === 'ArrowUp' || (e.key === 'ArrowLeft' && !inField)) { stop(); toMenu(); }
+      // Backspace in a field deletes a character; only Escape / the remote's Back leave.
+      const leave = back && !(typing && e.key === 'Backspace');
+      if (leave || e.key === 'ArrowUp' || (e.key === 'ArrowLeft' && !inField)) { stop(); toMenu(); }
       // Everything else belongs to the panel's own controls.
       return;
     }
@@ -539,7 +551,8 @@ const Settings = ({ onBack, onNavigate }: SettingsProps) => {
       case 'language': return <LanguagePage f={f} current={currentLang} onPick={handleLanguageSelect} />;
       case 'updates': return (
         <div className="space-y-3">
-          <section {...f.attrs('updates-content')} data-focused={inPage ? 'true' : 'false'} className="tv-ring rounded-2xl bg-slate-800/55 border border-white/10 p-5">
+          {/* No ring of its own: the updater's buttons and the cache rows hold real focus and show it. */}
+          <section {...f.attrs('updates-content')} className="rounded-2xl bg-slate-800/55 border border-white/10 p-5">
             <AppUpdater />
           </section>
           <ApkCacheViewer />

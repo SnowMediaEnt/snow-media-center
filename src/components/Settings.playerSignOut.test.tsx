@@ -5,11 +5,12 @@ import i18n from '@/i18n';
 // Settings › My account: the Player Account panel's "Sign out of player" is
 // reachable by remote (owner, 2026-10-15): Up from the first setting, never
 // where Right lands, and it takes OK twice.
-const flags = vi.hoisted(() => ({ admin: false, signOutPlayer: vi.fn(async () => {}) }));
+const ACCOUNT = { host: 'http://h', username: 'jane', password: 'secret', serverLabel: 'DreamStreams', status: 'Active', expDate: null, createdAt: null, maxConnections: 2, activeCons: 0, isTrial: false };
+const flags = vi.hoisted(() => ({ admin: false, signOutPlayer: vi.fn(async () => {}), account: null as unknown }));
 vi.mock('@/lib/playerSignOut', () => ({ signOutPlayer: flags.signOutPlayer }));
 vi.mock('@/hooks/usePlayerAccount', () => ({
   usePlayerAccount: () => ({
-    account: { host: 'http://h', username: 'jane', password: 'secret', serverLabel: 'DreamStreams', status: 'Active', expDate: null, createdAt: null, maxConnections: 2, activeCons: 0, isTrial: false },
+    account: flags.account,
     state: { severity: 'ok', show: false, label: '' },
     days: 30,
   }),
@@ -60,6 +61,7 @@ beforeEach(() => {
   sessionStorage.clear(); localStorage.clear();
   flags.admin = false;
   flags.signOutPlayer.mockClear();
+  flags.account = ACCOUNT;
   Element.prototype.scrollTo = vi.fn() as unknown as typeof Element.prototype.scrollTo;
   Element.prototype.scrollIntoView = vi.fn();
   window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
@@ -104,5 +106,15 @@ describe('Settings › My account: Sign out of player by remote', () => {
     expect(focused()).toBe('row-account');
     expect(screen.queryByText('Press OK again to sign out')).toBeNull();
     expect(flags.signOutPlayer).not.toHaveBeenCalled();
+  });
+
+  it('once signed out the card is gone and the remote moves to Rate, not nowhere', async () => {
+    const { rerender } = render(<Settings onBack={vi.fn()} />);
+    key('ArrowRight'); key('ArrowUp');
+    key('Enter'); key('Enter');
+    await waitFor(() => expect(flags.signOutPlayer).toHaveBeenCalledTimes(1));
+    flags.account = null;
+    rerender(<Settings onBack={vi.fn()} />);
+    await waitFor(() => expect(focused()).toBe('ui-rate-app'));
   });
 });

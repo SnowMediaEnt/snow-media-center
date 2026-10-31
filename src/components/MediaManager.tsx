@@ -200,8 +200,9 @@ const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }:
 
 
   // Helper to get focus ring class - use rounded ring for inputs and selects
-  const getFocusClass = (id: FocusElement) => 
-    focusedElement === id 
+ // Only while the remote is here: Settings shows this page beside its menu, and a ring left on it would be a second highlight.
+  const getFocusClass = (id: FocusElement) =>
+    isActive && focusedElement === id 
       ? 'ring-4 ring-brand-ice scale-105 rounded-md' 
       : '';
 
@@ -1154,7 +1155,7 @@ const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }:
                 value={generatePrompt}
                 onChange={(e) => setGeneratePrompt(e.target.value)}
                 placeholder={t('media.generate.promptPlaceholder')}
-                className={`h-10 bg-white/10 border-white/20 text-white placeholder:text-white/60 transition-all ${hasUserNavigated && focusedElement === 'prompt-input' ? 'ring-4 ring-brand-ice' : ''}`}
+                className={`h-10 bg-white/10 border-white/20 text-white placeholder:text-white/60 transition-all ${isActive && hasUserNavigated && focusedElement === 'prompt-input' ? 'ring-4 ring-brand-ice' : ''}`}
                 disabled={generating}
               />
             </div>
@@ -1346,9 +1347,9 @@ const MediaManager = ({ onBack, embedded = false, isActive = true, onExitLeft }:
           </h3>
           <div className="grid" style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`, gridGap: GALLERY_GAP }}>
             {galleryItems.map((item, index) => {
-              const isFocused = focusedElement === `asset-${index}`;
-              const isToggleFocused = focusedElement === `asset-toggle-${item.id}`;
-              const isDeleteFocused = focusedElement === `asset-delete-${item.id}`;
+              const isFocused = isActive && focusedElement === `asset-${index}`;
+              const isToggleFocused = isActive && focusedElement === `asset-toggle-${item.id}`;
+              const isDeleteFocused = isActive && focusedElement === `asset-delete-${item.id}`;
               return (
                 <div
                   key={item.id}
