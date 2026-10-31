@@ -5,50 +5,59 @@
   "langs": {
     "en": {
       "apps": {
-        "bytes": 20724,
+        "bytes": 20120,
         "rects": {
           "apps.grid": [5, 49.44, 90, 50.56]
         }
       },
       "apps-detail": {
-        "bytes": 18792,
+        "bytes": 18352,
         "rects": {
-          "apps.download": [5.15, 63.46, 44.92, 7.33]
+          "apps.download": [5.83, 63.46, 43.54, 7.33]
         }
       },
       "backups": {
-        "bytes": 19140,
+        "bytes": 18784,
         "rects": {
           "backups.list": [5, 28.33, 95, 71.67],
           "backups.refresh": [85.2, 13.84, 12.6, 9.72]
         }
       },
       "buffering": {
-        "bytes": 26252,
+        "bytes": 25262,
         "rects": {
           "bg.steps": [5, 11.85, 90, 5.56]
         }
       },
       "dashboard": {
-        "bytes": 30230,
+        "bytes": 29148,
         "rects": {
           "dash.games": [65.83, 28.8, 29.17, 7.41],
           "dash.gems": [5, 15.37, 29.17, 11.2],
-          "dash.player": [28.49, 58.24, 35.64, 30],
+          "dash.player": [28.49, 58.24, 35.64, 41.76],
           "dash.services": [65.38, 58.24, 28.26, 34.81],
           "dash.signOut": [82.33, 5, 12.67, 8.15]
         }
       },
-      "gameday": {
-        "bytes": 21020,
+      "device-check": {
+        "bytes": 37306,
         "rects": {
-          "gd.chips": [25.14, 12.78, 24.21, 5.93],
+          "ds.ask": [47.1, 18.59, 19.77, 7.41],
+          "ds.found": [2.5, 30.79, 38.71, 69.21],
+          "ds.overall": [2.5, 16.02, 95, 12.55],
+          "ds.picks": [43.3, 30.79, 54.2, 69.21]
+        }
+      },
+      "gameday": {
+        "bytes": 20346,
+        "rects": {
+          "gd.chips": [25.13, 12.78, 30.49, 5.93],
           "gd.game": [6.67, 20.93, 91.25, 47.41],
           "gd.remind": [84.47, 25, 12.2, 6.67]
         }
       },
       "gameday-game": {
-        "bytes": 26984,
+        "bytes": 25776,
         "rects": {
           "gd.down": [7.5, 76.48, 89.58, 8.89],
           "gd.holdHint": [7.5, 94.07, 90, 2.96],
@@ -59,41 +68,41 @@
         }
       },
       "gems": {
-        "bytes": 18104,
+        "bytes": 17790,
         "rects": {
           "gems.packs": [5, 52.04, 90, 47.96]
         }
       },
       "gems-qr": {
-        "bytes": 22586,
+        "bytes": 22758,
         "rects": {
           "gems.qr": [5, 17.59, 34.27, 60.93]
         }
       },
       "guide": {
-        "bytes": 31704,
+        "bytes": 39386,
         "rects": {
-          "guide.categories": [5, 10.56, 95, 11.67],
-          "guide.channels": [5.89, 56.76, 23.38, 43.24],
-          "guide.grid": [29.04, 56.76, 70.07, 43.24]
+          "guide.categories": [6.25, 36, 24.17, 4.26],
+          "guide.channels": [6.25, 40.44, 24.17, 53.15],
+          "guide.grid": [30.42, 40.44, 68.33, 53.15]
         }
       },
       "guide-record": {
-        "bytes": 28002,
+        "bytes": 28182,
         "rects": {
           "rec.programmes": [14.69, 15.56, 70.63, 31.85],
           "rec.start": [14.69, 69.63, 70.63, 8.15]
         }
       },
       "home": {
-        "bytes": 34952,
+        "bytes": 33678,
         "rects": {
           "home.cardLivetv": [10.5, 78.23, 16, 18.77],
           "home.cardPlex": [31.5, 78.23, 16, 18.77],
           "home.cards": [3, 78.23, 94, 18.77],
           "home.cardStore": [73.5, 78.23, 16, 18.77],
           "home.cardSupport": [52.5, 78.23, 16, 18.77],
-          "home.clock": [35.56, 2.69, 28.89, 7.04],
+          "home.clock": [35.55, 2.69, 28.9, 7.04],
           "home.dashboard": [80.83, 2.5, 4.17, 7.41],
           "home.profile": [75.42, 2.5, 4.58, 7.41],
           "home.recommended": [3, 35.97, 94, 38.15],
@@ -103,7 +112,7 @@
         }
       },
       "home-bar": {
-        "bytes": 34800,
+        "bytes": 33392,
         "rects": {
           "home.recArrows": [3.42, 41.15, 93.17, 27.04],
           "home.recDots": [3, 69.67, 94, 4.44],
@@ -111,8 +120,25 @@
           "home.recTile": [18.8, 40.48, 9.38, 28.39]
         }
       },
+      "home-tilemenu": {
+        "bytes": 32188,
+        "rects": {
+          "home.tileChange": [3.81, 47.95, 29.38, 8.15],
+          "home.tileMenu": [2.88, 31.47, 31.25, 44.07],
+          "home.tileMove": [3.81, 39.06, 29.38, 8.15],
+          "home.tileReset": [3.81, 56.84, 29.38, 8.15]
+        }
+      },
+      "live-account": {
+        "bytes": 28694,
+        "rects": {
+          "acct.pin": [53.85, 39.81, 20.31, 23.89],
+          "acct.pinBtn": [30, 34.78, 20.92, 9.33],
+          "hub.account": [1.67, 17.22, 26.67, 9.26]
+        }
+      },
       "live-holdmenu": {
-        "bytes": 16794,
+        "bytes": 17372,
         "rects": {
           "menu.favorite": [25.52, 41.11, 48.96, 9.26],
           "menu.record": [25.52, 51.85, 48.96, 9.26],
@@ -120,37 +146,45 @@
         }
       },
       "live-layout": {
-        "bytes": 18922,
+        "bytes": 19132,
         "rects": {
-          "live.layoutCards": [5, 28.15, 90, 52.78]
+          "live.layoutCards": [5, 32, 90, 45.07]
         }
       },
       "live-list": {
-        "bytes": 26802,
+        "bytes": 32216,
         "rects": {
           "live.back": [2.08, 1.48, 13.19, 7.41],
-          "live.categories": [6.25, 34.26, 24.06, 65.74],
-          "live.channels": [31.67, 43.33, 68.33, 56.67],
-          "live.favorites": [6.25, 43.15, 24.06, 8.89],
-          "live.lineGroup": [6.25, 35, 24.06, 8.89],
-          "live.nowNext": [61.67, 13.52, 36.67, 26.67],
-          "live.preview": [33.33, 13.52, 26.67, 26.67],
-          "live.recordingsBtn": [6.25, 23.52, 24.06, 9.26],
-          "live.searchBtn": [6.25, 12.78, 24.06, 9.26],
+          "live.categories": [6.25, 22.04, 20.73, 77.96],
+          "live.channels": [28.33, 43.33, 71.67, 56.67],
+          "live.favorites": [6.25, 36.11, 20.73, 7.04],
+          "live.lineGroup": [6.25, 29.81, 20.73, 7.04],
+          "live.nowNext": [58.33, 13.52, 40, 26.67],
+          "live.preview": [30, 13.52, 26.67, 26.67],
+          "live.recordingsBtn": [1.25, 41.67, 2.4, 8.15],
+          "live.searchBtn": [6.25, 12.78, 20.73, 7.78],
           "live.sections": [0, 10.56, 5, 89.44],
           "live.settingsBtn": [85.79, 1.48, 12.12, 7.41],
-          "live.updateChannels": [66.88, 1.48, 18.08, 7.41]
+          "live.updateChannels": [66.89, 1.48, 18.07, 7.41]
+        }
+      },
+      "live-pin": {
+        "bytes": 10896,
+        "rects": {
+          "signin.note": [57.29, 55.76, 34.38, 8.33],
+          "signin.pinInput": [6.77, 43.91, 46.46, 12.59],
+          "signin.pinSubmit": [6.77, 59.47, 46.46, 7.41]
         }
       },
       "live-player": {
-        "bytes": 15014,
+        "bytes": 14374,
         "rects": {
           "bar.audio": [68.75, 76.48, 5, 15.56],
           "bar.cc": [62.92, 76.48, 5, 15.56],
           "bar.channel": [3.33, 50.37, 93.33, 12.59],
           "bar.fwd": [33.75, 76.48, 5, 15.56],
           "bar.golive": [39.58, 76.48, 5, 15.56],
-          "bar.label": [51.04, 89.07, 5.42, 2.96],
+          "bar.label": [51.04, 89.07, 5.43, 2.96],
           "bar.next": [45.42, 76.48, 5, 15.56],
           "bar.play": [26.25, 76.48, 6.67, 15.56],
           "bar.prev": [14.58, 76.48, 5, 15.56],
@@ -162,8 +196,15 @@
           "bar.vol": [74.58, 76.48, 5, 15.56]
         }
       },
+      "live-player-page": {
+        "bytes": 30328,
+        "rects": {
+          "hub.player": [1.67, 67.22, 26.67, 9.26],
+          "player.liveBuffer": [30, 58.9, 68.33, 17.94]
+        }
+      },
       "live-record": {
-        "bytes": 21750,
+        "bytes": 22300,
         "rects": {
           "rec.length": [14.69, 36.67, 70.63, 20.74],
           "rec.saveTo": [14.69, 21.11, 70.63, 14.07],
@@ -171,124 +212,135 @@
         }
       },
       "live-report": {
-        "bytes": 15538,
+        "bytes": 16202,
         "rects": {
           "report.reasons": [25.52, 25, 48.96, 52.22]
         }
       },
       "live-search": {
-        "bytes": 19090,
+        "bytes": 18464,
         "rects": {
-          "live.channels": [31.67, 43.33, 68.33, 56.67],
-          "live.searchBox": [6.25, 23.52, 24.06, 9.26]
+          "live.channels": [28.33, 43.33, 71.67, 56.67],
+          "live.searchBox": [6.25, 22.04, 20.73, 7.78]
         }
       },
       "live-settings": {
-        "bytes": 15932,
+        "bytes": 17690,
         "rects": {
+          "hub.account": [1.67, 17.22, 26.67, 9.26],
           "hub.appearance": [1.67, 47.22, 26.67, 9.26],
           "hub.channels": [1.67, 37.22, 26.67, 9.26],
+          "hub.help": [1.67, 77.22, 26.67, 9.26],
+          "hub.player": [1.67, 67.22, 26.67, 9.26],
           "hub.rewind": [1.67, 57.22, 26.67, 9.26],
           "hub.services": [1.67, 27.13, 26.67, 9.44],
           "hub.signOut": [1.67, 87.22, 26.67, 9.26]
         }
       },
       "live-signin": {
-        "bytes": 11040,
+        "bytes": 12250,
         "rects": {
-          "signin.note": [23.44, 80.19, 53.13, 5.93],
-          "signin.password": [23.44, 47.59, 53.13, 14.81],
-          "signin.submit": [23.44, 68.33, 53.13, 8.89],
-          "signin.username": [23.44, 29.81, 53.13, 14.81]
+          "signin.note": [57.29, 59.93, 34.38, 11.39],
+          "signin.password": [6.77, 51.13, 46.46, 12.59],
+          "signin.pinBtn": [57.29, 33.5, 34.38, 6.67],
+          "signin.submit": [6.77, 66.69, 46.46, 7.41],
+          "signin.username": [6.77, 36.69, 46.46, 12.59]
         }
       },
       "multi": {
-        "bytes": 12992,
+        "bytes": 21120,
         "rects": {
-          "multi.layouts": [15.89, 46.39, 73.33, 29.63]
+          "multi.layouts": [8.44, 40.46, 88.23, 31.85]
         }
       },
       "plex-audio": {
-        "bytes": 12866,
+        "bytes": 12756,
         "rects": {
           "pp.fixAudio": [67.6, 60.56, 28.13, 8.15]
         }
       },
       "plex-connect": {
-        "bytes": 13022,
+        "bytes": 12082,
         "rects": {
-          "plexauth.connect": [26.93, 68.3, 23.52, 9.33],
-          "plexauth.ownServer": [51.14, 68.52, 21.37, 8.89]
+          "plexauth.connect": [27.37, 68.3, 22.64, 9.33],
+          "plexauth.ownServer": [50.72, 68.52, 21.37, 8.89]
         }
       },
       "plex-detail": {
-        "bytes": 20888,
+        "bytes": 23524,
         "rects": {
-          "detail.cast": [24.17, 65.56, 72.5, 30.37],
-          "detail.myList": [36.81, 44.81, 11.45, 7.41],
-          "detail.play": [23.87, 44.63, 12.4, 7.78],
-          "detail.version": [24.17, 54.44, 72.5, 6.67]
+          "detail.cast": [21.46, 49.44, 75.21, 28.7],
+          "detail.myList": [33.89, 30.93, 11.24, 7.04],
+          "detail.play": [21.17, 30.75, 12.17, 7.39],
+          "detail.version": [21.46, 40.19, 75.21, 5.56]
         }
       },
       "plex-discover": {
-        "bytes": 37208,
+        "bytes": 33484,
         "rects": {
-          "plex.discover": [30.83, 14.05, 66.67, 85.95]
+          "plex.discover": [30.83, 22.2, 66.67, 77.8]
         }
       },
       "plex-home": {
-        "bytes": 32334,
+        "bytes": 34802,
         "rects": {
-          "plex.continue": [30.83, 14.05, 66.67, 44.44],
+          "plex.continue": [30.83, 30.19, 66.67, 36.2],
           "plex.menu": [5, 10.56, 23.33, 89.44],
-          "plex.recent": [30.83, 60.72, 66.67, 39.28]
+          "plex.recent": [30.83, 67.13, 66.67, 32.87]
         }
       },
       "plex-link": {
-        "bytes": 12800,
+        "bytes": 12536,
         "rects": {
           "plexauth.code": [26.77, 43.52, 46.46, 17.78],
           "plexauth.url": [26.77, 31.67, 46.46, 8.89]
         }
       },
       "plex-player": {
-        "bytes": 11138,
+        "bytes": 11454,
         "rects": {
-          "pp.audio": [42.08, 79.26, 5, 8.89],
+          "pp.audio": [33.53, 79.26, 5, 8.89],
           "pp.controls": [3.33, 77.78, 93.33, 11.85],
+          "pp.next": [71.03, 80, 15.85, 7.41],
           "pp.seek": [3.33, 70, 93.33, 1.11],
           "pp.skip": [75.25, 53.33, 19.75, 14.07],
-          "pp.subs": [48.33, 79.26, 5, 8.89]
+          "pp.subs": [39.78, 79.26, 5, 8.89]
+        }
+      },
+      "plex-related": {
+        "bytes": 30940,
+        "rects": {
+          "detail.related": [21.46, 63.33, 75.21, 36.67]
         }
       },
       "plex-search": {
-        "bytes": 12688,
+        "bytes": 12540,
         "rects": {
-          "plex.results": [13.33, 26.28, 84.17, 39.81],
+          "plex.results": [13.33, 26.28, 84.17, 39.44],
           "plex.searchBox": [13.33, 14.05, 84.17, 9.26]
         }
       },
       "plex-subs": {
-        "bytes": 12290,
+        "bytes": 12124,
         "rects": {
           "pp.getSubs": [67.6, 60.56, 28.13, 8.15]
         }
       },
       "plex-upnext": {
-        "bytes": 7838,
+        "bytes": 7588,
         "rects": {
           "pp.upNext": [52.35, 67.69, 42.65, 23.43]
         }
       },
       "profile-edit": {
-        "bytes": 20042,
+        "bytes": 19800,
         "rects": {
           "prof.kidsLevel": [15, 50.56, 70, 11.85],
           "prof.pinBtn": [15, 84.63, 17.39, 10.37]
         }
       },
       "profiles-pick": {
-        "bytes": 12056,
+        "bytes": 11570,
         "rects": {
           "prof.kids": [51.67, 35.19, 13.33, 31.11],
           "prof.list": [3.33, 32.22, 93.33, 37.04],
@@ -296,110 +348,128 @@
         }
       },
       "recordings": {
-        "bytes": 23692,
+        "bytes": 23926,
         "rects": {
-          "recs.drive": [62.81, 15.56, 35.1, 3.52],
-          "recs.list": [7.19, 56.48, 90.73, 34.63],
-          "recs.scheduled": [7.19, 22.41, 90.73, 15.56]
+          "recs.drive": [62.81, 15.56, 35.11, 3.52],
+          "recs.list": [7.08, 56.48, 90.83, 34.63],
+          "recs.scheduled": [7.08, 22.41, 90.83, 15.56]
+        }
+      },
+      "settings-home": {
+        "bytes": 30888,
+        "rects": {
+          "set.barShow": [30.73, 58.1, 66.88, 18.38],
+          "set.barSource": [30.73, 39.35, 66.88, 18.38],
+          "set.contentBar": [30.73, 24.44, 66.88, 14.54],
+          "set.homeRow": [1.67, 27.22, 26.67, 9.26],
+          "set.tilesReset": [30.73, 91.76, 66.88, 5.28]
         }
       },
       "settings-language": {
-        "bytes": 22112,
+        "bytes": 15884,
         "rects": {
-          "set.language": [5, 66.2, 90, 33.8]
+          "set.language": [30, 23.15, 68.33, 27.78]
         }
       },
       "settings-media": {
-        "bytes": 21328,
+        "bytes": 25530,
         "rects": {
-          "set.wallpaper": [7.6, 44.72, 84.79, 55.28]
+          "set.wallpaper": [30, 23.15, 68.33, 34.07]
         }
       },
       "settings-remote": {
-        "bytes": 31732,
+        "bytes": 33766,
         "rects": {
-          "set.remoteCode": [7.19, 63.61, 29.01, 11.11],
-          "set.remoteQr": [13.88, 33.61, 15.63, 27.78],
-          "set.remoteSteps": [38.69, 39.54, 54.12, 22.96]
+          "set.remoteCode": [32.19, 54.44, 29.01, 11.11],
+          "set.remoteQr": [39.4, 26.3, 14.58, 25.93],
+          "set.remoteSteps": [63.69, 32.22, 32.45, 31.85]
         }
       },
       "settings-switches": {
-        "bytes": 24664,
+        "bytes": 24810,
         "rects": {
-          "set.alerts": [5, 76.02, 90, 22.59],
-          "set.contentBar": [5, 0, 90, 21.94],
-          "set.postNotify": [2.75, 49.9, 94.5, 23.72]
+          "set.alerts": [30.73, 39.35, 66.88, 18.1],
+          "set.homeRow": [1.67, 27.22, 26.67, 9.26],
+          "set.postNotify": [30.73, 24.44, 66.88, 14.54]
         }
       },
       "settings-ui": {
-        "bytes": 22980,
+        "bytes": 17944,
         "rects": {
-          "set.tabs": [5, 19.35, 90, 7.41],
-          "set.updatesTab": [76.75, 20.09, 17.83, 5.93]
+          "set.page": [30, 17.22, 68.33, 79.81],
+          "set.tabs": [1.67, 17.22, 26.67, 79.26],
+          "set.updatesTab": [1.67, 87.22, 26.67, 9.26]
         }
       },
       "speedtest": {
-        "bytes": 13300,
+        "bytes": 13142,
         "rects": {
           "speed.start": [77.72, 4.92, 17.45, 8.31]
         }
       },
       "store": {
-        "bytes": 18818,
+        "bytes": 17838,
         "rects": {
           "store.grid": [2.5, 29.81, 95, 55.93]
         }
       },
       "support-ai": {
-        "bytes": 18194,
+        "bytes": 17320,
         "rects": {
           "ai.input": [6.77, 86.94, 64.33, 7.41]
         }
       },
       "support-help": {
-        "bytes": 27408,
+        "bytes": 27904,
         "rects": {
           "sup.aiTab": [35.31, 20.28, 29.38, 7.41],
-          "sup.apps": [50.63, 77.87, 44.38, 13.33],
-          "sup.cleaner": [5, 77.87, 44.38, 13.33],
+          "sup.apps": [5, 93.43, 44.38, 6.57],
+          "sup.cleaner": [50.63, 77.87, 44.38, 13.33],
+          "sup.deviceCheck": [50.63, 46.76, 44.38, 13.33],
           "sup.guide": [5, 46.76, 44.38, 13.33],
           "sup.helpTab": [5.52, 20.28, 29.38, 7.41],
           "sup.howto": [5, 31.2, 44.38, 13.33],
           "sup.postsTab": [65.1, 20.28, 29.38, 7.41],
-          "sup.remote": [50.63, 62.31, 44.38, 13.33],
+          "sup.remote": [5, 77.87, 44.38, 13.33],
           "sup.speed": [50.63, 31.2, 44.38, 13.33],
-          "sup.tickets": [5, 62.31, 44.38, 13.33],
-          "sup.videos": [50.63, 46.76, 44.38, 13.33]
+          "sup.tickets": [50.63, 62.31, 44.38, 13.33],
+          "sup.videos": [5, 62.31, 44.38, 13.33]
         }
       },
       "support-posts": {
-        "bytes": 23298,
+        "bytes": 22928,
         "rects": {
           "posts.list": [5, 39.35, 90, 60.65]
         }
       },
       "tickets": {
-        "bytes": 16602,
+        "bytes": 15764,
         "rects": {
           "tickets.list": [5, 17.59, 90, 32.96],
           "tickets.new": [80.89, 5.37, 14.11, 7.41]
         }
       },
       "videos": {
-        "bytes": 24916,
+        "bytes": 24340,
         "rects": {
           "videos.grid": [5, 49.44, 90, 50.56]
         }
       },
       "vod": {
-        "bytes": 21164,
+        "bytes": 20640,
         "rects": {
           "vod.categories": [5, 10.56, 26.67, 89.44],
           "vod.grid": [31.67, 10.56, 68.33, 89.44]
         }
       },
+      "vod-holdmenu": {
+        "bytes": 13116,
+        "rects": {
+          "menu.report": [24.18, 45.48, 51.64, 7.93]
+        }
+      },
       "voice": {
-        "bytes": 36356,
+        "bytes": 34952,
         "rects": {
           "voice.mic": [13.44, 74.26, 6.67, 11.85]
         }
@@ -407,50 +477,59 @@
     },
     "es": {
       "apps": {
-        "bytes": 21794,
+        "bytes": 21106,
         "rects": {
           "apps.grid": [5, 49.44, 90, 50.56]
         }
       },
       "apps-detail": {
-        "bytes": 19936,
+        "bytes": 19386,
         "rects": {
-          "apps.download": [5.15, 63.46, 44.92, 7.33]
+          "apps.download": [5.83, 63.46, 43.54, 7.33]
         }
       },
       "backups": {
-        "bytes": 20754,
+        "bytes": 20188,
         "rects": {
           "backups.list": [5, 28.33, 95, 71.67],
           "backups.refresh": [83.27, 13.84, 14.58, 9.72]
         }
       },
       "buffering": {
-        "bytes": 27880,
+        "bytes": 26776,
         "rects": {
           "bg.steps": [5, 11.85, 90, 5.56]
         }
       },
       "dashboard": {
-        "bytes": 32788,
+        "bytes": 31000,
         "rects": {
           "dash.games": [65.83, 28.8, 29.17, 7.41],
           "dash.gems": [5, 15.37, 29.17, 11.2],
-          "dash.player": [28.49, 58.24, 35.64, 30],
+          "dash.player": [28.49, 58.24, 35.64, 41.76],
           "dash.services": [65.38, 58.24, 28.26, 34.81],
           "dash.signOut": [79.48, 5, 15.52, 8.15]
         }
       },
-      "gameday": {
-        "bytes": 21324,
+      "device-check": {
+        "bytes": 36712,
         "rects": {
-          "gd.chips": [25.14, 12.78, 26.25, 5.93],
+          "ds.ask": [43.55, 26.32, 23.57, 7.41],
+          "ds.found": [2.5, 46.25, 38.71, 53.75],
+          "ds.overall": [2.5, 16.02, 95, 28.01],
+          "ds.picks": [43.3, 46.25, 54.2, 53.75]
+        }
+      },
+      "gameday": {
+        "bytes": 20774,
+        "rects": {
+          "gd.chips": [25.13, 12.78, 32.53, 5.93],
           "gd.game": [6.67, 20.93, 91.25, 47.41],
           "gd.remind": [83.68, 25, 12.98, 6.67]
         }
       },
       "gameday-game": {
-        "bytes": 28108,
+        "bytes": 26816,
         "rects": {
           "gd.down": [7.5, 76.48, 89.58, 8.89],
           "gd.holdHint": [7.5, 94.07, 90, 2.96],
@@ -461,41 +540,41 @@
         }
       },
       "gems": {
-        "bytes": 19674,
+        "bytes": 19188,
         "rects": {
           "gems.packs": [5, 52.04, 90, 47.96]
         }
       },
       "gems-qr": {
-        "bytes": 22916,
+        "bytes": 23106,
         "rects": {
           "gems.qr": [5, 17.59, 34.27, 60.93]
         }
       },
       "guide": {
-        "bytes": 33094,
+        "bytes": 40036,
         "rects": {
-          "guide.categories": [5, 10.56, 95, 11.67],
-          "guide.channels": [5.89, 56.76, 23.38, 43.24],
-          "guide.grid": [29.04, 56.76, 70.07, 43.24]
+          "guide.categories": [6.25, 36, 24.17, 4.26],
+          "guide.channels": [6.25, 40.44, 24.17, 53.15],
+          "guide.grid": [30.42, 40.44, 68.33, 53.15]
         }
       },
       "guide-record": {
-        "bytes": 28456,
+        "bytes": 28200,
         "rects": {
           "rec.programmes": [14.69, 15.56, 70.63, 31.85],
           "rec.start": [14.69, 69.63, 70.63, 8.15]
         }
       },
       "home": {
-        "bytes": 35014,
+        "bytes": 33862,
         "rects": {
           "home.cardLivetv": [10.5, 78.23, 16, 18.77],
           "home.cardPlex": [31.5, 78.23, 16, 18.77],
           "home.cards": [3, 78.23, 94, 18.77],
           "home.cardStore": [73.5, 78.23, 16, 18.77],
           "home.cardSupport": [52.5, 78.23, 16, 18.77],
-          "home.clock": [35.1, 2.69, 29.79, 7.04],
+          "home.clock": [35.09, 2.69, 29.81, 7.04],
           "home.dashboard": [80.83, 2.5, 4.17, 7.41],
           "home.profile": [75.42, 2.5, 4.58, 7.41],
           "home.recommended": [3, 35.97, 94, 38.15],
@@ -505,7 +584,7 @@
         }
       },
       "home-bar": {
-        "bytes": 35042,
+        "bytes": 33540,
         "rects": {
           "home.recArrows": [3.42, 41.15, 93.17, 27.04],
           "home.recDots": [3, 69.67, 94, 4.44],
@@ -513,8 +592,25 @@
           "home.recTile": [18.8, 40.48, 9.38, 28.39]
         }
       },
+      "home-tilemenu": {
+        "bytes": 32542,
+        "rects": {
+          "home.tileChange": [3.81, 47.95, 29.38, 8.15],
+          "home.tileMenu": [2.88, 31.47, 31.25, 44.07],
+          "home.tileMove": [3.81, 39.06, 29.38, 8.15],
+          "home.tileReset": [3.81, 56.84, 29.38, 8.15]
+        }
+      },
+      "live-account": {
+        "bytes": 29836,
+        "rects": {
+          "acct.pin": [53.85, 39.81, 20.31, 23.89],
+          "acct.pinBtn": [30, 34.78, 20.92, 9.33],
+          "hub.account": [1.67, 17.22, 26.67, 9.26]
+        }
+      },
       "live-holdmenu": {
-        "bytes": 17924,
+        "bytes": 18434,
         "rects": {
           "menu.favorite": [25.52, 41.11, 48.96, 9.26],
           "menu.record": [25.52, 51.85, 48.96, 9.26],
@@ -522,30 +618,38 @@
         }
       },
       "live-layout": {
-        "bytes": 22658,
+        "bytes": 22820,
         "rects": {
-          "live.layoutCards": [5, 28.15, 90, 52.78]
+          "live.layoutCards": [5, 29.97, 90, 49.14]
         }
       },
       "live-list": {
-        "bytes": 28060,
+        "bytes": 33426,
         "rects": {
           "live.back": [2.08, 1.48, 13.59, 7.41],
-          "live.categories": [6.25, 34.26, 24.06, 65.74],
-          "live.channels": [31.67, 43.33, 68.33, 56.67],
-          "live.favorites": [6.25, 43.15, 24.06, 8.89],
-          "live.lineGroup": [6.25, 35, 24.06, 8.89],
-          "live.nowNext": [61.67, 13.52, 36.67, 26.67],
-          "live.preview": [33.33, 13.52, 26.67, 26.67],
-          "live.recordingsBtn": [6.25, 23.52, 24.06, 9.26],
-          "live.searchBtn": [6.25, 12.78, 24.06, 9.26],
+          "live.categories": [6.25, 22.04, 20.73, 77.96],
+          "live.channels": [28.33, 43.33, 71.67, 56.67],
+          "live.favorites": [6.25, 36.11, 20.73, 7.04],
+          "live.lineGroup": [6.25, 29.81, 20.73, 7.04],
+          "live.nowNext": [58.33, 13.52, 40, 26.67],
+          "live.preview": [30, 13.52, 26.67, 26.67],
+          "live.recordingsBtn": [1.25, 41.67, 2.4, 8.15],
+          "live.searchBtn": [6.25, 12.78, 20.73, 7.78],
           "live.sections": [0, 10.56, 5, 89.44],
-          "live.settingsBtn": [86.31, 1.48, 11.61, 7.41],
+          "live.settingsBtn": [86.31, 1.48, 11.6, 7.41],
           "live.updateChannels": [66.82, 1.48, 18.66, 7.41]
         }
       },
+      "live-pin": {
+        "bytes": 12330,
+        "rects": {
+          "signin.note": [57.29, 52.71, 34.38, 11.39],
+          "signin.pinInput": [6.77, 43.91, 46.46, 12.59],
+          "signin.pinSubmit": [6.77, 59.47, 46.46, 7.41]
+        }
+      },
       "live-player": {
-        "bytes": 15422,
+        "bytes": 14810,
         "rects": {
           "bar.audio": [68.75, 76.48, 5, 15.56],
           "bar.cc": [62.92, 76.48, 5, 15.56],
@@ -564,8 +668,15 @@
           "bar.vol": [74.58, 76.48, 5, 15.56]
         }
       },
+      "live-player-page": {
+        "bytes": 34712,
+        "rects": {
+          "hub.player": [1.67, 67.22, 26.67, 9.26],
+          "player.liveBuffer": [30, 58.9, 68.33, 17.94]
+        }
+      },
       "live-record": {
-        "bytes": 23370,
+        "bytes": 23782,
         "rects": {
           "rec.length": [14.69, 36.67, 70.63, 20.74],
           "rec.saveTo": [14.69, 21.11, 70.63, 14.07],
@@ -573,124 +684,135 @@
         }
       },
       "live-report": {
-        "bytes": 16560,
+        "bytes": 16980,
         "rects": {
           "report.reasons": [25.52, 25, 48.96, 52.22]
         }
       },
       "live-search": {
-        "bytes": 20458,
+        "bytes": 19568,
         "rects": {
-          "live.channels": [31.67, 43.33, 68.33, 56.67],
-          "live.searchBox": [6.25, 23.52, 24.06, 9.26]
+          "live.channels": [28.33, 43.33, 71.67, 56.67],
+          "live.searchBox": [6.25, 22.04, 20.73, 7.78]
         }
       },
       "live-settings": {
-        "bytes": 17226,
+        "bytes": 19038,
         "rects": {
+          "hub.account": [1.67, 17.22, 26.67, 9.26],
           "hub.appearance": [1.67, 47.22, 26.67, 9.26],
           "hub.channels": [1.67, 37.22, 26.67, 9.26],
+          "hub.help": [1.67, 77.22, 26.67, 9.26],
+          "hub.player": [1.67, 67.22, 26.67, 9.26],
           "hub.rewind": [1.67, 57.22, 26.67, 9.26],
           "hub.services": [1.67, 27.13, 26.67, 9.44],
           "hub.signOut": [1.67, 87.22, 26.67, 9.26]
         }
       },
       "live-signin": {
-        "bytes": 12638,
+        "bytes": 13914,
         "rects": {
-          "signin.note": [23.44, 80.19, 53.13, 5.93],
-          "signin.password": [23.44, 47.59, 53.13, 14.81],
-          "signin.submit": [23.44, 68.33, 53.13, 8.89],
-          "signin.username": [23.44, 29.81, 53.13, 14.81]
+          "signin.note": [57.29, 59.93, 34.38, 11.39],
+          "signin.password": [6.77, 51.13, 46.46, 12.59],
+          "signin.pinBtn": [57.29, 33.5, 34.38, 6.67],
+          "signin.submit": [6.77, 66.69, 46.46, 7.41],
+          "signin.username": [6.77, 36.69, 46.46, 12.59]
         }
       },
       "multi": {
-        "bytes": 14178,
+        "bytes": 24298,
         "rects": {
-          "multi.layouts": [15.89, 46.39, 73.33, 29.63]
+          "multi.layouts": [8.44, 34.49, 88.23, 43.8]
         }
       },
       "plex-audio": {
-        "bytes": 13280,
+        "bytes": 13182,
         "rects": {
           "pp.fixAudio": [67.6, 60.56, 28.13, 8.15]
         }
       },
       "plex-connect": {
-        "bytes": 14500,
+        "bytes": 13148,
         "rects": {
-          "plexauth.connect": [24.32, 68.3, 25.45, 9.33],
-          "plexauth.ownServer": [50.41, 68.52, 24.67, 8.89]
+          "plexauth.connect": [24.75, 68.3, 24.57, 9.33],
+          "plexauth.ownServer": [49.99, 68.52, 24.68, 8.89]
         }
       },
       "plex-detail": {
-        "bytes": 21500,
+        "bytes": 23900,
         "rects": {
-          "detail.cast": [24.17, 65.56, 72.5, 30.37],
-          "detail.myList": [42.04, 44.81, 11.45, 7.41],
-          "detail.play": [23.74, 44.63, 17.9, 7.78],
-          "detail.version": [24.17, 54.44, 72.5, 6.67]
+          "detail.cast": [21.46, 49.44, 75.21, 28.7],
+          "detail.myList": [39.13, 30.93, 11.24, 7.04],
+          "detail.play": [21.04, 30.75, 17.68, 7.39],
+          "detail.version": [21.46, 40.19, 75.21, 5.56]
         }
       },
       "plex-discover": {
-        "bytes": 37966,
+        "bytes": 34218,
         "rects": {
-          "plex.discover": [30.83, 14.05, 66.67, 85.95]
+          "plex.discover": [30.83, 22.2, 66.67, 77.8]
         }
       },
       "plex-home": {
-        "bytes": 33300,
+        "bytes": 35624,
         "rects": {
-          "plex.continue": [30.83, 14.05, 66.67, 44.44],
+          "plex.continue": [30.83, 30.19, 66.67, 36.2],
           "plex.menu": [5, 10.56, 23.33, 89.44],
-          "plex.recent": [30.83, 60.72, 66.67, 39.28]
+          "plex.recent": [30.83, 67.13, 66.67, 32.87]
         }
       },
       "plex-link": {
-        "bytes": 14154,
+        "bytes": 13816,
         "rects": {
           "plexauth.code": [26.77, 43.52, 46.46, 17.78],
           "plexauth.url": [26.77, 31.67, 46.46, 8.89]
         }
       },
       "plex-player": {
-        "bytes": 11402,
+        "bytes": 11882,
         "rects": {
-          "pp.audio": [42.08, 79.26, 5, 8.89],
+          "pp.audio": [31.44, 79.26, 5, 8.89],
           "pp.controls": [3.33, 77.78, 93.33, 11.85],
+          "pp.next": [68.94, 80, 20.03, 7.41],
           "pp.seek": [3.33, 70, 93.33, 1.11],
           "pp.skip": [74.07, 53.33, 20.93, 14.07],
-          "pp.subs": [48.33, 79.26, 5, 8.89]
+          "pp.subs": [37.69, 79.26, 5, 8.89]
+        }
+      },
+      "plex-related": {
+        "bytes": 31424,
+        "rects": {
+          "detail.related": [21.46, 63.33, 75.21, 36.67]
         }
       },
       "plex-search": {
-        "bytes": 13174,
+        "bytes": 12890,
         "rects": {
-          "plex.results": [13.33, 26.28, 84.17, 39.81],
+          "plex.results": [13.33, 26.28, 84.17, 39.44],
           "plex.searchBox": [13.33, 14.05, 84.17, 9.26]
         }
       },
       "plex-subs": {
-        "bytes": 12938,
+        "bytes": 12950,
         "rects": {
           "pp.getSubs": [67.6, 60.56, 28.13, 8.15]
         }
       },
       "plex-upnext": {
-        "bytes": 8644,
+        "bytes": 8404,
         "rects": {
           "pp.upNext": [48.33, 63.24, 46.67, 27.87]
         }
       },
       "profile-edit": {
-        "bytes": 22554,
+        "bytes": 21758,
         "rects": {
           "prof.kidsLevel": [15, 46.85, 70, 11.85],
           "prof.pinBtn": [15, 84.63, 18.02, 10.37]
         }
       },
       "profiles-pick": {
-        "bytes": 12680,
+        "bytes": 12240,
         "rects": {
           "prof.kids": [50.96, 35.19, 13.33, 31.11],
           "prof.list": [3.33, 32.22, 93.33, 37.04],
@@ -698,110 +820,128 @@
         }
       },
       "recordings": {
-        "bytes": 24732,
+        "bytes": 24936,
         "rects": {
           "recs.drive": [60.69, 15.56, 37.22, 3.52],
-          "recs.list": [7.19, 56.48, 90.73, 34.63],
-          "recs.scheduled": [7.19, 22.41, 90.73, 15.56]
+          "recs.list": [7.08, 56.48, 90.83, 34.63],
+          "recs.scheduled": [7.08, 22.41, 90.83, 15.56]
+        }
+      },
+      "settings-home": {
+        "bytes": 33638,
+        "rects": {
+          "set.barShow": [30.73, 58.1, 66.88, 18.38],
+          "set.barSource": [30.73, 39.35, 66.88, 18.38],
+          "set.contentBar": [30.73, 24.44, 66.88, 14.54],
+          "set.homeRow": [1.67, 27.22, 26.67, 9.26],
+          "set.tilesReset": [30.73, 91.76, 66.88, 5.28]
         }
       },
       "settings-language": {
-        "bytes": 22270,
+        "bytes": 16382,
         "rects": {
-          "set.language": [5, 66.2, 90, 33.8]
+          "set.language": [30, 23.15, 68.33, 27.78]
         }
       },
       "settings-media": {
-        "bytes": 21034,
+        "bytes": 25414,
         "rects": {
-          "set.wallpaper": [7.6, 44.72, 84.79, 55.28]
+          "set.wallpaper": [30, 23.15, 68.33, 34.07]
         }
       },
       "settings-remote": {
-        "bytes": 35440,
+        "bytes": 36292,
         "rects": {
-          "set.remoteCode": [7.19, 63.61, 29.01, 11.11],
-          "set.remoteQr": [13.88, 33.61, 15.63, 27.78],
-          "set.remoteSteps": [38.69, 39.54, 54.12, 22.96]
+          "set.remoteCode": [32.19, 54.44, 29.01, 11.11],
+          "set.remoteQr": [39.4, 26.3, 14.58, 25.93],
+          "set.remoteSteps": [63.69, 32.22, 32.45, 36.3]
         }
       },
       "settings-switches": {
-        "bytes": 28716,
+        "bytes": 28030,
         "rects": {
-          "set.alerts": [5, 76.02, 90, 23.98],
-          "set.contentBar": [5, 0, 90, 21.94],
-          "set.postNotify": [2.75, 49.9, 94.5, 23.72]
+          "set.alerts": [30.73, 42.92, 66.88, 18.1],
+          "set.homeRow": [1.67, 27.22, 26.67, 9.26],
+          "set.postNotify": [30.73, 24.44, 66.88, 18.1]
         }
       },
       "settings-ui": {
-        "bytes": 25652,
+        "bytes": 19460,
         "rects": {
-          "set.tabs": [5, 19.35, 90, 7.41],
-          "set.updatesTab": [76.75, 20.09, 17.83, 5.93]
+          "set.page": [30, 17.22, 68.33, 79.81],
+          "set.tabs": [1.67, 17.22, 26.67, 79.26],
+          "set.updatesTab": [1.67, 87.22, 26.67, 9.26]
         }
       },
       "speedtest": {
-        "bytes": 14192,
+        "bytes": 14700,
         "rects": {
           "speed.start": [79.85, 4.92, 15.3, 8.31]
         }
       },
       "store": {
-        "bytes": 19596,
+        "bytes": 18520,
         "rects": {
           "store.grid": [2.5, 29.81, 95, 58.89]
         }
       },
       "support-ai": {
-        "bytes": 20572,
+        "bytes": 19796,
         "rects": {
-          "ai.input": [6.77, 86.94, 62.41, 7.41]
+          "ai.input": [6.77, 86.94, 62.4, 7.41]
         }
       },
       "support-help": {
-        "bytes": 30514,
+        "bytes": 27904,
         "rects": {
           "sup.aiTab": [35.31, 20.28, 29.38, 7.41],
-          "sup.apps": [50.63, 77.87, 44.38, 13.33],
-          "sup.cleaner": [5, 77.87, 44.38, 13.33],
+          "sup.apps": [5, 93.43, 44.38, 6.57],
+          "sup.cleaner": [50.63, 77.87, 44.38, 13.33],
+          "sup.deviceCheck": [50.63, 46.76, 44.38, 13.33],
           "sup.guide": [5, 46.76, 44.38, 13.33],
           "sup.helpTab": [5.52, 20.28, 29.38, 7.41],
           "sup.howto": [5, 31.2, 44.38, 13.33],
           "sup.postsTab": [65.1, 20.28, 29.38, 7.41],
-          "sup.remote": [50.63, 62.31, 44.38, 13.33],
+          "sup.remote": [5, 77.87, 44.38, 13.33],
           "sup.speed": [50.63, 31.2, 44.38, 13.33],
-          "sup.tickets": [5, 62.31, 44.38, 13.33],
-          "sup.videos": [50.63, 46.76, 44.38, 13.33]
+          "sup.tickets": [50.63, 62.31, 44.38, 13.33],
+          "sup.videos": [5, 62.31, 44.38, 13.33]
         }
       },
       "support-posts": {
-        "bytes": 24896,
+        "bytes": 24670,
         "rects": {
           "posts.list": [5, 39.35, 90, 60.65]
         }
       },
       "tickets": {
-        "bytes": 18888,
+        "bytes": 18182,
         "rects": {
           "tickets.list": [5, 17.59, 90, 32.96],
           "tickets.new": [80.14, 5.37, 14.86, 7.41]
         }
       },
       "videos": {
-        "bytes": 25576,
+        "bytes": 24966,
         "rects": {
           "videos.grid": [5, 49.44, 90, 50.56]
         }
       },
       "vod": {
-        "bytes": 21914,
+        "bytes": 21420,
         "rects": {
           "vod.categories": [5, 10.56, 26.67, 89.44],
           "vod.grid": [31.67, 10.56, 68.33, 89.44]
         }
       },
+      "vod-holdmenu": {
+        "bytes": 14230,
+        "rects": {
+          "menu.report": [24.18, 45.48, 51.64, 7.93]
+        }
+      },
       "voice": {
-        "bytes": 36812,
+        "bytes": 35266,
         "rects": {
           "voice.mic": [13.44, 74.26, 6.67, 11.85]
         }
@@ -809,50 +949,59 @@
     },
     "fr": {
       "apps": {
-        "bytes": 22850,
+        "bytes": 22096,
         "rects": {
           "apps.grid": [5, 49.44, 90, 50.56]
         }
       },
       "apps-detail": {
-        "bytes": 20908,
+        "bytes": 20246,
         "rects": {
-          "apps.download": [5.15, 63.46, 44.92, 7.33]
+          "apps.download": [5.83, 63.46, 43.54, 7.33]
         }
       },
       "backups": {
-        "bytes": 20404,
+        "bytes": 20044,
         "rects": {
           "backups.list": [5, 28.33, 95, 71.67],
           "backups.refresh": [83.24, 13.84, 14.6, 9.72]
         }
       },
       "buffering": {
-        "bytes": 28814,
+        "bytes": 27796,
         "rects": {
           "bg.steps": [5, 11.85, 90, 5.56]
         }
       },
       "dashboard": {
-        "bytes": 32662,
+        "bytes": 31316,
         "rects": {
           "dash.games": [65.83, 28.8, 29.17, 7.41],
           "dash.gems": [5, 15.37, 29.17, 11.2],
-          "dash.player": [28.49, 58.24, 35.64, 30],
+          "dash.player": [28.49, 58.24, 35.64, 41.76],
           "dash.services": [65.38, 58.24, 28.26, 34.81],
-          "dash.signOut": [78, 5, 17, 8.15]
+          "dash.signOut": [77.99, 5, 17.01, 8.15]
+        }
+      },
+      "device-check": {
+        "bytes": 34752,
+        "rects": {
+          "ds.ask": [37.12, 28.4, 24.15, 7.41],
+          "ds.found": [2.5, 50.42, 38.71, 49.58],
+          "ds.overall": [2.5, 16.02, 95, 32.18],
+          "ds.picks": [43.3, 50.42, 54.2, 49.58]
         }
       },
       "gameday": {
-        "bytes": 21786,
+        "bytes": 21236,
         "rects": {
-          "gd.chips": [25.14, 12.78, 25.38, 5.93],
+          "gd.chips": [25.13, 12.78, 31.66, 5.93],
           "gd.game": [6.67, 20.93, 91.25, 47.41],
           "gd.remind": [83.91, 25, 12.76, 6.67]
         }
       },
       "gameday-game": {
-        "bytes": 28010,
+        "bytes": 26702,
         "rects": {
           "gd.down": [7.5, 76.48, 89.58, 8.89],
           "gd.holdHint": [7.5, 94.07, 90, 2.96],
@@ -863,41 +1012,41 @@
         }
       },
       "gems": {
-        "bytes": 20236,
+        "bytes": 19646,
         "rects": {
           "gems.packs": [5, 52.04, 90, 47.96]
         }
       },
       "gems-qr": {
-        "bytes": 24016,
+        "bytes": 23936,
         "rects": {
           "gems.qr": [5, 17.59, 34.27, 60.93]
         }
       },
       "guide": {
-        "bytes": 32996,
+        "bytes": 40010,
         "rects": {
-          "guide.categories": [5, 10.56, 95, 11.67],
-          "guide.channels": [5.89, 56.76, 23.38, 43.24],
-          "guide.grid": [29.04, 56.76, 70.07, 43.24]
+          "guide.categories": [6.25, 36, 24.17, 4.26],
+          "guide.channels": [6.25, 40.44, 24.17, 53.15],
+          "guide.grid": [30.42, 40.44, 68.33, 53.15]
         }
       },
       "guide-record": {
-        "bytes": 30824,
+        "bytes": 30400,
         "rects": {
           "rec.programmes": [14.69, 15.56, 70.63, 31.85],
           "rec.start": [14.69, 69.63, 70.63, 8.15]
         }
       },
       "home": {
-        "bytes": 35672,
+        "bytes": 34248,
         "rects": {
           "home.cardLivetv": [10.5, 78.23, 16, 18.77],
           "home.cardPlex": [31.5, 78.23, 16, 18.77],
           "home.cards": [3, 78.23, 94, 18.77],
           "home.cardStore": [73.5, 78.23, 16, 18.77],
           "home.cardSupport": [52.5, 78.23, 16, 18.77],
-          "home.clock": [35.5, 2.69, 29.01, 7.04],
+          "home.clock": [35.49, 2.69, 29.03, 7.04],
           "home.dashboard": [80.83, 2.5, 4.17, 7.41],
           "home.profile": [75.42, 2.5, 4.58, 7.41],
           "home.recommended": [3, 35.97, 94, 38.15],
@@ -907,7 +1056,7 @@
         }
       },
       "home-bar": {
-        "bytes": 35676,
+        "bytes": 34042,
         "rects": {
           "home.recArrows": [3.42, 41.15, 93.17, 27.04],
           "home.recDots": [3, 69.67, 94, 4.44],
@@ -915,8 +1064,25 @@
           "home.recTile": [18.8, 40.48, 9.38, 28.39]
         }
       },
+      "home-tilemenu": {
+        "bytes": 33136,
+        "rects": {
+          "home.tileChange": [3.81, 47.95, 29.38, 8.15],
+          "home.tileMenu": [2.88, 31.47, 31.25, 44.07],
+          "home.tileMove": [3.81, 39.06, 29.38, 8.15],
+          "home.tileReset": [3.81, 56.84, 29.38, 8.15]
+        }
+      },
+      "live-account": {
+        "bytes": 31356,
+        "rects": {
+          "acct.pin": [53.85, 39.81, 20.31, 26.85],
+          "acct.pinBtn": [30, 34.78, 20.92, 9.33],
+          "hub.account": [1.67, 17.22, 26.67, 9.26]
+        }
+      },
       "live-holdmenu": {
-        "bytes": 18514,
+        "bytes": 18962,
         "rects": {
           "menu.favorite": [25.52, 41.11, 48.96, 9.26],
           "menu.record": [25.52, 51.85, 48.96, 9.26],
@@ -924,30 +1090,38 @@
         }
       },
       "live-layout": {
-        "bytes": 22600,
+        "bytes": 22830,
         "rects": {
-          "live.layoutCards": [5, 28.15, 90, 52.78]
+          "live.layoutCards": [5, 29.97, 90, 49.14]
         }
       },
       "live-list": {
-        "bytes": 28680,
+        "bytes": 33912,
         "rects": {
           "live.back": [2.08, 1.48, 14.43, 7.41],
-          "live.categories": [6.25, 34.26, 24.06, 65.74],
-          "live.channels": [31.67, 43.33, 68.33, 56.67],
-          "live.favorites": [6.25, 43.15, 24.06, 8.89],
-          "live.lineGroup": [6.25, 35, 24.06, 8.89],
-          "live.nowNext": [61.67, 13.52, 36.67, 26.67],
-          "live.preview": [33.33, 13.52, 26.67, 26.67],
-          "live.recordingsBtn": [6.25, 23.52, 24.06, 9.26],
-          "live.searchBtn": [6.25, 12.78, 24.06, 9.26],
+          "live.categories": [6.25, 22.04, 20.73, 77.96],
+          "live.channels": [28.33, 43.33, 71.67, 56.67],
+          "live.favorites": [6.25, 36.11, 20.73, 7.04],
+          "live.lineGroup": [6.25, 29.81, 20.73, 7.04],
+          "live.nowNext": [58.33, 13.52, 40, 26.67],
+          "live.preview": [30, 13.52, 26.67, 26.67],
+          "live.recordingsBtn": [1.25, 41.67, 2.4, 8.15],
+          "live.searchBtn": [6.25, 12.78, 20.73, 7.78],
           "live.sections": [0, 10.56, 5, 89.44],
           "live.settingsBtn": [83.71, 1.48, 14.2, 7.41],
           "live.updateChannels": [61.92, 1.48, 20.96, 7.41]
         }
       },
+      "live-pin": {
+        "bytes": 12564,
+        "rects": {
+          "signin.note": [57.29, 52.71, 34.38, 11.39],
+          "signin.pinInput": [6.77, 43.91, 46.46, 12.59],
+          "signin.pinSubmit": [6.77, 59.47, 46.46, 7.41]
+        }
+      },
       "live-player": {
-        "bytes": 15670,
+        "bytes": 14986,
         "rects": {
           "bar.audio": [68.75, 76.48, 5, 15.56],
           "bar.cc": [62.92, 76.48, 5, 15.56],
@@ -966,8 +1140,15 @@
           "bar.vol": [74.58, 76.48, 5, 15.56]
         }
       },
+      "live-player-page": {
+        "bytes": 35318,
+        "rects": {
+          "hub.player": [1.67, 67.22, 26.67, 9.26],
+          "player.liveBuffer": [30, 61.86, 68.33, 17.94]
+        }
+      },
       "live-record": {
-        "bytes": 24838,
+        "bytes": 25098,
         "rects": {
           "rec.length": [14.69, 36.67, 70.63, 20.74],
           "rec.saveTo": [14.69, 21.11, 70.63, 14.07],
@@ -975,235 +1156,264 @@
         }
       },
       "live-report": {
-        "bytes": 16780,
+        "bytes": 17278,
         "rects": {
           "report.reasons": [25.52, 25, 48.96, 52.22]
         }
       },
       "live-search": {
-        "bytes": 20662,
+        "bytes": 19796,
         "rects": {
-          "live.channels": [31.67, 43.33, 68.33, 56.67],
-          "live.searchBox": [6.25, 23.52, 24.06, 9.26]
+          "live.channels": [28.33, 43.33, 71.67, 56.67],
+          "live.searchBox": [6.25, 22.04, 20.73, 7.78]
         }
       },
       "live-settings": {
-        "bytes": 18686,
+        "bytes": 20508,
         "rects": {
+          "hub.account": [1.67, 17.22, 26.67, 9.26],
           "hub.appearance": [1.67, 47.22, 26.67, 9.26],
           "hub.channels": [1.67, 37.22, 26.67, 9.26],
+          "hub.help": [1.67, 77.22, 26.67, 9.26],
+          "hub.player": [1.67, 67.22, 26.67, 9.26],
           "hub.rewind": [1.67, 57.22, 26.67, 9.26],
           "hub.services": [1.67, 27.13, 26.67, 9.44],
           "hub.signOut": [1.67, 87.22, 26.67, 9.26]
         }
       },
       "live-signin": {
-        "bytes": 13086,
+        "bytes": 14540,
         "rects": {
-          "signin.note": [23.44, 80.19, 53.13, 5.93],
-          "signin.password": [23.44, 47.59, 53.13, 14.81],
-          "signin.submit": [23.44, 68.33, 53.13, 8.89],
-          "signin.username": [23.44, 29.81, 53.13, 14.81]
+          "signin.note": [57.29, 59.93, 34.38, 11.39],
+          "signin.password": [6.77, 51.13, 46.46, 12.59],
+          "signin.pinBtn": [57.29, 33.5, 34.38, 6.67],
+          "signin.submit": [6.77, 66.69, 46.46, 7.41],
+          "signin.username": [6.77, 36.69, 46.46, 12.59]
         }
       },
       "multi": {
-        "bytes": 13936,
+        "bytes": 23886,
         "rects": {
-          "multi.layouts": [15.89, 46.39, 73.33, 29.63]
+          "multi.layouts": [8.44, 38.98, 88.23, 34.81]
         }
       },
       "plex-audio": {
-        "bytes": 13356,
+        "bytes": 13324,
         "rects": {
           "pp.fixAudio": [67.6, 60.56, 28.13, 8.15]
         }
       },
       "plex-connect": {
-        "bytes": 15234,
+        "bytes": 14174,
         "rects": {
-          "plexauth.connect": [22.6, 70.15, 29.98, 9.33],
-          "plexauth.ownServer": [53.12, 70.37, 23.56, 8.89]
+          "plexauth.connect": [23.04, 70.15, 29.11, 9.33],
+          "plexauth.ownServer": [52.7, 70.37, 23.56, 8.89]
         }
       },
       "plex-detail": {
-        "bytes": 21184,
+        "bytes": 24046,
         "rects": {
-          "detail.cast": [24.17, 65.56, 72.5, 30.37],
-          "detail.myList": [36.39, 44.81, 11.93, 7.41],
-          "detail.play": [23.88, 44.63, 11.96, 7.78],
-          "detail.version": [24.17, 54.44, 72.5, 6.67]
+          "detail.cast": [21.46, 49.44, 75.21, 28.7],
+          "detail.myList": [33.48, 30.93, 11.72, 7.04],
+          "detail.play": [21.18, 30.75, 11.75, 7.39],
+          "detail.version": [21.46, 40.19, 75.21, 5.56]
         }
       },
       "plex-discover": {
-        "bytes": 38718,
+        "bytes": 35096,
         "rects": {
-          "plex.discover": [30.83, 14.05, 66.67, 85.95]
+          "plex.discover": [30.83, 22.2, 66.67, 77.8]
         }
       },
       "plex-home": {
-        "bytes": 33796,
+        "bytes": 36192,
         "rects": {
-          "plex.continue": [30.83, 14.05, 66.67, 44.44],
+          "plex.continue": [30.83, 30.19, 66.67, 36.2],
           "plex.menu": [5, 10.56, 23.33, 89.44],
-          "plex.recent": [30.83, 60.72, 66.67, 39.28]
+          "plex.recent": [30.83, 67.13, 66.67, 32.87]
         }
       },
       "plex-link": {
-        "bytes": 15604,
+        "bytes": 15208,
         "rects": {
           "plexauth.code": [26.77, 39.81, 46.46, 17.78],
           "plexauth.url": [26.77, 27.96, 46.46, 8.89]
         }
       },
       "plex-player": {
-        "bytes": 11522,
+        "bytes": 12082,
         "rects": {
-          "pp.audio": [42.08, 79.26, 5, 8.89],
+          "pp.audio": [32.5, 79.26, 5, 8.89],
           "pp.controls": [3.33, 77.78, 93.33, 11.85],
+          "pp.next": [70, 80, 17.92, 7.41],
           "pp.seek": [3.33, 70, 93.33, 1.11],
-          "pp.skip": [72.45, 53.33, 22.55, 14.07],
-          "pp.subs": [48.33, 79.26, 5, 8.89]
+          "pp.skip": [72.46, 53.33, 22.54, 14.07],
+          "pp.subs": [38.75, 79.26, 5, 8.89]
+        }
+      },
+      "plex-related": {
+        "bytes": 31576,
+        "rects": {
+          "detail.related": [21.46, 63.33, 75.21, 36.67]
         }
       },
       "plex-search": {
-        "bytes": 13012,
+        "bytes": 12940,
         "rects": {
-          "plex.results": [13.33, 26.28, 84.17, 39.81],
+          "plex.results": [13.33, 26.28, 84.17, 39.44],
           "plex.searchBox": [13.33, 14.05, 84.17, 9.26]
         }
       },
       "plex-subs": {
-        "bytes": 13166,
+        "bytes": 13210,
         "rects": {
           "pp.getSubs": [67.6, 60.56, 28.13, 8.15]
         }
       },
       "plex-upnext": {
-        "bytes": 8246,
+        "bytes": 8024,
         "rects": {
           "pp.upNext": [48.33, 63.24, 46.67, 27.87]
         }
       },
       "profile-edit": {
-        "bytes": 22590,
+        "bytes": 21768,
         "rects": {
           "prof.kidsLevel": [15, 46.85, 70, 11.85],
           "prof.pinBtn": [15, 84.63, 20.24, 10.37]
         }
       },
       "profiles-pick": {
-        "bytes": 11922,
+        "bytes": 11434,
         "rects": {
-          "prof.kids": [49.89, 35.19, 13.33, 31.11],
+          "prof.kids": [49.9, 35.19, 13.33, 31.11],
           "prof.list": [3.33, 32.22, 93.33, 37.04],
           "prof.manage": [39.47, 75.19, 21.05, 10.37]
         }
       },
       "recordings": {
-        "bytes": 25574,
+        "bytes": 25804,
         "rects": {
           "recs.drive": [59.94, 15.56, 37.98, 3.52],
-          "recs.list": [7.19, 56.48, 90.73, 34.63],
-          "recs.scheduled": [7.19, 22.41, 90.73, 15.56]
+          "recs.list": [7.08, 56.48, 90.83, 34.63],
+          "recs.scheduled": [7.08, 22.41, 90.83, 15.56]
+        }
+      },
+      "settings-home": {
+        "bytes": 33972,
+        "rects": {
+          "set.barShow": [30.73, 58.1, 66.88, 18.38],
+          "set.barSource": [30.73, 39.35, 66.88, 18.38],
+          "set.contentBar": [30.73, 24.44, 66.88, 14.54],
+          "set.homeRow": [1.67, 27.22, 26.67, 9.26],
+          "set.tilesReset": [30.73, 91.76, 66.88, 5.28]
         }
       },
       "settings-language": {
-        "bytes": 23872,
+        "bytes": 16784,
         "rects": {
-          "set.language": [5, 66.2, 90, 33.8]
+          "set.language": [30, 23.15, 68.33, 27.78]
         }
       },
       "settings-media": {
-        "bytes": 22276,
+        "bytes": 26122,
         "rects": {
-          "set.wallpaper": [7.6, 44.72, 84.79, 55.28]
+          "set.wallpaper": [30, 23.15, 68.33, 34.07]
         }
       },
       "settings-remote": {
-        "bytes": 38066,
+        "bytes": 35152,
         "rects": {
-          "set.remoteCode": [7.19, 63.61, 31.1, 11.11],
-          "set.remoteQr": [14.93, 33.61, 15.63, 27.78],
-          "set.remoteSteps": [40.79, 39.54, 52.02, 22.96]
+          "set.remoteCode": [32.19, 54.44, 31.1, 11.11],
+          "set.remoteQr": [40.44, 26.3, 14.58, 25.93],
+          "set.remoteSteps": [65.79, 37.41, 30.36, 40.74]
         }
       },
       "settings-switches": {
-        "bytes": 28238,
+        "bytes": 27762,
         "rects": {
-          "set.alerts": [5, 76.02, 90, 22.59],
-          "set.contentBar": [5, 0, 90, 21.94],
-          "set.postNotify": [2.75, 49.9, 94.5, 23.72]
+          "set.alerts": [30.73, 42.92, 66.88, 18.1],
+          "set.homeRow": [1.67, 27.22, 26.67, 9.26],
+          "set.postNotify": [30.73, 24.44, 66.88, 18.1]
         }
       },
       "settings-ui": {
-        "bytes": 26030,
+        "bytes": 19626,
         "rects": {
-          "set.tabs": [5, 19.35, 90, 7.41],
-          "set.updatesTab": [76.75, 20.09, 17.83, 5.93]
+          "set.page": [30, 17.22, 68.33, 79.81],
+          "set.tabs": [1.67, 17.22, 26.67, 79.26],
+          "set.updatesTab": [1.67, 87.22, 26.67, 9.26]
         }
       },
       "speedtest": {
-        "bytes": 13432,
+        "bytes": 13300,
         "rects": {
           "speed.start": [78.86, 4.92, 16.3, 8.31]
         }
       },
       "store": {
-        "bytes": 19968,
+        "bytes": 18620,
         "rects": {
           "store.grid": [2.5, 33.52, 95, 58.89]
         }
       },
       "support-ai": {
-        "bytes": 20214,
+        "bytes": 19372,
         "rects": {
           "ai.input": [6.77, 86.94, 66.27, 7.41]
         }
       },
       "support-help": {
-        "bytes": 30774,
+        "bytes": 31224,
         "rects": {
           "sup.aiTab": [35.31, 20.28, 29.38, 7.41],
-          "sup.apps": [50.63, 77.87, 44.38, 13.33],
-          "sup.cleaner": [5, 77.87, 44.38, 13.33],
+          "sup.apps": [5, 93.43, 44.38, 6.57],
+          "sup.cleaner": [50.63, 77.87, 44.38, 13.33],
+          "sup.deviceCheck": [50.63, 46.76, 44.38, 13.33],
           "sup.guide": [5, 46.76, 44.38, 13.33],
           "sup.helpTab": [5.52, 20.28, 29.38, 7.41],
           "sup.howto": [5, 31.2, 44.38, 13.33],
           "sup.postsTab": [65.1, 20.28, 29.38, 7.41],
-          "sup.remote": [50.63, 62.31, 44.38, 13.33],
+          "sup.remote": [5, 77.87, 44.38, 13.33],
           "sup.speed": [50.63, 31.2, 44.38, 13.33],
-          "sup.tickets": [5, 62.31, 44.38, 13.33],
-          "sup.videos": [50.63, 46.76, 44.38, 13.33]
+          "sup.tickets": [50.63, 62.31, 44.38, 13.33],
+          "sup.videos": [5, 62.31, 44.38, 13.33]
         }
       },
       "support-posts": {
-        "bytes": 24686,
+        "bytes": 24268,
         "rects": {
           "posts.list": [5, 39.35, 90, 60.65]
         }
       },
       "tickets": {
-        "bytes": 18484,
+        "bytes": 17708,
         "rects": {
           "tickets.list": [5, 17.59, 90, 32.96],
           "tickets.new": [78.53, 5.37, 16.47, 7.41]
         }
       },
       "videos": {
-        "bytes": 25624,
+        "bytes": 25104,
         "rects": {
           "videos.grid": [5, 49.44, 90, 50.56]
         }
       },
       "vod": {
-        "bytes": 21794,
+        "bytes": 21386,
         "rects": {
           "vod.categories": [5, 10.56, 26.67, 89.44],
           "vod.grid": [31.67, 10.56, 68.33, 89.44]
         }
       },
+      "vod-holdmenu": {
+        "bytes": 13884,
+        "rects": {
+          "menu.report": [24.18, 45.48, 51.64, 7.93]
+        }
+      },
       "voice": {
-        "bytes": 37488,
+        "bytes": 36126,
         "rects": {
           "voice.mic": [13.44, 74.26, 6.67, 11.85]
         }
@@ -1211,50 +1421,59 @@
     },
     "de": {
       "apps": {
-        "bytes": 22604,
+        "bytes": 21870,
         "rects": {
           "apps.grid": [5, 49.44, 90, 50.56]
         }
       },
       "apps-detail": {
-        "bytes": 20642,
+        "bytes": 20098,
         "rects": {
-          "apps.download": [5.15, 63.46, 44.92, 7.33]
+          "apps.download": [5.83, 63.46, 43.54, 7.33]
         }
       },
       "backups": {
-        "bytes": 20360,
+        "bytes": 19916,
         "rects": {
           "backups.list": [5, 28.33, 95, 71.67],
           "backups.refresh": [80.81, 13.84, 17.1, 9.72]
         }
       },
       "buffering": {
-        "bytes": 29306,
+        "bytes": 28036,
         "rects": {
           "bg.steps": [5, 11.85, 90, 5.56]
         }
       },
       "dashboard": {
-        "bytes": 32240,
+        "bytes": 30864,
         "rects": {
           "dash.games": [65.83, 28.8, 29.17, 7.41],
           "dash.gems": [5, 15.37, 29.17, 11.2],
-          "dash.player": [28.49, 58.24, 35.64, 30],
+          "dash.player": [28.49, 58.24, 35.64, 41.76],
           "dash.services": [65.38, 58.24, 28.26, 34.81],
           "dash.signOut": [81.26, 5, 13.74, 8.15]
         }
       },
-      "gameday": {
-        "bytes": 21476,
+      "device-check": {
+        "bytes": 36766,
         "rects": {
-          "gd.chips": [25.14, 12.78, 24.99, 5.93],
+          "ds.ask": [45.99, 24.54, 24.66, 7.41],
+          "ds.found": [2.5, 42.69, 38.71, 57.31],
+          "ds.overall": [2.5, 16.02, 95, 24.44],
+          "ds.picks": [43.3, 42.69, 54.2, 57.31]
+        }
+      },
+      "gameday": {
+        "bytes": 20860,
+        "rects": {
+          "gd.chips": [25.13, 12.78, 31.27, 5.93],
           "gd.game": [6.67, 20.93, 91.25, 47.41],
           "gd.remind": [86.35, 25, 10.32, 6.67]
         }
       },
       "gameday-game": {
-        "bytes": 28178,
+        "bytes": 26744,
         "rects": {
           "gd.down": [7.5, 76.48, 89.58, 8.89],
           "gd.holdHint": [7.5, 94.07, 90, 2.96],
@@ -1265,41 +1484,41 @@
         }
       },
       "gems": {
-        "bytes": 19410,
+        "bytes": 18918,
         "rects": {
           "gems.packs": [5, 52.04, 90, 47.96]
         }
       },
       "gems-qr": {
-        "bytes": 23740,
+        "bytes": 23796,
         "rects": {
           "gems.qr": [5, 17.59, 34.27, 60.93]
         }
       },
       "guide": {
-        "bytes": 32674,
+        "bytes": 39820,
         "rects": {
-          "guide.categories": [5, 10.56, 95, 11.67],
-          "guide.channels": [5.89, 56.76, 23.38, 43.24],
-          "guide.grid": [29.04, 56.76, 70.07, 43.24]
+          "guide.categories": [6.25, 36, 24.17, 4.26],
+          "guide.channels": [6.25, 40.44, 24.17, 53.15],
+          "guide.grid": [30.42, 40.44, 68.33, 53.15]
         }
       },
       "guide-record": {
-        "bytes": 29572,
+        "bytes": 29238,
         "rects": {
           "rec.programmes": [14.69, 15.56, 70.63, 31.85],
           "rec.start": [14.69, 69.63, 70.63, 8.15]
         }
       },
       "home": {
-        "bytes": 34714,
+        "bytes": 33506,
         "rects": {
           "home.cardLivetv": [10.5, 78.23, 16, 18.77],
           "home.cardPlex": [31.5, 78.23, 16, 18.77],
           "home.cards": [3, 78.23, 94, 18.77],
           "home.cardStore": [73.5, 78.23, 16, 18.77],
           "home.cardSupport": [52.5, 78.23, 16, 18.77],
-          "home.clock": [35.48, 2.69, 29.04, 7.04],
+          "home.clock": [35.47, 2.69, 29.06, 7.04],
           "home.dashboard": [80.83, 2.5, 4.17, 7.41],
           "home.profile": [75.42, 2.5, 4.58, 7.41],
           "home.recommended": [3, 35.97, 94, 38.15],
@@ -1309,7 +1528,7 @@
         }
       },
       "home-bar": {
-        "bytes": 34516,
+        "bytes": 33256,
         "rects": {
           "home.recArrows": [3.42, 41.15, 93.17, 27.04],
           "home.recDots": [3, 69.67, 94, 4.44],
@@ -1317,8 +1536,25 @@
           "home.recTile": [18.8, 40.48, 9.38, 28.39]
         }
       },
+      "home-tilemenu": {
+        "bytes": 32410,
+        "rects": {
+          "home.tileChange": [3.81, 47.95, 29.38, 8.15],
+          "home.tileMenu": [2.88, 31.47, 31.25, 44.07],
+          "home.tileMove": [3.81, 39.06, 29.38, 8.15],
+          "home.tileReset": [3.81, 56.84, 29.38, 8.15]
+        }
+      },
+      "live-account": {
+        "bytes": 30870,
+        "rects": {
+          "acct.pin": [53.85, 39.81, 20.31, 26.85],
+          "acct.pinBtn": [30, 34.78, 20.92, 9.33],
+          "hub.account": [1.67, 17.22, 26.67, 9.26]
+        }
+      },
       "live-holdmenu": {
-        "bytes": 17982,
+        "bytes": 18748,
         "rects": {
           "menu.favorite": [25.52, 41.11, 48.96, 9.26],
           "menu.record": [25.52, 51.85, 48.96, 9.26],
@@ -1326,30 +1562,38 @@
         }
       },
       "live-layout": {
-        "bytes": 22154,
+        "bytes": 21816,
         "rects": {
-          "live.layoutCards": [5, 28.15, 90, 52.78]
+          "live.layoutCards": [5, 29.97, 90, 49.14]
         }
       },
       "live-list": {
-        "bytes": 27544,
+        "bytes": 32992,
         "rects": {
           "live.back": [2.08, 1.48, 14.45, 7.41],
-          "live.categories": [6.25, 34.26, 24.06, 65.74],
-          "live.channels": [31.67, 43.33, 68.33, 56.67],
-          "live.favorites": [6.25, 43.15, 24.06, 8.89],
-          "live.lineGroup": [6.25, 35, 24.06, 8.89],
-          "live.nowNext": [61.67, 13.52, 36.67, 26.67],
-          "live.preview": [33.33, 13.52, 26.67, 26.67],
-          "live.recordingsBtn": [6.25, 23.52, 24.06, 9.26],
-          "live.searchBtn": [6.25, 12.78, 24.06, 9.26],
+          "live.categories": [6.25, 22.04, 20.73, 77.96],
+          "live.channels": [28.33, 43.33, 71.67, 56.67],
+          "live.favorites": [6.25, 36.11, 20.73, 7.04],
+          "live.lineGroup": [6.25, 29.81, 20.73, 7.04],
+          "live.nowNext": [58.33, 13.52, 40, 26.67],
+          "live.preview": [30, 13.52, 26.67, 26.67],
+          "live.recordingsBtn": [1.25, 41.67, 2.4, 8.15],
+          "live.searchBtn": [6.25, 12.78, 20.73, 7.78],
           "live.sections": [0, 10.56, 5, 89.44],
           "live.settingsBtn": [82.22, 1.48, 15.7, 7.41],
           "live.updateChannels": [61.28, 1.48, 20.1, 7.41]
         }
       },
+      "live-pin": {
+        "bytes": 12788,
+        "rects": {
+          "signin.note": [57.29, 52.71, 34.38, 11.39],
+          "signin.pinInput": [6.77, 43.91, 46.46, 12.59],
+          "signin.pinSubmit": [6.77, 59.47, 46.46, 7.41]
+        }
+      },
       "live-player": {
-        "bytes": 15804,
+        "bytes": 15184,
         "rects": {
           "bar.audio": [68.75, 76.48, 5, 15.56],
           "bar.cc": [62.92, 76.48, 5, 15.56],
@@ -1368,8 +1612,15 @@
           "bar.vol": [74.58, 76.48, 5, 15.56]
         }
       },
+      "live-player-page": {
+        "bytes": 32772,
+        "rects": {
+          "hub.player": [1.67, 67.22, 26.67, 9.26],
+          "player.liveBuffer": [30, 58.9, 68.33, 17.94]
+        }
+      },
       "live-record": {
-        "bytes": 24208,
+        "bytes": 24522,
         "rects": {
           "rec.length": [14.69, 36.67, 70.63, 20.74],
           "rec.saveTo": [14.69, 21.11, 70.63, 14.07],
@@ -1377,124 +1628,135 @@
         }
       },
       "live-report": {
-        "bytes": 16670,
+        "bytes": 17252,
         "rects": {
           "report.reasons": [25.52, 25, 48.96, 52.22]
         }
       },
       "live-search": {
-        "bytes": 20036,
+        "bytes": 19252,
         "rects": {
-          "live.channels": [31.67, 43.33, 68.33, 56.67],
-          "live.searchBox": [6.25, 23.52, 24.06, 9.26]
+          "live.channels": [28.33, 43.33, 71.67, 56.67],
+          "live.searchBox": [6.25, 22.04, 20.73, 7.78]
         }
       },
       "live-settings": {
-        "bytes": 17462,
+        "bytes": 19160,
         "rects": {
+          "hub.account": [1.67, 17.22, 26.67, 9.26],
           "hub.appearance": [1.67, 47.22, 26.67, 9.26],
           "hub.channels": [1.67, 37.22, 26.67, 9.26],
+          "hub.help": [1.67, 77.22, 26.67, 9.26],
+          "hub.player": [1.67, 67.22, 26.67, 9.26],
           "hub.rewind": [1.67, 57.22, 26.67, 9.26],
           "hub.services": [1.67, 27.13, 26.67, 9.44],
           "hub.signOut": [1.67, 87.22, 26.67, 9.26]
         }
       },
       "live-signin": {
-        "bytes": 12442,
+        "bytes": 13748,
         "rects": {
-          "signin.note": [23.44, 80.19, 53.13, 5.93],
-          "signin.password": [23.44, 47.59, 53.13, 14.81],
-          "signin.submit": [23.44, 68.33, 53.13, 8.89],
-          "signin.username": [23.44, 29.81, 53.13, 14.81]
+          "signin.note": [57.29, 59.93, 34.38, 11.39],
+          "signin.password": [6.77, 51.13, 46.46, 12.59],
+          "signin.pinBtn": [57.29, 33.5, 34.38, 6.67],
+          "signin.submit": [6.77, 66.69, 46.46, 7.41],
+          "signin.username": [6.77, 36.69, 46.46, 12.59]
         }
       },
       "multi": {
-        "bytes": 14966,
+        "bytes": 25580,
         "rects": {
-          "multi.layouts": [15.89, 46.39, 73.33, 29.63]
+          "multi.layouts": [8.44, 37.5, 88.23, 37.78]
         }
       },
       "plex-audio": {
-        "bytes": 13172,
+        "bytes": 13204,
         "rects": {
           "pp.fixAudio": [67.6, 60.56, 28.13, 8.15]
         }
       },
       "plex-connect": {
-        "bytes": 14866,
+        "bytes": 13728,
         "rects": {
-          "plexauth.connect": [23.23, 68.3, 24.08, 9.33],
-          "plexauth.ownServer": [47.98, 68.52, 28.21, 8.89]
+          "plexauth.connect": [23.67, 68.3, 23.2, 9.33],
+          "plexauth.ownServer": [47.56, 68.52, 28.22, 8.89]
         }
       },
       "plex-detail": {
-        "bytes": 21850,
+        "bytes": 24038,
         "rects": {
-          "detail.cast": [24.17, 65.56, 72.5, 30.37],
-          "detail.myList": [40.95, 44.81, 14.77, 7.41],
-          "detail.play": [23.77, 44.63, 16.75, 7.78],
-          "detail.version": [24.17, 54.44, 72.5, 6.67]
+          "detail.cast": [21.46, 49.44, 75.21, 28.7],
+          "detail.myList": [38.04, 30.93, 14.56, 7.04],
+          "detail.play": [21.06, 30.75, 16.53, 7.39],
+          "detail.version": [21.46, 40.19, 75.21, 5.56]
         }
       },
       "plex-discover": {
-        "bytes": 38790,
+        "bytes": 35088,
         "rects": {
-          "plex.discover": [30.83, 14.05, 66.67, 85.95]
+          "plex.discover": [30.83, 22.2, 66.67, 77.8]
         }
       },
       "plex-home": {
-        "bytes": 33770,
+        "bytes": 36058,
         "rects": {
-          "plex.continue": [30.83, 14.05, 66.67, 44.44],
+          "plex.continue": [30.83, 30.19, 66.67, 36.2],
           "plex.menu": [5, 10.56, 23.33, 89.44],
-          "plex.recent": [30.83, 60.72, 66.67, 39.28]
+          "plex.recent": [30.83, 67.13, 66.67, 32.87]
         }
       },
       "plex-link": {
-        "bytes": 14140,
+        "bytes": 13846,
         "rects": {
           "plexauth.code": [26.77, 43.52, 46.46, 17.78],
           "plexauth.url": [26.77, 31.67, 46.46, 8.89]
         }
       },
       "plex-player": {
-        "bytes": 11822,
+        "bytes": 12240,
         "rects": {
-          "pp.audio": [42.08, 79.26, 5, 8.89],
+          "pp.audio": [33.08, 79.26, 5, 8.89],
           "pp.controls": [3.33, 77.78, 93.33, 11.85],
+          "pp.next": [70.58, 80, 16.75, 7.41],
           "pp.seek": [3.33, 70, 93.33, 1.11],
           "pp.skip": [67.22, 53.33, 27.78, 14.07],
-          "pp.subs": [48.33, 79.26, 5, 8.89]
+          "pp.subs": [39.33, 79.26, 5, 8.89]
+        }
+      },
+      "plex-related": {
+        "bytes": 31552,
+        "rects": {
+          "detail.related": [21.46, 63.33, 75.21, 36.67]
         }
       },
       "plex-search": {
-        "bytes": 13198,
+        "bytes": 12982,
         "rects": {
-          "plex.results": [13.33, 26.28, 84.17, 39.81],
+          "plex.results": [13.33, 26.28, 84.17, 39.44],
           "plex.searchBox": [13.33, 14.05, 84.17, 9.26]
         }
       },
       "plex-subs": {
-        "bytes": 12656,
+        "bytes": 12624,
         "rects": {
           "pp.getSubs": [67.6, 60.56, 28.13, 8.15]
         }
       },
       "plex-upnext": {
-        "bytes": 8246,
+        "bytes": 8088,
         "rects": {
           "pp.upNext": [48.33, 63.24, 46.67, 27.87]
         }
       },
       "profile-edit": {
-        "bytes": 21662,
+        "bytes": 20806,
         "rects": {
           "prof.kidsLevel": [15, 46.85, 70, 11.85],
           "prof.pinBtn": [15, 84.63, 16.84, 10.37]
         }
       },
       "profiles-pick": {
-        "bytes": 11402,
+        "bytes": 10864,
         "rects": {
           "prof.kids": [49.57, 35.19, 13.33, 31.11],
           "prof.list": [3.33, 32.22, 93.33, 37.04],
@@ -1502,110 +1764,128 @@
         }
       },
       "recordings": {
-        "bytes": 24904,
+        "bytes": 25124,
         "rects": {
-          "recs.drive": [63.69, 15.56, 34.23, 3.52],
-          "recs.list": [7.19, 56.48, 90.73, 34.63],
-          "recs.scheduled": [7.19, 22.41, 90.73, 15.56]
+          "recs.drive": [63.68, 15.56, 34.23, 3.52],
+          "recs.list": [7.08, 56.48, 90.83, 34.63],
+          "recs.scheduled": [7.08, 22.41, 90.83, 15.56]
+        }
+      },
+      "settings-home": {
+        "bytes": 33066,
+        "rects": {
+          "set.barShow": [30.73, 58.1, 66.88, 18.38],
+          "set.barSource": [30.73, 39.35, 66.88, 18.38],
+          "set.contentBar": [30.73, 24.44, 66.88, 14.54],
+          "set.homeRow": [1.67, 27.22, 26.67, 9.26],
+          "set.tilesReset": [30.73, 91.76, 66.88, 5.28]
         }
       },
       "settings-language": {
-        "bytes": 22258,
+        "bytes": 17510,
         "rects": {
-          "set.language": [5, 55.46, 90, 41.85]
+          "set.language": [30, 23.15, 68.33, 27.78]
         }
       },
       "settings-media": {
-        "bytes": 22404,
+        "bytes": 27916,
         "rects": {
-          "set.wallpaper": [7.6, 44.72, 84.79, 55.28]
+          "set.wallpaper": [30, 23.15, 68.33, 34.07]
         }
       },
       "settings-remote": {
-        "bytes": 36098,
+        "bytes": 37934,
         "rects": {
-          "set.remoteCode": [7.19, 63.61, 29.01, 11.11],
-          "set.remoteQr": [13.88, 33.61, 15.63, 27.78],
-          "set.remoteSteps": [38.69, 39.54, 54.12, 27.41]
+          "set.remoteCode": [32.19, 54.44, 29.01, 11.11],
+          "set.remoteQr": [39.4, 26.3, 14.58, 25.93],
+          "set.remoteSteps": [63.69, 32.22, 32.45, 36.3]
         }
       },
       "settings-switches": {
-        "bytes": 28872,
+        "bytes": 30378,
         "rects": {
-          "set.alerts": [5, 76.02, 90, 23.98],
-          "set.contentBar": [5, 0, 90, 21.94],
-          "set.postNotify": [2.75, 49.9, 94.5, 23.72]
+          "set.alerts": [30.73, 42.92, 66.88, 21.67],
+          "set.homeRow": [1.67, 27.22, 26.67, 9.26],
+          "set.postNotify": [30.73, 24.44, 66.88, 18.1]
         }
       },
       "settings-ui": {
-        "bytes": 25640,
+        "bytes": 20154,
         "rects": {
-          "set.tabs": [5, 19.35, 90, 7.41],
-          "set.updatesTab": [76.75, 20.09, 17.83, 5.93]
+          "set.page": [30, 17.22, 68.33, 79.81],
+          "set.tabs": [1.67, 17.22, 26.67, 79.26],
+          "set.updatesTab": [1.67, 87.22, 26.67, 9.26]
         }
       },
       "speedtest": {
-        "bytes": 14396,
+        "bytes": 13606,
         "rects": {
-          "speed.start": [75.75, 4.92, 19.44, 8.31]
+          "speed.start": [75.76, 4.92, 19.43, 8.31]
         }
       },
       "store": {
-        "bytes": 19640,
+        "bytes": 18610,
         "rects": {
           "store.grid": [2.5, 33.52, 95, 58.89]
         }
       },
       "support-ai": {
-        "bytes": 19684,
+        "bytes": 18924,
         "rects": {
           "ai.input": [6.77, 86.94, 61.52, 7.41]
         }
       },
       "support-help": {
-        "bytes": 29384,
+        "bytes": 29908,
         "rects": {
           "sup.aiTab": [35.31, 20.28, 29.38, 7.41],
-          "sup.apps": [50.63, 77.87, 44.38, 13.33],
-          "sup.cleaner": [5, 77.87, 44.38, 13.33],
+          "sup.apps": [5, 93.43, 44.38, 6.57],
+          "sup.cleaner": [50.63, 77.87, 44.38, 13.33],
+          "sup.deviceCheck": [50.63, 46.76, 44.38, 13.33],
           "sup.guide": [5, 46.76, 44.38, 13.33],
           "sup.helpTab": [5.52, 20.28, 29.38, 7.41],
           "sup.howto": [5, 31.2, 44.38, 13.33],
           "sup.postsTab": [65.1, 20.28, 29.38, 7.41],
-          "sup.remote": [50.63, 62.31, 44.38, 13.33],
+          "sup.remote": [5, 77.87, 44.38, 13.33],
           "sup.speed": [50.63, 31.2, 44.38, 13.33],
-          "sup.tickets": [5, 62.31, 44.38, 13.33],
-          "sup.videos": [50.63, 46.76, 44.38, 13.33]
+          "sup.tickets": [50.63, 62.31, 44.38, 13.33],
+          "sup.videos": [5, 62.31, 44.38, 13.33]
         }
       },
       "support-posts": {
-        "bytes": 24066,
+        "bytes": 23766,
         "rects": {
           "posts.list": [5, 39.35, 90, 60.65]
         }
       },
       "tickets": {
-        "bytes": 17874,
+        "bytes": 17170,
         "rects": {
           "tickets.list": [5, 17.59, 90, 32.96],
-          "tickets.new": [79.81, 5.37, 15.19, 7.41]
+          "tickets.new": [79.8, 5.37, 15.2, 7.41]
         }
       },
       "videos": {
-        "bytes": 25402,
+        "bytes": 24776,
         "rects": {
           "videos.grid": [5, 49.44, 90, 50.56]
         }
       },
       "vod": {
-        "bytes": 21418,
+        "bytes": 20978,
         "rects": {
           "vod.categories": [5, 10.56, 26.67, 89.44],
           "vod.grid": [31.67, 10.56, 68.33, 89.44]
         }
       },
+      "vod-holdmenu": {
+        "bytes": 13366,
+        "rects": {
+          "menu.report": [24.18, 45.48, 51.64, 7.93]
+        }
+      },
       "voice": {
-        "bytes": 36482,
+        "bytes": 35180,
         "rects": {
           "voice.mic": [13.44, 74.26, 6.67, 11.85]
         }
@@ -1613,95 +1893,104 @@
     },
     "ar": {
       "apps": {
-        "bytes": 20804,
+        "bytes": 20104,
         "rects": {
           "apps.grid": [5, 49.44, 90, 50.56]
         }
       },
       "apps-detail": {
-        "bytes": 19072,
+        "bytes": 18494,
         "rects": {
-          "apps.download": [5.15, 63.46, 44.92, 7.33]
+          "apps.download": [5.83, 63.46, 43.54, 7.33]
         }
       },
       "backups": {
-        "bytes": 19640,
+        "bytes": 19112,
         "rects": {
           "backups.list": [5, 28.33, 95, 71.67],
           "backups.refresh": [86.04, 13.84, 11.74, 9.72]
         }
       },
       "buffering": {
-        "bytes": 24638,
+        "bytes": 23840,
         "rects": {
           "bg.steps": [5, 11.85, 90, 5.56]
         }
       },
       "dashboard": {
-        "bytes": 29564,
+        "bytes": 28848,
         "rects": {
           "dash.games": [65.83, 28.8, 29.17, 7.41],
           "dash.gems": [5, 15.37, 29.17, 11.2],
-          "dash.player": [28.49, 58.24, 35.64, 30],
+          "dash.player": [28.49, 58.24, 35.64, 41.76],
           "dash.services": [65.38, 58.24, 28.26, 34.81],
           "dash.signOut": [79.46, 5, 15.54, 8.15]
         }
       },
-      "gameday": {
-        "bytes": 20460,
+      "device-check": {
+        "bytes": 34376,
         "rects": {
-          "gd.chips": [23.51, 12.78, 24.92, 5.93],
+          "ds.ask": [46.55, 18.59, 16.81, 7.41],
+          "ds.found": [2.5, 30.79, 38.71, 69.21],
+          "ds.overall": [2.5, 16.02, 95, 12.55],
+          "ds.picks": [43.3, 30.79, 54.2, 69.21]
+        }
+      },
+      "gameday": {
+        "bytes": 19964,
+        "rects": {
+          "gd.chips": [23.51, 12.78, 31.19, 5.93],
           "gd.game": [6.67, 20.93, 91.25, 47.41],
           "gd.remind": [88.42, 25, 8.24, 6.67]
         }
       },
       "gameday-game": {
-        "bytes": 26060,
+        "bytes": 24838,
         "rects": {
           "gd.down": [7.5, 76.48, 89.58, 8.89],
           "gd.holdHint": [7.5, 94.07, 90, 2.96],
           "gd.links": [7.5, 26.85, 90, 65.74],
-          "gd.picked": [12.5, 33.52, 75.45, 2.96],
+          "gd.picked": [12.5, 33.52, 75.42, 2.96],
           "gd.serviceTag": [49.85, 29.81, 10.37, 2.96],
           "gd.unconfirmed": [7.5, 50.56, 89.58, 5.19]
         }
       },
       "gems": {
-        "bytes": 20132,
+        "bytes": 19582,
         "rects": {
           "gems.packs": [5, 35.74, 90, 64.26]
         }
       },
       "gems-qr": {
-        "bytes": 21362,
+        "bytes": 21438,
         "rects": {
           "gems.qr": [5, 17.59, 34.27, 60.93]
         }
       },
       "guide": {
-        "bytes": 30746,
+        "bytes": 38564,
         "rects": {
-          "guide.categories": [5, 10.56, 95, 11.67],
-          "guide.channels": [5.89, 56.76, 23.38, 43.24],
-          "guide.grid": [29.04, 56.76, 70.07, 43.24]
+          "guide.categories": [6.25, 36, 24.17, 4.26],
+          "guide.channels": [6.25, 40.44, 24.17, 53.15],
+          "guide.grid": [30.42, 40.44, 68.33, 53.15]
         }
       },
       "guide-record": {
-        "bytes": 26392,
+        "bytes": 26160,
         "rects": {
           "rec.programmes": [14.69, 15.56, 70.63, 31.85],
           "rec.start": [14.69, 69.63, 70.63, 8.15]
         }
       },
       "home": {
-        "bytes": 34636,
+        "bytes": 33378,
         "rects": {
           "home.cardLivetv": [10.5, 78.23, 16, 18.77],
           "home.cardPlex": [31.5, 78.23, 16, 18.77],
           "home.cards": [3, 78.23, 94, 18.77],
           "home.cardStore": [73.5, 78.23, 16, 18.77],
           "home.cardSupport": [52.5, 78.23, 16, 18.77],
-          "home.clock": [35.72, 2.69, 28.56, 7.04],
+          "home.clock": [35.71, 2.69, 28.57, 7.04],
           "home.dashboard": [80.83, 2.5, 4.17, 7.41],
           "home.profile": [75.42, 2.5, 4.58, 7.41],
           "home.recommended": [3, 35.97, 94, 38.15],
@@ -1711,7 +2000,7 @@
         }
       },
       "home-bar": {
-        "bytes": 34602,
+        "bytes": 33212,
         "rects": {
           "home.recArrows": [3.42, 41.15, 93.17, 27.04],
           "home.recDots": [3, 69.67, 94, 4.44],
@@ -1719,8 +2008,25 @@
           "home.recTile": [18.8, 40.48, 9.38, 28.39]
         }
       },
+      "home-tilemenu": {
+        "bytes": 31722,
+        "rects": {
+          "home.tileChange": [3.81, 47.95, 29.38, 8.15],
+          "home.tileMenu": [2.88, 31.47, 31.25, 44.07],
+          "home.tileMove": [3.81, 39.06, 29.38, 8.15],
+          "home.tileReset": [3.81, 56.84, 29.38, 8.15]
+        }
+      },
+      "live-account": {
+        "bytes": 26490,
+        "rects": {
+          "acct.pin": [53.85, 39.81, 20.31, 20.93],
+          "acct.pinBtn": [30, 34.78, 20.92, 9.33],
+          "hub.account": [1.67, 17.22, 26.67, 9.26]
+        }
+      },
       "live-holdmenu": {
-        "bytes": 17120,
+        "bytes": 17730,
         "rects": {
           "menu.favorite": [25.52, 41.11, 48.96, 9.26],
           "menu.record": [25.52, 51.85, 48.96, 9.26],
@@ -1728,30 +2034,38 @@
         }
       },
       "live-layout": {
-        "bytes": 17824,
+        "bytes": 18398,
         "rects": {
-          "live.layoutCards": [5, 28.15, 90, 52.78]
+          "live.layoutCards": [5, 32, 90, 45.07]
         }
       },
       "live-list": {
-        "bytes": 26014,
+        "bytes": 31150,
         "rects": {
           "live.back": [2.08, 1.48, 12.85, 7.41],
-          "live.categories": [6.25, 34.26, 24.06, 65.74],
-          "live.channels": [31.67, 43.33, 68.33, 56.67],
-          "live.favorites": [6.25, 43.15, 24.06, 8.89],
-          "live.lineGroup": [6.25, 35, 24.06, 8.89],
-          "live.nowNext": [61.67, 13.52, 36.67, 26.67],
-          "live.preview": [33.33, 13.52, 26.67, 26.67],
-          "live.recordingsBtn": [6.25, 23.52, 24.06, 9.26],
-          "live.searchBtn": [6.25, 12.78, 24.06, 9.26],
+          "live.categories": [6.25, 22.04, 20.73, 77.96],
+          "live.channels": [28.33, 43.33, 71.67, 56.67],
+          "live.favorites": [6.25, 36.11, 20.73, 7.04],
+          "live.lineGroup": [6.25, 29.81, 20.73, 7.04],
+          "live.nowNext": [58.33, 13.52, 40, 26.67],
+          "live.preview": [30, 13.52, 26.67, 26.67],
+          "live.recordingsBtn": [1.25, 41.67, 2.4, 8.15],
+          "live.searchBtn": [6.25, 12.78, 20.73, 7.78],
           "live.sections": [0, 10.56, 5, 89.44],
           "live.settingsBtn": [85.57, 1.48, 12.35, 7.41],
-          "live.updateChannels": [68.88, 1.48, 15.86, 7.41]
+          "live.updateChannels": [68.87, 1.48, 15.86, 7.41]
+        }
+      },
+      "live-pin": {
+        "bytes": 11764,
+        "rects": {
+          "signin.note": [57.29, 55.76, 34.38, 8.33],
+          "signin.pinInput": [6.77, 43.91, 46.46, 12.59],
+          "signin.pinSubmit": [6.77, 59.47, 46.46, 7.41]
         }
       },
       "live-player": {
-        "bytes": 14546,
+        "bytes": 13970,
         "rects": {
           "bar.audio": [68.75, 76.48, 5, 15.56],
           "bar.cc": [62.92, 76.48, 5, 15.56],
@@ -1770,8 +2084,15 @@
           "bar.vol": [74.58, 76.48, 5, 15.56]
         }
       },
+      "live-player-page": {
+        "bytes": 28404,
+        "rects": {
+          "hub.player": [1.67, 67.22, 26.67, 9.26],
+          "player.liveBuffer": [30, 58.93, 68.33, 14.92]
+        }
+      },
       "live-record": {
-        "bytes": 21378,
+        "bytes": 21232,
         "rects": {
           "rec.length": [14.69, 36.67, 70.63, 20.74],
           "rec.saveTo": [14.69, 21.11, 70.63, 14.07],
@@ -1779,124 +2100,135 @@
         }
       },
       "live-report": {
-        "bytes": 15884,
+        "bytes": 16634,
         "rects": {
           "report.reasons": [25.52, 25, 48.96, 52.22]
         }
       },
       "live-search": {
-        "bytes": 18792,
+        "bytes": 17990,
         "rects": {
-          "live.channels": [31.67, 43.33, 68.33, 56.67],
-          "live.searchBox": [6.25, 23.52, 24.06, 9.26]
+          "live.channels": [28.33, 43.33, 71.67, 56.67],
+          "live.searchBox": [6.25, 22.04, 20.73, 7.78]
         }
       },
       "live-settings": {
-        "bytes": 14054,
+        "bytes": 15738,
         "rects": {
+          "hub.account": [1.67, 17.22, 26.67, 9.26],
           "hub.appearance": [1.67, 47.22, 26.67, 9.26],
           "hub.channels": [1.67, 37.22, 26.67, 9.26],
+          "hub.help": [1.67, 77.22, 26.67, 9.26],
+          "hub.player": [1.67, 67.22, 26.67, 9.26],
           "hub.rewind": [1.67, 57.22, 26.67, 9.26],
           "hub.services": [1.67, 27.13, 26.67, 9.44],
           "hub.signOut": [1.67, 87.22, 26.67, 9.26]
         }
       },
       "live-signin": {
-        "bytes": 12236,
+        "bytes": 13102,
         "rects": {
-          "signin.note": [23.44, 80.19, 53.13, 5.93],
-          "signin.password": [23.44, 47.59, 53.13, 14.81],
-          "signin.submit": [23.44, 68.33, 53.13, 8.89],
-          "signin.username": [23.44, 29.81, 53.13, 14.81]
+          "signin.note": [57.29, 59.93, 34.38, 11.39],
+          "signin.password": [6.77, 51.13, 46.46, 12.59],
+          "signin.pinBtn": [57.29, 33.5, 34.38, 6.67],
+          "signin.submit": [6.77, 66.69, 46.46, 7.41],
+          "signin.username": [6.77, 36.69, 46.46, 12.59]
         }
       },
       "multi": {
-        "bytes": 11868,
+        "bytes": 19764,
         "rects": {
-          "multi.layouts": [15.89, 46.39, 73.33, 29.63]
+          "multi.layouts": [8.44, 40.46, 88.23, 31.85]
         }
       },
       "plex-audio": {
-        "bytes": 13032,
+        "bytes": 12998,
         "rects": {
           "pp.fixAudio": [67.6, 60.56, 28.13, 8.15]
         }
       },
       "plex-connect": {
-        "bytes": 13044,
+        "bytes": 12094,
         "rects": {
-          "plexauth.connect": [28.48, 68.3, 22.5, 9.33],
-          "plexauth.ownServer": [51.69, 68.52, 19.29, 8.89]
+          "plexauth.connect": [28.91, 68.3, 21.63, 9.33],
+          "plexauth.ownServer": [51.28, 68.52, 19.29, 8.89]
         }
       },
       "plex-detail": {
-        "bytes": 21294,
+        "bytes": 23696,
         "rects": {
-          "detail.cast": [24.17, 65.56, 72.5, 30.37],
-          "detail.myList": [38.11, 44.81, 10.38, 7.41],
-          "detail.play": [23.84, 44.63, 13.76, 7.78],
-          "detail.version": [24.17, 54.44, 72.5, 6.67]
+          "detail.cast": [21.46, 49.44, 75.21, 28.7],
+          "detail.myList": [35.19, 30.93, 10.17, 7.04],
+          "detail.play": [21.14, 30.75, 13.54, 7.39],
+          "detail.version": [21.46, 40.19, 75.21, 5.56]
         }
       },
       "plex-discover": {
-        "bytes": 36330,
+        "bytes": 32928,
         "rects": {
-          "plex.discover": [30.83, 14.05, 66.67, 85.95]
+          "plex.discover": [30.83, 22.2, 66.67, 77.8]
         }
       },
       "plex-home": {
-        "bytes": 31598,
+        "bytes": 34174,
         "rects": {
-          "plex.continue": [30.83, 14.05, 66.67, 44.44],
+          "plex.continue": [30.83, 30.19, 66.67, 36.2],
           "plex.menu": [5, 10.56, 23.33, 89.44],
-          "plex.recent": [30.83, 60.72, 66.67, 39.28]
+          "plex.recent": [30.83, 67.13, 66.67, 32.87]
         }
       },
       "plex-link": {
-        "bytes": 12304,
+        "bytes": 11958,
         "rects": {
           "plexauth.code": [26.77, 42.41, 46.46, 17.78],
           "plexauth.url": [26.77, 35, 46.46, 4.44]
         }
       },
       "plex-player": {
-        "bytes": 11466,
+        "bytes": 11446,
         "rects": {
-          "pp.audio": [42.08, 79.26, 5, 8.89],
+          "pp.audio": [34.53, 79.26, 5, 8.89],
           "pp.controls": [3.33, 77.78, 93.33, 11.85],
+          "pp.next": [72.03, 80, 13.85, 7.41],
           "pp.seek": [3.33, 70, 93.33, 1.11],
-          "pp.skip": [73.27, 53.33, 21.73, 14.07],
-          "pp.subs": [48.33, 79.26, 5, 8.89]
+          "pp.skip": [73.26, 53.33, 21.74, 14.07],
+          "pp.subs": [40.78, 79.26, 5, 8.89]
+        }
+      },
+      "plex-related": {
+        "bytes": 31248,
+        "rects": {
+          "detail.related": [21.46, 63.33, 75.21, 36.67]
         }
       },
       "plex-search": {
-        "bytes": 12490,
+        "bytes": 12304,
         "rects": {
-          "plex.results": [13.33, 26.28, 84.17, 39.81],
+          "plex.results": [13.33, 26.28, 84.17, 39.44],
           "plex.searchBox": [13.33, 14.05, 84.17, 9.26]
         }
       },
       "plex-subs": {
-        "bytes": 12484,
+        "bytes": 12316,
         "rects": {
           "pp.getSubs": [67.6, 60.56, 28.13, 8.15]
         }
       },
       "plex-upnext": {
-        "bytes": 7628,
+        "bytes": 7526,
         "rects": {
           "pp.upNext": [53.71, 67.69, 41.29, 23.43]
         }
       },
       "profile-edit": {
-        "bytes": 20246,
+        "bytes": 19850,
         "rects": {
           "prof.kidsLevel": [15, 50.56, 70, 11.85],
           "prof.pinBtn": [15, 84.63, 15.45, 10.37]
         }
       },
       "profiles-pick": {
-        "bytes": 10832,
+        "bytes": 10384,
         "rects": {
           "prof.kids": [49.26, 35.19, 13.33, 31.11],
           "prof.list": [3.33, 32.22, 93.33, 37.04],
@@ -1904,110 +2236,128 @@
         }
       },
       "recordings": {
-        "bytes": 22402,
+        "bytes": 22572,
         "rects": {
           "recs.drive": [61.31, 15.56, 36.61, 3.52],
-          "recs.list": [7.19, 56.48, 90.73, 34.63],
-          "recs.scheduled": [7.19, 22.41, 90.73, 15.56]
+          "recs.list": [7.08, 56.48, 90.83, 34.63],
+          "recs.scheduled": [7.08, 22.41, 90.83, 15.56]
+        }
+      },
+      "settings-home": {
+        "bytes": 30296,
+        "rects": {
+          "set.barShow": [30.73, 58.1, 66.88, 18.38],
+          "set.barSource": [30.73, 39.35, 66.88, 18.38],
+          "set.contentBar": [30.73, 24.44, 66.88, 14.54],
+          "set.homeRow": [1.67, 27.22, 26.67, 9.26],
+          "set.tilesReset": [30.73, 91.76, 66.88, 5.28]
         }
       },
       "settings-language": {
-        "bytes": 18822,
+        "bytes": 14738,
         "rects": {
-          "set.language": [5, 55.46, 90, 41.85]
+          "set.language": [30, 23.15, 68.33, 27.78]
         }
       },
       "settings-media": {
-        "bytes": 18828,
+        "bytes": 22362,
         "rects": {
-          "set.wallpaper": [7.6, 44.72, 84.79, 55.28]
+          "set.wallpaper": [30, 23.15, 68.33, 34.07]
         }
       },
       "settings-remote": {
-        "bytes": 29842,
+        "bytes": 32706,
         "rects": {
-          "set.remoteCode": [7.19, 63.61, 29.01, 11.11],
-          "set.remoteQr": [13.88, 33.61, 15.63, 27.78],
-          "set.remoteSteps": [38.69, 39.54, 54.12, 14.07]
+          "set.remoteCode": [32.19, 54.44, 29.01, 11.11],
+          "set.remoteQr": [39.4, 26.3, 14.58, 25.93],
+          "set.remoteSteps": [63.69, 32.22, 32.45, 27.41]
         }
       },
       "settings-switches": {
-        "bytes": 24866,
+        "bytes": 23260,
         "rects": {
-          "set.alerts": [5, 72.31, 90, 22.59],
-          "set.contentBar": [5, 0, 90, 21.94],
-          "set.postNotify": [2.75, 46.19, 94.5, 23.72]
+          "set.alerts": [30.73, 39.35, 66.88, 18.1],
+          "set.homeRow": [1.67, 27.22, 26.67, 9.26],
+          "set.postNotify": [30.73, 24.44, 66.88, 14.54]
         }
       },
       "settings-ui": {
-        "bytes": 22954,
+        "bytes": 17426,
         "rects": {
-          "set.tabs": [5, 19.35, 90, 7.41],
-          "set.updatesTab": [76.75, 20.09, 17.83, 5.93]
+          "set.page": [30, 17.22, 68.33, 79.81],
+          "set.tabs": [1.67, 17.22, 26.67, 79.26],
+          "set.updatesTab": [1.67, 87.22, 26.67, 9.26]
         }
       },
       "speedtest": {
-        "bytes": 12496,
+        "bytes": 12244,
         "rects": {
-          "speed.start": [78.16, 4.92, 17.01, 8.31]
+          "speed.start": [78.16, 4.92, 17, 8.31]
         }
       },
       "store": {
-        "bytes": 17482,
+        "bytes": 16520,
         "rects": {
           "store.grid": [2.5, 29.81, 95, 55.93]
         }
       },
       "support-ai": {
-        "bytes": 18040,
+        "bytes": 17428,
         "rects": {
-          "ai.input": [6.77, 86.94, 64.95, 7.41]
+          "ai.input": [6.77, 86.94, 64.96, 7.41]
         }
       },
       "support-help": {
-        "bytes": 26090,
+        "bytes": 26572,
         "rects": {
           "sup.aiTab": [35.31, 20.28, 29.38, 7.41],
-          "sup.apps": [50.63, 77.87, 44.38, 13.33],
-          "sup.cleaner": [5, 77.87, 44.38, 13.33],
+          "sup.apps": [5, 93.43, 44.38, 6.57],
+          "sup.cleaner": [50.63, 77.87, 44.38, 13.33],
+          "sup.deviceCheck": [50.63, 46.76, 44.38, 13.33],
           "sup.guide": [5, 46.76, 44.38, 13.33],
           "sup.helpTab": [5.52, 20.28, 29.38, 7.41],
           "sup.howto": [5, 31.2, 44.38, 13.33],
           "sup.postsTab": [65.1, 20.28, 29.38, 7.41],
-          "sup.remote": [50.63, 62.31, 44.38, 13.33],
+          "sup.remote": [5, 77.87, 44.38, 13.33],
           "sup.speed": [50.63, 31.2, 44.38, 13.33],
-          "sup.tickets": [5, 62.31, 44.38, 13.33],
-          "sup.videos": [50.63, 46.76, 44.38, 13.33]
+          "sup.tickets": [50.63, 62.31, 44.38, 13.33],
+          "sup.videos": [5, 62.31, 44.38, 13.33]
         }
       },
       "support-posts": {
-        "bytes": 24624,
+        "bytes": 23976,
         "rects": {
           "posts.list": [5, 39.35, 90, 60.65]
         }
       },
       "tickets": {
-        "bytes": 17768,
+        "bytes": 16948,
         "rects": {
           "tickets.list": [5, 17.59, 90, 32.96],
-          "tickets.new": [81.37, 5.37, 13.63, 7.41]
+          "tickets.new": [81.38, 5.37, 13.62, 7.41]
         }
       },
       "videos": {
-        "bytes": 24298,
+        "bytes": 23746,
         "rects": {
           "videos.grid": [5, 49.44, 90, 50.56]
         }
       },
       "vod": {
-        "bytes": 20874,
+        "bytes": 20486,
         "rects": {
           "vod.categories": [5, 10.56, 26.67, 89.44],
           "vod.grid": [31.67, 10.56, 68.33, 89.44]
         }
       },
+      "vod-holdmenu": {
+        "bytes": 12780,
+        "rects": {
+          "menu.report": [24.18, 45.48, 51.64, 7.93]
+        }
+      },
       "voice": {
-        "bytes": 36254,
+        "bytes": 35150,
         "rects": {
           "voice.mic": [13.44, 74.26, 6.67, 11.85]
         }

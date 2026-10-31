@@ -44,6 +44,7 @@ const HomeScreenPage = ({
           {...f.attrs('ui-home-bar-source')}
           focused={f.is('ui-home-bar-source')}
           onClick={() => { f.pick('ui-home-bar-source'); onCycleSource(); }}
+          data-howto="set.barSource"
           icon={Rows3}
           title={t('homeEdit.settings.sourceTitle')}
           description={t('homeEdit.settings.sourceDesc')}
@@ -59,6 +60,7 @@ const HomeScreenPage = ({
           {...f.attrs('ui-home-bar-show')}
           focused={f.is('ui-home-bar-show')}
           onClick={() => { f.pick('ui-home-bar-show'); onCycleShow(); }}
+          data-howto="set.barShow"
           icon={Star}
           title={t('homeEdit.settings.showTitle')}
           description={t('homeEdit.settings.showDesc')}
@@ -84,6 +86,7 @@ const HomeScreenPage = ({
           {...f.attrs('ui-home-tiles-reset')}
           focused={f.is('ui-home-tiles-reset')}
           onClick={() => { f.pick('ui-home-tiles-reset'); onResetTiles(); }}
+          data-howto="set.tilesReset"
           icon={LayoutGrid}
           title={t('homeEdit.settings.tilesTitle')}
           description={t('homeEdit.settings.tilesDesc')}

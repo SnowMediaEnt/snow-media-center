@@ -12,6 +12,9 @@ import { BAR_MENU_ROWS, PICKER_COLS, TILE_MENU_ROWS, type Anchor, type BarMenuRo
 const MENU_BOX = 'fixed z-[90] rounded-2xl border border-white/15 shadow-[0_12px_40px_rgba(0,0,0,0.7)] p-2 text-white font-nunito';
 const ROW = 'tv-ring w-full text-left rounded-xl px-4 py-2.5 text-base font-semibold transition-colors duration-100';
 
+/** The How-to guide's hooks on a tile's menu (data-howto; literals, so its check finds them). */
+const TILE_HOWTO: Partial<Record<TileMenuRow, string>> = { move: 'home.tileMove', change: 'home.tileChange', reset: 'home.tileReset' };
+
 const MENU_W = 300;
 // Solid (no see-through: the bar's posters behind it read as noise on a TV).
 const MENU_BG = 'rgb(15, 23, 42)';
@@ -72,13 +75,14 @@ const HomeEditorLayer = ({ editor }: { editor: HomeEditor }) => {
     return (
       <>
         <div className="fixed inset-0 z-[89]" onClick={editor.stepBack} aria-hidden="true" />
-        <div role="dialog" aria-modal="true" aria-label={title} data-home-edit-menu={tile ? 'tile' : 'bar'} className={MENU_BOX} style={menuStyle(s.anchor)}>
+        <div role="dialog" aria-modal="true" aria-label={title} data-home-edit-menu={tile ? 'tile' : 'bar'} data-howto={tile ? 'home.tileMenu' : undefined} className={MENU_BOX} style={menuStyle(s.anchor)}>
           <div className="px-3 pt-1 pb-2 text-sm font-bold uppercase tracking-wider text-brand-gold truncate">{title}</div>
           {rows.map((r, i) => (
             <button
               key={r}
               type="button"
               data-menu-row={r}
+              data-howto={tile ? TILE_HOWTO[r as TileMenuRow] : undefined}
               data-focused={s.focus === i ? 'true' : 'false'}
               className={`${ROW} ${s.focus === i ? 'bg-white/15' : 'hover:bg-white/10'} ${i > 0 ? 'mt-1' : ''}`}
               onClick={() => (tile ? editor.pressTileMenu(r as TileMenuRow) : editor.pressBarMenu(r as BarMenuRow))}

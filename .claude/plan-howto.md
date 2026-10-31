@@ -472,3 +472,20 @@ Owns `src/data/tutorialContent.ts`, `src/components/HowToGuide.tsx`, `src/compon
 1. Picture size: **yes, ~9 MB**, 1024×576 WebP in all 5 languages.
 2. Posters: **made-up titles with drawn artwork**.
 3. In-app billing: **left out of the guide** this round.
+
+---
+
+## Update, 2026-10-30 (1.9.8): the new Settings and the features since
+
+What changed since the first set of pictures:
+
+- **Settings from Home** is a menu column (My account, Home screen, Backgrounds, Profiles, Phone remote, Notifications, Language, Updates) with the row's page beside it. Shots `settings-ui` (menu + page, `set.tabs` / `set.page`), `settings-home` (new: the content bar's Show from / Show, `set.barSource` / `set.barShow`), `settings-switches` (Notifications), `settings-language`, `settings-media`, `settings-remote` all walk the menu by row name (`settingsRow(id)` in recipes.mjs).
+- **Home customization**: `home-tilemenu` (new) holds OK on the Live TV tile: `home.tileMenu`, `home.tileMove`, `home.tileChange`, `home.tileReset` (components/home/HomeEditor).
+- **Sign-in PIN**: `live-signin` gained `signin.pinBtn`; `live-pin` (new, the same stage, Right + OK) shows the 10-digit field (`signin.pinInput`, `signin.pinSubmit`). `live-account` (new) is Live TV › Settings › My Account with the PIN shown (`acct.pin`, `acct.pinBtn`); the capture seeds a made-up player account (seed.mjs `PLAYER_ACCOUNT`) and answers `my-signin-pin` from a fixture. `usePlayerAccount`, `AccountInfoScreen`, `SettingsHub` and `CredentialsForm` show these in a capture run only (`isHowtoCapture()`).
+- **Live buffer**: `live-player-page` (new): Live TV › Settings › Player, the remote on the Live buffer row (`hub.player`, `player.liveBuffer`).
+- **Device check**: `device-check` (new): Support › Device check once rated (`ds.overall`, `ds.found`, `ds.picks`, `ds.ask`); the card is `sup.deviceCheck`. The Help grid order moved (Device check beside the Buffering Guide): `helpCard(row, col)` follows Support.tsx `HELP_IDS`.
+- **Plex**: `plex-related` (new): a title page scrolled to the related rows (`detail.related`); `plex-player` gained `pp.next` (the bar's Next episode button, the stage passes `nextAction`). The Studios row is not pictured: the demo has no studios (grouping only knows real studio names), so the slide text names it instead.
+- **VOD hold OK**: `vod-holdmenu` (new, stage over `vod`): a film's options menu (`menu.report`).
+- **Live TV's side menu** now has Recordings between Game Day and VOD: `recordings` is a real capture (the recorder's web fallback), VOD is `liveSection(4)`, Backups `liveSection(7)`.
+- Slides added: basics.customize, basics.homeScreen, livetv.pin, watching.myAccount, watching.buffer, watching.vodReport, movies.related, movies.nextBtn, support.device, extras.layout. Updated text: livetv.signin, movies.menu/skip/next, extras.switches/subtitle.
+- The guide screen: slim 40 px rows and buttons the TV's width, `tv-ring` + `data-focused` as the one highlight (survives the low-memory shadow strip), a numbered legend of the lit areas beside the picture, finished chapters get a check (localStorage `smc-howto-done-v1`).

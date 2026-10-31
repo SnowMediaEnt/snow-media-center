@@ -74,7 +74,7 @@ describe('Settings menu column', () => {
     expect(rows()).toEqual(['account', 'home', 'backgrounds', 'profiles', 'remote', 'notifications', 'language', 'updates']);
     expect(document.querySelector('[data-settings-menu]')?.getAttribute('data-howto')).toBe('set.tabs');
     expect(document.querySelector('[data-settings-row="updates"]')?.getAttribute('data-howto')).toBe('set.updatesTab');
-    expect(document.querySelector('[data-settings-row="home"]')?.getAttribute('data-howto')).toBe('set.contentBar');
+    expect(document.querySelector('[data-settings-row="home"]')?.getAttribute('data-howto')).toBe('set.homeRow');
     const state = (id: string) => document.querySelector(`[data-settings-row="${id}"] [data-settings-state]`)?.textContent;
     expect(state('account')).toBe('Not signed in');
     expect(state('home')).toBe('Content bar on · Compact dashboard');

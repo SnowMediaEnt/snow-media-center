@@ -864,6 +864,7 @@ const PlexPlayerOverlay = memo(({ active, title, resolutionLabel, controller, tr
               <button
                 type="button"
                 data-pp-next=""
+                data-howto="pp.next"
                 data-focused={row === 'next' ? 'true' : 'false'}
                 className={`flex items-center h-10 px-4 rounded-full font-quicksand font-bold text-sm whitespace-nowrap transition-transform duration-150 ${focusVis('next')}`}
                 aria-label={t('plex.player.nextEpisode')}

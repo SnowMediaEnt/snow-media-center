@@ -32,12 +32,15 @@ const SUPPORT = ['ArrowRight*2', 'Enter', { wait: 2500 }];
 // Up twice reaches the header on Dashboard; Right is Settings, then Voice.
 const DASHBOARD = ['ArrowUp*2', 'Enter', { wait: 2500 }];
 const SETTINGS = ['ArrowUp*2', 'ArrowRight', 'Enter', { wait: 1500 }];
-// In Live TV, Left opens the side menu: Live TV, Guide, Game Day, VOD, Multi-Screen, Snow Originals, Backups.
+// In Live TV, Left opens the side menu: Live TV, Guide, Game Day, Recordings, VOD, Multi-Screen, Snow Originals, Backups.
 const liveSection = (n) => [...LIVE, 'ArrowLeft', ...(n ? [`ArrowDown*${n}`] : []), 'Enter', { wait: 3000 }];
 // In Support: Down reaches the tabs (Help, AI Chat, Posts), Down again the
-// Help grid, two per row: How to use SMC | Speedtest, Buffering Guide |
-// Support Videos, Submit a Ticket | Remote Access, Device Cleaner | Main Apps.
+// Help grid, two per row (Support.tsx HELP_IDS): How to use SMC | Speedtest,
+// Buffering Guide | Device check, Support Videos | Submit a Ticket,
+// Remote Access | Device Cleaner, Main Apps.
 const helpCard = (row, col) => [...SUPPORT, `ArrowDown*${row + 2}`, ...(col ? ['ArrowRight'] : []), 'Enter', { wait: 2500 }];
+/** The remote rests on this hook. */
+const focusedOn = (id) => ({ press: 'ArrowDown', until: (h) => document.querySelector(`[data-howto="${h}"][data-focused="true"]`) != null, arg: id, max: 14 });
 
 /** Settings: Down the menu until a row has the highlight (the menu opens on its
  *  first row: My account, Home screen, Backgrounds, Profiles, Phone remote,
@@ -48,11 +51,15 @@ export const RECIPES = [
   // ── Home ──
   { id: 'home', start: 'home', keys: [], ready: hook('home.cardLivetv') },
   { id: 'home-bar', start: 'home', keys: ['ArrowUp', 'ArrowRight', { wait: 800 }], ready: hook('home.recTile') },
+  // OK held on the Live TV tile: its menu (Move, Change shortcut, Reset, Cancel).
+  { id: 'home-tilemenu', start: 'home', keys: [{ hold: 'Enter', ms: 1100 }, { wait: 600 }], ready: hook('home.tileMove') },
   // Settings' menu stands in a column; the page beside it follows the highlight.
   { id: 'settings-remote', start: 'home', keys: [...SETTINGS, settingsRow('remote'), { wait: 2000 }], ready: hook('set.remoteQr') },
 
   // ── Live TV ──
   { id: 'live-signin', start: 'stage', keys: [{ wait: 800 }], ready: hook('signin.username') },
+  // Right from the username field reaches "Sign in with a PIN"; OK opens the PIN screen.
+  { id: 'live-pin', start: 'stage', stage: 'live-signin', keys: [{ wait: 800 }, 'ArrowRight', 'Enter', { wait: 800 }], ready: hook('signin.pinInput') },
   { id: 'live-layout', start: 'home', seed: { layout: false }, keys: ['Enter', { wait: 3000 }], ready: hook('live.layoutCards') },
   // Classic, both services, the Sports category, the second channel focused.
   { id: 'live-list', start: 'home', keys: [...LIVE, 'ArrowDown', 'ArrowRight', 'ArrowDown', { wait: 2000 }], ready: hook('live.channels'), settle: 600 },
@@ -65,14 +72,16 @@ export const RECIPES = [
   { id: 'live-record', start: 'stage', bg: 'live-list', keys: [{ wait: 800 }], ready: hook('rec.start') },
   { id: 'guide', start: 'home', keys: [...liveSection(1), { wait: 1000 }], ready: hook('guide.grid') },
   { id: 'guide-record', start: 'stage', bg: 'guide', keys: [{ wait: 800 }], ready: hook('rec.programmes') },
-  { id: 'recordings', start: 'stage', bg: 'live-list', keys: [{ wait: 1200 }], ready: hook('recs.list') },
+  // Its list comes from the recorder's web fallback (stageFixtures) in a capture run.
+  { id: 'recordings', start: 'home', keys: [...liveSection(3), { wait: 1500 }], ready: hook('recs.list') },
   { id: 'gameday', start: 'home', keys: [...liveSection(2), { wait: 1500 }], ready: hook('gd.game') },
   { id: 'gameday-game', start: 'home', keys: [...liveSection(2), { wait: 1500 }, 'Enter', { wait: 3500 }], ready: hook('gd.links') },
   { id: 'multi', start: 'stage', bg: 'live-list', keys: [{ wait: 800 }], ready: hook('multi.layouts') },
-  { id: 'backups', start: 'home', keys: [...liveSection(6), { wait: 1000 }], ready: hook('backups.list') },
+  { id: 'backups', start: 'home', keys: [...liveSection(7), { wait: 1000 }], ready: hook('backups.list') },
   // VOD opens on Movies or Series (Movies highlighted on a fresh box): OK
   // opens Movies, then Right goes into the posters (the first category's load waits for that).
-  { id: 'vod', start: 'home', keys: [...liveSection(3), { waitFor: '[data-vod-kind="movies"]' }, 'Enter', { wait: 2000 }, 'ArrowRight', { wait: 2500 }], ready: `${hook('vod.grid')} img`, settle: 800 },
+  { id: 'vod', start: 'home', keys: [...liveSection(4), { waitFor: '[data-vod-kind="movies"]' }, 'Enter', { wait: 2000 }, 'ArrowRight', { wait: 2500 }], ready: `${hook('vod.grid')} img`, settle: 800 },
+  { id: 'vod-holdmenu', start: 'stage', bg: 'vod', keys: [{ wait: 800 }], ready: hook('menu.report') },
   // Up from the side menu reaches the header: Back, Update Channels, Settings.
   // The menu is a little taller than the screen and follows the highlight:
   // down to Sign Out brings it on screen, then back up to Add service.
@@ -80,6 +89,16 @@ export const RECIPES = [
     { press: 'ArrowDown', until: () => document.querySelector('[data-howto="hub.signOut"]')?.getAttribute('data-focused') === 'true', max: 10 },
     { press: 'ArrowUp', until: () => document.querySelector('[data-howto="hub.services"]')?.getAttribute('data-focused') === 'true', max: 8 },
     { wait: 600 }], ready: hook('hub.services') },
+  // My Account beside the menu: Right goes into the page, the remote on "Show sign-in PIN"; OK shows the digits.
+  { id: 'live-account', start: 'home', keys: [...LIVE, 'ArrowLeft', 'ArrowUp', 'ArrowRight*2', 'Enter', { wait: 1500 },
+    focusedOn('hub.account'), { wait: 1200 }, 'ArrowRight', { wait: 600 },
+    { press: 'ArrowDown', until: () => document.querySelector('[data-howto="acct.pinBtn"]')?.getAttribute('data-focused') === 'true', max: 6 },
+    'Enter', { wait: 1500 }], ready: hook('acct.pin') },
+  // Player beside the menu: Right goes into the page, Down to the Live buffer row.
+  { id: 'live-player-page', start: 'home', keys: [...LIVE, 'ArrowLeft', 'ArrowUp', 'ArrowRight*2', 'Enter', { wait: 1500 },
+    focusedOn('hub.player'), { wait: 1200 }, 'ArrowRight', { wait: 600 },
+    { press: 'ArrowDown', until: () => document.querySelector('[data-howto="player.liveBuffer"]')?.getAttribute('data-focused') === 'true', max: 6 },
+    { wait: 400 }], ready: hook('player.liveBuffer') },
 
   // ── Plex ──
   { id: 'plex-connect', start: 'stage', keys: [{ wait: 800 }], ready: hook('plexauth.connect') },
@@ -90,6 +109,10 @@ export const RECIPES = [
   { id: 'plex-search', start: 'home', keys: [...PLEX, 'ArrowRight', { wait: 800 }, 'ArrowDown*2', 'Enter', { wait: 800 }, { type: 'star' }, { wait: 2000 }], ready: hook('plex.results'), settle: 600 },
   // Recently Added starts with Starfall Harbor, the movie with a 4K and a 1080p version.
   { id: 'plex-detail', start: 'home', keys: [...PLEX, 'ArrowRight', { wait: 800 }, 'ArrowRight', 'ArrowDown', 'Enter', { wait: 3000 }], ready: hook('detail.play'), settle: 600 },
+  // Down from the buttons past the versions and the cast to the related rows.
+  { id: 'plex-related', start: 'home', keys: [...PLEX, 'ArrowRight', { wait: 800 }, 'ArrowRight', 'ArrowDown', 'Enter', { wait: 3000 },
+    { press: 'ArrowDown', until: () => document.querySelector('[data-plex-related-row] [data-focused="true"]') != null, max: 8 },
+    { wait: 800 }], ready: hook('detail.related'), settle: 600 },
   { id: 'plex-player', start: 'stage', keys: [{ wait: 1000 }], ready: hook('pp.skip') },
   { id: 'plex-upnext', start: 'stage', keys: [{ wait: 1000 }], ready: hook('pp.upNext') },
   // The control bar is up: Subtitles is 3 to the right, Audio 2.
@@ -98,8 +121,8 @@ export const RECIPES = [
 
   // ── Main Apps, Store, account ──
   // Main Apps opens on Featured; Down reaches the tabs, Right is All.
-  { id: 'apps', start: 'home', keys: [...helpCard(3, 1), 'ArrowDown', 'ArrowRight', 'Enter', { wait: 1000 }], ready: hook('apps.grid') },
-  { id: 'apps-detail', start: 'home', keys: [...helpCard(3, 1), 'ArrowDown', 'ArrowRight', 'Enter', { wait: 800 }, 'ArrowDown', 'Enter', { wait: 1500 }], ready: hook('apps.download') },
+  { id: 'apps', start: 'home', keys: [...helpCard(4, 0), 'ArrowDown', 'ArrowRight', 'Enter', { wait: 1000 }], ready: hook('apps.grid') },
+  { id: 'apps-detail', start: 'home', keys: [...helpCard(4, 0), 'ArrowDown', 'ArrowRight', 'Enter', { wait: 800 }, 'ArrowDown', 'Enter', { wait: 1500 }], ready: hook('apps.download') },
   // The Store opens on "Build a setup"; Right, OK is the Devices shelf.
   { id: 'store', start: 'home', keys: ['ArrowRight*3', 'Enter', { wait: 3000 }, 'ArrowRight', 'Enter', { wait: 1500 }], ready: hook('store.grid') },
   // Dashboard: Down reaches Purchase Snow Gems.
@@ -113,15 +136,19 @@ export const RECIPES = [
   { id: 'support-ai', start: 'home', keys: [...SUPPORT, 'ArrowDown', 'ArrowRight', 'Enter', { wait: 1500 }], ready: hook('ai.input') },
   { id: 'support-posts', start: 'home', keys: [...SUPPORT, 'ArrowDown', 'ArrowRight*2', 'Enter', { wait: 1500 }], ready: hook('posts.list') },
   { id: 'voice', start: 'home', keys: ['ArrowUp*2', 'ArrowRight*2', 'Enter', { wait: 2500 }], ready: hook('voice.mic') },
-  { id: 'tickets', start: 'home', keys: [...helpCard(2, 0)], ready: hook('tickets.list') },
+  { id: 'tickets', start: 'home', keys: [...helpCard(2, 1)], ready: hook('tickets.list') },
+  // The scan runs by itself; the picture waits for its rating.
+  { id: 'device-check', start: 'home', keys: [...helpCard(1, 1), { waitFor: '[data-device-scan-overall]:not([data-device-scan-overall="none"])' }, { wait: 1200 }], ready: hook('ds.picks'), settle: 400 },
   // The speed test starts by itself; the picture is taken when it is done.
   { id: 'speedtest', start: 'home', keys: [...helpCard(0, 1), { wait: 26000 }], ready: hook('speed.start') },
   { id: 'buffering', start: 'home', keys: [...helpCard(1, 0)], ready: hook('bg.steps') },
-  { id: 'videos', start: 'home', keys: [...helpCard(1, 1), { wait: 1000 }], ready: hook('videos.grid'), settle: 600 },
+  { id: 'videos', start: 'home', keys: [...helpCard(2, 0), { wait: 1000 }], ready: hook('videos.grid'), settle: 600 },
 
   // ── Settings and profiles ──
   // The menu with My account beside it (the Updates row is in the menu).
   { id: 'settings-ui', start: 'home', keys: [...SETTINGS, { wait: 1000 }], ready: hook('set.updatesTab') },
+  // Home screen, the remote on "Content bar: show from" (Right into the page, Down one row).
+  { id: 'settings-home', start: 'home', keys: [...SETTINGS, settingsRow('home'), { wait: 800 }, 'ArrowRight', 'ArrowDown', { wait: 600 }], ready: hook('set.barSource') },
   // Notifications, the remote on Post notifications: its two switches, with the
   // Home screen row (where the content bar's switch lives) in the menu beside them.
   { id: 'settings-switches', start: 'home', keys: [...SETTINGS, settingsRow('notifications'), 'ArrowRight', { wait: 800 }], ready: hook('set.alerts') },
@@ -135,8 +162,8 @@ export const RECIPES = [
   },
   { id: 'settings-media', start: 'home', keys: [...SETTINGS, settingsRow('backgrounds'), { wait: 1500 }], ready: hook('set.wallpaper') },
   { id: 'profiles-pick', start: 'home', seed: { pick: true }, startReady: 'body', keys: [{ wait: 3000 }], ready: hook('prof.list') },
-  // Manage profiles → Kids → its PIN (1234, see seed.mjs) → the editor.
-  { id: 'profile-edit', start: 'home', seed: { pick: true }, startReady: 'body', keys: [{ wait: 3000 }, 'ArrowDown', 'Enter', { wait: 1500 }, 'ArrowRight*2', 'Enter', { wait: 1500 }, { type: '1234' }, { wait: 2000 },
+  // Manage profiles asks the Parent PIN (2468, see seed.mjs) → Kids → its own PIN (1234) → the editor.
+  { id: 'profile-edit', start: 'home', seed: { pick: true }, startReady: 'body', keys: [{ wait: 3000 }, 'ArrowDown', 'Enter', { wait: 1500 }, { type: '2468' }, { wait: 2500 }, 'ArrowRight*2', 'Enter', { wait: 1500 }, { type: '1234' }, { wait: 2500 },
     // The PIN button sits just under the fold; the highlight stays on the name.
     { scrollTo: hook('prof.pinBtn') }, { wait: 400 }], ready: hook('prof.kidsLevel') },
 ];

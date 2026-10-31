@@ -14,7 +14,7 @@ import { formatDate, formatDateTime, formatNumber } from '@/i18n/format';
 import { useTranslation } from 'react-i18next';
 import { trackEvent } from '@/lib/analytics';
 import { renewableServiceForLine } from '@/lib/billing';
-import { isDemo } from '@/lib/demoMode';
+import { isDemo, isHowtoCapture } from '@/lib/demoMode';
 import RenewQR from './RenewQR';
 import LineDevicesPanel from './LineDevicesPanel';
 import { BackButton, BACK_ROW } from '@/components/ui/BackButton';
@@ -53,7 +53,7 @@ const fmtDate = (ms: number | null) => (ms ? formatDateTime(ms) : '—');
 
 const fmtDay = (ms: number | null) => (ms ? formatDate(ms) : '—');
 
-interface Row { label: string; value: React.ReactNode; icon: typeof Tv; mono?: boolean }
+interface Row { label: string; value: React.ReactNode; icon: typeof Tv; mono?: boolean; /** The How-to guide's hook (data-howto). */ howto?: string }
 
 /** The column's buttons (Back only when the page has its own header). */
 type ActionId = 'back' | 'showPwd' | 'pin' | 'change' | 'renew' | 'plans' | 'devices' | 'signout';
@@ -96,7 +96,7 @@ const AccountInfoScreen = memo(({
   const ids = useMemo<ActionId[]>(() => [
     ...(embedded ? [] : ['back' as const]),
     ...(viaPin ? [] : ['showPwd' as const]),
-    ...(isDemo() ? [] : ['pin' as const]),
+    ...(isDemo() && !isHowtoCapture() ? [] : ['pin' as const]),
     'change',
     ...(showRenew ? ['renew' as const] : []),
     ...(onOpenBilling ? ['plans' as const] : []),
@@ -142,7 +142,7 @@ const AccountInfoScreen = memo(({
   const lineKey = account ? `${account.host}|${account.username}` : '';
   useEffect(() => {
     setPin(null);
-    if (lineKey && !isDemo()) void loadPin(false);
+    if (lineKey && (!isDemo() || isHowtoCapture())) void loadPin(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per line
   }, [lineKey]);
   /** Shows / hides the PIN; a PIN that didn't come asks again. */
@@ -269,7 +269,7 @@ const AccountInfoScreen = memo(({
         </span>
       )},
     ] as Row[]),
-    ...(pin ? [{ label: t('liveAccount.account.pin'), icon: Hash, mono: true, value: pin.busy ? (
+    ...(pin ? [{ label: t('liveAccount.account.pin'), icon: Hash, mono: true, howto: 'acct.pin', value: pin.busy ? (
       <span className="text-white/70">{t('liveAccount.account.pinLoading')}</span>
     ) : pin.digits ? (
       <span>
@@ -346,6 +346,7 @@ const AccountInfoScreen = memo(({
                   data-action={id}
                   onClick={() => { if (id !== 'signout') setFocus(id); else setFocusRaw(id); press(id); }}
                   data-focused={on ? 'true' : 'false'}
+                  data-howto={id === 'pin' ? 'acct.pinBtn' : undefined}
                   data-confirm={id === 'signout' && confirmOut ? 'true' : undefined}
                   className={`tv-ring w-full justify-start rounded-xl ${embedded ? 'h-12 px-4 text-sm' : 'h-14 px-5 text-base'} transition-transform duration-150 ease-out ${on ? 'scale-105 z-10' : ''}`}
                 >
@@ -361,7 +362,7 @@ const AccountInfoScreen = memo(({
               {rows.map((r) => {
                 const Icon = r.icon;
                 return (
-                  <div key={r.label} className="flex items-start gap-3 py-2 border-b border-white/5">
+                  <div key={r.label} className="flex items-start gap-3 py-2 border-b border-white/5" data-howto={r.howto}>
                     <Icon className="w-5 h-5 text-brand-ice mt-0.5 shrink-0" />
                     <div className="min-w-0 flex-1">
                       <div className="text-xs uppercase tracking-wide text-white/70 mb-1">{r.label}</div>

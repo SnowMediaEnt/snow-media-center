@@ -25,7 +25,7 @@ import { trackEvent } from '@/lib/analytics';
 import { useToast } from '@/hooks/use-toast';
 import { useBillingEnabled } from '@/hooks/useBillingEnabled';
 import { useFeatureFlag } from '@/hooks/useFeatureFlag';
-import { isDemo } from '@/lib/demoMode';
+import { isDemo, isHowtoCapture } from '@/lib/demoMode';
 import { readPending } from '@/components/getstarted/pending';
 import { isNativePlatform } from '@/utils/platform';
 import { useTranslation } from 'react-i18next';
@@ -88,7 +88,8 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
   // "Next does nothing". Native only; the web never has this problem.
   const showStart = !isDemo() && (billingOn || vibezOn);
   // A demo viewer never reaches a real server, so no PIN sign-in either.
-  const showPinOption = !isDemo();
+  // The How-to pictures show the PIN way in (developer build only).
+  const showPinOption = !isDemo() || isHowtoCapture();
   // A hand-off recorded before the app was backgrounded (or killed) turns the
   // button into a way back into the middle of that purchase.
   const pending = showStart ? readPending() : null;
@@ -362,7 +363,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
             </div>
 
             {pinMode ? (
-              <div className="space-y-1">
+              <div className="space-y-1" data-howto="signin.pinInput">
                 <Label htmlFor="lt-pin" className="text-brand-ice font-nunito text-sm">{t('liveAccount.credentials.pin.label')}</Label>
                 {/* Show / Hide comes BEFORE the field, as on the password: the
                     keyboard's Done after the PIN lands on Sign in. */}
@@ -451,6 +452,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
                 type="submit"
                 variant="gold"
                 {...focusProps('cf-pin-submit')}
+                data-howto="signin.pinSubmit"
                 disabled={testing}
                 className="w-full mt-4 rounded-lg h-10 transition-transform duration-150 ease-out"
               >
@@ -525,6 +527,7 @@ const CredentialsForm = memo(({ initial, onSaved, onCancel, onChildOpenChange, o
                     variant="white"
                     onClick={() => { setShowPassword(false); setShowPin(false); setPin(''); setPinMode(true); }}
                     {...focusProps('cf-pin')}
+                    data-howto="signin.pinBtn"
                     disabled={testing}
                     className={sideButtonClass}
                   >

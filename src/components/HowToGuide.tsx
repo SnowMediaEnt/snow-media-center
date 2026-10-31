@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
-import { ArrowLeft, ArrowRight, X, ChevronRight, ExternalLink } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, X, ChevronRight, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
-import { openPlayerSection } from '@/lib/appActions';
+import { openPlayerSection, INTENT_KEYS } from '@/lib/appActions';
 import { TUTORIAL_CHAPTERS, type TutorialChapter, type TutorialDeepLink } from '@/data/tutorialContent';
 import { trackEvent } from '@/lib/analytics';
 import { kidsLevel } from '@/lib/kidsFilter';
@@ -18,8 +17,14 @@ interface HowToGuideProps {
 
 type View = 'chapters' | 'slides';
 
+/** Chapters finished on this box (localStorage, a per-viewer convenience). */
+const DONE_KEY = 'smc-howto-done-v1';
+
+/** A slim 40 px control: outline at rest, the tv-ring (data-focused) its one highlight. */
+const BTN = 'tv-ring h-10 px-4 rounded-lg border border-white/25 bg-white/[0.06] text-white text-sm font-bold inline-flex items-center whitespace-nowrap transition-transform duration-150 data-[focused=true]:scale-[1.04] data-[focused=true]:z-10 data-[focused=true]:bg-white/15';
+
 /** Support tools a Kids profile's Support does not have (Support.tsx). */
-const KIDS_CLOSED_EVENTS = new Set(['support:open-tickets', 'support:open-cleaner', 'support:open-posts']);
+const KIDS_CLOSED_EVENTS = new Set(['support:open-tickets', 'support:open-cleaner', 'support:open-posts', 'support:open-device']);
 
 /** A "Take me there" a Kids profile may follow. The chapters stay readable;
  *  only the jump to Main Apps, the Dashboard, tickets and the like is gone. */
@@ -97,6 +102,8 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
     onClose();
     setTimeout(() => {
       if (dl.kind === 'view') {
+        // On the page the slide shows (Settings › Home screen), not Settings' first row.
+        if (dl.settingsPage) { try { sessionStorage.setItem(INTENT_KEYS.settings, dl.settingsPage); } catch { void 0; } }
         onNavigate?.(dl.view);
       } else if (dl.kind === 'player') {
         if (onNavigate) openPlayerSection(dl.section, onNavigate);
@@ -218,56 +225,84 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
     return () => { cancelled = true; handle?.remove?.(); };
   }, [view, slideIdx, backToChapters, onClose]);
 
+  // Chapters finished on this box (a check on the row): a per-viewer convenience,
+  // never more. Storage may be blocked; then nothing is remembered.
+  const [done, setDone] = useState<string[]>(() => {
+    try { const v = JSON.parse(localStorage.getItem(DONE_KEY) || '[]'); return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []; } catch { return []; }
+  });
+  useEffect(() => {
+    if (view === 'chapters' || !chapter || !isLast) return;
+    // Reaching the last slide counts as finished (Done only goes back to the list).
+    setDone((cur) => {
+      if (cur.includes(chapter.id)) return cur;
+      const next = [...cur, chapter.id];
+      try { localStorage.setItem(DONE_KEY, JSON.stringify(next)); } catch { void 0; }
+      return next;
+    });
+  }, [view, chapter, isLast]);
+
+  const highlights = slide?.art.highlights ?? [];
+  const Icon = slide?.icon;
+
   return (
-    // Solid (the Buffering Guide's dark): at 95% black the Support screen
-    // underneath read through as part of the slide.
+    // Solid navy (the brand's): at 95% black the Support screen underneath read
+    // through as part of the slide. Every control is a tv-ring driven by state
+    // (data-focused), the one highlight on screen; nothing at rest is filled gold.
     <div
       ref={rootRef}
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-[100] bg-[#060d18] flex flex-col [&_button:focus]:outline-none [&_button:focus-visible]:outline-none [&_button:focus]:ring-0 [&_button:focus]:scale-[1.04] [&_button:focus]:shadow-[0_0_28px_6px_hsl(45_93%_58%/0.55)] [&_button:focus]:border-yellow-300 [&_button:focus]:z-10 [&_button]:transition-all [&_button]:duration-150"
+      className="fixed inset-0 z-[100] flex flex-col text-white font-nunito [&_button:focus]:outline-none [&_button:focus-visible]:outline-none"
+      style={{ backgroundColor: '#07132b', backgroundImage: 'linear-gradient(160deg, #0a2147 0%, #07132b 55%, #140a1f 100%)' }}
     >
       {/* i18n-ignore: state check, not text */}
       {view === 'chapters' && (
-        <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-8 tv-safe">
-          <div className="max-w-2xl mx-auto">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h1 className="text-3xl font-quicksand font-bold text-white">{t('guides.howTo.title')}</h1>
-                <p className="text-base text-brand-ice/70 font-nunito mt-1">{tt('guides.howTo.pickTopic')}</p>
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain tv-safe" style={{ paddingTop: '3.5vh', paddingBottom: '3vh' }}>
+          <div className="w-full max-w-5xl mx-auto">
+            <div className="flex items-center mb-3">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-2xl font-quicksand font-bold text-white leading-tight">{t('guides.howTo.title')}</h1>
+                <p className="text-sm text-brand-ice/70 mt-0.5">{tt('guides.howTo.pickTopic')}</p>
               </div>
-              <Button
+              <button
+                type="button"
                 onClick={onClose}
-                variant="outline"
-                size="sm"
-                className="bg-slate-800/60 border-slate-500 text-white"
-                data-focused="close"
+                tabIndex={-1}
+                data-focused="false"
+                className={`${BTN} ml-4`}
               >
-                <X className="w-4 h-4 mr-1" />
+                <X className="w-4 h-4 mr-1.5" />
                 {t('common.close')}
-              </Button>
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-3">
+            {/* One slim row per chapter, the TV's width: its icon, name, what it covers,
+                how many steps, a check once finished. Margins, not flex gap. */}
+            <div>
               {TUTORIAL_CHAPTERS.map((ch, idx) => {
-                const Icon = ch.icon;
+                const ChIcon = ch.icon;
                 const focused = idx === chapterFocus;
+                const finished = done.includes(ch.id);
                 return (
                   <button
                     key={ch.id}
+                    type="button"
                     ref={(el) => { chapterRefs.current[idx] = el; }}
                     onClick={() => { setChapterFocus(idx); openChapter(idx); }}
                     onFocus={() => setChapterFocus(idx)}
                     tabIndex={-1}
-                    data-focused={focused ? 'true' : undefined}
-                    className={`${ch.color} h-20 px-5 rounded-xl border shadow-md grid grid-cols-[2.5rem_1fr_auto] items-center gap-4 text-left`}
+                    data-focused={focused ? 'true' : 'false'}
+                    data-howto-chapter={ch.id}
+                    className={`tv-ring w-full h-10 ${idx > 0 ? 'mt-1' : ''} px-2 rounded-lg border flex items-center text-left transition-transform duration-150 ${focused ? 'bg-white/10 border-white/25 scale-[1.01] z-10' : 'bg-white/[0.04] border-white/10'}`}
                   >
-                    <Icon className="w-7 h-7 justify-self-center" />
-                    <span className="text-xl font-medium truncate text-white">{t(ch.titleKey)}</span>
-                    <span className="text-sm justify-self-end flex items-center gap-2">
-                      <span className="opacity-80">{t('guides.howTo.slideCount', { count: ch.slides.length })}</span>
-                      <ChevronRight className="w-4 h-4 opacity-70" />
+                    <span className={`w-7 h-7 rounded-md border flex items-center justify-center flex-shrink-0 ${ch.color}`}>
+                      <ChIcon className="w-4 h-4" />
                     </span>
+                    <span className="ml-3 text-base font-bold text-white whitespace-nowrap">{t(ch.titleKey)}</span>
+                    <span className="ml-3 flex-1 min-w-0 text-sm text-brand-ice/65 truncate">{t(ch.subtitleKey)}</span>
+                    <span className="ml-3 text-xs text-white/60 whitespace-nowrap">{t('guides.howTo.slideCount', { count: ch.slides.length })}</span>
+                    {finished && <Check className="w-4 h-4 ml-2 text-brand-gold flex-shrink-0" aria-label={t('guides.howTo.doneBtn')} />}
+                    <ChevronRight className="w-4 h-4 ml-2 text-white/50 flex-shrink-0" />
                   </button>
                 );
               })}
@@ -279,44 +314,39 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
       {/* i18n-ignore: state check, not text */}
       {view === 'slides' && chapter && slide && (
         <>
-          {/* Header */}
-          <div className="px-6 pt-3 pb-2 tv-safe">
-            <div className="max-w-3xl mx-auto flex items-center justify-between gap-4">
-              <Button
-                onClick={onClose}
-                variant="outline"
-                size="sm"
-                className="bg-slate-800/60 border-slate-500 text-white"
-              >
-                <X className="w-4 h-4 mr-1" />
+          {/* Header: Close, the chapter, which step; a thin progress line under it. */}
+          <div className="tv-safe" style={{ paddingTop: '2.5vh', paddingBottom: 0 }}>
+            <div className="w-full max-w-5xl mx-auto flex items-center">
+              <button type="button" onClick={onClose} tabIndex={-1} data-focused="false" className={BTN}>
+                <X className="w-4 h-4 mr-1.5" />
                 {t('common.close')}
-              </Button>
-              <div className="flex-1 min-w-0 text-center">
-                <div className="text-xl font-quicksand font-bold text-white truncate">{t(chapter.titleKey)}</div>
-                <div className="text-xs text-brand-ice/70 font-nunito">{t('guides.howTo.slideOf', { current: slideIdx + 1, total: slidesLen })}</div>
+              </button>
+              <div className="flex-1 min-w-0 text-center px-4">
+                <div className="text-lg font-quicksand font-bold text-white truncate leading-tight">{t(chapter.titleKey)}</div>
+                <div className="text-xs text-brand-ice/70 leading-tight">{t('guides.howTo.slideOf', { current: slideIdx + 1, total: slidesLen })}</div>
               </div>
-              {/* Width placeholder to keep title centered */}
+              {/* Keeps the title centered (as wide as Close). */}
               <div className="w-[6.5rem]" aria-hidden="true" />
             </div>
-            <div className="max-w-3xl mx-auto mt-3 h-1 bg-white/10 rounded">
-              <div
-                className="h-1 bg-brand-gold rounded transition-all duration-200"
-                style={{ width: `${slidesLen <= 1 ? 100 : (slideIdx / (slidesLen - 1)) * 100}%` }}
-              />
+            <div className="w-full max-w-5xl mx-auto mt-2 h-1 bg-white/10 rounded">
+              <div className="h-1 bg-brand-gold rounded" style={{ width: `${((slideIdx + 1) / Math.max(1, slidesLen)) * 100}%` }} />
             </div>
           </div>
 
           {/* Content: the picture on the left, the words on the right. A flex column with
-              auto margins centres the slide when there is room and lets it scroll from the
+              auto margins centers the slide when there is room and lets it scroll from the
               top when a long language does not fit (justify-center would clip the top). */}
-          <div className="flex-1 min-h-0 flex flex-col overflow-y-auto overscroll-contain px-6 pb-2">
+          <div className="flex-1 min-h-0 flex flex-col overflow-y-auto overscroll-contain px-6 py-2">
             <div className="w-full max-w-5xl mx-auto my-auto flex flex-row items-center" data-howto-slide="">
-              <div className="flex-shrink-0" style={{ width: '62%' }}>
+              <div className="flex-shrink-0" style={{ width: '60%' }}>
                 <HowtoShot art={slide.art} titleKey={slide.titleKey} />
               </div>
-              <div className="flex-1 min-w-0 pl-5 text-left">
-                <div className="w-8 h-8 rounded-lg bg-brand-gold/20 flex items-center justify-center mb-2">
-                  {(() => { const I = slide.icon; return <I className="w-4 h-4 text-brand-gold" />; })()}
+              <div className="flex-1 min-w-0 pl-6 text-left">
+                <div className="flex items-center mb-2">
+                  <span className="w-7 h-7 rounded-md bg-white/10 border border-white/15 flex items-center justify-center">
+                    {Icon && <Icon className="w-4 h-4 text-brand-gold" />}
+                  </span>
+                  <span className="ml-2 text-xs font-bold uppercase tracking-wider text-brand-ice/70">{t(chapter.titleKey)}</span>
                 </div>
                 {/* dir="auto": Arabic lines read right to left (their full stops and
                     quote marks land on the right side); the layout stays left to right. */}
@@ -324,68 +354,76 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
                   {tt(slide.titleKey)}
                 </h2>
                 {slide.line2Key && (
-                  <p dir="auto" style={{ textAlign: 'start' }} className="text-base text-brand-ice/80 font-nunito leading-relaxed mt-2">
+                  <p dir="auto" style={{ textAlign: 'start' }} className="text-base text-brand-ice/85 leading-relaxed mt-2">
                     {tt(slide.line2Key)}
                   </p>
+                )}
+                {/* The lit areas, numbered as on the picture: readable from the couch. */}
+                {highlights.length > 1 && (
+                  <div className="mt-3 flex flex-wrap items-center" data-howto-legend="">
+                    {highlights.slice(0, 3).map((h, i) => (
+                      <span key={h.id} className="inline-flex items-center mr-3 mb-1 text-sm text-white/90">
+                        <span className="w-5 h-5 rounded-full border border-brand-gold text-brand-gold text-xs font-extrabold flex items-center justify-center mr-1.5">{i + 1}</span>
+                        <span dir="auto">{t(h.labelKey)}</span>
+                      </span>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Footer */}
-          <div className="px-6 pt-2 pb-4 tv-safe">
-            <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
-              <Button
+          {/* Footer: Back, the dots, Show me (when the slide has a screen to open), Next. */}
+          <div className="tv-safe" style={{ paddingTop: 0, paddingBottom: '3vh' }}>
+            <div className="w-full max-w-5xl mx-auto flex items-center">
+              <button
+                type="button"
                 ref={(el) => { footerRefs.current[0] = el; }}
                 onClick={goPrev}
                 onFocus={() => setFooterFocus(0)}
-                variant="outline"
-                size="lg"
                 tabIndex={-1}
-                className="bg-slate-800/60 border-slate-500 text-white min-w-[8rem]"
+                data-focused={footerFocus === 0 ? 'true' : 'false'}
+                className={`${BTN} min-w-[7rem]`}
               >
-                <ArrowLeft className="w-5 h-5 mr-2" />
+                <ArrowLeft className="w-4 h-4 mr-2" />
                 {t('common.back')}
-              </Button>
+              </button>
 
-              {/* Dot progress */}
-              <div className="flex items-center gap-2">
+              <div className="flex-1 flex items-center justify-center">
                 {chapter.slides.map((_, i) => (
                   <span
                     key={i}
-                    className={`w-2 h-2 rounded-full ${i === slideIdx ? 'bg-brand-gold' : 'bg-white/25'}`}
+                    className={`rounded-full mx-1 ${i === slideIdx ? 'w-2.5 h-2.5 bg-brand-gold' : 'w-2 h-2 bg-white/25'}`}
                   />
                 ))}
               </div>
 
-              <div className="flex items-center gap-3">
-                {hasDeepLink && (
-                  <Button
-                    ref={(el) => { footerRefs.current[2] = el; }}
-                    onClick={handleDeepLink}
-                    onFocus={() => setFooterFocus(2)}
-                    variant="outline"
-                    size="lg"
-                    tabIndex={-1}
-                    className="bg-emerald-700/60 border-emerald-400/70 text-white"
-                  >
-                    <ExternalLink className="w-5 h-5 mr-2" />
-                    {t(deepLink!.labelKey)}
-                  </Button>
-                )}
-                <Button
-                  ref={(el) => { footerRefs.current[1] = el; }}
-                  onClick={goNext}
-                  onFocus={() => setFooterFocus(1)}
-                  variant="gold"
-                  size="lg"
+              {hasDeepLink && (
+                <button
+                  type="button"
+                  ref={(el) => { footerRefs.current[2] = el; }}
+                  onClick={handleDeepLink}
+                  onFocus={() => setFooterFocus(2)}
                   tabIndex={-1}
-                  className="min-w-[8rem]"
+                  data-focused={footerFocus === 2 ? 'true' : 'false'}
+                  className={`${BTN} mr-3 border-brand-ice/50 text-brand-ice`}
                 >
-                  {isLast ? t('guides.howTo.doneBtn') : t('guides.howTo.nextBtn')}
-                  {!isLast && <ArrowRight className="w-5 h-5 ml-2" />}
-                </Button>
-              </div>
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  {t(deepLink!.labelKey)}
+                </button>
+              )}
+              <button
+                type="button"
+                ref={(el) => { footerRefs.current[1] = el; }}
+                onClick={goNext}
+                onFocus={() => setFooterFocus(1)}
+                tabIndex={-1}
+                data-focused={footerFocus === 1 ? 'true' : 'false'}
+                className={`${BTN} min-w-[7rem]`}
+              >
+                {isLast ? t('guides.howTo.doneBtn') : t('guides.howTo.nextBtn')}
+                {!isLast && <ArrowRight className="w-4 h-4 ml-2" />}
+              </button>
             </div>
           </div>
         </>

@@ -8,6 +8,12 @@ import {
   CalendarDays,
   Captions,
   ChevronsUpDown,
+  CirclePlus,
+  Gauge,
+  Hash,
+  LayoutPanelLeft,
+  Move,
+  ScanSearch,
   CircleDot,
   CircleHelp,
   Clapperboard,
@@ -19,7 +25,6 @@ import {
   Film,
   Flag,
   Gamepad2,
-  Gauge,
   Gem,
   HardDrive,
   Home,
@@ -65,7 +70,8 @@ import type { HowtoArt, HowtoHighlight, RemoteHint, ShotId } from '@/data/howtoC
 // text follows the language. The pictures are named in howtoContract.ts; a highlight's
 // label is guides.howTo.labels.<labelId>.
 export type TutorialDeepLink =
-  | { kind: 'view'; view: string; labelKey: string }
+  /** `settingsPage`: Settings opens on that page (its INTENT_KEYS.settings value). */
+  | { kind: 'view'; view: string; labelKey: string; settingsPage?: string }
   | { kind: 'event'; event: string; labelKey: string }
   /** Straight into Live TV or Plex, as Home's cards open them. */
   | { kind: 'player'; section: 'live' | 'movies'; labelKey: string };
@@ -89,7 +95,7 @@ export interface TutorialChapter {
 }
 
 type LinkSpec =
-  | { kind: 'view'; view: string }
+  | { kind: 'view'; view: string; settingsPage?: string }
   | { kind: 'event'; event: string }
   | { kind: 'player'; section: 'live' | 'movies' };
 
@@ -124,12 +130,14 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
     color: 'bg-cyan-700/60 border-cyan-400/70 text-cyan-100',
     slides: [
       slide('basics', 'remote', Gamepad2, 'remote', [h('remote.arrows', 'move'), h('remote.ok', 'okHold'), h('remote.back', 'back')], { line2: true }),
-      slide('basics', 'phone', Smartphone, 'settings-remote', [h('set.remoteQr', 'scanPhone'), h('set.remoteCode', 'orCode')], { line2: true, link: { kind: 'view', view: 'settings' } }),
+      slide('basics', 'phone', Smartphone, 'settings-remote', [h('set.remoteQr', 'scanPhone'), h('set.remoteCode', 'orCode')], { line2: true, link: { kind: 'view', view: 'settings', settingsPage: 'remote' } }),
       slide('basics', 'home', Home, 'home', [h('home.cardLivetv', 'liveTv'), h('home.cardPlex', 'plexVod'), h('home.cardSupport', 'help')], { line2: true }),
       slide('basics', 'topbar', Settings, 'home', [h('home.clock', 'dateTime'), h('home.profile', 'whoWatching'), h('home.settings', 'settings')], { line2: true, remote: 'upDown' }),
       slide('basics', 'dashVoice', Mic, 'home', [h('home.dashboard', 'dashboard'), h('home.voice', 'voice')], { line2: true }),
       slide('basics', 'ticker', Newspaper, 'home', [h('home.ticker', 'news')], { line2: true }),
       slide('basics', 'recommended', Film, 'home-bar', [h('home.recTile', 'okPlays'), h('home.recArrows', 'more'), h('home.recDots', 'pages')], { line2: true, remote: 'leftRight' }),
+      slide('basics', 'customize', Move, 'home-tilemenu', [h('home.tileMove', 'move'), h('home.tileChange', 'changeShortcut'), h('home.tileReset', 'reset')], { line2: true, remote: 'holdOk' }),
+      slide('basics', 'homeScreen', LayoutPanelLeft, 'settings-home', [h('set.contentBar', 'contentBar'), h('set.barSource', 'showFrom'), h('set.barShow', 'show')], { line2: true, link: { kind: 'view', view: 'settings', settingsPage: 'home' } }),
     ],
   },
   {
@@ -140,7 +148,8 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
     color: 'bg-brand-gold/20 border-brand-gold/70 text-brand-gold',
     slides: [
       slide('livetv', 'open', Tv, 'home', [h('home.cardLivetv', 'liveTv')], { line2: true, remote: 'ok', link: { kind: 'player', section: 'live' } }),
-      slide('livetv', 'signin', KeyRound, 'live-signin', [h('signin.username', 'username'), h('signin.password', 'password'), h('signin.submit', 'signIn')], { line2: true }),
+      slide('livetv', 'signin', KeyRound, 'live-signin', [h('signin.username', 'username'), h('signin.password', 'password'), h('signin.pinBtn', 'orPin')], { line2: true }),
+      slide('livetv', 'pin', Hash, 'live-pin', [h('signin.pinInput', 'tenDigits'), h('signin.pinSubmit', 'signIn')], { line2: true }),
       slide('livetv', 'services', Layers, 'live-list', [h('live.lineGroup', 'yourServices')], { line2: true }),
       slide('livetv', 'layout', LayoutGrid, 'live-layout', [h('live.layoutCards', 'pickOne')], { line2: true, remote: 'leftRight' }),
       slide('livetv', 'menu', Menu, 'live-list', [h('live.sections', 'menu')], { line2: true }),
@@ -162,8 +171,11 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
       slide('watching', 'channels', ChevronsUpDown, 'live-player', [h('bar.prev', 'chDown'), h('bar.next', 'chUp')], { line2: true, remote: 'upDown' }),
       slide('watching', 'barButtons', Captions, 'live-player', [h('bar.report', 'report'), h('bar.cc', 'subtitles'), h('bar.audio', 'audio')], { line2: true }),
       slide('watching', 'top', RefreshCw, 'live-list', [h('live.updateChannels', 'updateChannels'), h('live.settingsBtn', 'settings')], { line2: true }),
-      slide('watching', 'settings', Settings, 'live-settings', [h('hub.services', 'services'), h('hub.channels', 'channels'), h('hub.appearance', 'appearance')], { line2: true }),
+      slide('watching', 'settings', Settings, 'live-settings', [h('hub.services', 'services'), h('hub.channels', 'channels'), h('hub.help', 'fixProblem')], { line2: true }),
+      slide('watching', 'myAccount', Hash, 'live-account', [h('hub.account', 'myAccount'), h('acct.pin', 'signInPin'), h('acct.pinBtn', 'showPin')], { line2: true }),
+      slide('watching', 'buffer', Gauge, 'live-player-page', [h('hub.player', 'player'), h('player.liveBuffer', 'liveBuffer')], { line2: true, remote: 'leftRight' }),
       slide('watching', 'vod', Film, 'vod', [h('vod.categories', 'categories'), h('vod.grid', 'movies')], { line2: true }),
+      slide('watching', 'vodReport', Flag, 'vod-holdmenu', [h('menu.report', 'reportProblem')], { line2: true, remote: 'holdOk' }),
       slide('watching', 'multi', LayoutGrid, 'multi', [h('multi.layouts', 'pickLayout')], { line2: true }),
       slide('watching', 'backups', LifeBuoy, 'backups', [h('backups.list', 'backups'), h('backups.refresh', 'refresh')], { line2: true }),
     ],
@@ -214,9 +226,11 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
       slide('movies', 'search', Search, 'plex-search', [h('plex.searchBox', 'typeOrTalk'), h('plex.results', 'results')], { line2: true }),
       slide('movies', 'detail', Info, 'plex-detail', [h('detail.play', 'play'), h('detail.myList', 'myList'), h('detail.cast', 'cast')], { line2: true, remote: 'ok' }),
       slide('movies', 'versions', Layers, 'plex-detail', [h('detail.version', 'version')], { line2: true, remote: 'leftRight' }),
+      slide('movies', 'related', CirclePlus, 'plex-related', [h('detail.related', 'moreLikeThis')], { line2: true, remote: 'ok' }),
       slide('movies', 'controls', SlidersHorizontal, 'plex-player', [h('pp.controls', 'controls'), h('pp.seek', 'seekBar')], { line2: true, remote: 'ok' }),
       slide('movies', 'skip', FastForward, 'plex-player', [h('pp.skip', 'skipIntro')], { line2: true, remote: 'ok' }),
       slide('movies', 'next', SkipForward, 'plex-upnext', [h('pp.upNext', 'nextEpisode')], { line2: true, remote: 'ok' }),
+      slide('movies', 'nextBtn', SkipForward, 'plex-player', [h('pp.next', 'nextEpisode')], { line2: true, remote: 'ok' }),
       slide('movies', 'subs', Captions, 'plex-subs', [h('pp.getSubs', 'getSubs')]),
       slide('movies', 'audio', VolumeX, 'plex-audio', [h('pp.fixAudio', 'fixAudio')], { line2: true }),
     ],
@@ -247,6 +261,7 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
       slide('support', 'tickets', MessageCircle, 'tickets', [h('tickets.new', 'newTicket'), h('tickets.list', 'yourTickets')], { line2: true, link: { kind: 'event', event: 'support:open-tickets' } }),
       slide('support', 'speed', Gauge, 'speedtest', [h('speed.start', 'start')], { line2: true, remote: 'ok' }),
       slide('support', 'buffering', CircleDot, 'buffering', [h('bg.steps', 'steps')], { link: { kind: 'event', event: 'support:open-buffering-guide' } }),
+      slide('support', 'device', ScanSearch, 'device-check', [h('ds.overall', 'rating'), h('ds.found', 'whatWeFound'), h('ds.ask', 'askAssistant')], { line2: true, link: { kind: 'event', event: 'support:open-device' } }),
       slide('support', 'videos', Video, 'videos', [h('videos.grid', 'videos')]),
       slide('support', 'posts', Newspaper, 'support-posts', [h('posts.list', 'posts')], { line2: true, link: { kind: 'event', event: 'support:open-posts' } }),
       slide('support', 'more', Sparkles, 'support-help', [h('sup.remote', 'remoteAccess'), h('sup.cleaner', 'cleaner')], { line2: true, link: { kind: 'event', event: 'support:open-cleaner' } }),
@@ -274,9 +289,10 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
     icon: Cog,
     color: 'bg-emerald-700/60 border-emerald-400/70 text-emerald-100',
     slides: [
-      slide('extras', 'language', Languages, 'settings-language', [h('set.language', 'language')], { line2: true, link: { kind: 'view', view: 'settings' } }),
+      slide('extras', 'layout', LayoutPanelLeft, 'settings-ui', [h('set.tabs', 'menu'), h('set.page', 'itsPage')], { line2: true, remote: 'leftRight', link: { kind: 'view', view: 'settings' } }),
+      slide('extras', 'language', Languages, 'settings-language', [h('set.language', 'language')], { line2: true, link: { kind: 'view', view: 'settings', settingsPage: 'language' } }),
       slide('extras', 'wallpaper', Palette, 'settings-media', [h('set.wallpaper', 'wallpaper')], { line2: true }),
-      slide('extras', 'switches', ToggleRight, 'settings-switches', [h('set.contentBar', 'recommendedRow'), h('set.postNotify', 'postAlerts'), h('set.alerts', 'serviceAlerts')], { line2: true }),
+      slide('extras', 'switches', ToggleRight, 'settings-switches', [h('set.homeRow', 'homeScreen'), h('set.postNotify', 'postAlerts'), h('set.alerts', 'serviceAlerts')], { line2: true }),
       slide('extras', 'profiles', Users, 'profiles-pick', [h('prof.list', 'profiles'), h('prof.manage', 'manage')], { line2: true }),
       slide('extras', 'kids', Baby, 'profile-edit', [h('prof.kidsLevel', 'ageLevel'), h('prof.pinBtn', 'pin')], { line2: true }),
       slide('extras', 'updates', Download, 'settings-ui', [h('set.updatesTab', 'updates')], { line2: true }),

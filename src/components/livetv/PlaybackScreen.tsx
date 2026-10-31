@@ -232,6 +232,7 @@ const PlaybackScreen = memo(({ onBack, embedded = false, active = true }: Props)
             <div className="text-xs uppercase tracking-wide text-white/70">{t('live.playback.settingsHeading')}</div>
             <div
               data-playback-row="liveBuffer"
+              data-howto="player.liveBuffer"
               data-focused={focusIdx === BUFFER_ROW ? 'true' : 'false'}
               onClick={() => setFocusIdx(BUFFER_ROW)}
               className={`tv-ring rounded-2xl px-4 py-2 border cursor-pointer bg-slate-900/60 border-white/10 ${focusIdx === BUFFER_ROW ? 'scale-[1.02] z-10' : ''}`}

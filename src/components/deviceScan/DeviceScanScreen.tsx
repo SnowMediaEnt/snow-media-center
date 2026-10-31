@@ -200,6 +200,7 @@ const DeviceScanScreen = memo(({ onClose, onAsk, onOpenTickets }: Props) => {
       type="button"
       {...focusProps(id)}
       data-focused={currentFocusId === id ? 'true' : 'false'}
+      data-howto={id === 'ds-ask' ? 'ds.ask' : undefined}
       onClick={onClick}
       disabled={disabled}
       className={`${btn} mb-2 md:mb-0 md:mr-2 bg-white/10 border-white/20 text-white disabled:opacity-60`}
@@ -239,7 +240,7 @@ const DeviceScanScreen = memo(({ onClose, onAsk, onOpenTickets }: Props) => {
   );
 
   const overallCard = (
-    <div data-device-scan-overall={overall ?? 'none'} className="rounded-xl px-4 py-3 bg-black/30 border border-white/10 md:flex md:items-center">
+    <div data-device-scan-overall={overall ?? 'none'} data-howto="ds.overall" className="rounded-xl px-4 py-3 bg-black/30 border border-white/10 md:flex md:items-center">
       <div className="flex items-center min-w-0 flex-1">
         {scanning && !scan
           ? <Loader2 className="w-6 h-6 mr-3 animate-spin text-brand-gold flex-shrink-0" aria-hidden="true" />
@@ -261,7 +262,7 @@ const DeviceScanScreen = memo(({ onClose, onAsk, onOpenTickets }: Props) => {
   );
 
   const found = (
-    <section className="min-w-0" data-device-scan-found="">
+    <section className="min-w-0" data-device-scan-found="" data-howto="ds.found">
       <h2 className="text-base font-bold text-white/90 mb-2">{t('deviceScan.found')}</h2>
       {rating && AREAS.map((area) => {
         const lines = rating.findings.filter((f) => f.area === area);
@@ -307,7 +308,7 @@ const DeviceScanScreen = memo(({ onClose, onAsk, onOpenTickets }: Props) => {
 
   let pickIndex = -1;
   const suggestions = (
-    <section className="min-w-0" data-device-scan-picks="">
+    <section className="min-w-0" data-device-scan-picks="" data-howto="ds.picks">
       <h2 className="text-base font-bold text-white/90 mb-2">{t('deviceScan.picks.title')}</h2>
       {groups.length === 0 && <p className="text-sm text-white/70 px-1">{t('deviceScan.picks.none')}</p>}
       {groups.map((g) => (

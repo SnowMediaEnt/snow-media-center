@@ -12,6 +12,16 @@ export const DEMO_NAME = 'Alex Demo';
 /** The fixed moment every picture is taken at (Sun 4 Oct 2026, 19:30 in New York). */
 export const CAPTURE_TIME = new Date('2026-10-04T19:30:00-04:00');
 
+/** The Live TV line the box is signed into (the demo line, data/liveTvDemo),
+ *  as CredentialsForm stores it after a sign-in: My Account, the Dashboard
+ *  and Settings › My account show it. Everything made up. */
+export const PLAYER_ACCOUNT = {
+  serverLabel: 'Dreamstreams', host: 'demo://livetv', username: 'DEMO ACCOUNT', password: 'demo', output: 'm3u8',
+  expDate: Math.floor(CAPTURE_TIME.getTime() / 1000) + 212 * 86400, status: 'Active', isTrial: false,
+  maxConnections: 2, activeCons: 1, createdAt: Math.floor(CAPTURE_TIME.getTime() / 1000) - 150 * 86400,
+  lastCheckedAt: CAPTURE_TIME.getTime() - 3600_000,
+};
+
 const b64url = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 
 /** The Supabase session of the made-up account (never valid anywhere). */
@@ -70,6 +80,10 @@ export function seedFor(lang, opts = {}) {
     [`smc-profiles-v1:${acc}`]: JSON.stringify(PROFILES),
     [`smc-profiles-pulled:${acc}`]: '1',
     [`smc-last-profile:${acc}`]: 'main',
+    'snow-player-account-v1': JSON.stringify(PLAYER_ACCOUNT),
+    // A Parent PIN already made (2468; sha256 of smc-pin:<account>:__parent__:<pin>),
+    // so "Who's watching?" opens without asking a grown-up to create one.
+    [`smc-parent-pin:${acc}`]: JSON.stringify({ h: 'e6beb27bcfb183c4b1ff5be1497fb596d728c059570d008f102bc364b299ff14', base: null, up: true, known: true }),
     // A second service beside the demo line (which Live TV adds itself), so
     // Live TV shows two services in one list. The host must not be demo://.
     'snow-livetv-saved-accounts-v1': JSON.stringify([

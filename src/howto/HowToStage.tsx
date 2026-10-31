@@ -24,14 +24,14 @@ import PlexAuthScreen from '@/components/livetv/PlexAuthScreen';
 import PlexPlayerOverlay, { type PlayerPrompt } from '@/components/livetv/PlexPlayerOverlay';
 import { liveBarOrder } from '@/components/livetv/liveBar';
 import {
-  STAGE_AUDIO, STAGE_CATEGORY, STAGE_PLEX, STAGE_PLEX_CODE, STAGE_SUBS, makeStageController, stageChannel,
+  STAGE_AUDIO, STAGE_CATEGORY, STAGE_PLEX, STAGE_PLEX_CODE, STAGE_SUBS, STAGE_VOD, makeStageController, stageChannel,
   stageChannelLogo, stageNowNext, stageProgrammes,
 } from './stageFixtures';
 
 /** The shots this page draws (table 1c: "stage"). */
 const STAGE_SHOTS = [
   'live-signin', 'live-holdmenu', 'live-report', 'live-player', 'live-record', 'guide-record', 'recordings', 'multi',
-  'plex-connect', 'plex-link', 'plex-player', 'plex-upnext', 'plex-subs', 'plex-audio',
+  'vod-holdmenu', 'plex-connect', 'plex-link', 'plex-player', 'plex-upnext', 'plex-subs', 'plex-audio',
 ] as const satisfies readonly ShotId[];
 type StageShot = (typeof STAGE_SHOTS)[number];
 
@@ -179,6 +179,22 @@ const Stage = ({ shot, bg }: { shot: StageShot; bg: string | null }) => {
         </LiveContent>
       );
 
+    case 'vod-holdmenu':
+      // A film's options (held OK on a poster in VOD): Report a problem, Cancel.
+      return (
+        <div className="relative w-full h-screen overflow-hidden">
+          <Backdrop src={bg} />
+          <ReportChannelDialog
+            kind="movie"
+            channelName={STAGE_VOD.title}
+            channelId={STAGE_VOD.streamId}
+            categoryName={STAGE_VOD.category}
+            line={DEMO_LIVE_CREDS}
+            onClose={noop}
+          />
+        </div>
+      );
+
     case 'plex-connect':
     case 'plex-link':
       return (
@@ -222,6 +238,8 @@ const Stage = ({ shot, bg }: { shot: StageShot; bg: string | null }) => {
             volume={0.8}
             onChangeVolume={noop}
             prompt={prompt}
+            // The bar's Next episode button, as near the end of an episode.
+            nextAction={shot === 'plex-player' ? { detail: STAGE_PLEX.next, run: noop } : null}
             // Paused keeps the control bar up without a key (Up next: the prompt alone).
             paused={shot !== 'plex-upnext'}
           />

@@ -38,7 +38,7 @@ vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: h.toast }) }));
 vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: null }) }));
 vi.mock('@/hooks/useBillingEnabled', () => ({ useBillingEnabled: () => true }));
 vi.mock('@/hooks/useFeatureFlag', () => ({ useFeatureFlag: () => ({ enabled: false }) }));
-vi.mock('@/lib/demoMode', () => ({ isDemo: () => h.demo }));
+vi.mock('@/lib/demoMode', () => ({ isDemo: () => h.demo, isHowtoCapture: () => false }));
 vi.mock('@/lib/playerLogin', () => ({ tryPlayerBridge: h.bridge }));
 vi.mock('@/lib/playerAccountSync', () => ({ syncPlayerAccountToCloud: vi.fn() }));
 vi.mock('@/lib/playerSigninCapture', () => ({ capturePlayerSignin: h.capture }));
