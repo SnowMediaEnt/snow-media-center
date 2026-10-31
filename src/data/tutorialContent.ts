@@ -70,7 +70,8 @@ import type { HowtoArt, HowtoHighlight, RemoteHint, ShotId } from '@/data/howtoC
 // text follows the language. The pictures are named in howtoContract.ts; a highlight's
 // label is guides.howTo.labels.<labelId>.
 export type TutorialDeepLink =
-  | { kind: 'view'; view: string; labelKey: string }
+  /** `settingsPage`: Settings opens on that page (its INTENT_KEYS.settings value). */
+  | { kind: 'view'; view: string; labelKey: string; settingsPage?: string }
   | { kind: 'event'; event: string; labelKey: string }
   /** Straight into Live TV or Plex, as Home's cards open them. */
   | { kind: 'player'; section: 'live' | 'movies'; labelKey: string };
@@ -94,7 +95,7 @@ export interface TutorialChapter {
 }
 
 type LinkSpec =
-  | { kind: 'view'; view: string }
+  | { kind: 'view'; view: string; settingsPage?: string }
   | { kind: 'event'; event: string }
   | { kind: 'player'; section: 'live' | 'movies' };
 
@@ -129,14 +130,14 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
     color: 'bg-cyan-700/60 border-cyan-400/70 text-cyan-100',
     slides: [
       slide('basics', 'remote', Gamepad2, 'remote', [h('remote.arrows', 'move'), h('remote.ok', 'okHold'), h('remote.back', 'back')], { line2: true }),
-      slide('basics', 'phone', Smartphone, 'settings-remote', [h('set.remoteQr', 'scanPhone'), h('set.remoteCode', 'orCode')], { line2: true, link: { kind: 'view', view: 'settings' } }),
+      slide('basics', 'phone', Smartphone, 'settings-remote', [h('set.remoteQr', 'scanPhone'), h('set.remoteCode', 'orCode')], { line2: true, link: { kind: 'view', view: 'settings', settingsPage: 'remote' } }),
       slide('basics', 'home', Home, 'home', [h('home.cardLivetv', 'liveTv'), h('home.cardPlex', 'plexVod'), h('home.cardSupport', 'help')], { line2: true }),
       slide('basics', 'topbar', Settings, 'home', [h('home.clock', 'dateTime'), h('home.profile', 'whoWatching'), h('home.settings', 'settings')], { line2: true, remote: 'upDown' }),
       slide('basics', 'dashVoice', Mic, 'home', [h('home.dashboard', 'dashboard'), h('home.voice', 'voice')], { line2: true }),
       slide('basics', 'ticker', Newspaper, 'home', [h('home.ticker', 'news')], { line2: true }),
       slide('basics', 'recommended', Film, 'home-bar', [h('home.recTile', 'okPlays'), h('home.recArrows', 'more'), h('home.recDots', 'pages')], { line2: true, remote: 'leftRight' }),
       slide('basics', 'customize', Move, 'home-tilemenu', [h('home.tileMove', 'move'), h('home.tileChange', 'changeShortcut'), h('home.tileReset', 'reset')], { line2: true, remote: 'holdOk' }),
-      slide('basics', 'homeScreen', LayoutPanelLeft, 'settings-home', [h('set.contentBar', 'contentBar'), h('set.barSource', 'showFrom'), h('set.barShow', 'show')], { line2: true, link: { kind: 'view', view: 'settings' } }),
+      slide('basics', 'homeScreen', LayoutPanelLeft, 'settings-home', [h('set.contentBar', 'contentBar'), h('set.barSource', 'showFrom'), h('set.barShow', 'show')], { line2: true, link: { kind: 'view', view: 'settings', settingsPage: 'home' } }),
     ],
   },
   {
@@ -289,7 +290,7 @@ export const TUTORIAL_CHAPTERS: TutorialChapter[] = [
     color: 'bg-emerald-700/60 border-emerald-400/70 text-emerald-100',
     slides: [
       slide('extras', 'layout', LayoutPanelLeft, 'settings-ui', [h('set.tabs', 'menu'), h('set.page', 'itsPage')], { line2: true, remote: 'leftRight', link: { kind: 'view', view: 'settings' } }),
-      slide('extras', 'language', Languages, 'settings-language', [h('set.language', 'language')], { line2: true, link: { kind: 'view', view: 'settings' } }),
+      slide('extras', 'language', Languages, 'settings-language', [h('set.language', 'language')], { line2: true, link: { kind: 'view', view: 'settings', settingsPage: 'language' } }),
       slide('extras', 'wallpaper', Palette, 'settings-media', [h('set.wallpaper', 'wallpaper')], { line2: true }),
       slide('extras', 'switches', ToggleRight, 'settings-switches', [h('set.homeRow', 'homeScreen'), h('set.postNotify', 'postAlerts'), h('set.alerts', 'serviceAlerts')], { line2: true }),
       slide('extras', 'profiles', Users, 'profiles-pick', [h('prof.list', 'profiles'), h('prof.manage', 'manage')], { line2: true }),

@@ -422,7 +422,7 @@ const Support = ({ onBack, onNavigate }: SupportProps) => {
     const openCleaner = () => { if (kids) return; setTab('help'); setHelpView('cleaner'); };
     const openPosts = () => { if (kids) return; setChildFocusActive(false); setTab('mail'); };
     // The How-to guide's "Open it" on the Device check slide (not on a Kids profile: no card).
-    const openDevice = () => { if (kids) return; setTab('help'); setHelpView('menu'); setShowDevice(true); };
+    const openDevice = () => { if (kids) return; try { trackEvent('device_scan_launch', 'tools'); } catch { void 0; } setTab('help'); setHelpView('menu'); setShowDevice(true); };
     window.addEventListener('support:focus-tab', handler as EventListener);
     window.addEventListener('support:open-device', openDevice);
     window.addEventListener('support:open-tickets', openTickets);

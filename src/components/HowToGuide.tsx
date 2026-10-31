@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { ArrowLeft, ArrowRight, Check, X, ChevronRight, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { openPlayerSection } from '@/lib/appActions';
+import { openPlayerSection, INTENT_KEYS } from '@/lib/appActions';
 import { TUTORIAL_CHAPTERS, type TutorialChapter, type TutorialDeepLink } from '@/data/tutorialContent';
 import { trackEvent } from '@/lib/analytics';
 import { kidsLevel } from '@/lib/kidsFilter';
@@ -102,6 +102,8 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
     onClose();
     setTimeout(() => {
       if (dl.kind === 'view') {
+        // On the page the slide shows (Settings › Home screen), not Settings' first row.
+        if (dl.settingsPage) { try { sessionStorage.setItem(INTENT_KEYS.settings, dl.settingsPage); } catch { void 0; } }
         onNavigate?.(dl.view);
       } else if (dl.kind === 'player') {
         if (onNavigate) openPlayerSection(dl.section, onNavigate);
@@ -361,7 +363,7 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
                   <div className="mt-3 flex flex-wrap items-center" data-howto-legend="">
                     {highlights.slice(0, 3).map((h, i) => (
                       <span key={h.id} className="inline-flex items-center mr-3 mb-1 text-sm text-white/90">
-                        <span className="w-5 h-5 rounded-full bg-brand-gold text-brand-navy text-xs font-extrabold flex items-center justify-center mr-1.5">{i + 1}</span>
+                        <span className="w-5 h-5 rounded-full border border-brand-gold text-brand-gold text-xs font-extrabold flex items-center justify-center mr-1.5">{i + 1}</span>
                         <span dir="auto">{t(h.labelKey)}</span>
                       </span>
                     ))}
@@ -417,7 +419,7 @@ const HowToGuide = ({ onClose, onNavigate }: HowToGuideProps) => {
                 onFocus={() => setFooterFocus(1)}
                 tabIndex={-1}
                 data-focused={footerFocus === 1 ? 'true' : 'false'}
-                className={`${BTN} min-w-[7rem] border-brand-gold/60`}
+                className={`${BTN} min-w-[7rem]`}
               >
                 {isLast ? t('guides.howTo.doneBtn') : t('guides.howTo.nextBtn')}
                 {!isLast && <ArrowRight className="w-4 h-4 ml-2" />}
