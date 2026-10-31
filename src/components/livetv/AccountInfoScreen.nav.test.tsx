@@ -14,7 +14,7 @@ vi.mock('@/hooks/usePlayerAccount', () => ({
     days: 30,
   }),
 }));
-vi.mock('@/lib/demoMode', () => ({ isDemo: () => h.demo }));
+vi.mock('@/lib/demoMode', () => ({ isDemo: () => h.demo, isHowtoCapture: () => false }));
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn() }));
 vi.mock('./RenewQR', () => ({ default: () => <div data-testid="renew-qr" /> }));
 // Is this line one of the billing account's services? (asked when Renew is pressed with billing on)
